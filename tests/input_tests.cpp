@@ -182,19 +182,46 @@ bool fuzz_input_parser(const std::string& seed, const std::string& path) {
     return check(remove_status == 0, "deterministic parser fuzz mutations complete safely");
 }
 
-bool run_tests(const std::string& steady_path,
-    const std::string& transient_path,
-    const std::string& finite_strain_path,
-    const std::string& scaled_displacement_path,
-    const std::string& traction_path,
-    const std::string& c3d8rt_path,
-    const std::string& malformed_path) {
-    const fuelsim::FuelSimCaseDefinition steady = fuelsim::read_case_input(steady_path);
-    const fuelsim::FuelSimCaseDefinition transient = fuelsim::read_case_input(transient_path);
-    const fuelsim::FuelSimCaseDefinition finite_strain = fuelsim::read_case_input(finite_strain_path);
-    const fuelsim::FuelSimCaseDefinition scaled_displacement = fuelsim::read_case_input(scaled_displacement_path);
-    const fuelsim::FuelSimCaseDefinition traction = fuelsim::read_case_input(traction_path);
-    const fuelsim::FuelSimCaseDefinition c3d8rt = fuelsim::read_case_input(c3d8rt_path);
+bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, const std::string& malformed_path) {
+    const std::string transient_text = read_text(input_path);
+    const auto replace_all = [](std::string& text, const std::string& from, const std::string& to) {
+        std::size_t position = 0;
+        while ((position = text.find(from, position)) != std::string::npos) {
+            text.replace(position, from.size(), to);
+            position += to.size();
+        }
+    };
+    const auto parse_mutation = [&](const std::string& text) {
+        {
+            std::ofstream output(malformed_path);
+            output << text;
+        }
+        return fuelsim::read_case_input(malformed_path);
+    };
+    std::string steady_text = transient_text;
+    replace_all(steady_text, "problem = transient", "problem = steady");
+    const auto execution_begin = steady_text.find("[Executioner]");
+    steady_text.replace(execution_begin,
+        steady_text.find("[Solver]", execution_begin) - execution_begin,
+        "[Executioner]\n  type = steady\n  load_steps = 20\n[]\n\n");
+    replace_all(steady_text, "maximum_iterations = 80", "maximum_iterations = 50");
+    steady_text.insert(steady_text.find("  console = true"), "  csv = steady_fuel_cladding_summary.csv\n");
+    std::string finite_text = transient_text;
+    replace_all(finite_text, "strain = small", "strain = finite");
+    std::string displacement_text = transient_text;
+    replace_all(displacement_text, "block = fuel", "block_id = 0");
+    const std::string extra_boundary =
+        "  [top_load]\n    type = dirichlet\n    boundary = fuel_top\n"
+        "    field = axial_displacement\n    value = 2e-6\n    scale_with_load = true\n  []\n";
+    displacement_text.insert(displacement_text.rfind("[]", displacement_text.find("[Executioner]")), extra_boundary);
+    std::string traction_text = displacement_text;
+    replace_all(traction_text, "[top_load]\n    type = dirichlet", "[top_load]\n    type = traction");
+    const auto steady = parse_mutation(steady_text);
+    const auto transient = fuelsim::read_case_input(input_path);
+    const auto finite_strain = parse_mutation(finite_text);
+    const auto scaled_displacement = parse_mutation(displacement_text);
+    const auto traction = parse_mutation(traction_text);
+    const auto c3d8rt = fuelsim::read_case_input(c3d8rt_path);
     bool passed =
         check(steady.version == 3 && steady.problem == fuelsim::CaseProblem::steady
                   && steady.geometry == fuelsim::CaseGeometry::axisymmetric_rz,
@@ -234,7 +261,7 @@ bool run_tests(const std::string& steady_path,
                      && transient.solver.maximum_iterations == 80,
             "transient execution keeps time-error control opt-in and "
             "parses ramp and solver fields")
-        && check(scaled_displacement.spatial.regions.size() == 1 && scaled_displacement.spatial.regions[0].block.empty()
+        && check(scaled_displacement.spatial.regions.size() == 2 && scaled_displacement.spatial.regions[0].block.empty()
                      && scaled_displacement.spatial.regions[0].block_id == 0
                      && scaled_displacement.spatial.boundary_conditions.back().scale_with_load,
             "block ID and scaled displacement are parsed")
@@ -248,7 +275,7 @@ bool run_tests(const std::string& steady_path,
                      && c3d8rt.spatial.regions.front().hex8_element_formulation
                             == fuelsim::Hex8ElementFormulation::c3d8rt,
             "C3D8RT reduced-integration HEX8 formulation is parsed explicitly");
-    std::string disabled_thermal_time_case = read_text(transient_path);
+    std::string disabled_thermal_time_case = transient_text;
     const std::string load_ramp_line = "  load_ramp_time = 20\n";
     const std::size_t load_ramp_position = disabled_thermal_time_case.find(load_ramp_line);
     if (load_ramp_position == std::string::npos)
@@ -278,7 +305,7 @@ bool run_tests(const std::string& steady_path,
             {"density", "kg/m^3"},
             {"specific_heat", "J/(kg*K)"}},
         &registered_test_thermal);
-    std::string registered_case = read_text(steady_path);
+    std::string registered_case = steady_text;
     const std::string builtin_thermal = "function = inverse_temperature_thermophysical";
     const std::size_t builtin_thermal_position = registered_case.find(builtin_thermal);
     if (builtin_thermal_position == std::string::npos)
@@ -304,7 +331,7 @@ bool run_tests(const std::string& steady_path,
     if (std::remove(malformed_path.c_str()) != 0)
         return check(false, "could not remove registered material input fixture");
     std::string missing_material_parameter = registered_case;
-    const std::string density_line = "      density = 1\n";
+    const std::string density_line = "      density = 10970\n";
     const std::size_t density_position = missing_material_parameter.find(density_line);
     if (density_position == std::string::npos)
         return check(false, "registered material fixture has a named density parameter");
@@ -314,15 +341,15 @@ bool run_tests(const std::string& steady_path,
                  custom_registry,
                  "missing required key 'density'")
              && passed;
-    std::string unknown_key_case = read_text(steady_path);
+    std::string unknown_key_case = steady_text;
     const std::string console = "console = true";
     const std::size_t console_position = unknown_key_case.find(console);
     if (console_position == std::string::npos)
         return check(false, "steady fixture has the expected console key");
     unknown_key_case.replace(console_position, console.size(), "mystery = true");
     passed = expect_case_failure(malformed_path, unknown_key_case, "unknown key 'mystery'") && passed;
-    std::string affine_gap_heat_case = read_text(steady_path);
-    const std::string gas_gap_properties = "      gap_conductivity = 0.4\n      minimum_gap = 1e-6";
+    std::string affine_gap_heat_case = steady_text;
+    const std::string gas_gap_properties = "      gap_conductivity = 0.4\n      minimum_gap = 2e-6";
     const std::size_t gas_gap_position = affine_gap_heat_case.find(gas_gap_properties);
     if (gas_gap_position == std::string::npos)
         return check(false, "steady fixture has the gas-gap thermal contact properties");
@@ -374,7 +401,7 @@ bool run_tests(const std::string& steady_path,
                  pressure_with_augmented_contact,
                  "pressure-dependent thermal contact requires formulation = penalty")
              && passed;
-    std::string nts_heat_case = read_text(steady_path);
+    std::string nts_heat_case = steady_text;
     const std::string thermal_section = "    [thermal]\n";
     const auto thermal_position = nts_heat_case.find(thermal_section, nts_heat_case.find("[Contact]"));
     if (thermal_position == std::string::npos)
@@ -395,7 +422,7 @@ bool run_tests(const std::string& steady_path,
                  nts_heat_case,
                  "node_to_surface thermal contact currently requires axisymmetric_rz")
              && passed;
-    std::string friction_case = read_text(steady_path);
+    std::string friction_case = steady_text;
     const std::string contact_penalty = "penalty = 1e14";
     const std::size_t contact_penalty_position = friction_case.find(contact_penalty);
     if (contact_penalty_position == std::string::npos)
@@ -466,7 +493,7 @@ bool run_tests(const std::string& steady_path,
                        == fuelsim::Hex20ElementFormulation::c3d20rt,
                  "Cartesian input selects C3D20RT reduced integration")
              && passed;
-    std::string cax4t_case = read_text(steady_path);
+    std::string cax4t_case = steady_text;
     cax4t_case.insert(cax4t_case.find("    strain ="), "    element = cax4t\n");
     {
         std::ofstream output(malformed_path);
@@ -478,7 +505,7 @@ bool run_tests(const std::string& steady_path,
              && passed;
     cax4t_case.replace(cax4t_case.find("axisymmetric_rz"), 15, "cartesian_3d");
     passed = expect_case_failure(malformed_path, cax4t_case, "unknown Cartesian element 'cax4t'") && passed;
-    std::string cax4rt_case = read_text(steady_path);
+    std::string cax4rt_case = steady_text;
     cax4rt_case.insert(cax4rt_case.find("    strain ="), "    element = cax4rt\n");
     {
         std::ofstream output(malformed_path);
@@ -491,7 +518,7 @@ bool run_tests(const std::string& steady_path,
     cax4rt_case.replace(cax4rt_case.find("axisymmetric_rz"), 15, "cartesian_3d");
     passed = expect_case_failure(malformed_path, cax4rt_case, "unknown Cartesian element 'cax4rt'") && passed;
     for (const auto& element : {std::string("cax8t"), std::string("cax8rt")}) {
-        std::string quadratic_case = read_text(steady_path);
+        std::string quadratic_case = steady_text;
         quadratic_case.insert(quadratic_case.find("    strain ="), "    element = " + element + "\n");
         {
             std::ofstream output(malformed_path);
@@ -506,7 +533,7 @@ bool run_tests(const std::string& steady_path,
         bool rejected = false;
         try {
             const fuelsim::SteadyProblem invalid(quadratic.spatial,
-                fuelsim::read_exodus_quad4(fuelsim::read_case_input(steady_path).mesh_file));
+                fuelsim::read_exodus_quad4(fuelsim::read_case_input(input_path).mesh_file));
         } catch (const std::invalid_argument& error) {
             rejected = std::string(error.what()) == "CAX8T and CAX8RT require a QUAD8 mesh";
         }
@@ -515,7 +542,7 @@ bool run_tests(const std::string& steady_path,
         passed = expect_case_failure(malformed_path, quadratic_case, "unknown Cartesian element '" + element + "'")
                  && passed;
     }
-    std::string missing_friction_slip_tolerance_case = read_text(steady_path);
+    std::string missing_friction_slip_tolerance_case = steady_text;
     missing_friction_slip_tolerance_case.insert(missing_friction_slip_tolerance_case.find(contact_penalty)
                                                     + contact_penalty.size(),
         "\n      slip_tolerance = 1e-8");
@@ -556,7 +583,7 @@ bool run_tests(const std::string& steady_path,
                  invalid_area_case,
                  "quad8_nodal_area_rule must be 'positive_lumped' or 'consistent_shape'")
              && passed;
-    std::string automatic_penalty_case = read_text(steady_path);
+    std::string automatic_penalty_case = steady_text;
     const std::string contact_penalty_line = "      penalty = 1e14\n";
     const std::size_t automatic_penalty_position = automatic_penalty_case.find(contact_penalty_line);
     if (automatic_penalty_position == std::string::npos)
@@ -574,12 +601,12 @@ bool run_tests(const std::string& steady_path,
                  "omitting penalty selects the documented automatic "
                  "contact factor")
              && passed;
-    const fuelsim::FuelSimCaseDefinition explicit_penalty = fuelsim::read_case_input(steady_path);
+    const fuelsim::FuelSimCaseDefinition explicit_penalty = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh automatic_penalty_mesh =
         fuelsim::read_exodus_quad4(explicit_penalty.mesh_file);
     const fuelsim::SteadyProblem automatic_penalty_problem(automatic_penalty.spatial, automatic_penalty_mesh);
-    const double fuel_normal_length = 0.00412 / 40.0;
-    const double clad_normal_length = (0.004692 - 0.004122) / 6.0;
+    const double fuel_normal_length = 0.00412 / 6.0;
+    const double clad_normal_length = (0.004692 - 0.004121) / 2.0;
     const double expected_automatic_penalty = 1.0 / (fuel_normal_length / 2.0e11 + clad_normal_length / 7.5e10);
     const double resolved_automatic_penalty =
         fuelsim::BackendAccess::steady(automatic_penalty_problem).spatial.definition().contacts[0].penalty;
@@ -587,7 +614,7 @@ bool run_tests(const std::string& steady_path,
         check(std::abs(resolved_automatic_penalty - expected_automatic_penalty) < 1.0e-12 * expected_automatic_penalty,
             "automatic contact penalty uses the two-sided normal compliance")
         && passed;
-    std::string augmented_case = read_text(steady_path);
+    std::string augmented_case = steady_text;
     const std::string penalty_formulation = "formulation = penalty";
     const std::size_t formulation_position = augmented_case.find(penalty_formulation);
     if (formulation_position == std::string::npos)
@@ -611,11 +638,11 @@ bool run_tests(const std::string& steady_path,
                  "augmented contact tolerance and iteration limit are "
                  "parsed")
              && passed;
-    std::string ambiguous_penalty_case = read_text(steady_path);
+    std::string ambiguous_penalty_case = steady_text;
     ambiguous_penalty_case.insert(ambiguous_penalty_case.find(contact_penalty) + contact_penalty.size(),
         "\n      penalty_factor = 10");
     passed = expect_case_failure(malformed_path, ambiguous_penalty_case, "mutually exclusive") && passed;
-    std::string negative_friction_case = read_text(steady_path);
+    std::string negative_friction_case = steady_text;
     negative_friction_case.insert(negative_friction_case.find(contact_penalty) + contact_penalty.size(),
         "\n      mu = -0.1");
     {
@@ -630,28 +657,28 @@ bool run_tests(const std::string& steady_path,
              && passed;
     if (std::remove(malformed_path.c_str()) != 0)
         return check(false, "could not remove trusted-value fixture");
-    std::string invalid_material_case = read_text(transient_path);
+    std::string invalid_material_case = transient_text;
     const std::string elastic_model = "function = constant_isotropic";
     const std::size_t model_position = invalid_material_case.find(elastic_model);
     if (model_position == std::string::npos)
         return check(false, "transient fixture has the fuel elasticity function");
     invalid_material_case.insert(model_position + elastic_model.size(), "\n      yield_stress = 1e8");
     passed = expect_case_failure(malformed_path, invalid_material_case, "unknown key 'yield_stress'") && passed;
-    std::string invalid_strain_case = read_text(finite_strain_path);
+    std::string invalid_strain_case = finite_text;
     const std::string finite_strain_key = "strain = finite";
     const std::size_t strain_position = invalid_strain_case.find(finite_strain_key);
     if (strain_position == std::string::npos)
         return check(false, "finite fixture has the expected strain key");
     invalid_strain_case.replace(strain_position, finite_strain_key.size(), "strain = large");
     passed = expect_case_failure(malformed_path, invalid_strain_case, "unknown strain formulation 'large'") && passed;
-    std::string missing_strain_case = read_text(steady_path);
+    std::string missing_strain_case = steady_text;
     const std::string small_strain_line = "    strain = small\n";
     const std::size_t small_strain_position = missing_strain_case.find(small_strain_line);
     if (small_strain_position == std::string::npos)
         return check(false, "steady fixture has the expected strain key");
     missing_strain_case.erase(small_strain_position, small_strain_line.size());
     passed = expect_case_failure(malformed_path, missing_strain_case, "missing required key 'strain'") && passed;
-    std::string no_contact_case = read_text(steady_path);
+    std::string no_contact_case = steady_text;
     const std::size_t contact_begin = no_contact_case.find("[Contact]\n");
     const std::size_t boundary_begin = no_contact_case.find("[BoundaryConditions]", contact_begin);
     if (contact_begin == std::string::npos || boundary_begin == std::string::npos)
@@ -665,7 +692,7 @@ bool run_tests(const std::string& steady_path,
     }
     const fuelsim::FuelSimCaseDefinition no_contact = fuelsim::read_case_input(malformed_path);
     passed = check(no_contact.spatial.contacts.empty(), "omitting [Contact] produces no contact pairs") && passed;
-    std::string default_optional_sections = read_text(steady_path);
+    std::string default_optional_sections = steady_text;
     const auto erase_section = [](std::string& input, const std::string& section, const std::string& following) {
         const std::size_t begin = input.find("[" + section + "]\n");
         const std::size_t end = input.find("[" + following + "]", begin);
@@ -697,14 +724,14 @@ bool run_tests(const std::string& steady_path,
                        && defaults.outputs.checkpoint_interval == 1,
                  "omitting boundary, solver, and output sections selects documented defaults")
              && passed;
-    std::string block_contact_case = read_text(steady_path);
+    std::string block_contact_case = steady_text;
     const std::string primary = "primary = clad_left";
     const std::size_t primary_position = block_contact_case.find(primary);
     if (primary_position == std::string::npos)
         return check(false, "steady fixture has the expected primary key");
     block_contact_case.insert(primary_position, "primary_block = clad\n    ");
     passed = expect_case_failure(malformed_path, block_contact_case, "unknown key 'primary_block'") && passed;
-    std::string m3_case = read_text(transient_path);
+    std::string m3_case = transient_text;
     m3_case.insert(0,
         "[TimeFunctions]\n  [power]\n    type = "
         "piecewise_linear\n    times = 0 2 5\n    values = 0 1 "
@@ -830,7 +857,7 @@ bool run_tests(const std::string& steady_path,
     invalid_predictor_lag.replace(predictor_lag_position, valid_predictor_lag.size(), "predictor_jacobian_lag = -1");
     passed =
         expect_case_failure(malformed_path, invalid_predictor_lag, "requires a nonnegative integer value") && passed;
-    std::string direct_mumps_case = read_text(steady_path);
+    std::string direct_mumps_case = steady_text;
     const std::size_t direct_mumps_solver = direct_mumps_case.find(solver_start);
     if (direct_mumps_solver == std::string::npos)
         return check(false, "steady fixture has a solver section");
@@ -864,7 +891,7 @@ bool run_tests(const std::string& steady_path,
         valid_mumps_ordering.size(),
         "mumps_ordering = nested_dissection");
     passed = expect_case_failure(malformed_path, invalid_mumps_ordering, "mumps_ordering must be") && passed;
-    std::string fixed_scaling_case = read_text(transient_path);
+    std::string fixed_scaling_case = transient_text;
     const std::size_t fixed_scaling_solver = fixed_scaling_case.find(solver_start);
     if (fixed_scaling_solver == std::string::npos)
         return check(false, "transient fixture has a solver section");
@@ -884,7 +911,7 @@ bool run_tests(const std::string& steady_path,
              && passed;
     if (std::remove(malformed_path.c_str()) != 0)
         return check(false, "could not remove fixed-scale input fixture");
-    std::string current_traction_case = read_text(traction_path);
+    std::string current_traction_case = traction_text;
     const std::string traction_type = "type = traction";
     const std::size_t traction_type_position = current_traction_case.find(traction_type);
     if (traction_type_position == std::string::npos)
@@ -903,12 +930,12 @@ bool run_tests(const std::string& steady_path,
              && passed;
     if (std::remove(malformed_path.c_str()) != 0)
         return check(false, "could not remove current-traction input fixture");
-    std::string invalid_configuration = read_text(traction_path);
+    std::string invalid_configuration = traction_text;
     const std::size_t invalid_configuration_position = invalid_configuration.find(traction_type);
     invalid_configuration.insert(invalid_configuration_position + traction_type.size(),
         "\n    configuration = rotating");
     passed = expect_case_failure(malformed_path, invalid_configuration, "must be reference or current") && passed;
-    std::string dirichlet_configuration = read_text(transient_path);
+    std::string dirichlet_configuration = transient_text;
     const std::string dirichlet_type = "type = dirichlet";
     const std::size_t dirichlet_position = dirichlet_configuration.find(dirichlet_type);
     if (dirichlet_position == std::string::npos)
@@ -998,7 +1025,7 @@ bool run_tests(const std::string& steady_path,
                  invalid_convection_configuration,
                  "convection configuration must be reference or current")
              && passed;
-    std::string unknown_function = read_text(transient_path);
+    std::string unknown_function = transient_text;
     const std::size_t unknown_heat_position = unknown_function.find(heat_source);
     unknown_function.insert(unknown_heat_position + heat_source.size(), "\n    heat_source_function = missing");
     passed = expect_case_failure(malformed_path, unknown_function, "unknown time function 'missing'") && passed;
@@ -1018,45 +1045,42 @@ bool run_tests(const std::string& steady_path,
         return check(false, "M3 fixture has time-table nodes");
     invalid_table.replace(valid_times_position, valid_times.size(), "times = 0 0 5");
     passed = expect_case_failure(malformed_path, invalid_table, "strictly increasing") && passed;
-    std::string orphan_interval = read_text(transient_path);
+    std::string orphan_interval = transient_text;
     const std::size_t orphan_output = orphan_interval.find(console);
     orphan_interval.insert(orphan_output + console.size(), "\n  checkpoint_interval = 2");
     passed = expect_case_failure(malformed_path, orphan_interval, "checkpoint_interval requires checkpoint") && passed;
-    std::string steady_checkpoint = read_text(steady_path);
+    std::string steady_checkpoint = steady_text;
     const std::size_t steady_output = steady_checkpoint.find(console);
     steady_checkpoint.insert(steady_output + console.size(), "\n  checkpoint = checkpoint.bin");
     passed = expect_case_failure(malformed_path, steady_checkpoint, "only valid for transient cases") && passed;
-    std::string mesh_overwrite = read_text(steady_path);
-    const std::string mesh_file = "file = ../../verification/moose/m1_fuel_cladding_gap_rz_mesh.e";
+    std::string mesh_overwrite = steady_text;
+    const std::string mesh_file = "file = ../../verification/moose/m23_pcmi_coupled_cladding_rz_mesh.e";
     const std::string summary_file = "csv = steady_fuel_cladding_summary.csv";
     const std::size_t mesh_output = mesh_overwrite.find(summary_file);
     if (mesh_overwrite.find(mesh_file) == std::string::npos || mesh_output == std::string::npos)
         return check(false, "steady fixture has expected mesh and output");
     mesh_overwrite.replace(mesh_output,
         summary_file.size(),
-        "csv = ../../verification/moose/m1_fuel_cladding_gap_rz_mesh.e");
+        "csv = ../../verification/moose/m23_pcmi_coupled_cladding_rz_mesh.e");
     passed = expect_case_failure(malformed_path, mesh_overwrite, "must not overwrite the input mesh") && passed;
-    std::string output_collision = read_text(transient_path);
+    std::string output_collision = transient_text;
     const std::size_t collision_output = output_collision.find(console);
     output_collision.insert(collision_output + console.size(),
         "\n  csv = collision.dat"
         "\n  checkpoint = collision.dat");
     passed = expect_case_failure(malformed_path, output_collision, "paths must differ") && passed;
-    passed = fuzz_input_parser(read_text(transient_path), malformed_path) && passed;
+    passed = fuzz_input_parser(transient_text, malformed_path) && passed;
     return passed;
 }
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 8) {
-        std::cerr << "Usage: fuelsim_input_tests <steady.fsi> "
-                     "<transient.fsi> <finite-strain.fsi> "
-                     "<scaled-displacement.fsi> "
-                     "<traction.fsi> <c3d8rt.fsi> <malformed.fsi>\n";
+    if (argc != 4) {
+        std::cerr << "Usage: fuelsim_input_tests <internal.fsi> <c3d8rt.fsi> <malformed.fsi>\n";
         return 2;
     }
     try {
-        if (!run_tests(argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]))
+        if (!run_tests(argv[1], argv[2], argv[3]))
             return 1;
         std::cout << "[PASS] fuelsim strict input-card tests\n";
         return 0;

@@ -457,7 +457,8 @@ int main(int argc, char** argv) {
         options.mechanical_residual_absolute_tolerance = definition.solver.mechanical_residual_absolute_tolerance;
         options.temperature_residual_scale = definition.solver.temperature_residual_scale;
         options.mechanical_residual_scale = definition.solver.mechanical_residual_scale;
-        if (definition.problem == fuelsim::CaseProblem::transient) {
+        if (mode == "write_transient" || mode == "compare_transient" || mode == "write_transient_integrated"
+            || mode == "compare_transient_integrated") {
             if (definition.geometry != fuelsim::CaseGeometry::axisymmetric_rz)
                 throw std::invalid_argument("Transient MPI benchmark currently requires axisymmetric RZ geometry");
             const fuelsim::UnstructuredQuad4Mesh source = fuelsim::read_exodus_quad4(definition.mesh_file);

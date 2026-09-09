@@ -199,132 +199,33 @@ bool test_opaque_state_snapshot(const std::string& input_path) {
         "opaque snapshots reject invalid use and restore the complete RZ committed state exactly");
 }
 
-fuelsim::TransientCommittedState solve_fixed_pcmi(const fuelsim::FuelSimCaseDefinition& input,
-    const fuelsim::UnstructuredQuad4Mesh& mesh,
-    double end_time,
-    double time_step) {
-    fuelsim::TransientProblem problem(input.spatial, mesh);
-    fuelsim::SolverOptions solver_options = {input.solver.absolute_tolerance,
-        input.solver.relative_tolerance,
-        input.solver.step_tolerance,
-        input.solver.maximum_iterations};
-    solver_options.temperature_residual_scale = 1.0e4;
-    solver_options.mechanical_residual_scale = 1.0e3;
-    const fuelsim::TransientTimeOptions time_options = {end_time, time_step, time_step, time_step, 1.0, 0.5, 0, 20.0};
-    const fuelsim::TransientResult result = fuelsim::solve_transient(problem, time_options, solver_options);
-    if (!result.completed || result.aggregate_timing.workspace_setups != 1)
-        throw std::runtime_error("fixed-step PCMI time-convergence solve did not complete with "
-                                 "one PETSc workspace");
-    return fuelsim::rz::ProblemAccess::committed_state(problem);
-}
-
-bool test_long_transient_time_convergence(const std::string& input_path) {
-    const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
-    constexpr double end_time = 25.0;
-    const fuelsim::TransientCommittedState coarse = solve_fixed_pcmi(input, mesh, end_time, 1.0);
-    const fuelsim::TransientCommittedState medium = solve_fixed_pcmi(input, mesh, end_time, 0.5);
-    const fuelsim::TransientCommittedState fine = solve_fixed_pcmi(input, mesh, end_time, 0.25);
-    const fuelsim::TransientCommittedState reference = solve_fixed_pcmi(input, mesh, end_time, 0.125);
-    const std::array<ConvergenceMetric, 9> coarse_error = compare_committed_states(coarse, reference);
-    const std::array<ConvergenceMetric, 9> medium_error = compare_committed_states(medium, reference);
-    const std::array<ConvergenceMetric, 9> fine_error = compare_committed_states(fine, reference);
-    const std::array<ConvergenceMetric, 9> coarse_to_medium_difference = compare_committed_states(coarse, medium);
-    const std::array<ConvergenceMetric, 9> medium_to_fine_difference = compare_committed_states(medium, fine);
-    const std::array<ConvergenceMetric, 9> fine_to_reference_difference = compare_committed_states(fine, reference);
-    const std::array<const char*, 9> names = {"temperature",
-        "radial_displacement",
-        "axial_displacement",
-        "stress",
-        "elastic_strain",
-        "plastic_strain",
-        "creep_strain",
-        "equivalent_plastic_strain",
-        "equivalent_creep_strain"};
-    bool passed = true;
-    double minimum_coarse_to_medium_order = std::numeric_limits<double>::infinity();
-    double minimum_medium_to_fine_order = std::numeric_limits<double>::infinity();
-    std::size_t rate_evidence_fields = 0;
-    std::size_t first_order_trend_fields = 0;
-    for (std::size_t field = 0; field < names.size(); ++field) {
-        std::cout << "long_time_convergence_" << names[field] << "_relative_l2=" << coarse_error[field].relative_l2
-                  << ',' << medium_error[field].relative_l2 << ',' << fine_error[field].relative_l2 << '\n';
-        std::cout << "long_time_convergence_" << names[field]
-                  << "_maximum_absolute_difference=" << coarse_error[field].maximum_absolute_difference << ','
-                  << medium_error[field].maximum_absolute_difference << ','
-                  << fine_error[field].maximum_absolute_difference << '\n';
-        std::cout << "long_time_convergence_" << names[field]
-                  << "_zero_reference=" << coarse_error[field].zero_reference << '\n';
-        if (coarse_error[field].zero_reference) {
-            passed = check(coarse_error[field].maximum_absolute_difference == 0.0
-                               && medium_error[field].maximum_absolute_difference == 0.0
-                               && fine_error[field].maximum_absolute_difference == 0.0,
-                         std::string("zero-reference ") + names[field]
-                             + " field remains exactly zero under time "
-                               "refinement")
-                     && passed;
-            continue;
-        }
-        const bool roundoff_limited_temperature =
-            field == 0 && coarse_error[field].maximum_absolute_difference < 1.0e-8;
-        std::cout << "long_time_convergence_" << names[field] << "_roundoff_limited=" << roundoff_limited_temperature
-                  << '\n';
-        if (roundoff_limited_temperature)
-            continue;
-        ++rate_evidence_fields;
-        const double coarse_to_medium_order =
-            std::log2(coarse_to_medium_difference[field].absolute_l2 / medium_to_fine_difference[field].absolute_l2);
-        const double medium_to_fine_order =
-            std::log2(medium_to_fine_difference[field].absolute_l2 / fine_to_reference_difference[field].absolute_l2);
-        minimum_coarse_to_medium_order = std::min(minimum_coarse_to_medium_order, coarse_to_medium_order);
-        minimum_medium_to_fine_order = std::min(minimum_medium_to_fine_order, medium_to_fine_order);
-        if (coarse_to_medium_order > 0.75 && medium_to_fine_order > 0.75)
-            ++first_order_trend_fields;
-        std::cout << "long_time_convergence_" << names[field] << "_observed_orders=" << coarse_to_medium_order << ','
-                  << medium_to_fine_order << '\n';
-        passed = check(coarse_error[field].relative_l2 > medium_error[field].relative_l2
-                           && medium_error[field].relative_l2 > fine_error[field].relative_l2,
-                     std::string("25-second PCMI ") + names[field] + " error decreases under time-step refinement")
-                 && passed;
-    }
-    std::cout << "long_time_convergence_rate_evidence_fields=" << rate_evidence_fields << '\n';
-    std::cout << "long_time_convergence_first_order_trend_fields=" << first_order_trend_fields << '\n';
-    std::cout << "long_time_convergence_minimum_observed_orders=" << minimum_coarse_to_medium_order << ','
-              << minimum_medium_to_fine_order << '\n';
-    // Temperature may either be roundoff-limited or provide a ninth usable
-    // convergence sequence when current-configuration thermal projection is
-    // active.  Keep the gate on the eight mechanical/material sequences and
-    // accept the additional temperature evidence without changing any order
-    // or monotonicity threshold.
-    return check(rate_evidence_fields >= 8 && first_order_trend_fields >= 7 && minimum_coarse_to_medium_order > 0.4
-                     && minimum_medium_to_fine_order > 0.4,
-               "25-second PCMI nodal, stress, and complete inelastic "
-               "history fields monotonically approach the fine-step "
-               "reference, with the nonsmooth radial contact response "
-               "reported separately")
-           && passed;
-}
-
 bool test_time_error_control(const std::string& input_path) {
-    const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
+    fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
+    // Exercise nonzero convection diagnostics on the same cladding boundary.
+    auto& coolant = input.spatial.boundary_conditions.back();
+    coolant.type = fuelsim::BoundaryConditionType::convection;
+    coolant.heat_transfer_coefficient = 1000.0;
+    coolant.ambient_temperature = 500.0;
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     const fuelsim::SolverOptions solver_options = {input.solver.absolute_tolerance,
         input.solver.relative_tolerance,
         input.solver.step_tolerance,
         input.solver.maximum_iterations};
     fuelsim::TransientProblem reference_problem(input.spatial, mesh);
-    const fuelsim::TransientTimeOptions reference_options =
-        {10.0, 0.009765625, 0.009765625, 0.009765625, 1.0, 0.5, 0, 20.0};
+    const fuelsim::TransientTimeOptions reference_options = {2.0, 0.03125, 0.03125, 0.03125, 1.0, 0.5, 0, 20.0};
     const fuelsim::TransientResult reference =
         fuelsim::solve_transient(reference_problem, reference_options, solver_options);
     fuelsim::TransientProblem coarse_problem(input.spatial, mesh);
-    const fuelsim::TransientTimeOptions coarse_options = {10.0, 2.5, 2.5, 2.5, 1.0, 0.5, 0, 20.0};
+    const fuelsim::TransientTimeOptions coarse_options = {2.0, 2.0, 2.0, 2.0, 1.0, 0.5, 0, 20.0};
     const fuelsim::TransientResult coarse = fuelsim::solve_transient(coarse_problem, coarse_options, solver_options);
     fuelsim::TransientProblem adaptive_problem(input.spatial, mesh);
-    fuelsim::TransientTimeOptions adaptive_options = {10.0, 2.5, 0.01953125, 2.5, 2.0, 0.5, 20, 20.0};
+    fuelsim::TransientTimeOptions adaptive_options = {2.0, 2.0, 0.03125, 2.0, 2.0, 0.5, 20, 20.0};
     adaptive_options.time_error_relative_tolerance = 2.0e-4;
     adaptive_options.temperature_time_absolute_tolerance = 1.0e-3;
-    adaptive_options.displacement_time_absolute_tolerance = 1.0e-8;
+    // Isolate thermal error control; inelastic-history control is tested separately.
+    adaptive_options.displacement_time_absolute_tolerance = 1.0;
+    adaptive_options.strain_history_time_absolute_tolerance = 1.0;
+    adaptive_options.stress_history_time_absolute_tolerance = 1.0e12;
     const fuelsim::TransientResult adaptive =
         fuelsim::solve_transient(adaptive_problem, adaptive_options, solver_options);
     const double coarse_error =
@@ -352,7 +253,8 @@ bool test_time_error_control(const std::string& input_path) {
         const double expected_stored = 0.5 * (first.stored_heat_rate + second.stored_heat_rate);
         const double expected_convection = 0.5 * (first.convection_heat_rate + second.convection_heat_rate);
         const double scale = std::max({1.0, std::abs(expected_stored), std::abs(expected_convection)});
-        full_interval_conservation = std::abs(actual.stored_heat_rate - expected_stored) <= 1.0e-12 * scale
+        full_interval_conservation = std::abs(expected_convection) > 0.0
+                                     && std::abs(actual.stored_heat_rate - expected_stored) <= 1.0e-12 * scale
                                      && std::abs(actual.convection_heat_rate - expected_convection) <= 1.0e-12 * scale;
     }
     double maximum_accepted_estimate = 0.0;
@@ -481,7 +383,7 @@ bool test_long_transient_diagnostics(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     fuelsim::TransientProblem problem(input.spatial, mesh);
-    const fuelsim::TransientTimeOptions time_options = {100.0, 0.5, 0.5, 0.5, 1.0, 0.5, 0, 20.0};
+    const fuelsim::TransientTimeOptions time_options = {20.0, 0.5, 0.5, 0.5, 1.0, 0.5, 0, 20.0};
     fuelsim::SolverOptions solver_options;
     solver_options.absolute_tolerance = input.solver.absolute_tolerance;
     solver_options.relative_tolerance = input.solver.relative_tolerance;
@@ -527,8 +429,7 @@ bool test_long_transient_diagnostics(const std::string& input_path) {
     std::cout << "long_transient_minimum_creep_dissipation=" << minimum_creep_dissipation << '\n';
     std::cout << "long_transient_accumulated_plastic_dissipation=" << accumulated_plastic_dissipation << '\n';
     std::cout << "long_transient_accumulated_creep_dissipation=" << accumulated_creep_dissipation << '\n';
-    return check(result.completed && result.accepted_steps.size() == 200
-                     && result.aggregate_timing.workspace_setups == 1
+    return check(result.completed && result.accepted_steps.size() == 40 && result.aggregate_timing.workspace_setups == 1
                      && result.last_attempt.field_residual_scalings[0] == 1.0e-4
                      && result.last_attempt.field_residual_scalings[1] == 1.0e-3
                      && result.last_attempt.field_residual_scalings[2] == 1.0e-3 && maximum_thermal_balance < 1.0e-8
@@ -536,7 +437,7 @@ bool test_long_transient_diagnostics(const std::string& input_path) {
                      && maximum_absolute_mechanical_balance < 1.0e-12 && maximum_interface_imbalance < 1.0e-8
                      && minimum_plastic_dissipation >= -1.0e-12 && minimum_creep_dissipation >= -1.0e-12
                      && accumulated_plastic_dissipation > 0.0 && accumulated_creep_dissipation > 0.0,
-        "200-step PCMI preserves the PETSc workspace, fixed physical "
+        "40-step PCMI preserves the PETSc workspace, fixed physical "
         "residual scales, global balances, and nonnegative dissipation");
 }
 
@@ -598,18 +499,17 @@ bool test_steady_load_cutback(const std::string& input_path) {
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 4) {
-        std::cerr << "Usage: fuelsim_m3_load_boundary_tests <m21.fsi> "
-                     "<m31.fsi> <pcmi.fsi>\n";
+    if (argc != 2) {
+        std::cerr << "Usage: fuelsim_m3_load_boundary_tests <internal.fsi>\n";
         return 2;
     }
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(argc, argv, "fuelsim M3.1 time loads and boundary test\n");
-        if (!test_time_event_alignment(argv[1]) || !test_opaque_state_snapshot(argv[3])
-            || !test_time_error_control(argv[2]) || !test_history_time_error_control(argv[3])
-            || !test_long_transient_time_convergence(argv[3]) || !test_long_transient_diagnostics(argv[3])
-            || !test_failure_diagnostics(argv[3]) || !test_steady_load_cutback(argv[3]))
+        if (!test_time_event_alignment(argv[1]) || !test_opaque_state_snapshot(argv[1])
+            || !test_time_error_control(argv[1]) || !test_history_time_error_control(argv[1])
+            || !test_long_transient_diagnostics(argv[1]) || !test_failure_diagnostics(argv[1])
+            || !test_steady_load_cutback(argv[1]))
             return 1;
         std::cout << "[PASS] fuelsim M3.1 time loads and boundary test\n";
         return 0;

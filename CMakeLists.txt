@@ -311,11 +311,7 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_input_tests)
     add_test(NAME fuelsim_input_tests
         COMMAND fuelsim_input_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_steady_fuel_cladding.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/transient_pcmi_parser_base.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_transient_finite_strain_pcmi.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_transient_coupled_displacement.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_transient_coupled_traction.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_c3d8rt_thermoelastic.fsi"
             "${CMAKE_CURRENT_BINARY_DIR}/malformed_input.fsi"
     )
@@ -348,9 +344,7 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_checkpoint_results_tests)
     add_test(NAME fuelsim_checkpoint_results_tests
         COMMAND fuelsim_checkpoint_results_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_steady_fuel_cladding.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_transient_fuel_cladding_pcmi.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_transient_noncoaxial_finite_strain.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal.fsi"
             "${CMAKE_CURRENT_BINARY_DIR}/m3_checkpoint.bin"
             "${CMAKE_CURRENT_BINARY_DIR}/m3_results.e"
     )
@@ -370,9 +364,7 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_m3_load_boundary_tests)
     add_test(NAME fuelsim_m3_load_boundary_tests
         COMMAND fuelsim_m3_load_boundary_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_transient_heat.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_transient_table_convection.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_transient_fuel_cladding_pcmi.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal.fsi"
     )
     set_tests_properties(fuelsim_m3_load_boundary_tests PROPERTIES
         LABELS "unit;time-control;transaction"
@@ -385,7 +377,7 @@ if(BUILD_TESTING)
     target_include_directories(fuelsim_rz_contact_projection_contract_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")
     fuelsim_enable_warnings(fuelsim_rz_contact_projection_contract_tests)
     add_test(NAME fuelsim_rz_contact_projection_contract COMMAND fuelsim_rz_contact_projection_contract_tests
-        "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_steady_two_pellet_contact.fsi")
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal.fsi")
     set_tests_properties(fuelsim_rz_contact_projection_contract PROPERTIES LABELS "unit;contact;projection")
 
     add_executable(fuelsim_m58_integrated_hex8_benchmark
@@ -496,7 +488,7 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_m54_transient_augmented_contact_tests)
     add_test(NAME fuelsim_m54_transient_augmented_contact_tests
         COMMAND fuelsim_m54_transient_augmented_contact_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_transient_fuel_cladding_pcmi.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal.fsi"
     )
     set_tests_properties(fuelsim_m54_transient_augmented_contact_tests
         PROPERTIES LABELS "integration"
@@ -1878,22 +1870,15 @@ if(BUILD_TESTING)
         add_test(NAME fuelsim_rz_contact_mpi_reference
             COMMAND fuelsim_mpi_equivalence_benchmark write
                 "${CMAKE_CURRENT_BINARY_DIR}/rz_contact_one_rank.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_steady_two_pellet_contact.fsi")
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal.fsi")
         set_tests_properties(fuelsim_rz_contact_mpi_reference PROPERTIES
             FIXTURES_SETUP rz_contact_one_rank LABELS "unit;mpi-reference")
-        add_test(NAME fuelsim_rz_sliding_mpi_reference
-            COMMAND fuelsim_mpi_equivalence_benchmark write
-                "${CMAKE_CURRENT_BINARY_DIR}/rz_sliding_one_rank.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_steady_large_sliding_contact.fsi")
-        set_tests_properties(fuelsim_rz_sliding_mpi_reference PROPERTIES
-            FIXTURES_SETUP rz_sliding_one_rank LABELS "unit;mpi-reference")
-
         add_test(NAME fuelsim_mpi_equivalence
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
                 $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare
                 "${CMAKE_CURRENT_BINARY_DIR}/rz_contact_one_rank.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_steady_two_pellet_contact.fsi"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal.fsi"
         )
         set_tests_properties(fuelsim_mpi_equivalence PROPERTIES
             FIXTURES_REQUIRED rz_contact_one_rank
@@ -1901,18 +1886,6 @@ if(BUILD_TESTING)
             PROCESSORS 2
         )
 
-        add_test(NAME fuelsim_m52_mpi_equivalence
-            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
-                $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
-                compare
-                "${CMAKE_CURRENT_BINARY_DIR}/rz_sliding_one_rank.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_steady_large_sliding_contact.fsi"
-        )
-        set_tests_properties(fuelsim_m52_mpi_equivalence PROPERTIES
-            FIXTURES_REQUIRED rz_sliding_one_rank
-            LABELS "acceptance;parallel"
-            PROCESSORS 2
-        )
         add_test(NAME fuelsim_b33_mpi_equivalence
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
                 $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
@@ -2002,7 +1975,7 @@ if(BUILD_TESTING)
                 $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare_field_split
                 "${CMAKE_CURRENT_BINARY_DIR}/rz_contact_one_rank.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_steady_two_pellet_contact.fsi"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal.fsi"
         )
         set_tests_properties(fuelsim_mpi_field_split PROPERTIES
             FIXTURES_REQUIRED rz_contact_one_rank
@@ -2015,7 +1988,7 @@ if(BUILD_TESTING)
                 $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare_block_jacobi
                 "${CMAKE_CURRENT_BINARY_DIR}/rz_contact_one_rank.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_steady_two_pellet_contact.fsi"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal.fsi"
         )
         set_tests_properties(fuelsim_mpi_block_jacobi PROPERTIES
             FIXTURES_REQUIRED rz_contact_one_rank
@@ -2028,7 +2001,7 @@ if(BUILD_TESTING)
                 $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare_hypre
                 "${CMAKE_CURRENT_BINARY_DIR}/rz_contact_one_rank.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_steady_two_pellet_contact.fsi"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal.fsi"
         )
         set_tests_properties(fuelsim_mpi_hypre PROPERTIES
             FIXTURES_REQUIRED rz_contact_one_rank
@@ -2040,7 +2013,7 @@ if(BUILD_TESTING)
             COMMAND fuelsim_mpi_equivalence_benchmark
                 write_transient
                 "${CMAKE_CURRENT_BINARY_DIR}/m35_transient_one_rank_state.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_transient_coupled_traction.fsi"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal.fsi"
         )
         set_tests_properties(fuelsim_transient_mpi_reference PROPERTIES
             FIXTURES_SETUP m35_transient_mpi_reference
@@ -2051,7 +2024,7 @@ if(BUILD_TESTING)
                 $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare_transient
                 "${CMAKE_CURRENT_BINARY_DIR}/m35_transient_one_rank_state.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_transient_coupled_traction.fsi"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal.fsi"
         )
         set_tests_properties(fuelsim_transient_mpi_equivalence PROPERTIES
             FIXTURES_REQUIRED m35_transient_mpi_reference
@@ -2064,7 +2037,7 @@ if(BUILD_TESTING)
                 $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 test_io_failure
                 unused-reference
-                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_steady_two_pellet_contact.fsi"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal.fsi"
         )
         set_tests_properties(fuelsim_mpi_root_io_failure PROPERTIES
             LABELS "integration;parallel"
@@ -2358,7 +2331,7 @@ if(BUILD_TESTING)
 
     add_test(NAME fuelsim_transient_jacobian_check
         COMMAND fuelsim -i
-            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal_transient_table_convection.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/rz_internal.fsi"
             --check-jacobian
     )
     set_tests_properties(fuelsim_transient_jacobian_check

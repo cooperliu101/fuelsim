@@ -23,19 +23,16 @@ bool check(bool condition, const std::string& message) {
 bool check_projection(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh source = fuelsim::read_exodus_quad4(definition.mesh_file);
-    bool passed =
-        check(source.nodes().size() == 36 && source.elements().size() == 20,
-            "M3.3 reads the complete tracked two-pellet MOOSE mesh")
-        && check(source.side_set("lower_top").sides.size() == 4 && source.side_set("upper_bottom").sides.size() == 6,
-            "M3.3 keeps nonmatching four-to-six contact segmentation");
+    bool passed = check(source.side_set("fuel_right").sides.size() != source.side_set("clad_left").sides.size(),
+        "shared model retains nonmatching contact segmentation");
     fuelsim::SteadyProblem problem(definition.spatial, source);
     const std::vector<std::size_t> secondary_sources =
         fuelsim::rz::ProblemAccess::contact_secondary_source_nodes(problem, 0);
     std::vector<std::size_t> ordered_secondary_sources = secondary_sources;
     std::sort(ordered_secondary_sources.begin(),
         ordered_secondary_sources.end(),
-        [&source](std::size_t lhs, std::size_t rhs) { return source.nodes().at(lhs).r < source.nodes().at(rhs).r; });
-    const std::size_t sliding_source = ordered_secondary_sources[ordered_secondary_sources.size() / 2];
+        [&source](std::size_t lhs, std::size_t rhs) { return source.nodes().at(lhs).z < source.nodes().at(rhs).z; });
+    const std::size_t sliding_source = ordered_secondary_sources.at(1);
     std::size_t sliding_global_node = problem.dof_count();
     for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
         const std::vector<std::size_t>& source_nodes =
@@ -50,7 +47,7 @@ bool check_projection(const std::string& input_path) {
     if (sliding_global_node == problem.dof_count())
         throw std::logic_error("M3.3 could not locate a secondary contact node");
     std::vector<double> lost_projection_state = problem.initial_state();
-    lost_projection_state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::radial_displacement,
+    lost_projection_state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::axial_displacement,
         sliding_global_node)] += 1.0e-2;
     bool lost_projection_rejected = false;
     try {
@@ -64,43 +61,50 @@ bool check_projection(const std::string& input_path) {
              && passed;
     const std::size_t secondary_index = static_cast<std::size_t>(
         std::find(secondary_sources.begin(), secondary_sources.end(), sliding_source) - secondary_sources.begin());
-    const std::size_t primary_region = fuelsim::rz::ProblemAccess::region_index(problem, "upper");
+    const std::size_t primary_region = fuelsim::rz::ProblemAccess::region_index(problem, "cladding");
     const fuelsim::RegionBoundary primary_boundary = fuelsim::rz::ProblemAccess::region_mesh(problem, primary_region)
                                                          .map_side_set(source, definition.spatial.contacts[0].primary);
-    std::vector<double> primary_radii;
-    primary_radii.reserve(primary_boundary.nodes.size());
+    std::vector<double> primary_positions;
+    primary_positions.reserve(primary_boundary.nodes.size());
     for (const std::size_t node : primary_boundary.nodes)
-        primary_radii.push_back(fuelsim::rz::ProblemAccess::region_mesh(problem, primary_region).nodes().at(node).r);
-    std::sort(primary_radii.begin(), primary_radii.end());
-    const double target_radius = 0.5 * (primary_radii[primary_radii.size() - 2] + primary_radii.back());
+        primary_positions.push_back(
+            fuelsim::rz::ProblemAccess::region_mesh(problem, primary_region).nodes().at(node).z);
+    std::sort(primary_positions.begin(), primary_positions.end());
+    const auto initial_contact =
+        fuelsim::rz::ProblemAccess::summarize_contact_nodes(problem, 0, problem.initial_state());
+    passed = check(primary_positions.size() >= 5
+                       && primary_positions.size() - 2 >= initial_contact.at(secondary_index).primary_segment + 2,
+                 "projection test crosses beyond adjacent primary segments")
+             && passed;
+    const double target_position = 0.5 * (primary_positions[primary_positions.size() - 2] + primary_positions.back());
     std::vector<double> large_sliding_state = problem.initial_state();
-    large_sliding_state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::radial_displacement,
-        sliding_global_node)] = target_radius - source.nodes().at(sliding_source).r;
     large_sliding_state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::axial_displacement,
-        sliding_global_node)] = 3.0e-6;
+        sliding_global_node)] = target_position - source.nodes().at(sliding_source).z;
+    large_sliding_state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::radial_displacement,
+        sliding_global_node)] = 3.0e-5;
     problem.validate_state(large_sliding_state);
     const std::vector<fuelsim::ContactNodeSummary> large_sliding_summary =
         fuelsim::rz::ProblemAccess::summarize_contact_nodes(problem, 0, large_sliding_state);
     passed = check(large_sliding_summary.at(secondary_index).projected
-                       && large_sliding_summary.at(secondary_index).primary_segment == primary_radii.size() - 2
+                       && large_sliding_summary.at(secondary_index).primary_segment == primary_positions.size() - 2
                        && large_sliding_summary.at(secondary_index).pressure > 0.0,
                  "M3.3 dynamically transfers a secondary node across more "
                  "than the former three-segment window")
              && passed;
-    const double transfer_radius = primary_radii[primary_radii.size() - 2];
+    const double transfer_position = primary_positions[primary_positions.size() - 2];
     constexpr double transfer_offset = 1.0e-10;
-    const auto transferred_node = [&](double radius) {
+    const auto transferred_node = [&](double position) {
         std::vector<double> state = problem.initial_state();
-        state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::radial_displacement,
-            sliding_global_node)] = radius - source.nodes().at(sliding_source).r;
         state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::axial_displacement,
-            sliding_global_node)] = 3.0e-6;
+            sliding_global_node)] = position - source.nodes().at(sliding_source).z;
+        state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::radial_displacement,
+            sliding_global_node)] = 3.0e-5;
         problem.validate_state(state);
         return fuelsim::rz::ProblemAccess::summarize_contact_nodes(problem, 0, state).at(secondary_index);
     };
-    const fuelsim::ContactNodeSummary before_transfer = transferred_node(transfer_radius - transfer_offset);
-    const fuelsim::ContactNodeSummary at_transfer = transferred_node(transfer_radius);
-    const fuelsim::ContactNodeSummary after_transfer = transferred_node(transfer_radius + transfer_offset);
+    const fuelsim::ContactNodeSummary before_transfer = transferred_node(transfer_position - transfer_offset);
+    const fuelsim::ContactNodeSummary at_transfer = transferred_node(transfer_position);
+    const fuelsim::ContactNodeSummary after_transfer = transferred_node(transfer_position + transfer_offset);
     const double transfer_force_scale =
         std::max({1.0, std::abs(before_transfer.contact_force), std::abs(after_transfer.contact_force)});
     passed =

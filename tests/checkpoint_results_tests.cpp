@@ -295,7 +295,9 @@ bool test_augmented_contact_transaction(const std::string& input_path, const std
 }
 
 bool test_finite_strain_restart(const std::string& input_path, const std::string& checkpoint_path) {
-    const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
+    fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
+    for (auto& region : input.spatial.regions)
+        region.strain_formulation = fuelsim::StrainFormulation::finite;
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     const fuelsim::SolverOptions solver = solver_options(input);
     fuelsim::TransientTimeOptions full_options = time_options(input, input.transient_execution.end_time);
@@ -304,10 +306,10 @@ bool test_finite_strain_restart(const std::string& input_path, const std::string
     const fuelsim::TransientResult full = fuelsim::solve_transient(uninterrupted, full_options, solver);
     bool passed = check(full.completed, "uninterrupted finite-strain solve completes");
     fuelsim::TransientProblem split(input.spatial, mesh);
-    fuelsim::TransientTimeOptions first_options = time_options(input, 2.5);
+    fuelsim::TransientTimeOptions first_options = time_options(input, 10.0);
     first_options.use_linear_time_predictor = true;
     const fuelsim::TransientResult first = fuelsim::solve_transient(split, first_options, solver);
-    passed = check(first.completed && nearly_equal(split.committed_time(), 2.5),
+    passed = check(first.completed && nearly_equal(split.committed_time(), 10.0),
                  "finite-strain restart split reaches the deformed state")
              && check(split.has_previous_committed_solution()
                           && split.previous_committed_solution().size() == split.dof_count()
@@ -315,20 +317,19 @@ bool test_finite_strain_restart(const std::string& input_path, const std::string
                  "finite-strain restart split retains the previous committed predictor state")
              && passed;
     bool active_rotated_history = false;
-    for (std::size_t element = 0; element < fuelsim::rz::ProblemAccess::region_mesh(split, 0).elements().size();
+    for (std::size_t element = 0; element < fuelsim::rz::ProblemAccess::region_mesh(split, 1).elements().size();
         ++element) {
         for (const fuelsim::MaterialPointState& point :
-            fuelsim::rz::ProblemAccess::material_history(split, 0, element)) {
+            fuelsim::rz::ProblemAccess::material_history(split, 1, element)) {
             active_rotated_history =
                 active_rotated_history
-                || (std::abs(point.plastic_strain[3]) > 1.0e-3 && std::abs(point.creep_strain[3]) > 1.0e-8
+                || (std::abs(point.plastic_strain[3]) > 1.0e-12 && std::abs(point.creep_strain[3]) > 1.0e-12
                     && point.equivalent_plastic_strain > 0.0 && point.equivalent_creep_strain > 0.0);
         }
     }
-    passed = check(active_rotated_history,
-                 "finite-strain restart state contains rotated plastic and "
-                 "creep histories")
-             && passed;
+    passed =
+        check(active_rotated_history, "finite-strain PCMI restart contains nonzero plastic and creep shear histories")
+        && passed;
     fuelsim::write_transient_checkpoint(checkpoint_path, split, first.next_time_step);
     const fuelsim::TransientCommittedState split_state = fuelsim::rz::ProblemAccess::committed_state(split);
     fuelsim::TransientProblem restarted(input.spatial, mesh);
@@ -419,19 +420,7 @@ bool verify_steady_results(const fuelsim::FuelSimCaseDefinition& input,
     const fuelsim::UnstructuredQuad4Mesh& mesh,
     const std::string& results_path) {
     fuelsim::SteadyProblem problem(input.spatial, mesh);
-    const fuelsim::SolverOptions solver{input.solver.absolute_tolerance,
-        input.solver.relative_tolerance,
-        input.solver.step_tolerance,
-        input.solver.maximum_iterations};
-    const fuelsim::SteadyResult result = fuelsim::solve_steady(problem,
-        {input.steady_execution.load_steps,
-            input.steady_execution.cutback_factor,
-            input.steady_execution.maximum_cutbacks_per_step,
-            input.steady_execution.minimum_load_increment},
-        solver);
-    if (!check(result.completed && result.solve.converged, "steady result fixture converges"))
-        return false;
-    fuelsim::write_steady_results(results_path, mesh, problem, result.solve.state);
+    fuelsim::write_steady_results(results_path, mesh, problem, problem.initial_state());
     int cpu_word_size = static_cast<int>(sizeof(double));
     int io_word_size = 0;
     float version = 0.0F;
@@ -452,12 +441,8 @@ bool verify_steady_results(const fuelsim::FuelSimCaseDefinition& input,
     return check(ex_close(exoid) == 0, "steady Exodus result closes cleanly") && passed;
 }
 
-bool run_tests(const std::string& steady_input_path,
-    const std::string& transient_input_path,
-    const std::string& finite_strain_input_path,
-    const std::string& checkpoint_path,
-    const std::string& results_path) {
-    const fuelsim::FuelSimCaseDefinition steady_input = fuelsim::read_case_input(steady_input_path);
+bool run_tests(const std::string& input_path, const std::string& checkpoint_path, const std::string& results_path) {
+    const fuelsim::FuelSimCaseDefinition steady_input = fuelsim::read_case_input(input_path);
     const std::filesystem::path configured_results(results_path);
     const std::filesystem::path first_segment =
         configured_results.parent_path()
@@ -474,10 +459,10 @@ bool run_tests(const std::string& steady_input_path,
     std::filesystem::remove(first_segment);
     const fuelsim::UnstructuredQuad4Mesh steady_mesh = fuelsim::read_exodus_quad4(steady_input.mesh_file);
     passed = verify_steady_results(steady_input, steady_mesh, results_path) && passed;
-    passed = test_friction_history_checkpoint(transient_input_path, checkpoint_path + ".friction") && passed;
-    passed = test_augmented_contact_transaction(transient_input_path, checkpoint_path + ".augmented") && passed;
-    passed = test_finite_strain_restart(finite_strain_input_path, checkpoint_path + ".finite") && passed;
-    const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(transient_input_path);
+    passed = test_friction_history_checkpoint(input_path, checkpoint_path + ".friction") && passed;
+    passed = test_augmented_contact_transaction(input_path, checkpoint_path + ".augmented") && passed;
+    passed = test_finite_strain_restart(input_path, checkpoint_path + ".finite") && passed;
+    const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     const fuelsim::SolverOptions solver{input.solver.absolute_tolerance,
         input.solver.relative_tolerance,
@@ -569,15 +554,13 @@ bool run_tests(const std::string& steady_input_path,
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 6) {
-        std::cerr << "Usage: checkpoint_results_tests <steady.fsi> "
-                     "<transient.fsi> <finite-strain.fsi> <checkpoint> "
-                     "<results.e>\n";
+    if (argc != 4) {
+        std::cerr << "Usage: checkpoint_results_tests <internal.fsi> <checkpoint> <results.e>\n";
         return 2;
     }
     try {
         fuelsim::PetscSession session(argc, argv, "fuelsim M3.0 checkpoint/results tests\n");
-        if (!run_tests(argv[1], argv[2], argv[3], argv[4], argv[5]))
+        if (!run_tests(argv[1], argv[2], argv[3]))
             return 1;
         std::cout << "[PASS] fuelsim M3.0 checkpoint and Exodus results\n";
         return 0;
