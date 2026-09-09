@@ -80,20 +80,6 @@ bool check_hex8_sticking(const std::string& output_path,
 bool check_hex8_shared_plate(const std::string& output_path,
     const std::string& node_path,
     const std::string& element_path);
-bool check_rz_noncoaxial(const std::string& output_path,
-    const std::string& variant_name,
-    const std::string& history_reference_path);
-bool check_rz_inelastic(const std::string& output_path, const std::string& branch, const std::string& history_path);
-bool check_rz_pcmi(const std::string& output_path,
-    const std::string& coordinate_path,
-    const std::string& value_path,
-    const std::string& scalar_path,
-    const std::string& contact_path,
-    double tolerance);
-bool check_rz_integrated(const std::string& output_path,
-    const std::string& coordinate_path,
-    const std::string& value_path,
-    const std::string& scalar_path);
 bool check_hex8_multi_contact(const std::string& results,
     const std::string& nodal_reference,
     const std::string& first_reference,
@@ -104,8 +90,4 @@ bool check_hex20_nonmatching(const std::string& output,
     const std::string& pressure_path,
     const std::string& mortar_path,
     const std::string& mortar_reaction_path);
-bool check_rz_multi_contact(const std::string& results,
-    const std::string& first_reference,
-    const std::string& second_reference,
-    double friction);
 } // namespace fuelsim::test

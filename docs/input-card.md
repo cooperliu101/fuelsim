@@ -886,29 +886,12 @@ committed 初值上装配解析方向导数，并与中心差分比较。输出�
 和轴向位移分别给出残量 L2、解析/差分方向导数 L2、差值 L2、相对 L2 和最大
 绝对差。Dirichlet 行采用与 PETSc 回调完全相同的 `F_i=x_i-g_i`。
 
-仓库中的可运行示例为：
+仓库中的可运行示例包括：
 
-- [`steady_single_fuel_moose.fsi`](../verification/fuelsim/steady_single_fuel_moose.fsi)
-- [`steady_hex8_thermoelastic.fsi`](../verification/fuelsim/steady_hex8_thermoelastic.fsi)
-- [`steady_fuel_cladding.fsi`](../verification/fuelsim/steady_fuel_cladding.fsi)
-- [`steady_fuel_cladding_unstructured.fsi`](../verification/fuelsim/steady_fuel_cladding_unstructured.fsi)
-- [`steady_augmented_contact_moose.fsi`](../verification/fuelsim/steady_augmented_contact_moose.fsi)
-- [`steady_two_pellet_contact_moose.fsi`](../verification/fuelsim/steady_two_pellet_contact_moose.fsi)
-- [`transient_heat_moose.fsi`](../verification/fuelsim/transient_heat_moose.fsi)
-- [`transient_table_convection_moose.fsi`](../verification/fuelsim/transient_table_convection_moose.fsi)
-- [`transient_j2_plastic_moose.fsi`](../verification/fuelsim/transient_j2_plastic_moose.fsi)
-- [`transient_j2_unload_reload_moose.fsi`](../verification/fuelsim/transient_j2_unload_reload_moose.fsi)
-- [`transient_norton_creep_moose.fsi`](../verification/fuelsim/transient_norton_creep_moose.fsi)
-- [`transient_coupled_displacement_moose.fsi`](../verification/fuelsim/transient_coupled_displacement_moose.fsi)
-- [`transient_coupled_traction_moose.fsi`](../verification/fuelsim/transient_coupled_traction_moose.fsi)
-- [`transient_fuel_cladding_pcmi.fsi`](../verification/fuelsim/transient_fuel_cladding_pcmi.fsi)
-- [`transient_finite_strain_pcmi.fsi`](../verification/fuelsim/transient_finite_strain_pcmi.fsi)
-- [`steady_finite_follower_pressure.fsi`](../verification/fuelsim/steady_finite_follower_pressure.fsi)
-- [`transient_noncoaxial_finite_strain.fsi`](../verification/fuelsim/transient_noncoaxial_finite_strain.fsi)
+- [三维稳态热弹性](../verification/fuelsim/steady_hex8_thermoelastic.fsi)。
+- [轴对称稳态热机械接触](../verification/fuelsim/steady_b78_rz_small_contact.fsi)。
+- [轴对称小应变综合计算](../verification/fuelsim/transient_b13_small_cax4t.fsi)。
+- [轴对称有限应变综合计算](../verification/fuelsim/transient_b13_finite_cax4t.fsi)。
 
-上述十六张卡分别驱动 M0、两套 M1、M5.4、M2.1、M3.1、五套 M2.2、M2.3、
-M3.3、M4.1、M4.2 和 M4.3 的
-fuelsim-to-MOOSE 对比；测试程序不再直接构造这些案例的材料、载荷路径或
-网格选择参数。每个对比读取 MOOSE 最终时刻的全部节点，统一检查温度、
-径向位移和轴向位移的三项误差；M1、M2.3、M3.3 和 M4.1 还检查全部接触
-节点的压力三项误差。
+原轴对称 MOOSE 对比例题及其专用检查实现已删除。上述轴对称生产例题使用
+Abaqus 参考结果，具体验收指标与适用边界见验证矩阵。

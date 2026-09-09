@@ -1027,12 +1027,14 @@ bool run_tests(const std::string& steady_path,
     steady_checkpoint.insert(steady_output + console.size(), "\n  checkpoint = checkpoint.bin");
     passed = expect_case_failure(malformed_path, steady_checkpoint, "only valid for transient cases") && passed;
     std::string mesh_overwrite = read_text(steady_path);
-    const std::string mesh_file = "file = ../moose/m1_fuel_cladding_gap_rz_mesh.e";
+    const std::string mesh_file = "file = ../../verification/moose/m1_fuel_cladding_gap_rz_mesh.e";
     const std::string summary_file = "csv = steady_fuel_cladding_summary.csv";
     const std::size_t mesh_output = mesh_overwrite.find(summary_file);
     if (mesh_overwrite.find(mesh_file) == std::string::npos || mesh_output == std::string::npos)
         return check(false, "steady fixture has expected mesh and output");
-    mesh_overwrite.replace(mesh_output, summary_file.size(), "csv = ../moose/m1_fuel_cladding_gap_rz_mesh.e");
+    mesh_overwrite.replace(mesh_output,
+        summary_file.size(),
+        "csv = ../../verification/moose/m1_fuel_cladding_gap_rz_mesh.e");
     passed = expect_case_failure(malformed_path, mesh_overwrite, "must not overwrite the input mesh") && passed;
     std::string output_collision = read_text(transient_path);
     const std::size_t collision_output = output_collision.find(console);

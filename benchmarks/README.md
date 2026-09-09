@@ -1,5 +1,9 @@
 # Solver benchmarks
 
+2026-09-09: Axisymmetric MOOSE comparison inputs and the dedicated PCMI parallel
+comparison script were removed. Commands and measurements below that refer to
+those files are historical records; they are not current runnable comparisons.
+
 `fuelsim_m1_single_core_benchmark` is the manual M1 linear-solver benchmark.
 The default invocation retains the original medium case and direct solver. The
 accepted arguments are:

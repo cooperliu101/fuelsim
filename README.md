@@ -4,7 +4,8 @@
 四节点温度—位移耦合单元，覆盖小应变、有限应变、热机械接触、蠕变、塑性以及
 蠕变与塑性同时作用，所有已定义的非零场三项相对误差均要求小于 0.5%。
 算例、逐项结果和适用边界见[轴对称 Abaqus 验证记录](verification/abaqus/b7_rz_validation.md)。
-原有 MOOSE 参考保留特殊加载、非共轴历史等补充覆盖。
+轴对称 MOOSE 对比例题及其专用实现已删除；三维 MOOSE 对比继续保留。
+下文 M0—M5 的轴对称 MOOSE 对比描述属于历史记录，不代表当前测试覆盖。
 
 `fuelsim` 是一个依赖精简的 C++17 核燃料性能有限元程序。统一可执行程序
 通过输入卡选择 `SteadyProblem` 或 `TransientProblem`，并从一个 Exodus
@@ -183,14 +184,14 @@ Vec、Mat、SNES、贡献计算和线性求解均为真实分布式对象。
 运行稳态燃料—包壳工况：
 
 ```bash
-./build/fuelsim -i verification/fuelsim/steady_fuel_cladding.fsi
+./build/fuelsim -i verification/fuelsim/steady_b78_rz_small_contact.fsi
 ```
 
 运行带包壳塑性—蠕变耦合的瞬态 PCMI 工况：
 
 ```bash
 ./build/fuelsim -i \
-  verification/fuelsim/transient_fuel_cladding_pcmi.fsi
+  verification/fuelsim/transient_b13_small_cax4t.fsi
 ```
 
 输入卡采用严格、带版本号的 MOOSE 风格分段文本；未知段、未知键、重复键和
@@ -219,54 +220,14 @@ Vec、Mat、SNES、贡献计算和线性求解均为真实分布式对象。
 状态与文件契约见 [M3 工程化说明](docs/m3.md)。工程证据等级、自动审计入口
 和当前不支持范围见 [工程验证矩阵](docs/verification.md)。
 
-运行 M2.3 PCMI—MOOSE 验收：
+运行轴对称 Abaqus 生产验收：
 
 ```bash
-./build/fuelsim_m2_pcmi_solver_tests \
-  verification/fuelsim/transient_fuel_cladding_pcmi.fsi \
-  verification/moose/m23_pcmi_coupled_cladding_rz_all_nodes_final.csv \
-  verification/moose/m23_pcmi_coupled_cladding_rz_fuel_surface_final.csv \
-  verification/moose/m23_pcmi_coupled_cladding_rz_clad_qp_coordinates_final.csv \
-  verification/moose/m23_pcmi_coupled_cladding_rz_clad_qp_values_final.csv \
-  verification/moose/m23_pcmi_coupled_cladding_rz_out.csv
+ctest --test-dir build -j4 -R 'b13_|b7[0-9]_rz_' --output-on-failure
 ```
 
-运行有限应变 PCMI—MOOSE 验收：
-
-```bash
-./build/fuelsim_m2_pcmi_solver_tests \
-  verification/fuelsim/transient_finite_strain_pcmi.fsi \
-  verification/moose/m41_finite_strain_pcmi_rz_all_nodes_final.csv \
-  verification/moose/m41_finite_strain_pcmi_rz_fuel_surface_final.csv \
-  verification/moose/m41_finite_strain_pcmi_rz_clad_qp_coordinates_final.csv \
-  verification/moose/m41_finite_strain_pcmi_rz_clad_qp_values_final.csv \
-  verification/moose/m41_finite_strain_pcmi_rz_out.csv
-```
-
-运行 MOOSE Exodus 网格驱动的 M1 生产算例：
-
-```bash
-./build/fuelsim -i verification/fuelsim/steady_fuel_cladding.fsi
-```
-
-运行内部节点畸变、不可转换为张量积网格的 M1 生产算例：
-
-```bash
-./build/fuelsim -i verification/fuelsim/steady_fuel_cladding_unstructured.fsi
-```
-
-上述命令只运行用户实际使用的 `fuelsim` 可执行程序。CTest 将每张完整输入卡
-原样复制到独立目录后运行同一命令，再由不链接求解核心的结果检查程序读取
-生产 Exodus 和 CSV 输出，并与版本库中的 MOOSE 参考结果比较。
-
-稳态示例将热源分成 20 个线性载荷步，以稳定跨越接触活动集的切换。
-PETSc 选项仍可在命令行覆盖，例如：
-
-```bash
-./build/fuelsim \
-  -i verification/fuelsim/steady_fuel_cladding.fsi \
-  -snes_monitor -ksp_error_if_not_converged
-```
+CTest 运行完整生产输入卡，再读取结果与独立参考比较。轴对称 MOOSE 的旧验收
+入口已删除。PETSc 选项仍可在命令行追加，例如 `-snes_monitor`。
 
 多 rank 默认使用 PETSc 并行 MUMPS 直接分解，单 rank 可用
 `direct_factorization = mumps` 明确选择同一分解器；经过具体算例计时后可用
@@ -279,44 +240,10 @@ MUMPS 配合 PORD 时会为直接分解另建等值矩阵，删除严格为零�
 
 ```bash
 mpiexec -n 2 ./build/fuelsim \
-  -i verification/fuelsim/steady_fuel_cladding.fsi
+  -i verification/fuelsim/steady_b78_rz_small_contact.fsi
 ```
 
 只有 rank 0 写 console、CSV、Exodus 和 checkpoint，避免并行文件竞争。
-
-也可以直接用统一脚本跑 1/2/4/8 核的并行一致性测试，并输出统一对比报告：
-
-```bash
-./scripts/compare_pcmi_parallel.py \
-  --fuelsim-case verification/fuelsim/transient_finite_strain_pcmi.fsi \
-  --moose-input verification/moose/m41_finite_strain_pcmi_rz.i \
-  --fuelsim-bin ./build/fuelsim \
-  --moose-bin /home/cooper/projects/july/july-opt \
-  --output-dir /tmp/pcmi_parallel_suite \
-  --ranks 1 2 4 8 \
-  --thread-count 1 \
-  --timing-repeats 2 \
-  --mpiexec /home/cooper/miniforge/envs/moose/bin/mpiexec \
-  --extra-env MPIR_CVAR_CH4_NETMOD=ofi \
-  --extra-env FI_PROVIDER=tcp
-```
-
-这里的 rank 表示消息传递接口进程数。这个示例使用现有的 M4.1 无摩擦有限
-应变 PCMI 对标；摩擦算例必须把两个输入参数替换为物理、网格和加载路径一致
-的 fuelsim 与 MOOSE 输入，不能只在一侧临时覆盖摩擦系数。脚本读取 Exodus
-结果所需的 NumPy 和 netCDF4 已固定在同一 Conda 环境文件中。
-
-脚本会在每个进程数目录输出结果对比运行的 `fuelsim.log`、`moose.log`、
-`fuelsim_rN.e` 和 `mooseF_N.e`，并另做关闭文件输出的配对计时。第一次计时与
-后续计时分开记录，加速比取后续计时的中位数；只有一次计时时会明确标记为
-单次测量。统一 JSON 报告 `pcmi_parallel_report.json` 包含时钟、加速比、
-温度、两个位移分量和接触压强四个节点场对比，以及最小进程数到其他进程数
-的逐场一致性检验。接触压强只比较两侧都有定义的有限值节点，并单独报告被
-排除的未定义节点数。
-
-若结果对比文件已经由同一输入生成，只需重新测量关闭文件输出的计时，可增加
-`--reuse-validation-results`。此模式仍会重新运行每个进程数的 fuelsim 与
-MOOSE 计时，只复用 `rN/fuelsim_rN.e` 和 `rN/mooseF_N.e` 做字段一致性比较。
 
 程序会同时输出问题构造、PETSc 设置、非线性求解、残量回调和 Jacobian
 回调的内部计时。20 个载荷步复用同一问题几何、SNES、Vec、Mat、矩阵非零

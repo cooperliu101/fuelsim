@@ -2,8 +2,8 @@
 // Offline parameter studies only; registered acceptance paths run fuelsim -i.
 #include "support/abaqus_hex8_full_field.hpp"
 #include "support/cartesian3d_problem_access.hpp"
+#include "support/field_error_metrics.hpp"
 #include "support/material_factory.hpp"
-#include "support/moose_field_comparison.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>

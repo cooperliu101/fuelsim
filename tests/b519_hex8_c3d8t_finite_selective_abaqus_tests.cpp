@@ -1,6 +1,6 @@
 #include "fuelsim/core/cartesian3d_hex8.hpp"
+#include "support/field_error_metrics.hpp"
 #include "support/material_factory.hpp"
-#include "support/moose_field_comparison.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>

@@ -1,7 +1,7 @@
 #include "fuelsim/core/cartesian3d_hex20.hpp"
 #include "fuelsim/core/contact.hpp"
 #include "fuelsim/io/results_io.hpp"
-#include "support/moose_field_comparison.hpp"
+#include "support/field_error_metrics.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
