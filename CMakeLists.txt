@@ -2386,6 +2386,25 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1214_cax8rt_recovery_points.csv"
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1214_cax8rt_recovery_contact.csv")
 
+    set_tests_properties(fuelsim_b105_cax8t_finite_coupled_abaqus_tests PROPERTIES FIXTURES_SETUP b105_cax8t_finite_coupled)
+    fuelsim_stage_blackbox_case(rz8_split b105_cax8t_finite_coupled_restart transient_b105_cax8t_finite_coupled_split.fsi)
+    fuelsim_stage_blackbox_case(rz8_restart b105_cax8t_finite_coupled_restart transient_b105_cax8t_finite_coupled_restart.fsi)
+    get_filename_component(rz8_directory "${rz8_restart}" DIRECTORY)
+    set(rz8_result "${rz8_directory}/transient_b105_cax8t_finite_coupled_restart_results.part1.e")
+    set(rz8_summary "${rz8_directory}/transient_b105_cax8t_finite_coupled_restart_summary.csv")
+    add_test(NAME fuelsim_b105_cax8t_finite_coupled_restart_tests
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DCHECKPOINT_INPUT=${rz8_split}"
+            "-DCHECKPOINT_FILE=${rz8_directory}/transient_b105_cax8t_finite_coupled_split.checkpoint"
+            "-DINPUT_FILE=${rz8_restart}"
+            "-DOUTPUT_FILES=${rz8_result};${rz8_summary}"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+            "-DCHECK_ARGUMENTS=rz8-restart;${rz8_result};${rz8_summary};${CMAKE_CURRENT_BINARY_DIR}/blackbox/b105_cax8t_finite_coupled/verification/fuelsim/transient_b105_cax8t_finite_coupled_results.e;3"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_restart.cmake")
+    set_tests_properties(fuelsim_b105_cax8t_finite_coupled_restart_tests PROPERTIES
+        FIXTURES_REQUIRED b105_cax8t_finite_coupled LABELS "acceptance;production;restart;cax8t" TIMEOUT 120)
+
     set_tests_properties(fuelsim_b125_cax8rt_finite_coupled_abaqus_tests PROPERTIES FIXTURES_SETUP b125_cax8rt_finite_coupled)
     fuelsim_stage_blackbox_case(rz8_split b125_cax8rt_finite_coupled_restart transient_b125_cax8rt_finite_coupled_split.fsi)
     fuelsim_stage_blackbox_case(rz8_restart b125_cax8rt_finite_coupled_restart transient_b125_cax8rt_finite_coupled_restart.fsi)
@@ -2497,7 +2516,9 @@ if(BUILD_TESTING)
                 LABELS "acceptance;production;abaqus;pcmi" TIMEOUT 240)
         endforeach()
     endforeach()
-    foreach(nts_element IN ITEMS cax4t cax4rt cax8t cax8rt)
+    # Prescribed-state NTS probes need one representative per edge topology.
+    # Reduced-integration production contact remains covered by B13.
+    foreach(nts_element IN ITEMS cax4t cax8t)
         set(nts_case "b14_nts_${nts_element}")
         fuelsim_stage_blackbox_case(nts_input "${nts_case}" "transient_${nts_case}.fsi")
         get_filename_component(nts_directory "${nts_input}" DIRECTORY)

@@ -86,6 +86,9 @@ int main(int argc, char** argv) {
         std::map<std::string, GroupedFieldErrorMetrics> tensor;
         std::size_t ni = 0, pi = 0, ci = 0, active = 0, sliding = 0;
         double max_plastic = 0, max_creep = 0;
+        std::map<std::pair<std::size_t, std::size_t>, std::array<double, 4>> previous_inelastic;
+        std::size_t simultaneous_samples = 0;
+        double maximum_backward_euler_error = 0;
         const std::size_t expected_frames =
             argc == 7 ? std::stoul(argv[6]) + 1 : (integrated ? 97U : (small ? 12U : 21U));
         if (frames.size() != expected_frames || frames.front().time != 0
@@ -97,9 +100,13 @@ int main(int argc, char** argv) {
         for (const auto& frame : frames) {
             if (!std::isfinite(frame.time) || frame.time <= previous_time)
                 throw std::runtime_error("Production time history must be strictly increasing");
+            const double dt = frame.time - previous_time;
             previous_time = frame.time;
             if (frame.time == 0)
                 continue;
+            // Conservation uses every production frame, including times omitted from the external references.
+            scalar["thermal_balance_heat"].add(frame.global("conservation_global_thermal_balance"), 0.0);
+            scalar["interface_balance_heat"].add(frame.global("conservation_interface_heat_imbalance"), 0.0);
             if (integrated) {
                 if (std::abs(frame.time - std::round(frame.time / 0.0625) * 0.0625) > 1e-12)
                     throw std::runtime_error("Integrated production time grid differs");
@@ -112,6 +119,18 @@ int main(int argc, char** argv) {
             const bool quadratic =
                 std::find(frame.nodal_variable_names.begin(), frame.nodal_variable_names.end(), "temperature_active")
                 != frame.nodal_variable_names.end();
+            std::vector<std::array<bool, 2>> support(frame.nodes.size(), {false, false});
+            std::vector<bool> temperature_support(frame.nodes.size(), false);
+            for (std::size_t side = 0; side < frame.side_set_names.size(); ++side) {
+                const auto& name = frame.side_set_names[side];
+                for (const auto& face : frame.side_set_face_nodes[side])
+                    for (const auto n : face) {
+                        support[n][0] = support[n][0] || name == "fuel_left";
+                        support[n][1] = support[n][1] || name == "fuel_bottom" || name == "clad_bottom"
+                                        || (small && name == "clad_top");
+                        temperature_support[n] = temperature_support[n] || name == "clad_right";
+                    }
+            }
             for (std::size_t n = 0; n < frame.nodes.size(); ++n) {
                 const auto& row = nodes.at(ni++);
                 require_time(row, frame.time);
@@ -131,6 +150,20 @@ int main(int argc, char** argv) {
                         a[component] = b[component] = 0.0;
                     }
                 tensor["displacement"].add(a.data(), b.data(), 2);
+                for (std::size_t component = 0; component < 2; ++component)
+                    if (support[n][component])
+                        scalar["support_force"].add(
+                            frame.nodal(component == 0 ? "reaction_force_r" : "reaction_force_z")[n],
+                            row.at(component == 0 ? "rf_r" : "rf_z"));
+                if (!quadratic || frame.nodal("temperature_active")[n] == 1) {
+                    const double actual_heat = frame.nodal("reaction_heat_flux")[n];
+                    if (temperature_support[n])
+                        scalar["boundary_heat"].add(actual_heat, row.at("reaction_heat"));
+                    else {
+                        scalar["free_heat"].add(actual_heat, 0.0);
+                        scalar["free_heat"].add(row.at("reaction_heat"), 0.0);
+                    }
+                }
             }
             for (std::size_t e = 0; e < frame.element("material_point_count").size(); ++e) {
                 const auto count = static_cast<std::size_t>(frame.element("material_point_count")[e]);
@@ -164,6 +197,38 @@ int main(int argc, char** argv) {
                         scalar[name].add(frame.element(std::string(name) + suffix)[e], row.at(name));
                     max_plastic = std::max(max_plastic, frame.element("equiv_plastic" + suffix)[e]);
                     max_creep = std::max(max_creep, frame.element("equiv_creep" + suffix)[e]);
+                    // B13 small: every clad point must activate both mechanisms at every step.
+                    // This scope matches the independent original history audit, not other B13 loads.
+                    if (small && row.at("element") >= 25 && row.at("element") <= 34) {
+                        auto& previous = previous_inelastic[{e, q}];
+                        const std::array<double, 4> current = {frame.element("equiv_plastic" + suffix)[e],
+                            frame.element("equiv_creep" + suffix)[e],
+                            row.at("equiv_plastic"),
+                            row.at("equiv_creep")};
+                        for (std::size_t solver = 0; solver < 2; ++solver) {
+                            const double dp = current[2 * solver] - previous[2 * solver];
+                            const double dc = current[2 * solver + 1] - previous[2 * solver + 1];
+                            if (!(dp > 1e-12 && dc > 1e-12))
+                                throw std::runtime_error(
+                                    "B13 small clad point did not activate plasticity and creep together");
+                            std::array<double, 4> stress{};
+                            std::size_t component = 0;
+                            for (const char* name : {"rr", "zz", "hoop", "rz"}) {
+                                const std::string key = "stress_" + std::string(name);
+                                stress[component++] = solver == 0 ? frame.element(key + suffix)[e] : row.at(key);
+                            }
+                            const double mises = std::hypot(std::hypot(stress[0] - stress[1], stress[1] - stress[2]),
+                                                     std::hypot(stress[2] - stress[0], std::sqrt(6.0) * stress[3]))
+                                                 / std::sqrt(2.0);
+                            const double expected = dt * 1e-5 * std::pow(mises / 5e6, 3);
+                            const double error = std::abs(dc / expected - 1);
+                            if (!std::isfinite(error) || error >= 1e-3)
+                                throw std::runtime_error("B13 small creep increment violates backward Euler");
+                            maximum_backward_euler_error = std::max(maximum_backward_euler_error, error);
+                        }
+                        previous = current;
+                        ++simultaneous_samples;
+                    }
                 }
             }
             double total_normal = 0;
@@ -204,6 +269,10 @@ int main(int argc, char** argv) {
         }
         bool passed = ni == nodes.size() && pi == points.size() && ci == contacts.size() && active > 0
                       && max_plastic > 0 && max_creep > 0
+                      && (!small
+                          || (previous_inelastic.size()
+                                  == 10 * static_cast<std::size_t>(frames.back().element("material_point_count").at(24))
+                              && simultaneous_samples == previous_inelastic.size() * (frames.size() - 1)))
                       && (!integrated || (sliding > 0 && compared_frames == selected_times.size()));
         std::cout << std::scientific << std::setprecision(12);
         std::cout << "reference_time_scope=" << (integrated ? "selected_times" : "complete_history") << '\n'
@@ -214,6 +283,7 @@ int main(int argc, char** argv) {
             const double absolute = name == "temperature"                                                   ? 1e-11
                                     : name == "pressure" || name == "shear"                                 ? 1e-4
                                     : name.find("force") != std::string::npos || name == "normal_resultant" ? 1e-8
+                                    : name.find("heat") != std::string::npos                                ? 1e-8
                                                                                                             : 1e-13;
             if (m.has_relative_norm())
                 print_relative_metrics(name, m);
@@ -232,7 +302,9 @@ int main(int argc, char** argv) {
                      && m.maximum_zero_reference_difference <= (name == "stress" ? 1e-4 : 1e-13);
         }
         std::cout << "active_contact_samples=" << active << "\nsliding_contact_samples=" << sliding
-                  << "\nmaximum_plastic=" << max_plastic << "\nmaximum_creep=" << max_creep << '\n';
+                  << "\nmaximum_plastic=" << max_plastic << "\nmaximum_creep=" << max_creep
+                  << "\nsimultaneous_clad_samples=" << simultaneous_samples
+                  << "\nmaximum_backward_euler_relative_error=" << maximum_backward_euler_error << '\n';
         return passed ? 0 : 1;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';
