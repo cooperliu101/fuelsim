@@ -4,6 +4,21 @@
 comparison script were removed. Commands and measurements below that refer to
 those files are historical records; they are not current runnable comparisons.
 
+2026-09-09：原来的 C++ 轴对称性能入口已删除。当前使用完整的生产输入卡：
+
+```bash
+build/fuelsim -i verification/fuelsim/steady_rz_performance_medium.fsi
+build/fuelsim -i verification/fuelsim/steady_rz_performance_large.fsi
+```
+
+两档分别为 23,010 和 45,630 个自由度，采用 CAX4T、小应变、稳态热弹性接触，
+固定 20 个加载增量。与原程序的默认 Quad4 单元公式不同，因此下面旧记录的
+速度不能直接用于新输入。精度与速度的当前证据见
+[轴对称生产性能验证](../verification/abaqus/rz_performance/README.md)。
+同名 `_timing.fsi` 输入卡关闭结果文件输出，用于独立计时。
+`run_rz_performance.py` 顺序运行两套程序，每套先预热一次，再记录两次；
+它不会生成或修改输入卡。下文原程序的命令、预条件器研究和性能记录均属于历史资料。
+
 `fuelsim_m1_single_core_benchmark` is the manual M1 linear-solver benchmark.
 The default invocation retains the original medium case and direct solver. The
 accepted arguments are:

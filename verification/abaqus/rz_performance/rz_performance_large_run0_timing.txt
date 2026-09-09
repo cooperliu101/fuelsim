@@ -1,0 +1,5 @@
+run=0
+external_wall_seconds=80.035500
+cpus=1
+affinity_mask=1
+work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_rz_performance_979b981e312d4e869d62c5b7c32472b9

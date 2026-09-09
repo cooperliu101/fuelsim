@@ -488,22 +488,31 @@ M5.7 在同一个 150 节点瞬态有限应变例题中同时激活热接触、C
 
 ## 求解器性能
 
+2026-09-09：轴对称手动基准现通过完整生产输入卡运行，包含 23,010 和
+45,630 个自由度两档 CAX4T 稳态热弹性接触模型。原 C++ 专用入口已删除。
+当前 Abaqus 精度与速度证据见
+[轴对称性能验证](verification/abaqus/rz_performance/README.md)。
+
+```bash
+./build/fuelsim -i verification/fuelsim/steady_rz_performance_medium_timing.fsi
+./build/fuelsim -i verification/fuelsim/steady_rz_performance_large_timing.fsi
+```
+
+下面的 Quad4、MOOSE 和预条件器数值均为旧程序的历史记录，不是上述 CAX4T
+输入的当前测量。
+
 固定 CPU 和所有数值库线程数为 1 后，默认 1,584 DOF 算例的五次运行中位数
 为 fuelsim `2.00 s`、MOOSE `3.21 s`，fuelsim 约快 `1.61` 倍。与提交
 `319e173` 的同机配对基线相比，对象复用使 fuelsim 从 `2.23 s` 降至
 `1.95 s`，墙钟时间缩短 `12.6%`。
 
-仓库另提供不纳入 CTest 的 23,010 DOF、20 载荷步手动基准：
-
-```bash
-./build/fuelsim_m1_single_core_benchmark
-```
+旧程序另有不纳入 CTest 的 23,010 DOF、20 载荷步手动基准。
 
 两次单核运行的均值为 fuelsim `40.45 s`、MOOSE `54.97 s`，fuelsim 约快
 `1.36` 倍。完整网格、命令、观测范围和计时口径见
 `benchmarks/README.md`。
 
-同一手动入口现在还覆盖 45,630 自由度网格以及 GMRES 配合块 Jacobi、温度—
+旧手动入口曾经还覆盖 45,630 自由度网格以及 GMRES 配合块 Jacobi、温度—
 力学场分裂或 HYPRE。两个 MPI 进程固定在 CPU 0 和 1 的最新测量中，未缩放
 HYPRE 完成两个网格的 20 步，但预热时间分别为直接 MUMPS 的 `8.72` 倍和
 `3.96` 倍；块 Jacobi 与场分裂没有通过 23,010 自由度的两步筛查。验证矩阵

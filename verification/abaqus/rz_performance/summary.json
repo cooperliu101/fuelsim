@@ -1,0 +1,12 @@
+{
+  "medium": {
+    "fuelsim_external_mean": 70.34071531248628,
+    "abaqus_external_mean": 41.8008125,
+    "fuelsim_over_abaqus": 1.682759523214681
+  },
+  "large": {
+    "fuelsim_external_mean": 163.89640599046834,
+    "abaqus_external_mean": 83.13489100000001,
+    "fuelsim_over_abaqus": 1.9714515051263892
+  }
+}

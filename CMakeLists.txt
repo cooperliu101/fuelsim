@@ -298,14 +298,6 @@ if(BUILD_TESTING)
     )
     fuelsim_enable_warnings(fuelsim_abaqus_hex8_test_support)
 
-    add_executable(fuelsim_m1_single_core_benchmark
-        benchmarks/m1_single_core.cpp
-    )
-    target_link_libraries(fuelsim_m1_single_core_benchmark
-        PRIVATE fuelsim_test_mesh_fixture fuelsim::solver
-    )
-    fuelsim_enable_warnings(fuelsim_m1_single_core_benchmark)
-
     add_executable(fuelsim_input_tests tests/input_tests.cpp)
     target_link_libraries(fuelsim_input_tests PRIVATE fuelsim::io)
     fuelsim_enable_warnings(fuelsim_input_tests)
