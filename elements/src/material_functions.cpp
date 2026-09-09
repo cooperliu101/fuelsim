@@ -1,6 +1,6 @@
-#include "fuelsim/elements/material_functions.hpp"
-#include "fuelsim/elements/detail/fnv_hash.hpp"
-#include "fuelsim/elements/material.hpp"
+#include "material_functions.hpp"
+#include "detail/fnv_hash.hpp"
+#include "material.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>

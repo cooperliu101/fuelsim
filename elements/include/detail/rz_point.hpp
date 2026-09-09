@@ -1,5 +1,5 @@
 #pragma once
-#include "fuelsim/elements/rz_geometry.hpp"
+#include "rz_geometry.hpp"
 
 namespace fuelsim::quad4_rz_detail {
 inline adlite::Scalar

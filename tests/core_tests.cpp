@@ -5,7 +5,7 @@
 #include "fuelsim/core/rz_quad4.hpp"
 #include "fuelsim/core/spatial_definition.hpp"
 #include "fuelsim/core/steady_problem.hpp"
-#include "fuelsim/elements/material.hpp"
+#include "material.hpp"
 #include "support/material_factory.hpp"
 #include "support/mesh_fixture.hpp"
 #include "support/rz_problem_access.hpp"

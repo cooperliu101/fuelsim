@@ -1,5 +1,5 @@
 #pragma once
-#include "fuelsim/elements/rz_geometry.hpp"
+#include "rz_geometry.hpp"
 
 namespace fuelsim::elements {
 // Field-major local order: [T0..T3, ur0..ur3, uz0..uz3]. All inputs are borrowed

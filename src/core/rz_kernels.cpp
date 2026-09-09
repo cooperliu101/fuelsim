@@ -1,9 +1,9 @@
+#include "cax4t.hpp"
 #include "detail/ad_local_system.hpp"
 #include "detail/cax4rt.hpp"
+#include "detail/rz_point.hpp"
 #include "fuelsim/core/contact.hpp"
 #include "fuelsim/core/rz_quad4.hpp"
-#include "fuelsim/elements/cax4t.hpp"
-#include "fuelsim/elements/detail/rz_point.hpp"
 #include <adlite/adlite.hpp>
 #include <algorithm>
 #include <array>

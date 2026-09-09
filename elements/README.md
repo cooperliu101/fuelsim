@@ -7,7 +7,7 @@ ADlite，不查找或链接 PETSc、MPI、Exodus，也不包含全局网格或�
 ## 调用与状态所有权
 
 入口为 `fuelsim::elements::evaluate_cax4t`，声明位于
-`include/fuelsim/elements/cax4t.hpp`。接口参考 Abaqus UEL 的职责边界，使用具体
+`include/cax4t.hpp`。接口参考 Abaqus UEL 的职责边界，使用具体
 C++ 结构体和普通函数，不实现 Abaqus 的二进制接口或参数兼容层。
 
 `Cax4tInput` 借用材料对象、参考几何、当前节点状态、已接受节点状态及材料历史。

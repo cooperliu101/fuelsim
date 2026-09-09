@@ -1,5 +1,5 @@
 #pragma once
-#include "fuelsim/elements/coordinates.hpp"
+#include "coordinates.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>

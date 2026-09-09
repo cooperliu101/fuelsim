@@ -1,5 +1,5 @@
-#include "fuelsim/elements/cax4t.hpp"
-#include "fuelsim/elements/detail/rz_point.hpp"
+#include "cax4t.hpp"
+#include "detail/rz_point.hpp"
 #include <cmath>
 #include <stdexcept>
 

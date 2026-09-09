@@ -1,4 +1,5 @@
 #include "cartesian3d_assembly.hpp"
+#include "cax4t.hpp"
 #include "core/problem_backend_access.hpp"
 #include "detail/cax4rt.hpp"
 #include "fuelsim/core/cartesian3d_hex8.hpp"
@@ -6,7 +7,6 @@
 #include "fuelsim/core/spatial_definition.hpp"
 #include "fuelsim/core/steady_problem.hpp"
 #include "fuelsim/core/transient_problem.hpp"
-#include "fuelsim/elements/cax4t.hpp"
 #include "fuelsim/solver/solve_workflows.hpp"
 #include "rz_assembly.hpp"
 #include <algorithm>

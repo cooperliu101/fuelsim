@@ -1,5 +1,5 @@
 #pragma once
-#include "fuelsim/elements/material.hpp"
+#include "material.hpp"
 #include <memory>
 #include <utility>
 

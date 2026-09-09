@@ -1,5 +1,5 @@
-#include "fuelsim/elements/rz_geometry.hpp"
-#include "fuelsim/elements/detail/rz_point.hpp"
+#include "rz_geometry.hpp"
+#include "detail/rz_point.hpp"
 #include <cmath>
 #include <stdexcept>
 
