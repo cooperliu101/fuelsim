@@ -71,7 +71,7 @@ Exodus Quad4/Line2 几何
 | 内容 | 实现位置 |
 | --- | --- |
 | Quad4、外边界和接触界面的局部残量及 Jacobian | `src/core/rz_kernels.cpp` |
-| 热弹性、Norton、J2 及耦合材料更新 | `src/core/material.cpp` |
+| 热弹性、Norton、J2 及耦合材料更新 | `elements/src/material.cpp` |
 | 区域布局、边界条件、接触搜索和贡献装配 | `src/core/rz_assembly.cpp` |
 | 稳态、瞬态及 committed/trial/commit/rollback | `src/core/spatial_problem.cpp` |
 | PETSc 非线性求解器与稳态、瞬态工作流 | `src/solver/solver.cpp`、`src/solver/solve_workflows.cpp` |

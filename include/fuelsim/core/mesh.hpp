@@ -1,4 +1,5 @@
 #pragma once
+#include "fuelsim/elements/coordinates.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -6,14 +7,6 @@
 #include <vector>
 
 namespace fuelsim {
-struct RzPoint final {
-    double r, z;
-};
-
-struct CartesianPoint3 final {
-    double x, y, z;
-};
-
 struct Quad4Element final {
     std::array<std::size_t, 4> nodes;
 };

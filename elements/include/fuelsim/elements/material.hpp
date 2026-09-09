@@ -1,5 +1,5 @@
 #pragma once
-#include "fuelsim/core/material_functions.hpp"
+#include "fuelsim/elements/material_functions.hpp"
 #include <adlite/adlite.hpp>
 #include <array>
 #include <memory>

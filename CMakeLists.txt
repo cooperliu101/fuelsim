@@ -69,6 +69,9 @@ function(fuelsim_link_petsc target)
     endif()
 endfunction()
 
+include(CTest)
+add_subdirectory(elements)
+
 add_library(fuelsim_core
     src/core/rz_assembly.cpp
     src/core/cartesian3d_assembly.cpp
@@ -86,8 +89,6 @@ add_library(fuelsim_core
     src/core/detail/cax4rt.cpp
     src/core/mesh.cpp
     src/core/mesh_quad8.cpp
-    src/core/material.cpp
-    src/core/material_functions.cpp
     src/core/nonlinear_problem.cpp
     src/core/spatial_problem.cpp
 )
@@ -99,7 +100,7 @@ target_include_directories(fuelsim_core
     PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
-target_link_libraries(fuelsim_core PUBLIC adlite::adlite)
+target_link_libraries(fuelsim_core PUBLIC fuelsim::elements)
 fuelsim_enable_warnings(fuelsim_core)
 
 add_library(fuelsim_io
@@ -153,6 +154,7 @@ fuelsim_enable_warnings(fuelsim)
 include(CTest)
 
 if(BUILD_TESTING)
+    add_test(NAME fuelsim_cax4t_element_tests COMMAND fuelsim_cax4t_element_tests)
     include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src")
 
     add_library(fuelsim_test_mesh_fixture

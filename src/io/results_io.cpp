@@ -1,7 +1,7 @@
 #include "fuelsim/io/results_io.hpp"
 #include "core/problem_backend_access.hpp"
-#include "detail/fnv_hash.hpp"
 #include "fuelsim/core/transient_problem.hpp"
+#include "fuelsim/elements/detail/fnv_hash.hpp"
 #include "io/hex8_result_fields.hpp"
 #include "io/problem_signature.hpp"
 #include <algorithm>

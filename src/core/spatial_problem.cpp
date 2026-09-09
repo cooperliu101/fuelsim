@@ -6,6 +6,7 @@
 #include "fuelsim/core/spatial_definition.hpp"
 #include "fuelsim/core/steady_problem.hpp"
 #include "fuelsim/core/transient_problem.hpp"
+#include "fuelsim/elements/cax4t.hpp"
 #include "fuelsim/solver/solve_workflows.hpp"
 #include "rz_assembly.hpp"
 #include <algorithm>
@@ -1727,13 +1728,32 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                 const LocalValues committed_state =
                     gather_rz_state(*_impl->rz, offset + element, _impl->committed_solution);
                 const Quad4RzGeometry& geometry = _impl->rz->region_element_geometry(region, element);
-                Quad4MaterialHistory update = compute_quad4_rz_transient_update(_impl->kernel_data[region],
-                    geometry,
-                    state,
-                    committed_state,
-                    _impl->material_histories[region][element],
-                    _impl->active_time_step);
-                const bool reduced = _impl->kernel_data[region].element_formulation == RzElementFormulation::cax4rt;
+                const auto& element_data = _impl->kernel_data[region];
+                const bool cax4t = element_data.element_formulation == RzElementFormulation::cax4t;
+                const bool reduced = element_data.element_formulation == RzElementFormulation::cax4rt;
+                Quad4MaterialHistory update;
+                if (cax4t) {
+                    auto result = elements::evaluate_cax4t({element_data.material,
+                        geometry,
+                        state,
+                        committed_state,
+                        &_impl->material_histories[region][element],
+                        _impl->active_time_step,
+                        element_data.time,
+                        element_data.volumetric_heat_source,
+                        element_data.strain_formulation,
+                        _impl->include_thermal_time_term});
+                    update = std::move(result.history);
+                    conservation.stored_heat_rate += result.stored_heat_rate;
+                    conservation.generated_heat_rate += result.generated_heat_rate;
+                } else {
+                    update = compute_quad4_rz_transient_update(element_data,
+                        geometry,
+                        state,
+                        committed_state,
+                        _impl->material_histories[region][element],
+                        _impl->active_time_step);
+                }
                 if (reduced) {
                     const auto rates = rz::cax4rt_thermal_rates(_impl->kernel_data[region],
                         geometry,
@@ -1764,31 +1784,13 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                         point.axial_coordinate};
                     const double heat_capacity =
                         kernel_data.material.heat_capacity(current_temperature, context).value();
-                    const bool cax4t = kernel_data.element_formulation == RzElementFormulation::cax4t;
-                    double thermal_measure = point.weighted_measure;
-                    if (cax4t && kernel_data.strain_formulation == StrainFormulation::finite) {
-                        Quad4Coordinates current = geometry.coordinates;
-                        for (std::size_t n = 0; n < 4; ++n) {
-                            current[n].r += state[4 + n];
-                            current[n].z += state[8 + n];
-                        }
-                        thermal_measure = make_quad4_rz_geometry(current).points[q].weighted_measure;
+                    if (!reduced && !cax4t) {
+                        if (_impl->include_thermal_time_term)
+                            conservation.stored_heat_rate += point.weighted_measure * heat_capacity
+                                                             * (current_temperature - old_temperature)
+                                                             / _impl->active_time_step;
+                        conservation.generated_heat_rate += point.weighted_measure * kernel_data.volumetric_heat_source;
                     }
-                    if (cax4t && _impl->include_thermal_time_term)
-                        for (std::size_t n = 0; n < 4; ++n) {
-                            const auto& x = geometry.coordinates[n];
-                            conservation.stored_heat_rate +=
-                                thermal_measure * point.shape[n]
-                                * kernel_data.material.heat_capacity(state[n], {kernel_data.time, x.r, 0.0, x.z})
-                                      .value()
-                                * (state[n] - committed_state[n]) / _impl->active_time_step;
-                        }
-                    if (!reduced && !cax4t && _impl->include_thermal_time_term)
-                        conservation.stored_heat_rate += point.weighted_measure * heat_capacity
-                                                         * (current_temperature - old_temperature)
-                                                         / _impl->active_time_step;
-                    if (!reduced)
-                        conservation.generated_heat_rate += thermal_measure * kernel_data.volumetric_heat_source;
                     const MaterialPointState &old_history = _impl->material_histories[region][element][reduced ? 0 : q],
                                              &new_history = update[reduced ? 0 : q];
                     const AxisymmetricStressValues &old_stress = old_history.stress, &new_stress = new_history.stress;

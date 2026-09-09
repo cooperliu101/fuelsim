@@ -1,7 +1,7 @@
 #pragma once
 #include "fuelsim/core/contact.hpp"
-#include "fuelsim/core/kinematics.hpp"
-#include "fuelsim/core/material.hpp"
+#include "fuelsim/elements/kinematics.hpp"
+#include "fuelsim/elements/material.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>

@@ -1,5 +1,5 @@
-#include "fuelsim/core/material.hpp"
-#include "fuelsim/core/material_functions.hpp"
+#include "fuelsim/elements/material.hpp"
+#include "fuelsim/elements/material_functions.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>

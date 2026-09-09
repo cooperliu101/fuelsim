@@ -1,7 +1,7 @@
 #pragma once
-#include "fuelsim/core/kinematics.hpp"
-#include "fuelsim/core/material.hpp"
 #include "fuelsim/core/mesh.hpp"
+#include "fuelsim/elements/kinematics.hpp"
+#include "fuelsim/elements/material.hpp"
 #include <adlite/adlite.hpp>
 #include <array>
 #include <cstddef>
