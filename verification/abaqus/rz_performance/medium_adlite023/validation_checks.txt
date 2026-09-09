@@ -1,0 +1,7 @@
+PASS: ADlite 0.2.3 pinned at fd319e00234e18280319d141f17d9fa015c2501b; build/install self-test passed.
+PASS: Fuelsim links the new versioned static library with the original compiler and Release LTO settings.
+PASS: unified Fuelsim regression, 271/271, 166.37 s.
+PASS: complete accuracy report byte-identical to ADlite 0.2.2; all relative metrics below 0.01%.
+PASS: both versions complete 20 increments, 46 iterations and 18 successful predictions on the same input card.
+PASS: before/after binaries, libraries, inputs and runner hashes match recorded evidence.
+PASS: --resume reuses recorded runs without launching additional jobs.

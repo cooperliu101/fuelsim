@@ -153,7 +153,7 @@ env \
   cmake -S . -B build \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_CXX_COMPILER="${fuelsim_toolchain_prefix}/bin/c++" \
-    -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-0.2.2" \
+    -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-0.2.3" \
     -DSEACASExodus_DIR="${fuelsim_dependency_root}/exodus-2024-06-27/lib/cmake/SEACASExodus"
 
 env PATH="${fuelsim_toolchain_prefix}/bin:/usr/local/bin:/usr/bin:/bin" \
@@ -493,7 +493,7 @@ M5.7 在同一个 150 节点瞬态有限应变例题中同时激活热接触、C
 当前 Abaqus 精度与速度证据见
 [轴对称性能验证](verification/abaqus/rz_performance/README.md)。
 中等规模采用完整牛顿更新和载荷预测后，全部规定相对误差小于 0.01%，单核外部时间均值
-为 22.50 秒，Abaqus 为 39.74 秒，耗时减少 43.39%；这是同一主机上
+为 22.44 秒（ADlite 0.2.3），Abaqus 为 41.82 秒，耗时减少 46.33%；这是同一主机上
 WSL2 与 Windows 的对照测量。
 
 ```bash

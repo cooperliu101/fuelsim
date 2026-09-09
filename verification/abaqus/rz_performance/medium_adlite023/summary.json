@@ -1,0 +1,19 @@
+{
+  "adlite_version": "0.2.3",
+  "relative_error_limit": 0.0001,
+  "accuracy_passed": true,
+  "maximum_pointwise_relative_error": 4.711684377633834e-08,
+  "adlite022_external_mean_seconds": 22.827067343023373,
+  "fuelsim_external_mean_seconds": 22.44445040950086,
+  "abaqus_external_mean_seconds": 41.821451499999995,
+  "adlite_update_elapsed_reduction_percent": 1.6761545746236783,
+  "fuelsim_over_abaqus": 0.5366731570639259,
+  "elapsed_time_reduction_percent": 46.33268429360741,
+  "speedup": 1.8633315023074364,
+  "fuelsim_internal_mean_seconds": 21.900531686,
+  "adlite022_internal_mean_seconds": 22.318650796500002,
+  "abaqus_analysis_mean_seconds": 38.0,
+  "fuelsim_iterations": 46,
+  "abaqus_iterations": 52,
+  "scope": "Medium case only; unchanged production input and solver code; same compiler and Release LTO; final-state vector/tensor metrics; one CPU and one thread; WSL2 Fuelsim / Windows Abaqus; one warmup and two measured runs per program"
+}

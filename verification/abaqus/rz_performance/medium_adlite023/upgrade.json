@@ -1,0 +1,15 @@
+{
+  "previous_adlite_version": "0.2.2",
+  "previous_adlite_commit": "6b8af513aa5abb956a1b246d4d1a5c4f5fc7d8a2",
+  "adlite_version": "0.2.3",
+  "adlite_commit": "fd319e00234e18280319d141f17d9fa015c2501b",
+  "comparison": "Same Fuelsim numerical and solver implementation, input cards, compiler, Release LTO, one CPU and one library thread; only ADlite dependency changes. Baseline measured before installation, no builds or other solves during timing.",
+  "sha256": {
+    "/tmp/fuelsim-adlite022-before": "30b18fdf1d114bcc1690e6977564a0b065dc612021ea71d967da91dab54c6aab",
+    "verification/fuelsim/steady_rz_performance_medium.fsi": "0db24a19ea81abd4cf1909f5c408ed9623c298b7d58168690205ae1415457be4",
+    "verification/fuelsim/steady_rz_performance_medium_timing.fsi": "29b3afabe1cc315438fcc29a9d3b3a414b7fecdd188de572d0e0555755a0a1b3",
+    "/home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.2/lib/libadlite.a": "53b4749d4c83e0e13e3f1a81431dd85b7c4dcec3af572c13c627fffd39c37576",
+    "/home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.3/lib/libadlite.a": "5acaf4b9e65a5bf07face2c87b2660c39df674c4ed56145f16173919b630d44a"
+  },
+  "fuelsim_base_revision": "7320aa267e4a2621a7b72d82cc2a4407d39fbd49"
+}

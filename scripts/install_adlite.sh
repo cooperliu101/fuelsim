@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-expected_commit=6b8af513aa5abb956a1b246d4d1a5c4f5fc7d8a2
+expected_commit=fd319e00234e18280319d141f17d9fa015c2501b
 
 if [[ $# -ne 4 ]]; then
     echo "Usage: $0 <adlite-source-dir> <install-prefix> <build-dir> <toolchain-prefix>" >&2

@@ -25,7 +25,7 @@ if(FUELSIM_ENABLE_RELEASE_IPO)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
 endif()
 
-find_package(adlite 0.2.2 CONFIG REQUIRED)
+find_package(adlite 0.2.3 CONFIG REQUIRED)
 find_package(PkgConfig REQUIRED)
 find_package(SEACASExodus CONFIG REQUIRED)
 pkg_search_module(PETSC REQUIRED IMPORTED_TARGET PETSc petsc)

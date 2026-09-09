@@ -1,0 +1,23 @@
+[
+  {
+    "run": 0,
+    "warmup": true,
+    "external_wall_seconds": 23.530973145971075,
+    "solver_internal_seconds": 22.806523603,
+    "nonlinear_iterations": 46
+  },
+  {
+    "run": 1,
+    "warmup": false,
+    "external_wall_seconds": 22.77444170002127,
+    "solver_internal_seconds": 22.257544161,
+    "nonlinear_iterations": 46
+  },
+  {
+    "run": 2,
+    "warmup": false,
+    "external_wall_seconds": 22.879692986025475,
+    "solver_internal_seconds": 22.379757432,
+    "nonlinear_iterations": 46
+  }
+]

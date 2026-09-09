@@ -1,0 +1,37 @@
+{
+  "git_revision": "7320aa267e4a2621a7b72d82cc2a4407d39fbd49",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "sizes": [
+    "medium"
+  ],
+  "sha256": {
+    "build/fuelsim": "3c0c7abaa4c46f0e68efcd31c7026ee9ac44a18e0c7f3d90ce30a7d99e271a75",
+    "benchmarks/run_rz_performance.py": "db63e1604cbb1355b4e7960e08fb2ab89e83d23d3dab55c29e9a156d69a9e4b8",
+    "verification/abaqus/rz_performance/run.ps1": "f649789cb7df9d057297601e617e88da26438d2258762cd1baa3a73fb1063d6d",
+    "verification/abaqus/rz_performance/compare.py": "bbd79bee878ae9be8db51e8b06002c09e032381aa79e7b44a303280bd1c9f995",
+    "verification/abaqus/rz_performance/material_contact.inc": "750d4945e330983e8d84d6cafceccf2a12b4b6291547fef0dd3ce946a3ab7efe",
+    "verification/fuelsim/steady_rz_performance_medium.fsi": "0db24a19ea81abd4cf1909f5c408ed9623c298b7d58168690205ae1415457be4",
+    "verification/fuelsim/steady_rz_performance_medium_timing.fsi": "29b3afabe1cc315438fcc29a9d3b3a414b7fecdd188de572d0e0555755a0a1b3",
+    "verification/abaqus/rz_performance/rz_performance_medium.inp": "4b4039de2242ad89cc94d7a65e08402f894041cbb5ac7857a1076f2baf766b0f",
+    "verification/abaqus/rz_performance/rz_performance_medium_timing.inp": "4695f2729e179a7beccbb40a763109ef4df488b0bae3fe8222b9ec1a92759ed6",
+    "verification/abaqus/rz_performance/rz_performance_medium_mesh.inc": "6f85d8fc0535c50b2c5ad5ce5cfc0c9bd5e9a479817ccf723817046141be1198",
+    "verification/meshes/rz_performance_medium.e": "2474721e4e17738601bc750f81dd678fde7be16aba621477b083f46af824b8c7",
+    "CMakeLists.txt": "019f3d9d15f2953fd8391aa9f664dd486df98afbbc42330d66448991dd1220a2",
+    "scripts/install_adlite.sh": "a0a6e08353ed68fa001b316865f6b0ae7fcb4d674f8a9e5e5e863780d533be37"
+  },
+  "adlite_version": "0.2.3",
+  "adlite_commit": "fd319e00234e18280319d141f17d9fa015c2501b",
+  "working_tree_note": "Base Fuelsim revision with dependency pin updates only; numerical code and input cards unchanged.",
+  "build_configuration": [
+    "CMAKE_BUILD_TYPE:STRING=Release",
+    "CMAKE_CXX_COMPILER:UNINITIALIZED=/home/cooper/miniforge/envs/moose/bin/c++",
+    "CMAKE_PREFIX_PATH:UNINITIALIZED=/home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.3",
+    "FUELSIM_ENABLE_RELEASE_IPO:BOOL=ON",
+    "FUELSIM_WARNINGS_AS_ERRORS:BOOL=ON",
+    "SEACASExodus_DIR:UNINITIALIZED=/home/cooper/ai_project/fuelsim-dependencies/exodus-2024-06-27/lib/cmake/SEACASExodus",
+    "adlite_DIR:UNINITIALIZED=/home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.3/lib/cmake/adlite"
+  ],
+  "validation_output_sha256": {
+    "verification/fuelsim/steady_rz_performance_medium_results.e": "893d2ddf47a97626f3e98da9a9ad9839473eebafe7b90484921a9efd9ca5140e"
+  }
+}
