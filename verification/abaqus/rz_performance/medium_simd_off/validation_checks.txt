@@ -1,0 +1,8 @@
+PASS: fixed ADlite 0.2.3 release; uncommitted upstream edits excluded.
+PASS: ADLITE_ENABLE_SIMD=OFF and ADLITE_HAS_AVX2_BACKEND=0; width 5/6 dispatch selects scalar functions.
+PASS: compiler automatic-vectorization settings unchanged.
+PASS: complete accuracy report byte-identical to SIMD-on; all relative metrics below 0.01%.
+PASS: unified CTest suite, 271/271, 167.94 seconds.
+PASS: both variants complete 20 increments and 46 iterations with no prediction fallback.
+PASS: one warmup per variant, followed by two alternating-order measured pairs on CPU 0 and one thread.
+PASS: binaries, inputs, libraries and timing runner hashes match measured files.

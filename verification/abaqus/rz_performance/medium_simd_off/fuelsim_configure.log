@@ -1,0 +1,9 @@
+-- Configuring done (0.4s)
+-- Generating done (0.3s)
+CMake Warning:
+  Manually-specified variables were not used by the project:
+
+    CMAKE_PREFIX_PATH
+
+
+-- Build files have been written to: /home/cooper/ai_project/fuelsim/build

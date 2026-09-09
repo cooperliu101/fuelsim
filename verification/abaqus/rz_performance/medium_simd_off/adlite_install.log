@@ -1,0 +1,52 @@
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /tmp/fuelsim-adlite023-fixed-nosimd-build
+[ 33%] Building CXX object CMakeFiles/adlite.dir/src/adlite.cpp.o
+[ 33%] Building CXX object CMakeFiles/adlite.dir/src/derivative_kernels.cpp.o
+[ 50%] Building CXX object CMakeFiles/adlite.dir/src/derivative_kernels_scalar.cpp.o
+[ 66%] Linking CXX static library libadlite.a
+[ 66%] Built target adlite
+[ 83%] Building CXX object CMakeFiles/adlite_tests.dir/tests/adlite_tests.cpp.o
+[100%] Linking CXX executable adlite_tests
+In function 'seed_directions',
+    inlined from 'operator()' at /tmp/fuelsim-adlite023-fixed-source/tests/adlite_tests.cpp:218:3,
+    inlined from '__invoke_impl' at /home/cooper/miniforge/envs/moose/lib/gcc/x86_64-conda-linux-gnu/14.3.0/include/c++/bits/invoke.h:61:36,
+    inlined from '__invoke_r' at /home/cooper/miniforge/envs/moose/lib/gcc/x86_64-conda-linux-gnu/14.3.0/include/c++/bits/invoke.h:111:28,
+    inlined from '_M_invoke' at /home/cooper/miniforge/envs/moose/lib/gcc/x86_64-conda-linux-gnu/14.3.0/include/c++/bits/std_function.h:290:30:
+/tmp/fuelsim-adlite023-fixed-source/src/adlite.cpp:514:33: warning: iteration 1152921504606846976 invokes undefined behavior [-Waggressive-loop-optimizations]
+  514 |                                 ? nullptr : directions + i * derivative_width;
+      |                                 ^
+/tmp/fuelsim-adlite023-fixed-source/src/adlite.cpp:512:31: note: within this loop
+  512 |     for (std::size_t i = 0; i < input_count; ++i) {
+      |                               ^
+In function 'extract_jacobian',
+    inlined from 'operator()' at /tmp/fuelsim-adlite023-fixed-source/tests/adlite_tests.cpp:222:3,
+    inlined from '__invoke_impl' at /home/cooper/miniforge/envs/moose/lib/gcc/x86_64-conda-linux-gnu/14.3.0/include/c++/bits/invoke.h:61:36,
+    inlined from '__invoke_r' at /home/cooper/miniforge/envs/moose/lib/gcc/x86_64-conda-linux-gnu/14.3.0/include/c++/bits/invoke.h:111:28,
+    inlined from '_M_invoke' at /home/cooper/miniforge/envs/moose/lib/gcc/x86_64-conda-linux-gnu/14.3.0/include/c++/bits/std_function.h:290:30:
+/tmp/fuelsim-adlite023-fixed-source/src/adlite.cpp:541:41: warning: iteration 576460752303423488 invokes undefined behavior [-Waggressive-loop-optimizations]
+  541 |         values[row] = outputs[row].value();
+      |                                         ^
+/tmp/fuelsim-adlite023-fixed-source/src/adlite.cpp:540:35: note: within this loop
+  540 |     for (std::size_t row = 0; row < output_count; ++row) {
+      |                                   ^
+[100%] Built target adlite_tests
+Test project /tmp/fuelsim-adlite023-fixed-nosimd-build
+    Start 1: adlite_tests
+1/1 Test #1: adlite_tests .....................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Label Time Summary:
+unit    =   0.00 sec*proc (1 test)
+
+Total Test time (real) =   0.00 sec
+-- Install configuration: "Release"
+-- Installing: /home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.3-nosimd/lib/libadlite.a
+-- Installing: /home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.3-nosimd/include
+-- Installing: /home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.3-nosimd/include/adlite
+-- Installing: /home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.3-nosimd/include/adlite/adlite.hpp
+-- Installing: /home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.3-nosimd/lib/cmake/adlite/adliteTargets.cmake
+-- Installing: /home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.3-nosimd/lib/cmake/adlite/adliteTargets-release.cmake
+-- Installing: /home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.3-nosimd/lib/cmake/adlite/adliteConfig.cmake
+-- Installing: /home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.3-nosimd/lib/cmake/adlite/adliteConfigVersion.cmake

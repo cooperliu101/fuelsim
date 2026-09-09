@@ -1,0 +1,28 @@
+{
+  "git_revision": "9d65483080c879760f1509f35d7ffa63c9ab4b33",
+  "cpu": 0,
+  "threads": {
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1"
+  },
+  "sha256": {
+    "/home/cooper/ai_project/fuelsim/verification/fuelsim/steady_rz_performance_medium_timing.fsi": "29b3afabe1cc315438fcc29a9d3b3a414b7fecdd188de572d0e0555755a0a1b3",
+    "/home/cooper/ai_project/fuelsim/benchmarks/run_rz_simd_comparison.py": "7c5013af7263924c90b8116a08f3b99ec49a0d5df3a5b9c6dd72dd0da00ba724",
+    "/tmp/fuelsim-adlite023-simd-on": "3c0c7abaa4c46f0e68efcd31c7026ee9ac44a18e0c7f3d90ce30a7d99e271a75",
+    "/home/cooper/ai_project/fuelsim/build/fuelsim": "2c5a7ab8dacb9639522a62ced761470d92478a5427eddd669439b29b301d9c0e"
+  },
+  "adlite_commit": "fd319e00234e18280319d141f17d9fa015c2501b",
+  "build_configuration": [
+    "CMAKE_BUILD_TYPE:STRING=Release",
+    "CMAKE_CXX_COMPILER:UNINITIALIZED=/home/cooper/miniforge/envs/moose/bin/c++",
+    "CMAKE_PREFIX_PATH:UNINITIALIZED=/home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.3-nosimd",
+    "FUELSIM_ENABLE_RELEASE_IPO:BOOL=ON",
+    "FUELSIM_WARNINGS_AS_ERRORS:BOOL=ON",
+    "adlite_DIR:UNINITIALIZED=/home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.3-nosimd/lib/cmake/adlite"
+  ],
+  "validation_output_sha256": {
+    "verification/fuelsim/steady_rz_performance_medium_results.e": "893d2ddf47a97626f3e98da9a9ad9839473eebafe7b90484921a9efd9ca5140e"
+  }
+}

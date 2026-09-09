@@ -1,0 +1,15 @@
+{
+  "adlite_version": "0.2.3",
+  "adlite_commit": "fd319e00234e18280319d141f17d9fa015c2501b",
+  "simd_on_external_mean_seconds": 22.51085112299188,
+  "simd_off_external_mean_seconds": 22.19156169501366,
+  "simd_off_elapsed_reduction_percent": 1.4183800791614964,
+  "simd_on_internal_mean_seconds": 22.001375236,
+  "simd_off_internal_mean_seconds": 21.655496063,
+  "nonlinear_iterations": 46,
+  "accuracy_passed": true,
+  "relative_error_limit": 0.0001,
+  "maximum_pointwise_relative_error": 4.711684377633834e-08,
+  "accuracy_identical_to_simd_on": true,
+  "scope": "Same fixed ADlite release and Fuelsim code; explicit SIMD backend on/off, compiler auto-vectorization unchanged; identical medium input, 20 increments, one CPU/thread; one warmup then two alternating-order measured pairs; no Abaqus rerun"
+}

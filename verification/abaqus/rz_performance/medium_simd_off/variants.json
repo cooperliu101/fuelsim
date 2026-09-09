@@ -1,0 +1,13 @@
+{
+  "adlite_version": "0.2.3",
+  "adlite_commit": "fd319e00234e18280319d141f17d9fa015c2501b",
+  "source_note": "Uncommitted changes in the original ADlite checkout excluded; scalar variant built from a clean clone of the installed release commit.",
+  "simd_off_definition": "ADLITE_ENABLE_SIMD=OFF, ADLITE_HAS_AVX2_BACKEND=0; compiler automatic vectorization flags unchanged.",
+  "sha256": {
+    "/tmp/fuelsim-adlite023-simd-on": "3c0c7abaa4c46f0e68efcd31c7026ee9ac44a18e0c7f3d90ce30a7d99e271a75",
+    "verification/fuelsim/steady_rz_performance_medium.fsi": "0db24a19ea81abd4cf1909f5c408ed9623c298b7d58168690205ae1415457be4",
+    "verification/fuelsim/steady_rz_performance_medium_timing.fsi": "29b3afabe1cc315438fcc29a9d3b3a414b7fecdd188de572d0e0555755a0a1b3",
+    "/home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.3/lib/libadlite.a": "5acaf4b9e65a5bf07face2c87b2660c39df674c4ed56145f16173919b630d44a",
+    "/home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.3-nosimd/lib/libadlite.a": "a35a0884aefa245ed98cfafe79765e7d578651b4e36942e16b9200cb617d7dae"
+  }
+}

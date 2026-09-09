@@ -1,0 +1,62 @@
+[
+  {
+    "simd": "on",
+    "run": 0,
+    "warmup": true,
+    "external_wall_seconds": 22.459649237978738,
+    "solver_internal_seconds": 21.962032287,
+    "nonlinear_iterations": 46,
+    "jacobian_evaluations": 46,
+    "load_predictor_fallbacks": 0
+  },
+  {
+    "simd": "off",
+    "run": 0,
+    "warmup": true,
+    "external_wall_seconds": 22.099180334014818,
+    "solver_internal_seconds": 21.545469061,
+    "nonlinear_iterations": 46,
+    "jacobian_evaluations": 46,
+    "load_predictor_fallbacks": 0
+  },
+  {
+    "simd": "on",
+    "run": 1,
+    "warmup": false,
+    "external_wall_seconds": 22.556693515973166,
+    "solver_internal_seconds": 22.044375609,
+    "nonlinear_iterations": 46,
+    "jacobian_evaluations": 46,
+    "load_predictor_fallbacks": 0
+  },
+  {
+    "simd": "off",
+    "run": 1,
+    "warmup": false,
+    "external_wall_seconds": 22.218882950022817,
+    "solver_internal_seconds": 21.702326891,
+    "nonlinear_iterations": 46,
+    "jacobian_evaluations": 46,
+    "load_predictor_fallbacks": 0
+  },
+  {
+    "simd": "off",
+    "run": 2,
+    "warmup": false,
+    "external_wall_seconds": 22.164240440004505,
+    "solver_internal_seconds": 21.608665235,
+    "nonlinear_iterations": 46,
+    "jacobian_evaluations": 46,
+    "load_predictor_fallbacks": 0
+  },
+  {
+    "simd": "on",
+    "run": 2,
+    "warmup": false,
+    "external_wall_seconds": 22.465008730010595,
+    "solver_internal_seconds": 21.958374863,
+    "nonlinear_iterations": 46,
+    "jacobian_evaluations": 46,
+    "load_predictor_fallbacks": 0
+  }
+]

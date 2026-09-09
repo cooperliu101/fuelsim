@@ -22,7 +22,8 @@ build/fuelsim -i verification/fuelsim/steady_rz_performance_large.fsi
 结合载荷预测，在 0.01% 精度要求下，非线性迭代从 65 次降到 46 次；
 ADlite 0.2.3 下外部时间均值为 22.44 秒，Abaqus 同批次为 41.82 秒；
 本次旧版 ADlite 0.2.2 重测为 22.83 秒，更新后的改善约为 1.68%；
-大规模仍保留原配置。下文原程序的命令、预条件器研究和性能记录均属于历史资料。
+大规模仍保留原配置。额外的同批次 SIMD 开关对照为启用 22.51 秒、关闭 22.19 秒，
+关闭约快 1.42%，精度和迭代次数不变；详见报告中的 `medium_simd_off` 记录。下文原程序的命令、预条件器研究和性能记录均属于历史资料。
 
 `fuelsim_m1_single_core_benchmark` is the manual M1 linear-solver benchmark.
 The default invocation retains the original medium case and direct solver. The

@@ -276,3 +276,62 @@ Fuelsim 耗时为本次 Abaqus 的 0.5661 倍，减少 **43.39%**，速度为 1.
 41.8215 秒；前一批的 Abaqus 为 39.7399 秒，两批比例的差异不能全部归因于 ADlite。
 两版本 Fuelsim 的全部正式运行均为 20 个增量、46 次迭代、18 次成功预测，
 精度门槛和最终场覆盖范围与前述一致，完整记录见 `medium_adlite023/summary.json`。
+
+
+## ADlite 0.2.3 关闭显式 SIMD 后端对照（2026-09-09）
+
+本次固定 ADlite 提交 `fd319e00234e18280319d141f17d9fa015c2501b`，使用
+`ADLITE_ENABLE_SIMD=OFF` 构建独立的 `adlite-0.2.3-nosimd` 安装目录。
+原源码目录出现的未提交修改未纳入此对照；标量版本从固定提交的干净副本构建。
+原有启用版本的库及可执行文件保留，输入卡、求解器、编译器、Release 链接时优化、
+单核和单线程设置均保持一致。这里关闭的是 ADlite 手写 SIMD 后端，不额外禁止
+编译器自动向量化，也不改变 PETSc 或 MUMPS 的构建方式。
+
+构建记录确认 `ADLITE_HAS_AVX2_BACKEND=0`。链接实际安装库的探测还确认宽度 5 和 6
+的缩放、累加和组合运算都选择标量计算函数，见 `medium_simd_off/dispatch.txt`。
+当前本地 `build/fuelsim` 已切换为此关闭版本；仓库默认安装配置仍维持启用 SIMD。
+
+复现时先按常规方式构建启用版本，并保存为 `/tmp/fuelsim-adlite023-simd-on`。
+关闭配置可通过先创建安装脚本的构建缓存来复现：
+
+```bash
+git clone /home/cooper/ai_project/ADlite /tmp/fuelsim-adlite023-fixed-source
+git -C /tmp/fuelsim-adlite023-fixed-source checkout fd319e00234e18280319d141f17d9fa015c2501b
+cmake -S /tmp/fuelsim-adlite023-fixed-source \
+  -B /tmp/fuelsim-adlite023-fixed-nosimd-build \
+  -DCMAKE_CXX_COMPILER=/home/cooper/miniforge/envs/moose/bin/c++ \
+  -DCMAKE_BUILD_TYPE=Release -DADLITE_ENABLE_SIMD=OFF
+scripts/install_adlite.sh /tmp/fuelsim-adlite023-fixed-source \
+  /home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.3-nosimd \
+  /tmp/fuelsim-adlite023-fixed-nosimd-build /home/cooper/miniforge/envs/moose
+```
+
+上述源码目录须为该固定提交的干净 Git 工作树。Fuelsim 使用常规 Release 配置，
+同时将 `CMAKE_PREFIX_PATH` 和 `adlite_DIR` 指向该版本化安装目录及其 `lib/cmake/adlite`。
+全部构建仍使用 `--parallel 4`，统一回归使用 `ctest --test-dir build -j4 --output-on-failure`。
+
+正式计时使用同一张完整输入卡，不生成或修改问题定义：
+
+```bash
+python benchmarks/run_rz_simd_comparison.py \
+  --simd-on /tmp/fuelsim-adlite023-simd-on --simd-off build/fuelsim
+```
+
+运行器先分别预热，再按“启用、关闭”和“关闭、启用”的顺序测量两轮，外部单调时钟
+覆盖程序启动和完整求解。`medium_simd_off/` 保存两版本程序散列、逐次记录及精度证据。
+本次不重测 Abaqus，避免将先前批次的 Abaqus 时间当成本轮 SIMD 对照的直接基线。
+
+
+关闭版本的 Release 构建及 ADlite 自检通过，Fuelsim 统一回归 **271/271 通过**
+（167.94 秒）。精度报告与启用版本逐字节一致，最大逐点相对误差仍为
+4.71168438e-6%，满足 0.01% 门槛。
+
+| ADlite 显式 SIMD 后端 | 第一轮正式测量 | 第二轮正式测量 | 外部总时间均值 | 内部求解时间均值 | 非线性迭代数 |
+|---|---:|---:|---:|---:|---:|
+| 启用 | 22.5567 s | 22.4650 s | **22.5109 s** | 22.0014 s | 46 |
+| 关闭 | 22.2189 s | 22.1642 s | **22.1916 s** | 21.6555 s | 46 |
+
+本次关闭版本平均少用 **0.3193 秒（1.42%）**，两轮均略快，但差异较小。
+该观察只对应本中等规模算例，不据此推广其他单元、导数宽度或模型的性能。
+全部六次运行都完成 20 个增量、46 次迭代，且没有预测失败。
+原始样本及汇总见 `medium_simd_off/timing.json` 和 `medium_simd_off/summary.json`。
