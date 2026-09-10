@@ -52,7 +52,7 @@ def run(fuelsim, powershell, windows_source, cpu, resume=False, sizes=('medium',
                           for suffix in ('','_timing')])
             paths.extend([REFERENCE/('rz_performance_'+size+variant+suffix) for suffix in
                           ('.inp','_timing.inp','_mesh.inc')])
-            paths.append(ROOT/'verification/meshes'/('rz_performance_'+size+('_cax8t' if element == 'cax8t' else '')+'.e'))
+            paths.append(ROOT/'verification/meshes'/('rz_performance_'+size+('_cax8t' if element in ('cax8t','cax8rt') else '')+'.e'))
         provenance=dict(git_revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
                         platform=platform.platform(),sizes=list(sizes),element=element,
                         sha256={str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p):
@@ -109,7 +109,7 @@ if __name__=='__main__':
     p.add_argument('--powershell',default='/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe')
     p.add_argument('--windows-source',required=True);p.add_argument('--cpu',type=int,default=0)
     p.add_argument('--resume',action='store_true')
-    p.add_argument('--element',choices=('cax4t','cax4rt','cax8t'),default='cax4t')
+    p.add_argument('--element',choices=('cax4t','cax4rt','cax8t','cax8rt'),default='cax4t')
     p.add_argument('--size',choices=('medium','large','both'),default='both')
     p.add_argument('--results-directory',type=Path,default=REFERENCE)
     p.add_argument('--windows-results')

@@ -1,0 +1,30 @@
+{
+  "git_revision": "68f79d8e949d30d6b2a1e56251c690a17ee5035e",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "sizes": [
+    "medium"
+  ],
+  "element": "cax8rt",
+  "sha256": {
+    "build/fuelsim": "d4ae6f0665cef98017cf9f11c4c04bd85c051d1ce6ff9f21949dd4b5dd404c8d",
+    "benchmarks/run_rz_performance.py": "b6a69e569f0662d8393c8157e2ed451c67dbe6d732f3f5cbb09c1c341d47bb8c",
+    "verification/abaqus/rz_performance/run.ps1": "04e79145e99ed13ae72ea9ba4611e284861c214c043471093a72f7e8a0d25648",
+    "verification/abaqus/rz_performance/compare.py": "a6dd58d17ff918bc6cb836e14ecdef0b3f18d3988f83bf0c35510b0e9b33d31a",
+    "verification/abaqus/rz_performance/material_contact.inc": "750d4945e330983e8d84d6cafceccf2a12b4b6291547fef0dd3ce946a3ab7efe",
+    "verification/fuelsim/steady_rz_performance_medium_cax8rt.fsi": "c11b77a667aa4f412ebd7d5c713cc6c2e9277ecb52477e363941f059b92c4308",
+    "verification/fuelsim/steady_rz_performance_medium_cax8rt_timing.fsi": "77ed65a67afa90d0184b8a85ebee9e59fc0149be623ce0113bd5ca8f72353dfa",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax8rt.inp": "14dee8b00cbab718ef09b7f45f7d848fa56a5bc12efd5a6f0135715a715f116f",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax8rt_timing.inp": "10cee56b74ee79fc96d7d27256752fbff6389a1683cf565ba99511a57f29e3ef",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax8rt_mesh.inc": "9eeb55356fd45dec53c4152bf6022e4f481565ac17b6fe4787336f91385cc9eb",
+    "verification/meshes/rz_performance_medium_cax8t.e": "ba88fadda15384a7abfbce8dc2ed3f3b51913258e95de53d8786668426d943cd"
+  },
+  "accuracy_sha256": {
+    "verification/abaqus/rz_performance/medium_cax8rt/rz_performance_medium_cax8rt_nodes.csv.gz": "d0ffca192c8001d0cba4fd9f374f7b249c8e668dbc99beef1b9049a7924dc3f6",
+    "verification/abaqus/rz_performance/medium_cax8rt/rz_performance_medium_cax8rt_points.csv.gz": "fade2f703265b9c24222ae9dc277a4ec64512b555ca03ddc5e7e3d69baa35a2d",
+    "verification/abaqus/rz_performance/medium_cax8rt/rz_performance_medium_cax8rt_contact.csv.gz": "959c52627c23b67640dbe206965db4ed68a8885835d4bc9f5e447d6c75b9dfef",
+    "/tmp/rz-medium-cax8rt-accuracy/fuelsim/steady_rz_performance_medium_cax8rt_results.e": "816dfe4162d501cb2a93a429169eac4b0fcba82ce630c6aed315ad855bd2462c",
+    "verification/abaqus/rz_performance/compare.py": "bab041ef79abd0cd02ef25802943132380a7877b9b8954a03f262745aeace191",
+    "verification/abaqus/rz_performance/extract_results.py": "4a95c614092cf6c427ba9174c5c18a9e538d5ec4c7c3678eddf09371933d5c24"
+  },
+  "source_state": "Existing executable unchanged; new explicit CAX8RT inputs and runner/checker support were in worktree. The timing-start compare.py hash predates correcting the four-point order to [0,1,3,2]; that checker was not used for any results. The final accuracy checker hash is in accuracy_sha256."
+}

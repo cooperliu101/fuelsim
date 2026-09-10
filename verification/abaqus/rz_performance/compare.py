@@ -67,7 +67,7 @@ def metric(actual, reference, zero_tolerance):
 
 
 def compare(result_path, prefix, element="cax4t"):
-    point_count = {"cax4rt": 1, "cax4t": 4, "cax8t": 9}[element]
+    point_count = {"cax4rt": 1, "cax4t": 4, "cax8t": 9, "cax8rt": 4}[element]
     def rows(kind):
         with gzip.open(str(prefix)+'_'+kind+'.csv.gz','rt') as f:return list(csv.DictReader(f))
     nodes,points,contacts=rows('nodes'),rows('points'),rows('contact')
@@ -80,7 +80,7 @@ def compare(result_path, prefix, element="cax4t"):
     if glob['load_factor'] != 1.0 or not np.all(elem['material_point_count']==point_count):
         raise ValueError('Incomplete load path or wrong element integration')
     thermal_nodes=np.unique(connectivity[:,:4])-1
-    if element == 'cax8t':
+    if element in ('cax8t','cax8rt'):
         active=np.zeros(len(nodal['temperature']));active[thermal_nodes]=1
         if not np.array_equal(nodal['temperature_active'],active):raise ValueError('Temperature DOF coverage differs')
     if not (np.all(nodal['temperature']>=500) and np.all(nodal['temperature']<=2500)
@@ -91,7 +91,7 @@ def compare(result_path, prefix, element="cax4t"):
     if any(float(r['time'])!=20 for r in nodes+points+contacts):raise ValueError('Reference is not the final 20-increment state')
     metrics={}
     metrics['temperature']=metric(nodal['temperature'][thermal_nodes],[float(nodes[n]['temperature']) for n in thermal_nodes],1e-8)
-    if element == 'cax8t':
+    if element in ('cax8t','cax8rt'):
         for edge in range(4):
             expected=.5*(nodal['temperature'][connectivity[:,edge]-1]+nodal['temperature'][connectivity[:,(edge+1)%4]-1])
             if not np.array_equal(nodal['temperature'][connectivity[:,edge+4]-1],expected):
@@ -118,13 +118,13 @@ def compare(result_path, prefix, element="cax4t"):
     expected=np.flatnonzero(np.isfinite(nodal['contact_gap_fuel_cladding']))
     if sorted(indices)!=list(expected):raise ValueError('Contact coverage differs')
     for name,field,column,tol in [('contact_pressure','pressure','pressure',1e-3),('contact_gap','gap','gap',1e-12),('contact_normal_force','normal_force','normal_r',1e-8)]:
-        actual_field = 'recovered_pressure' if element == 'cax8t' and field == 'pressure' else field
+        actual_field = 'recovered_pressure' if element in ('cax8t','cax8rt') and field == 'pressure' else field
         metrics[name]=metric(nodal['contact_'+actual_field+'_fuel_cladding'][indices],[(float(r['normal_r'])**2+float(r['normal_z'])**2)**.5 if column=='normal_r' else float(r[column]) for r in contacts],tol)
     metrics['contact_total_force']=metric([glob['contact_force_fuel_cladding']],[sum((float(r['normal_r'])**2+float(r['normal_z'])**2)**.5 for r in contacts)],1e-8)
     return metrics
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('result');p.add_argument('prefix');p.add_argument('--report',required=True);p.add_argument('--element',choices=('cax4t','cax4rt','cax8t'),default='cax4t');args=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('result');p.add_argument('prefix');p.add_argument('--report',required=True);p.add_argument('--element',choices=('cax4t','cax4rt','cax8t','cax8rt'),default='cax4t');args=p.parse_args()
     m=compare(args.result,Path(args.prefix),args.element);Path(args.report).write_text(json.dumps(m,indent=2)+'\n')
     for name,r in m.items():print(name,'PASS' if r['passed'] else 'FAIL', 'relative errors (%)',*[100*r.get(k,0) for k in ['relative_l2','relative_absolute_peak','maximum_pointwise_relative']])
     raise SystemExit(0 if all(r['passed'] for r in m.values()) else 1)

@@ -1,7 +1,7 @@
 param([Parameter(Mandatory=$true)][string]$SourceDirectory,
       [ValidateSet('medium','large')][string]$Size='medium',
       [switch]$Timing, [int]$Runs=1,
-      [ValidateSet('cax4t','cax4rt','cax8t')][string]$Element='cax4t',
+      [ValidateSet('cax4t','cax4rt','cax8t','cax8rt')][string]$Element='cax4t',
       [string]$ResultsDirectory='')
 $ErrorActionPreference='Stop'
 if ($Element -ne 'cax4t' -and $Size -ne 'medium') { throw 'This element model has only a medium input' }

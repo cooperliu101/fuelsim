@@ -469,3 +469,46 @@ Fuelsim 外部耗时少 **47.14%**，Abaqus/Fuelsim 耗时比
 
 完整证据见 [`medium_cax8t/summary.json`](medium_cax8t/summary.json)。未修改生产
 数值实现；新增算例作为手动性能验证，不加入重复的自动回归。
+
+
+## 中等规模 CAX8RT 版本（2026-09-10）
+
+完整生产输入为 `steady_rz_performance_medium_cax8rt.fsi` 和对应 `_timing.fsi`。
+与 CAX8T 使用同一 `rz_performance_medium_cax8t.e` 二次网格，只有型号、注释和
+输出文件名不同。7,424 个单元、22,762 个节点、53,194 个自由度、材料、接触、
+小应变设置及 20 个固定加载增量保持一致。体积分从每单元九点改为四点。
+
+```bash
+build/fuelsim -i verification/fuelsim/steady_rz_performance_medium_cax8rt.fsi
+python benchmarks/run_rz_performance.py --size medium --element cax8rt \
+  --results-directory verification/abaqus/rz_performance/medium_cax8rt \
+  --windows-source '\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\rz_performance' \
+  --windows-results '\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\rz_performance\medium_cax8rt'
+```
+
+重新测量时使用新的结果目录。Abaqus 输出作业使用 `run.ps1 -Size medium -Element cax8rt`
+且不带 `-Timing`，精度检查使用 `compare.py --element cax8rt`。
+
+沿用单进程、单线程、逻辑 CPU 0、MUMPS 和 ADlite 0.2.3 SIMD 设置，关闭结果输出，
+各预热一次，随后正式测量两次：
+
+| 程序 | 第一次外部耗时 | 第二次外部耗时 | 外部耗时均值 | 内部求解或分析均值 | 非线性迭代数 |
+|---|---:|---:|---:|---:|---:|
+| Fuelsim CAX8RT | 44.2350 s | 43.4817 s | **43.8583 s** | 43.2325 s | 48 |
+| Abaqus CAX8RT | 86.1217 s | 86.0712 s | **86.0964 s** | 81.5000 s | 53 |
+
+Fuelsim 外部耗时少 **49.06%**，耗时比为 **1.96**。
+相对上一批同网格 Fuelsim CAX8T 的 55.5689 秒，减少
+**21.07%**；这属于不同积分规则的同模型比较，
+不声称是相同数值算子的代码优化。仍是 WSL/Windows 跨平台观察，包含启动开销，
+逻辑 CPU 编号不保证同一物理核心，不推广到其他模型或硬件。
+
+本次重新生成 Abaqus CAX8RT 最终场，检查所有 7,670 个角点温度、22,762 个节点
+位移、29,696 个活跃积分点应力和 129 个接触节点。四点顺序按现有轴对称规则映射为
+`[0,1,3,2]`；二次接触压力沿用已验证的恢复压力。全部指标通过原有 0.01% 门槛，
+最大逐点相对误差 **4.63968479e-06%**。
+
+129 个接触节点全部活跃。预留 q4—q8 的 30 个应力及坐标字段全部为 NaN，
+不参与统计。原 CAX4T、CAX4RT、CAX8T 精度检查复查仍通过。只比较最终状态，
+未修改生产数值代码，未增加重复自动回归。原始证据见
+[`medium_cax8rt/summary.json`](medium_cax8rt/summary.json)。
