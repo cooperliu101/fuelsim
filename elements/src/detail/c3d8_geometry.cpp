@@ -1,75 +1,11 @@
-#include "hex8_geometry.hpp"
-
-namespace fuelsim::element_detail {
-cartesian_detail::ActiveMatrix3 displacement_gradient(const Hex8QuadraturePoint& point,
-    const Hex8LocalAdValues& state) {
-    cartesian_detail::ActiveMatrix3 result{};
-    for (std::size_t component = 0; component < 3; ++component)
-        for (std::size_t direction = 0; direction < 3; ++direction)
-            for (std::size_t node = 0; node < 8; ++node)
-                result[component][direction] += point.gradient[node][direction] * state[8 * (component + 1) + node];
-    return result;
-}
-
-cartesian_detail::Matrix3 deformation_gradient(const Hex8QuadraturePoint& point, const Hex8LocalValues& state) {
-    cartesian_detail::Matrix3 result{};
-    for (std::size_t component = 0; component < 3; ++component) {
-        result[component][component] = 1.0;
-        for (std::size_t direction = 0; direction < 3; ++direction)
-            for (std::size_t node = 0; node < 8; ++node)
-                result[component][direction] += point.gradient[node][direction] * state[8 * (component + 1) + node];
-    }
-    return result;
-}
-
-C3d8Kinematics evaluate_cartesian_kinematics_from_gradient(const Hex8QuadraturePoint& point,
-    const cartesian_detail::ActiveMatrix3& gradient,
-    const Hex8LocalValues& committed_state,
-    StrainFormulation strain_formulation) {
-    C3d8Kinematics result{};
-    const cartesian_detail::Matrix3 old = deformation_gradient(point, committed_state);
-    const cartesian_detail::KinematicsCore core =
-        cartesian_detail::evaluate_kinematics(gradient, old, strain_formulation);
-    result.strain_increment = core.strain_increment;
-    result.rotation = core.rotation;
-    result.current_weighted_measure = point.weighted_measure * core.current_determinant;
-    for (std::size_t node = 0; node < 8; ++node)
-        for (std::size_t direction = 0; direction < 3; ++direction)
-            for (std::size_t reference = 0; reference < 3; ++reference)
-                result.current_gradient[node][direction] +=
-                    point.gradient[node][reference] * core.current_inverse[reference][direction];
-    return result;
-}
-
-cartesian_detail::Matrix3 multiply_matrices(const cartesian_detail::Matrix3& first,
-    const cartesian_detail::Matrix3& second) {
-    cartesian_detail::Matrix3 result{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k)
-                result[i][j] += first[i][k] * second[k][j];
-    return result;
-}
-} // namespace fuelsim::element_detail
+#include "c3d8_geometry.hpp"
+#include "matrix3.hpp"
+#include <cmath>
+#include <stdexcept>
 
 namespace fuelsim {
 using namespace element_detail;
-
-void validate_cartesian_deformation(const Hex8QuadraturePoint& point, const Hex8LocalValues& state) {
-    const double value = cartesian_detail::determinant(deformation_gradient(point, state));
-    if (!std::isfinite(value) || !(value > 0.0))
-        throw std::domain_error("Finite-strain HEX8 deformation must preserve a positive Jacobian");
-}
-
-C3d8Kinematics element_detail::evaluate_cartesian_incremental_kinematics(const Hex8QuadraturePoint& point,
-    const Hex8LocalAdValues& current_state,
-    const Hex8LocalValues& committed_state,
-    StrainFormulation strain_formulation) {
-    return evaluate_cartesian_kinematics_from_gradient(point,
-        displacement_gradient(point, current_state),
-        committed_state,
-        strain_formulation);
-}
+using namespace cartesian_detail;
 
 Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates) {
     Hex8Geometry geometry{};
@@ -229,73 +165,3 @@ Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates) {
     return geometry;
 }
 } // namespace fuelsim
-
-namespace fuelsim::element_detail {
-elements::C3d8Diagnostics diagnose_hex8(const Hex8Geometry& geometry,
-    const Hex8LocalValues& state,
-    const Hex8LocalValues& committed,
-    StrainFormulation formulation,
-    bool reduced) {
-    elements::C3d8Diagnostics result;
-    result.material_point_count = reduced ? 1 : 8;
-    Hex8LocalAdValues active{}, old{};
-    for (std::size_t i = 0; i < state.size(); ++i) {
-        active[i] = state[i];
-        old[i] = committed[i];
-    }
-    std::array<C3d8Kinematics, 8> quadrature;
-    for (std::size_t q = 0; q < 8; ++q) {
-        quadrature[q] = evaluate_cartesian_incremental_kinematics(geometry.points[q], active, committed, formulation);
-        result.current_volume += quadrature[q].current_weighted_measure.value();
-        result.committed_volume +=
-            evaluate_cartesian_incremental_kinematics(geometry.points[q], old, committed, formulation)
-                .current_weighted_measure.value();
-    }
-    if (formulation == StrainFormulation::small) {
-        result.current_volume = geometry.reference_volume;
-        result.committed_volume = geometry.reference_volume;
-    }
-    constexpr std::array<std::size_t, 8> gauss_to_node = {0, 1, 3, 2, 4, 5, 7, 6};
-    for (std::size_t q = 0; q < result.material_point_count; ++q) {
-        const auto k =
-            reduced ? evaluate_cartesian_incremental_kinematics(geometry.reduced_point, active, committed, formulation)
-                    : quadrature[q];
-        auto& point = result.points[q];
-        point.strain_increment = {k.strain_increment.xx.value(),
-            k.strain_increment.yy.value(),
-            k.strain_increment.zz.value(),
-            k.strain_increment.xy.value(),
-            k.strain_increment.yz.value(),
-            k.strain_increment.xz.value()};
-        point.rotation = {k.rotation.xx.value(),
-            k.rotation.xy.value(),
-            k.rotation.xz.value(),
-            k.rotation.yx.value(),
-            k.rotation.yy.value(),
-            k.rotation.yz.value(),
-            k.rotation.zx.value(),
-            k.rotation.zy.value(),
-            k.rotation.zz.value()};
-        point.current_weighted_measure = k.current_weighted_measure.value();
-        if (!reduced) {
-            point.temperature = state[gauss_to_node[q]];
-            for (std::size_t n = 0; n < 8; ++n)
-                for (std::size_t d = 0; d < 3; ++d)
-                    point.thermal_gradient[n][d] = k.current_gradient[n][d].value();
-        } else {
-            for (std::size_t g = 0; g < 8; ++g) {
-                const double measure = formulation == StrainFormulation::finite
-                                           ? quadrature[g].current_weighted_measure.value()
-                                           : geometry.points[g].weighted_measure;
-                for (std::size_t n = 0; n < 8; ++n) {
-                    point.temperature += measure * geometry.points[g].shape[n] * state[n] / result.current_volume;
-                    for (std::size_t d = 0; d < 3; ++d)
-                        point.thermal_gradient[n][d] +=
-                            measure * quadrature[g].current_gradient[n][d].value() / result.current_volume;
-                }
-            }
-        }
-    }
-    return result;
-}
-} // namespace fuelsim::element_detail

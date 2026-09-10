@@ -1,9 +1,17 @@
 #include "c3d8t.hpp"
-#include "detail/hex8_geometry.hpp"
+#include "detail/ad_local_system.hpp"
+#include "detail/c3d8_diagnostics.hpp"
+#include "detail/c3d8_geometry.hpp"
+#include "detail/c3d8_kinematics.hpp"
+#include "detail/cartesian_material.hpp"
+#include <cmath>
+#include <stdexcept>
+#include <string>
 
 namespace fuelsim {
 namespace {
 using namespace element_detail;
+using namespace cartesian_detail;
 
 struct FiniteTracePoint final {
     adlite::Scalar strain_trace;
@@ -507,7 +515,7 @@ FinitePointResidualCache finite_point_residual_kinematics(const Hex8QuadraturePo
     const double rotation_denominator_determinant = cartesian_detail::determinant(rotation_denominator);
     if (!std::isfinite(rotation_denominator_determinant) || rotation_denominator_determinant == 0.0)
         throw std::domain_error("Abaqus Hughes-Winget Cartesian rotation denominator is singular");
-    result.rotation = multiply_matrices(rotation_numerator,
+    result.rotation = cartesian_detail::multiply(rotation_numerator,
         cartesian_detail::inverse(rotation_denominator, rotation_denominator_determinant));
     cartesian_detail::Matrix3 spatial_times_rotation{};
     for (std::size_t i = 0; i < 3; ++i)

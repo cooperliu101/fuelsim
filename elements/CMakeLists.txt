@@ -10,30 +10,36 @@ include(CTest)
 option(FUELSIM_ELEMENTS_WARNINGS_AS_ERRORS "Treat element library warnings as errors" ON)
 
 add_library(fuelsim_elements
+    src/c3d20rt.cpp
+    src/c3d20t.cpp
+    src/c3d8rt.cpp
+    src/c3d8t.cpp
+    src/cax4rt.cpp
+    src/cax4t.cpp
+    src/cax8rt.cpp
+    src/cax8t.cpp
+    src/detail/c3d20_assembly.cpp
+    src/detail/c3d20_geometry.cpp
+    src/detail/c3d20_kinematics.cpp
+    src/detail/c3d8_diagnostics.cpp
+    src/detail/c3d8_geometry.cpp
+    src/detail/c3d8_kinematics.cpp
+    src/detail/cartesian_kinematics.cpp
+    src/detail/cartesian_material.cpp
+    src/detail/cax4_geometry.cpp
+    src/detail/cax8_assembly.cpp
+    src/detail/cax8_geometry.cpp
+    src/detail/matrix3.cpp
     src/line2_rz_boundary.cpp
     src/line2_rz_contact.cpp
-    src/detail/quad8_rz_assembly.cpp
-    src/cax4rt.cpp
-    src/detail/hex8_geometry.cpp
-    src/detail/hex20_assembly.cpp
-    src/detail/cartesian_kinematics.cpp
-    src/quad4_face_contact.cpp
-    src/quad8_face_contact.cpp
-    src/line3_rz_contact.cpp
     src/line3_rz_boundary.cpp
-    src/quad4_face_boundary.cpp
-    src/quad8_face_boundary.cpp
-    src/cax8t.cpp
-    src/cax8rt.cpp
-    src/c3d8t.cpp
-    src/c3d8rt.cpp
-    src/c3d20t.cpp
-    src/c3d20rt.cpp
-    src/cax4t.cpp
-    src/detail/axisymmetric_geometry.cpp
-    src/detail/material_rotation.cpp
+    src/line3_rz_contact.cpp
     src/material.cpp
     src/material_functions.cpp
+    src/quad4_face_boundary.cpp
+    src/quad4_face_contact.cpp
+    src/quad8_face_boundary.cpp
+    src/quad8_face_contact.cpp
 )
 add_library(fuelsim::elements ALIAS fuelsim_elements)
 target_compile_features(fuelsim_elements PUBLIC cxx_std_17)

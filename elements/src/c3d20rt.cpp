@@ -1,5 +1,6 @@
 #include "c3d20rt.hpp"
-#include "detail/hex20_assembly.hpp"
+#include "detail/c3d20_assembly.hpp"
+#include "detail/c3d20_geometry.hpp"
 #include <stdexcept>
 
 namespace fuelsim::elements {

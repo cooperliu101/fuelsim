@@ -26,7 +26,3 @@ CartesianMaterialHistory compute_hex20_transient_update(const elements::C3d20Inp
 std::vector<SymmetricTensor3Values>
 compute_hex20_stress(const elements::C3d20Input& data, const Hex20Geometry& geometry, const Hex20LocalValues& state);
 } // namespace fuelsim
-
-namespace fuelsim {
-Hex20Geometry make_hex20_geometry(const Hex20Coordinates& coordinates, std::size_t order);
-}

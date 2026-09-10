@@ -55,7 +55,7 @@ C3D8T 和 C3D8RT 分别通过型号头文件提供 `diagnose_c3d8t` 和 `diagnos
 调用方传入整单元几何、新旧节点状态和应变形式，获得普通双精度的
 `C3d8Diagnostics`；不需要材料对象，也不执行材料更新。诊断按需调用，普通残量
 和 Jacobian 请求不会计算这些输出。公共的 `c3d8_kinematics.hpp` 已删除，运动学
-结构与函数声明全部位于私有的 `src/detail/hex8_geometry.hpp`。
+结构与函数声明全部位于私有的 `src/detail/c3d8_kinematics.hpp`。
 
 诊断包含新旧构形体积和活跃材料点数据。C3D8T 返回八点，C3D8RT 返回一点，
 `material_point_count` 之外的预留项为零，不参与统计或历史更新。每点返回几何
@@ -92,14 +92,29 @@ C3D8T 的热梯度使用对应点的当前构形梯度，温度使用对应角�
 `include/` 中的共用类型用于调用接口：坐标、材料、材料函数、几何、边界参数和
 接触历史。`src/detail/` 只包含内部实现：
 
-- `axisymmetric_geometry`：四节点轴对称形函数、几何映射和参考积分测度。
-- `hex8_geometry`：八节点六面体共用几何和运动学连接。
-- `quad8_rz_assembly`、`hex20_assembly`：同一拓扑的共用积分点计算和装配。
-- `cartesian_kinematics`：三维矩阵和增量运动学。
-- `material_rotation`：三维材料增量更新和客观历史旋转。
-- `ad_local_system`、`rz_local_system`、`rz_point`：局部自动微分及节点链辅助计算。
+| 文件名称 | 职责 |
+| --- | --- |
+| `cax4_geometry.cpp` | CAX4 系列参考形函数、几何映射和积分测度；公共声明在 `cax4_types.hpp`，无需额外私有头文件 |
+| `cax8_geometry.*`、`c3d20_geometry.*` | 对应型号族的形函数、混合阶映射和参考积分数据 |
+| `c3d8_geometry.*` | C3D8 系列参考几何、节点顺序、积分与沙漏几何数据 |
+| `c3d8_kinematics.*`、`c3d20_kinematics.*` | 对应拓扑的位移梯度、构形转换及运动学；C3D20 同时包含当前与中间构形的热几何 |
+| `cax8_assembly.*`、`c3d20_assembly.*` | 型号族共用的局部热、力学装配和材料点结果计算 |
+| `c3d8_diagnostics.*` | 型号诊断入口共用的整单元输出计算 |
+| `cartesian_kinematics.*` | 不依赖节点数量的三维增量运动学，不计算材料切线 |
+| `cartesian_material.*` | 三维材料上下文、切线、增量更新和历史张量旋转 |
+| `matrix3.*` | 普通双精度与 ADlite 具体类型的三阶矩阵运算，不定义模板 |
+| `ad_local_system.hpp` | 不依赖拓扑的自动微分数据转换和结果提取 |
+| `cax4_local_system.hpp` | 两节点轴对称边界与接触共用的固定 12 自由度数组转换 |
+| `line2_rz_geometry.hpp` | 两节点轴对称线段合法性检查，不包含自动微分播种或残量提取 |
 
-只供一个型号使用的算法留在其 `.cpp` 内。公共头文件不包含 `src/detail/`。
+`.*` 表示同名 `.hpp/.cpp`。文件按“型号族或共享范围 + 职责”命名，私有目录
+保持平铺。只有跨文件使用的函数才建立私有声明；CAX4T 专用的四节点插值留在
+`cax4t.cpp` 的匿名命名空间，未使用的自动微分插值重载已删除。CAX8 的局部运动学
+规模较小且只服务共用装配，仍留在 `cax8_assembly.cpp` 内。
+
+C3D20 的普通双精度残量路径和自动微分路径分别保留；文件拆分不改变播种宽度、
+材料积分规则、构形检查或运算顺序。公共头文件不包含 `src/detail/`，型号专用
+算法继续留在本型号 `.cpp` 内。
 
 边界与接触按线段或表面拓扑命名，并分别拥有对应的 `.hpp/.cpp`：
 

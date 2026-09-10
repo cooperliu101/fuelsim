@@ -1,6 +1,7 @@
 #include "line2_rz_boundary.hpp"
 #include "boundary_types.hpp"
-#include "detail/rz_local_system.hpp"
+#include "detail/cax4_local_system.hpp"
+#include "detail/line2_rz_geometry.hpp"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -9,7 +10,7 @@ namespace fuelsim {
 namespace {
 constexpr double pi = 3.141592653589793238462643383279502884;
 constexpr double gauss = 0.577350269189625764509148780501957456;
-using quad4_rz_detail::validate_line;
+using line2_rz_detail::validate_line;
 
 void validate_edge(const std::array<RzPoint, 2>& coordinates,
     const std::array<std::size_t, 2>& local_nodes,
@@ -106,13 +107,13 @@ Cax4LocalResidual compute_line2_rz_boundary(const Line2RzBoundaryData& data,
     const Line2RzBoundaryGeometry& geometry,
     const Cax4LocalValues& state,
     Cax4LocalJacobian* jacobian) {
-    const Cax4LocalAdValues ad_state = quad4_rz_detail::ad_state(state, jacobian != nullptr);
+    const Cax4LocalAdValues ad_state = cax4_detail::ad_state(state, jacobian != nullptr);
     Cax4LocalAdValues ad_residual{};
     if (data.kind == Line2RzBoundaryKind::convection)
         compute_line2_rz_convection_residual_ad(data, geometry, ad_state, ad_residual);
     else
         compute_line2_rz_mechanical_residual_ad(data, geometry, ad_state, ad_residual);
-    return quad4_rz_detail::values(ad_state, ad_residual, jacobian);
+    return cax4_detail::values(ad_state, ad_residual, jacobian);
 }
 
 } // namespace fuelsim

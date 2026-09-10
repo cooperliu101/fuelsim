@@ -1,5 +1,4 @@
 #include "cax4_types.hpp"
-#include "detail/rz_point.hpp"
 #include <cmath>
 #include <stdexcept>
 
@@ -77,7 +76,4 @@ Quad4RzGeometry make_quad4_rz_geometry(const Quad4Coordinates& coordinates) {
     return geometry;
 }
 
-// Kinematics core driven by the quadrature-point radial displacement and the four in-plane
-// displacement-gradient components. These point quantities may carry any ADlite seeding
-// (passive, or independent variables), which lets callers choose the derivative width.
 } // namespace fuelsim

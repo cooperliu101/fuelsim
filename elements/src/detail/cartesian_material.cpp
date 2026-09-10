@@ -1,4 +1,4 @@
-#include "material_rotation.hpp"
+#include "cartesian_material.hpp"
 #include <cmath>
 #include <stdexcept>
 
@@ -8,11 +8,7 @@ SymmetricTensor3Values rotate_cartesian_tensor_values(const SymmetricTensor3Valu
     const cartesian_detail::Matrix3 value = {{{{tensor.xx, tensor.xy, tensor.xz}},
         {{tensor.xy, tensor.yy, tensor.yz}},
         {{tensor.xz, tensor.yz, tensor.zz}}}};
-    cartesian_detail::Matrix3 left{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t k = 0; k < 3; ++k)
-            for (std::size_t l = 0; l < 3; ++l)
-                left[i][k] += rotation[i][l] * value[l][k];
+    const auto left = cartesian_detail::multiply(rotation, value);
     cartesian_detail::Matrix3 rotated{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = i; j < 3; ++j)
@@ -158,3 +154,55 @@ CartesianMaterialPointState IsotropicThermoelasticMaterial::incremental_response
     return result;
 }
 } // namespace fuelsim
+
+namespace fuelsim::cartesian_detail {
+MaterialFunctionContext material_context(double time, const CartesianPoint3& point) {
+    return {time, point.x, point.y, point.z};
+}
+
+CartesianStressTangent evaluate_stress_tangent(const IsotropicThermoelasticMaterial& material,
+    const std::array<double, 6>& fed_strain,
+    double temperature,
+    double time_step,
+    const CartesianMaterialPointState* committed_material,
+    MaterialFunctionContext context) {
+    std::array<double, 7> seeds{};
+    for (std::size_t component = 0; component < 6; ++component)
+        seeds[component] = fed_strain[component];
+    seeds[6] = temperature;
+    std::array<adlite::Scalar, 7> active{};
+    adlite::seed_identity(seeds.data(), seeds.size(), active.data());
+    const SymmetricTensor3 strain{active[0], active[1], active[2], active[3], active[4], active[5]};
+    const SymmetricTensor3 stress =
+        committed_material == nullptr
+            ? material.stress(strain, active[6], context)
+            : material.response(strain, active[6], time_step, *committed_material, context).stress;
+    const std::array<const adlite::Scalar*, 6> components =
+        {&stress.xx, &stress.yy, &stress.zz, &stress.xy, &stress.yz, &stress.xz};
+    CartesianStressTangent result{};
+    result.stress = {stress.xx.value(),
+        stress.yy.value(),
+        stress.zz.value(),
+        stress.xy.value(),
+        stress.yz.value(),
+        stress.xz.value()};
+    std::array<double, 7> derivatives{};
+    for (std::size_t row = 0; row < 6; ++row) {
+        components[row]->copy_derivatives(derivatives.data(), derivatives.size());
+        for (std::size_t column = 0; column < 6; ++column)
+            result.tangent[row][column] = derivatives[column];
+        result.thermal[row] = derivatives[6];
+    }
+    return result;
+}
+} // namespace fuelsim::cartesian_detail
+
+namespace fuelsim::element_detail {
+SymmetricTensor3Values rotate_cartesian_tensor_values(const SymmetricTensor3Values& tensor,
+    const CartesianRotation& rotation) {
+    const cartesian_detail::Matrix3 values = {{{{rotation.xx.value(), rotation.xy.value(), rotation.xz.value()}},
+        {{rotation.yx.value(), rotation.yy.value(), rotation.yz.value()}},
+        {{rotation.zx.value(), rotation.zy.value(), rotation.zz.value()}}}};
+    return rotate_cartesian_tensor_values(tensor, values);
+}
+} // namespace fuelsim::element_detail

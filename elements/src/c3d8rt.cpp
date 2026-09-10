@@ -1,9 +1,17 @@
 #include "c3d8rt.hpp"
-#include "detail/hex8_geometry.hpp"
+#include "detail/ad_local_system.hpp"
+#include "detail/c3d8_diagnostics.hpp"
+#include "detail/c3d8_geometry.hpp"
+#include "detail/c3d8_kinematics.hpp"
+#include "detail/cartesian_material.hpp"
+#include <cmath>
+#include <stdexcept>
+#include <string>
 
 namespace fuelsim {
 namespace {
 using namespace element_detail;
+using namespace cartesian_detail;
 constexpr std::array<std::array<double, 4>, hex8_node_count> finite_reduced_hex8_raw_hourglass = {
     {{{1.0, -1.0, 1.0, -1.0}},
         {{-1.0, -1.0, -1.0, 1.0}},
@@ -641,8 +649,8 @@ ReducedFiniteKinematicsValues reduced_hex8_finite_kinematics_values(const cartes
     const double denominator_determinant = cartesian_detail::determinant(rotation_denominator);
     if (!std::isfinite(denominator_determinant) || denominator_determinant == 0.0)
         throw std::domain_error("Abaqus Hughes-Winget Cartesian rotation denominator is singular");
-    result.rotation =
-        multiply_matrices(rotation_numerator, cartesian_detail::inverse(rotation_denominator, denominator_determinant));
+    result.rotation = cartesian_detail::multiply(rotation_numerator,
+        cartesian_detail::inverse(rotation_denominator, denominator_determinant));
     cartesian_detail::Matrix3 spatial_times_rotation{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = 0; j < 3; ++j)

@@ -1,10 +1,17 @@
 #include "cax4t.hpp"
-#include "detail/rz_point.hpp"
 #include <cmath>
 #include <stdexcept>
 
 namespace fuelsim {
 namespace {
+double interpolate(const std::array<double, quad4_node_count>& coefficients,
+    const Cax4LocalValues& state,
+    std::size_t offset) {
+    double result = 0.0;
+    for (std::size_t node = 0; node < quad4_node_count; ++node)
+        result += coefficients[node] * state[offset + node];
+    return result;
+}
 
 struct AxisymmetricKinematics final {
     std::array<adlite::Scalar, quad4_node_count> gradient_r, gradient_z;
@@ -79,12 +86,12 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
     for (std::size_t q = 0; q < 4; ++q) {
         const auto& point = geometry.points[q];
         auto& s = systems[q];
-        const std::array<double, 6> seeds = {quad4_rz_detail::interpolate(point.gradient_r, state, 4),
-            quad4_rz_detail::interpolate(point.gradient_z, state, 4),
-            quad4_rz_detail::interpolate(point.gradient_r, state, 8),
-            quad4_rz_detail::interpolate(point.gradient_z, state, 8),
-            quad4_rz_detail::interpolate(point.shape, state, 4),
-            quad4_rz_detail::interpolate(point.shape, state, 0)};
+        const std::array<double, 6> seeds = {interpolate(point.gradient_r, state, 4),
+            interpolate(point.gradient_z, state, 4),
+            interpolate(point.gradient_r, state, 8),
+            interpolate(point.gradient_z, state, 8),
+            interpolate(point.shape, state, 4),
+            interpolate(point.shape, state, 0)};
         std::array<adlite::Scalar, 6> active;
         for (std::size_t i = 0; i < 6; ++i)
             active[i] = jacobian ? adlite::Scalar::independent(seeds[i], i, 6) : adlite::Scalar(seeds[i]);
@@ -104,8 +111,7 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
         current_volume += k.weighted_measure.value();
         reference_volume += point.weighted_measure;
         hoop_new += point.weighted_measure * (1.0 + seeds[4] / point.radius);
-        hoop_old +=
-            point.weighted_measure * (1.0 + quad4_rz_detail::interpolate(point.shape, old_state, 4) / point.radius);
+        hoop_old += point.weighted_measure * (1.0 + interpolate(point.shape, old_state, 4) / point.radius);
         for (std::size_t n = 0; n < 4; ++n)
             hoop_shape[4 + n] += point.weighted_measure * point.shape[n] / point.radius;
         if (jacobian) {
@@ -170,8 +176,7 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
             auto old_context = context;
             old_context.time -= time_step;
             const auto op =
-                data.material.eigenstrain_rz(adlite::Scalar(quad4_rz_detail::interpolate(point.shape, old_state, 0)),
-                    old_context);
+                data.material.eigenstrain_rz(adlite::Scalar(interpolate(point.shape, old_state, 0)), old_context);
             const auto oc = data.material.eigenstrain_rz(
                 adlite::Scalar((old_state[0] + old_state[1] + old_state[2] + old_state[3]) / 4.0),
                 old_context);
@@ -187,8 +192,7 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
             auto old_context = context;
             old_context.time -= time_step;
             const auto eigen =
-                data.material.eigenstrain_rz(adlite::Scalar(quad4_rz_detail::interpolate(point.shape, old_state, 0)),
-                    old_context);
+                data.material.eigenstrain_rz(adlite::Scalar(interpolate(point.shape, old_state, 0)), old_context);
             const std::array<double, 4> imposed = {eigen.rr.value(),
                 eigen.zz.value(),
                 eigen.hoop.value(),
@@ -293,7 +297,7 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
                                             inputs[3].value(),
                                             rotation,
                                             s.temperature.value(),
-                                            quad4_rz_detail::interpolate(point.shape, old_state, 0),
+                                            interpolate(point.shape, old_state, 0),
                                             time_step,
                                             (*old_history)[q],
                                             context)
@@ -353,11 +357,10 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
             for (std::size_t component = 0; component < 4; ++component) {
                 const auto& coefficients = component % 2 == 0 ? point.gradient_r : point.gradient_z;
                 const std::size_t offset = component < 2 ? 4 : 8;
-                const double current = quad4_rz_detail::interpolate(coefficients, state, offset);
+                const double current = interpolate(coefficients, state, offset);
                 gradient[component] =
                     jacobian ? adlite::Scalar::independent(current, component, 6) : adlite::Scalar(current);
-                gradient[component] =
-                    .5 * (gradient[component] + quad4_rz_detail::interpolate(coefficients, old_state, offset));
+                gradient[component] = .5 * (gradient[component] + interpolate(coefficients, old_state, offset));
             }
             fa += gradient[0];
             fb = gradient[1];
@@ -510,11 +513,11 @@ AxisymmetricKinematics evaluate_axisymmetric_kinematics_from_point(const RzQuadr
     }
     result.radius = current_radius;
     result.weighted_measure = point.weighted_measure * determinant_rz * deformation_hoop;
-    const double old_radial_displacement = quad4_rz_detail::interpolate(point.shape, committed_state, 4),
-                 old_deformation_rr = 1.0 + quad4_rz_detail::interpolate(point.gradient_r, committed_state, 4),
-                 old_deformation_rz = quad4_rz_detail::interpolate(point.gradient_z, committed_state, 4),
-                 old_deformation_zr = quad4_rz_detail::interpolate(point.gradient_r, committed_state, 8),
-                 old_deformation_zz = 1.0 + quad4_rz_detail::interpolate(point.gradient_z, committed_state, 8),
+    const double old_radial_displacement = interpolate(point.shape, committed_state, 4),
+                 old_deformation_rr = 1.0 + interpolate(point.gradient_r, committed_state, 4),
+                 old_deformation_rz = interpolate(point.gradient_z, committed_state, 4),
+                 old_deformation_zr = interpolate(point.gradient_r, committed_state, 8),
+                 old_deformation_zz = 1.0 + interpolate(point.gradient_z, committed_state, 8),
                  old_deformation_hoop = 1.0 + old_radial_displacement / point.radius,
                  old_determinant_rz = old_deformation_rr * old_deformation_zz - old_deformation_rz * old_deformation_zr;
     if (!std::isfinite(old_determinant_rz) || !(old_determinant_rz > 0.0) || !std::isfinite(old_deformation_hoop)

@@ -12,51 +12,6 @@ ActiveMatrix3 identity_active_matrix() {
 }
 } // namespace
 
-double determinant(const Matrix3& matrix) {
-    return matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1])
-           - matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0])
-           + matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]);
-}
-
-adlite::Scalar determinant(const ActiveMatrix3& matrix) {
-    return matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1])
-           - matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0])
-           + matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]);
-}
-
-Matrix3 inverse(const Matrix3& matrix, double determinant_value) {
-    return {{{{(matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) / determinant_value,
-                 (matrix[0][2] * matrix[2][1] - matrix[0][1] * matrix[2][2]) / determinant_value,
-                 (matrix[0][1] * matrix[1][2] - matrix[0][2] * matrix[1][1]) / determinant_value}},
-        {{(matrix[1][2] * matrix[2][0] - matrix[1][0] * matrix[2][2]) / determinant_value,
-            (matrix[0][0] * matrix[2][2] - matrix[0][2] * matrix[2][0]) / determinant_value,
-            (matrix[0][2] * matrix[1][0] - matrix[0][0] * matrix[1][2]) / determinant_value}},
-        {{(matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]) / determinant_value,
-            (matrix[0][1] * matrix[2][0] - matrix[0][0] * matrix[2][1]) / determinant_value,
-            (matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0]) / determinant_value}}}};
-}
-
-ActiveMatrix3 inverse(const ActiveMatrix3& matrix, const adlite::Scalar& determinant_value) {
-    return {{{{(matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) / determinant_value,
-                 (matrix[0][2] * matrix[2][1] - matrix[0][1] * matrix[2][2]) / determinant_value,
-                 (matrix[0][1] * matrix[1][2] - matrix[0][2] * matrix[1][1]) / determinant_value}},
-        {{(matrix[1][2] * matrix[2][0] - matrix[1][0] * matrix[2][2]) / determinant_value,
-            (matrix[0][0] * matrix[2][2] - matrix[0][2] * matrix[2][0]) / determinant_value,
-            (matrix[0][2] * matrix[1][0] - matrix[0][0] * matrix[1][2]) / determinant_value}},
-        {{(matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]) / determinant_value,
-            (matrix[0][1] * matrix[2][0] - matrix[0][0] * matrix[2][1]) / determinant_value,
-            (matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0]) / determinant_value}}}};
-}
-
-ActiveMatrix3 multiply(const ActiveMatrix3& first, const Matrix3& second) {
-    ActiveMatrix3 result{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k)
-                result[i][j] += first[i][k] * second[k][j];
-    return result;
-}
-
 KinematicsCore evaluate_hughes_winget_increment(const ActiveMatrix3& central_displacement_gradient) {
     KinematicsCore result{};
     const ActiveMatrix3& hughes_winget = central_displacement_gradient;
@@ -208,43 +163,4 @@ KinematicsCore evaluate_kinematics(const ActiveMatrix3& gradient,
     return result;
 }
 
-MaterialFunctionContext material_context(double time, const CartesianPoint3& point) {
-    return {time, point.x, point.y, point.z};
-}
-
-CartesianStressTangent evaluate_stress_tangent(const IsotropicThermoelasticMaterial& material,
-    const std::array<double, 6>& fed_strain,
-    double temperature,
-    double time_step,
-    const CartesianMaterialPointState* committed_material,
-    MaterialFunctionContext context) {
-    std::array<double, 7> seeds{};
-    for (std::size_t component = 0; component < 6; ++component)
-        seeds[component] = fed_strain[component];
-    seeds[6] = temperature;
-    std::array<adlite::Scalar, 7> active{};
-    adlite::seed_identity(seeds.data(), seeds.size(), active.data());
-    const SymmetricTensor3 strain{active[0], active[1], active[2], active[3], active[4], active[5]};
-    const SymmetricTensor3 stress =
-        committed_material == nullptr
-            ? material.stress(strain, active[6], context)
-            : material.response(strain, active[6], time_step, *committed_material, context).stress;
-    const std::array<const adlite::Scalar*, 6> components =
-        {&stress.xx, &stress.yy, &stress.zz, &stress.xy, &stress.yz, &stress.xz};
-    CartesianStressTangent result{};
-    result.stress = {stress.xx.value(),
-        stress.yy.value(),
-        stress.zz.value(),
-        stress.xy.value(),
-        stress.yz.value(),
-        stress.xz.value()};
-    std::array<double, 7> derivatives{};
-    for (std::size_t row = 0; row < 6; ++row) {
-        components[row]->copy_derivatives(derivatives.data(), derivatives.size());
-        for (std::size_t column = 0; column < 6; ++column)
-            result.tangent[row][column] = derivatives[column];
-        result.thermal[row] = derivatives[6];
-    }
-    return result;
-}
 } // namespace fuelsim::cartesian_detail
