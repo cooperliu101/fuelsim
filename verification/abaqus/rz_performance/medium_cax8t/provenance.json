@@ -1,0 +1,31 @@
+{
+  "git_revision": "32de0480b4553854f06ba88ebf6d296e13bf276f",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "sizes": [
+    "medium"
+  ],
+  "element": "cax8t",
+  "sha256": {
+    "build/fuelsim": "d4ae6f0665cef98017cf9f11c4c04bd85c051d1ce6ff9f21949dd4b5dd404c8d",
+    "benchmarks/run_rz_performance.py": "52be34b3a60f822884405d36e40c4cfb23babd58544a80dc992efcb93afccfaf",
+    "verification/abaqus/rz_performance/run.ps1": "15483590893524ad80404e67b3b248641183af2a684a6584aa53713f0868a6f3",
+    "verification/abaqus/rz_performance/compare.py": "f076a036bcdabd6308a11b1d998508cbb92054518864627721ba451043dbc41d",
+    "verification/abaqus/rz_performance/material_contact.inc": "750d4945e330983e8d84d6cafceccf2a12b4b6291547fef0dd3ce946a3ab7efe",
+    "verification/fuelsim/steady_rz_performance_medium_cax8t.fsi": "00ea908535e3648db08076f184d03a8b01fb018f440d57bf54ab70758ca4fb54",
+    "verification/fuelsim/steady_rz_performance_medium_cax8t_timing.fsi": "ba4a16c7a6c30c6580a33d5331e9eb0498aaa7c59db382490d12405fece30565",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax8t.inp": "77113f9c0e093f71a368c76d979bb6c2cb37bbf3648ccdd971694c7e15b94108",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax8t_timing.inp": "f87a8efaf2858fedeedbe30d93cb39c170f4a584dfec962e376c28b4cc0cf3f0",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax8t_mesh.inc": "ea5f0a960dbbcbf231bce7b50e7a7277be47cd00a468077335bf07090e27bd63",
+    "verification/meshes/rz_performance_medium_cax8t.e": "ba88fadda15384a7abfbce8dc2ed3f3b51913258e95de53d8786668426d943cd"
+  },
+  "accuracy_sha256": {
+    "verification/abaqus/rz_performance/medium_cax8t/rz_performance_medium_cax8t_nodes.csv.gz": "60708c031136eaf02d7fe2183f9a1f2659ab682443d7711108ff5ac830ca038e",
+    "verification/abaqus/rz_performance/medium_cax8t/rz_performance_medium_cax8t_points.csv.gz": "961eff1f2bebb56c2135271ffeb81dcb51b6b1fea5ff964ba79c9efa751ae13a",
+    "verification/abaqus/rz_performance/medium_cax8t/rz_performance_medium_cax8t_contact.csv.gz": "b13ec8fc02c98b9c4af55ecf966194f6e884ed0f066550c3e23799fa8b3d8853",
+    "/tmp/rz-medium-cax8t-accuracy/fuelsim/steady_rz_performance_medium_cax8t_results.e": "a80146428f09e73c4a087b4a1560470e9751f1f605203c730755da2bdced3594",
+    "verification/abaqus/rz_performance/compare.py": "a84f3a15315ed9be06af9c76328cca86e504fc08289c6292249068d253335735",
+    "verification/abaqus/rz_performance/extract_results.py": "4a95c614092cf6c427ba9174c5c18a9e538d5ec4c7c3678eddf09371933d5c24",
+    "verification/abaqus/generate_rz_performance_meshes.py": "a9a0d8d9690f72a88f5bcc6fa8553407339e140dc60eaf330348ca086be2e0aa"
+  },
+  "source_state": "Existing executable unchanged; new explicit CAX8T case and runner changes were in worktree and hashed at timing start. The compare.py timing hash identifies its pre-CAX8T version from 32de048; final accuracy checker, extractor and mesh generator hashes are listed separately in accuracy_sha256."
+}

@@ -42,7 +42,7 @@ try:
                 time = elapsed + frame.frameValue
                 fields = dict((k, values(frame, k, True)) for k in ["NT11", "U", "RF", "RFL11"])
                 for n in sorted(fields["U"]):
-                    nodes.writerow([time, n, fields["NT11"][n]]+list(fields["U"][n][:2])+list(fields["RF"][n][:2])+[fields["RFL11"][n]])
+                    nodes.writerow([time, n, fields["NT11"].get(n, float("nan"))]+list(fields["U"][n][:2])+list(fields["RF"][n][:2])+[fields["RFL11"].get(n, float("nan"))])
                 fields = dict((k, values(frame, k)) for k in ["S", "EE", "PE", "CE", "PEEQ", "CEEQ", "COORD", "IVOL"])
                 for key in sorted(fields["S"]):
                     row = [time, key[0], key[1]]

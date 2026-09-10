@@ -408,3 +408,64 @@ Fuelsim 比本批 Abaqus 耗时少 **63.48%**，耗时比为
 最大逐点相对误差为 **4.53764245e-06%**。仅比较最终加载状态。
 结果、原始压缩日志和散列见 [`medium_cax4rt/summary.json`](medium_cax4rt/summary.json)。
 未修改单元数值实现；此算例为手动性能验证，没有新增重复的自动回归。
+
+
+## 中等规模 CAX8T 版本（2026-09-10）
+
+新增完整生产输入 `steady_rz_performance_medium_cax8t.fsi` 和对应 `_timing.fsi`。
+沿用中等规模的 7,424 个单元分区，在每条边增加共享的位移中间节点，保持原有
+角点坐标、角点连接、材料、边界、接触参数和 20 个固定加载增量。单元数相同，
+但自由度数不同，不能将跨型号时间差称为同规模的算法性能差异。
+
+| 量 | CAX4T/CAX4RT | CAX8T |
+|---|---:|---:|
+| 单元数 | 7,424 | 7,424 |
+| 几何与位移节点数 | 7,670 | 22,762 |
+| 温度自由度数 | 7,670 | 7,670 |
+| 总自由度数 | 23,010 | 53,194 |
+| 每单元材料积分点数 | 4 / 1 | 9 |
+| 接触从属节点数 | 65 | 129 |
+
+网格生成器仅写几何，使用
+`python verification/abaqus/generate_rz_performance_meshes.py --element cax8t`。
+Fuelsim 和 Abaqus 使用同一组角点、中间节点和单元连接；本次检查了所有中间节点
+恰好位于对应边的中点。物理输入卡已完整保存，运行器不会生成或修改输入定义。
+
+```bash
+build/fuelsim -i verification/fuelsim/steady_rz_performance_medium_cax8t.fsi
+python benchmarks/run_rz_performance.py --size medium --element cax8t \
+  --results-directory verification/abaqus/rz_performance/medium_cax8t \
+  --windows-source '\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\rz_performance' \
+  --windows-results '\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\rz_performance\medium_cax8t'
+```
+
+重新测量时使用新的结果目录以保留原有证据。`run.ps1 -Size medium -Element cax8t`
+不带 `-Timing` 时运行并提取 Abaqus CAX8T 的最终场。
+
+沿用单进程、单线程和逻辑 CPU 0 绑定，Fuelsim 使用 MUMPS 和开启 SIMD 的
+ADlite 0.2.3；两套程序关闭结果输出，各预热一次，再正式测量两次：
+
+| 程序 | 第一次外部耗时 | 第二次外部耗时 | 外部耗时均值 | 内部求解或分析均值 | 非线性迭代数 |
+|---|---:|---:|---:|---:|---:|
+| Fuelsim CAX8T | 55.4502 s | 55.6876 s | **55.5689 s** | 54.9603 s | 48 |
+| Abaqus CAX8T | 104.1527 s | 106.0978 s | **105.1253 s** | 100.5000 s | 52 |
+
+Fuelsim 外部耗时少 **47.14%**，Abaqus/Fuelsim 耗时比
+为 **1.89**。这是同一主机的 WSL/Windows 跨平台观察，外部时间包含
+程序启动等开销，逻辑 CPU 0 不保证同一物理核心，不推广到其他模型或硬件。
+
+精度使用 `compare.py --element cax8t`，核对所有 7,670 个温度角点、22,762 个
+位移节点、66,816 个材料积分点以及 129 个接触节点。温度自由度掩码由网格角点
+独立核对，边中节点温度另检查为角点线性插值。Abaqus 没有独立热自由度的节点
+允许缺少热反力或温度字段，不把 NaN 当成数值参考；所有角点温度仍严格检查。
+九点应力使用与现有 CAX8T 验证相同的积分点顺序。节点压力使用
+`contact_recovered_pressure_fuel_cladding` 对比 Abaqus CPRESS，遵循
+[既有 CAX8T 恢复规则](../b114_cax8t_recovery_validation.md)，不改变单元或接触计算。
+
+全部最终场指标通过原有 0.01% 门槛，最大逐点相对误差为
+**4.58855909e-06%**。Fuelsim 的 129 个接触节点全部活跃，
+法向反力合计约 664.04 N。本次重新运行了 Abaqus CAX8T 输出作业，未借用其他
+型号的应力参考；不声称逐增量场均已对比。原 CAX4T/CAX4RT 比较脚本检查仍通过。
+
+完整证据见 [`medium_cax8t/summary.json`](medium_cax8t/summary.json)。未修改生产
+数值实现；新增算例作为手动性能验证，不加入重复的自动回归。
