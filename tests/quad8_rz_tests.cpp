@@ -1,5 +1,5 @@
 #include "core/detail/line3_rz_contact.hpp"
-#include "fuelsim/core/rz_quad8.hpp"
+#include "core/rz_quad8.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
 #include <cmath>

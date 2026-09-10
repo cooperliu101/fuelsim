@@ -1,10 +1,10 @@
+#include "core/nonlinear_problem.hpp"
 #include "core/problem_backend_access.hpp"
-#include "fuelsim/core/nonlinear_problem.hpp"
-#include "fuelsim/io/case_input.hpp"
-#include "fuelsim/io/checkpoint.hpp"
-#include "fuelsim/io/results_io.hpp"
-#include "fuelsim/solver/petsc_solver.hpp"
-#include "fuelsim/solver/solve_workflows.hpp"
+#include "io/case_input.hpp"
+#include "io/checkpoint.hpp"
+#include "io/results_io.hpp"
+#include "solver/petsc_solver.hpp"
+#include "solver/solve_workflows.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstddef>

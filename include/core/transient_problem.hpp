@@ -1,6 +1,6 @@
 #pragma once
-#include "fuelsim/core/mesh.hpp"
-#include "fuelsim/core/nonlinear_problem.hpp"
+#include "core/mesh.hpp"
+#include "core/nonlinear_problem.hpp"
 #include <array>
 #include <cstddef>
 #include <memory>

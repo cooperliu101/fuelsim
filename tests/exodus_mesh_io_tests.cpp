@@ -1,5 +1,5 @@
 #include "exodus_fixture.hpp"
-#include "fuelsim/io/results_io.hpp"
+#include "io/results_io.hpp"
 #include <cstdint>
 #include <cstdio>
 #include <exception>

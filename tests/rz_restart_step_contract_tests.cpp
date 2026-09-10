@@ -1,6 +1,6 @@
-#include "fuelsim/io/case_input.hpp"
-#include "fuelsim/io/checkpoint.hpp"
-#include "fuelsim/io/results_io.hpp"
+#include "io/case_input.hpp"
+#include "io/checkpoint.hpp"
+#include "io/results_io.hpp"
 #include <cmath>
 #include <iostream>
 #include <limits>

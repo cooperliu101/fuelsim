@@ -1,4 +1,4 @@
-#include "fuelsim/core/cartesian3d_hex8.hpp"
+#include "core/cartesian3d_hex8.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
 #include <array>

@@ -1,7 +1,7 @@
 #pragma once
-#include "fuelsim/core/steady_problem.hpp"
-#include "fuelsim/core/transient_problem.hpp"
-#include "fuelsim/solver/petsc_solver.hpp"
+#include "core/steady_problem.hpp"
+#include "core/transient_problem.hpp"
+#include "solver/petsc_solver.hpp"
 #include <cstddef>
 #include <string>
 #include <vector>

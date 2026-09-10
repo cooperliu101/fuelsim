@@ -1,5 +1,5 @@
+#include "core/contact.hpp"
 #include "detail/ad_local_system.hpp"
-#include "fuelsim/core/contact.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>

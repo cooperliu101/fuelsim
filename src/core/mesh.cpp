@@ -1,4 +1,4 @@
-#include "fuelsim/core/mesh.hpp"
+#include "core/mesh.hpp"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>

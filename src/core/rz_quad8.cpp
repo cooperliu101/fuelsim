@@ -1,4 +1,4 @@
-#include "fuelsim/core/rz_quad8.hpp"
+#include "core/rz_quad8.hpp"
 #include <cmath>
 #include <stdexcept>
 

@@ -1,5 +1,5 @@
-#include "fuelsim/core/rz_quad4.hpp"
-#include "fuelsim/core/transient_problem.hpp"
+#include "core/rz_quad4.hpp"
+#include "core/transient_problem.hpp"
 #include "material.hpp"
 #include "support/material_factory.hpp"
 #include "support/mesh_fixture.hpp"

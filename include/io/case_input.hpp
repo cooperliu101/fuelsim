@@ -1,7 +1,7 @@
 #pragma once
-#include "fuelsim/core/spatial_definition.hpp"
-#include "fuelsim/solver/solve_workflows.hpp"
+#include "core/spatial_definition.hpp"
 #include "material_functions.hpp"
+#include "solver/solve_workflows.hpp"
 #include <cstddef>
 #include <string>
 

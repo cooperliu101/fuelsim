@@ -3,9 +3,9 @@ if(NOT DEFINED ROOT)
 endif()
 
 set(common_files
-    "${ROOT}/include/fuelsim/core/nonlinear_problem.hpp"
-    "${ROOT}/include/fuelsim/solver/petsc_solver.hpp"
-    "${ROOT}/include/fuelsim/solver/solve_workflows.hpp"
+    "${ROOT}/include/core/nonlinear_problem.hpp"
+    "${ROOT}/include/solver/petsc_solver.hpp"
+    "${ROOT}/include/solver/solve_workflows.hpp"
     "${ROOT}/src/solver/solver.cpp"
     "${ROOT}/src/solver/solve_workflows.cpp"
 )
@@ -34,8 +34,8 @@ foreach(path IN LISTS common_files)
 endforeach()
 
 set(common_problem_headers
-    "${ROOT}/include/fuelsim/core/steady_problem.hpp"
-    "${ROOT}/include/fuelsim/core/transient_problem.hpp"
+    "${ROOT}/include/core/steady_problem.hpp"
+    "${ROOT}/include/core/transient_problem.hpp"
 )
 
 foreach(path IN LISTS common_problem_headers)
@@ -76,7 +76,7 @@ foreach(forbidden_state_layout
     endif()
 endforeach()
 
-file(READ "${ROOT}/include/fuelsim/core/nonlinear_problem.hpp" problem_port)
+file(READ "${ROOT}/include/core/nonlinear_problem.hpp" problem_port)
 foreach(required "ContributionWorkspace" "FieldDescriptor" "field_layout" "contribution_dofs"
                  "discretization_identity")
     string(FIND "${problem_port}" "${required}" location)

@@ -1,5 +1,5 @@
 #pragma once
-#include "fuelsim/core/contact.hpp"
+#include "core/contact.hpp"
 #include "kinematics.hpp"
 #include "material.hpp"
 #include <array>

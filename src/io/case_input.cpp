@@ -1,4 +1,4 @@
-#include "fuelsim/io/case_input.hpp"
+#include "io/case_input.hpp"
 #include <algorithm>
 #include <array>
 #include <cctype>

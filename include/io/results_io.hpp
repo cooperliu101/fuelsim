@@ -1,7 +1,7 @@
 #pragma once
-#include "fuelsim/core/mesh.hpp"
-#include "fuelsim/core/steady_problem.hpp"
-#include "fuelsim/core/transient_problem.hpp"
+#include "core/mesh.hpp"
+#include "core/steady_problem.hpp"
+#include "core/transient_problem.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <fstream>

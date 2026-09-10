@@ -1,5 +1,5 @@
-#include "fuelsim/solver/solve_workflows.hpp"
-#include "fuelsim/core/spatial_definition.hpp"
+#include "solver/solve_workflows.hpp"
+#include "core/spatial_definition.hpp"
 #include "solver_detail.hpp"
 #include <algorithm>
 #include <cmath>

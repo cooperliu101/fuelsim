@@ -1,9 +1,9 @@
 #pragma once
-#include "fuelsim/core/contact.hpp"
-#include "fuelsim/core/mesh.hpp"
-#include "fuelsim/core/nonlinear_problem.hpp"
-#include "fuelsim/core/rz_quad4.hpp"
-#include "fuelsim/core/spatial_definition.hpp"
+#include "core/contact.hpp"
+#include "core/mesh.hpp"
+#include "core/nonlinear_problem.hpp"
+#include "core/rz_quad4.hpp"
+#include "core/spatial_definition.hpp"
 #include "spatial_layout.hpp"
 #include <array>
 #include <cstddef>

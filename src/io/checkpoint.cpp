@@ -1,7 +1,7 @@
-#include "fuelsim/io/checkpoint.hpp"
+#include "io/checkpoint.hpp"
 #include "core/problem_backend_access.hpp"
+#include "core/transient_problem.hpp"
 #include "detail/fnv_hash.hpp"
-#include "fuelsim/core/transient_problem.hpp"
 #include "io/problem_signature.hpp"
 #include <array>
 #include <cmath>

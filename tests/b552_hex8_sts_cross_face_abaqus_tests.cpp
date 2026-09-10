@@ -1,4 +1,4 @@
-#include "fuelsim/core/steady_problem.hpp"
+#include "core/steady_problem.hpp"
 #include "support/cartesian3d_problem_access.hpp"
 #include "support/field_error_metrics.hpp"
 #include "support/material_factory.hpp"

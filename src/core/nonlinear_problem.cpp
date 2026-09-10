@@ -1,5 +1,5 @@
-#include "fuelsim/core/nonlinear_problem.hpp"
-#include "fuelsim/core/spatial_definition.hpp"
+#include "core/nonlinear_problem.hpp"
+#include "core/spatial_definition.hpp"
 #include <algorithm>
 #include <limits>
 #include <stdexcept>

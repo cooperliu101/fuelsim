@@ -1,4 +1,4 @@
-#include "fuelsim/core/cartesian3d_hex20.hpp"
+#include "core/cartesian3d_hex20.hpp"
 #include "detail/ad_local_system.hpp"
 #include "detail/cartesian3d_mechanics.hpp"
 #include <adlite/adlite.hpp>

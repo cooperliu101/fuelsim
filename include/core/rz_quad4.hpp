@@ -1,5 +1,5 @@
 #pragma once
-#include "fuelsim/core/mesh.hpp"
+#include "core/mesh.hpp"
 #include "material.hpp"
 #include "rz_geometry.hpp"
 #include <adlite/adlite.hpp>

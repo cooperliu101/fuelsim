@@ -1,7 +1,7 @@
 #pragma once
-#include "fuelsim/core/contact_area_rule.hpp"
-#include "fuelsim/core/mesh.hpp"
-#include "fuelsim/core/rz_quad4.hpp"
+#include "core/contact_area_rule.hpp"
+#include "core/mesh.hpp"
+#include "core/rz_quad4.hpp"
 #include <array>
 #include <cstddef>
 #include <vector>

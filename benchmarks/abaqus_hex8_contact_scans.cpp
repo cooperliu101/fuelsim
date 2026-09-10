@@ -1,4 +1,4 @@
-#include "fuelsim/solver/solve_workflows.hpp"
+#include "solver/solve_workflows.hpp"
 // Offline parameter studies only; registered acceptance paths run fuelsim -i.
 #include "support/abaqus_hex8_full_field.hpp"
 #include "support/cartesian3d_problem_access.hpp"

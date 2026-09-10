@@ -1,6 +1,6 @@
-#include "fuelsim/io/case_input.hpp"
-#include "fuelsim/io/results_io.hpp"
-#include "fuelsim/solver/solve_workflows.hpp"
+#include "io/case_input.hpp"
+#include "io/results_io.hpp"
+#include "solver/solve_workflows.hpp"
 #include "support/cartesian3d_problem_access.hpp"
 #include "support/field_error_metrics.hpp"
 #include <algorithm>

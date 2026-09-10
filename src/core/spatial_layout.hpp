@@ -1,7 +1,7 @@
 #pragma once
-#include "fuelsim/core/mesh.hpp"
-#include "fuelsim/core/nonlinear_problem.hpp"
-#include "fuelsim/core/spatial_definition.hpp"
+#include "core/mesh.hpp"
+#include "core/nonlinear_problem.hpp"
+#include "core/spatial_definition.hpp"
 #include <array>
 #include <cstdint>
 #include <limits>

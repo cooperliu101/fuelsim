@@ -1,5 +1,5 @@
 #pragma once
-#include "fuelsim/solver/petsc_solver.hpp"
+#include "solver/petsc_solver.hpp"
 #include <algorithm>
 #include <chrono>
 

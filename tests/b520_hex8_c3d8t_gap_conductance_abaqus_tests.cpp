@@ -1,5 +1,5 @@
-#include "fuelsim/core/cartesian3d_hex8.hpp"
-#include "fuelsim/core/contact.hpp"
+#include "core/cartesian3d_hex8.hpp"
+#include "core/contact.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>

@@ -1,7 +1,7 @@
 #include "core/problem_backend_access.hpp"
-#include "fuelsim/core/steady_problem.hpp"
-#include "fuelsim/io/case_input.hpp"
-#include "fuelsim/io/results_io.hpp"
+#include "core/steady_problem.hpp"
+#include "io/case_input.hpp"
+#include "io/results_io.hpp"
 #include <cmath>
 #include <cstdint>
 #include <cstdio>

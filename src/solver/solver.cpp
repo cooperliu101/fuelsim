@@ -1,5 +1,5 @@
-#include "fuelsim/core/spatial_definition.hpp"
-#include "fuelsim/solver/petsc_solver.hpp"
+#include "core/spatial_definition.hpp"
+#include "solver/petsc_solver.hpp"
 #include "solver_detail.hpp"
 #include <algorithm>
 #include <array>
