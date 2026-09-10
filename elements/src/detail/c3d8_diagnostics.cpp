@@ -1,9 +1,10 @@
 #include "c3d8_diagnostics.hpp"
+#include "c3d8_geometry.hpp"
 #include "c3d8_kinematics.hpp"
 #include <cmath>
 #include <stdexcept>
 
-namespace fuelsim::element_detail {
+namespace fuelsim::c3d8_detail {
 elements::C3d8Diagnostics diagnose_hex8(const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues& committed,
@@ -28,7 +29,6 @@ elements::C3d8Diagnostics diagnose_hex8(const Hex8Geometry& geometry,
         result.current_volume = geometry.reference_volume;
         result.committed_volume = geometry.reference_volume;
     }
-    constexpr std::array<std::size_t, 8> gauss_to_node = {0, 1, 3, 2, 4, 5, 7, 6};
     for (std::size_t q = 0; q < result.material_point_count; ++q) {
         const auto k =
             reduced ? evaluate_cartesian_incremental_kinematics(geometry.reduced_point, active, committed, formulation)
@@ -51,7 +51,7 @@ elements::C3d8Diagnostics diagnose_hex8(const Hex8Geometry& geometry,
             k.rotation.zz.value()};
         point.current_weighted_measure = k.current_weighted_measure.value();
         if (!reduced) {
-            point.temperature = state[gauss_to_node[q]];
+            point.temperature = state[hex8_node_gauss_permutation[q]];
             for (std::size_t n = 0; n < 8; ++n)
                 for (std::size_t d = 0; d < 3; ++d)
                     point.thermal_gradient[n][d] = k.current_gradient[n][d].value();
@@ -71,4 +71,4 @@ elements::C3d8Diagnostics diagnose_hex8(const Hex8Geometry& geometry,
     }
     return result;
 }
-} // namespace fuelsim::element_detail
+} // namespace fuelsim::c3d8_detail

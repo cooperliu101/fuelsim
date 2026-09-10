@@ -2,7 +2,7 @@
 #include "ad_local_system.hpp"
 #include "cax4_types.hpp"
 
-namespace fuelsim::cax4_detail {
+namespace fuelsim::line2_rz_detail {
 inline Cax4LocalAdValues ad_state(const Cax4LocalValues& state, bool active = false) {
     Cax4LocalAdValues result{};
     if (active)
@@ -22,4 +22,4 @@ values(const Cax4LocalAdValues& state, const Cax4LocalAdValues& residual, Cax4Lo
     return result;
 }
 
-} // namespace fuelsim::cax4_detail
+} // namespace fuelsim::line2_rz_detail

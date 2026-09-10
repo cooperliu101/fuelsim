@@ -1,7 +1,7 @@
 #include "line2_rz_contact.hpp"
 #include "contact_types.hpp"
-#include "detail/cax4_local_system.hpp"
 #include "detail/line2_rz_geometry.hpp"
+#include "detail/line2_rz_local_system.hpp"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -328,7 +328,7 @@ Cax4LocalResidual compute_line2_rz_gap_heat(const GapHeatProperties& properties,
     const Line2RzHeatPointGeometry& geometry,
     const Cax4LocalValues& state,
     Cax4LocalJacobian* jacobian) {
-    const Cax4LocalAdValues ad_state = cax4_detail::ad_state(state, jacobian != nullptr);
+    const Cax4LocalAdValues ad_state = line2_rz_detail::ad_state(state, jacobian != nullptr);
     Cax4LocalAdValues ad_residual{};
     ad_residual.fill(adlite::Scalar(0.0));
     const HeatAdQuadratureValue value = evaluate_heat_quadrature(geometry.secondary_coordinates,
@@ -345,13 +345,13 @@ Cax4LocalResidual compute_line2_rz_gap_heat(const GapHeatProperties& properties,
             ad_residual[2 + node] -= value.weighted_measure * primary_shape * value.heat_flux;
         }
     }
-    return cax4_detail::values(ad_state, ad_residual, jacobian);
+    return line2_rz_detail::values(ad_state, ad_residual, jacobian);
 }
 
 HeatQuadratureValue compute_line2_rz_gap_heat_value(const GapHeatProperties& properties,
     const Line2RzHeatPointGeometry& geometry,
     const Cax4LocalValues& state) {
-    const Cax4LocalAdValues ad_state = cax4_detail::ad_state(state);
+    const Cax4LocalAdValues ad_state = line2_rz_detail::ad_state(state);
     const HeatAdQuadratureValue value = evaluate_heat_quadrature(geometry.secondary_coordinates,
         geometry.primary_coordinates,
         geometry.point,
@@ -418,7 +418,7 @@ Cax4LocalResidual compute_node_to_line_rz_contact(const NormalContactProperties&
     const Cax4LocalValues& committed_state,
     const ContactPointHistory& history,
     Cax4LocalJacobian* jacobian) {
-    const Cax4LocalAdValues ad_state = cax4_detail::ad_state(state, jacobian != nullptr);
+    const Cax4LocalAdValues ad_state = line2_rz_detail::ad_state(state, jacobian != nullptr);
     Cax4LocalAdValues ad_residual{};
     ad_residual.fill(adlite::Scalar(0.0));
     const ContactAdValue value = evaluate_contact(geometry, ad_state, committed_state, history, properties);
@@ -439,7 +439,7 @@ Cax4LocalResidual compute_node_to_line_rz_contact(const NormalContactProperties&
             ad_residual[11] -= value.primary_shape_1 * value.tangential_force * value.tangent_z;
         }
     }
-    return cax4_detail::values(ad_state, ad_residual, jacobian);
+    return line2_rz_detail::values(ad_state, ad_residual, jacobian);
 }
 
 ContactPointValue compute_node_to_line_rz_contact_value(const NormalContactProperties& properties,
@@ -447,7 +447,7 @@ ContactPointValue compute_node_to_line_rz_contact_value(const NormalContactPrope
     const Cax4LocalValues& state,
     const Cax4LocalValues& committed_state,
     const ContactPointHistory& history) {
-    const Cax4LocalAdValues ad_state = cax4_detail::ad_state(state);
+    const Cax4LocalAdValues ad_state = line2_rz_detail::ad_state(state);
     const ContactAdValue result = evaluate_contact(geometry, ad_state, committed_state, history, properties);
     return {
         result.projected,

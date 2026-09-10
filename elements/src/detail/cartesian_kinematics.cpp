@@ -1,4 +1,4 @@
-#include "detail/cartesian_kinematics.hpp"
+#include "cartesian_kinematics.hpp"
 #include <cmath>
 #include <stdexcept>
 

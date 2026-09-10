@@ -29,6 +29,7 @@ add_library(fuelsim_elements
     src/detail/cax4_geometry.cpp
     src/detail/cax8_assembly.cpp
     src/detail/cax8_geometry.cpp
+    src/detail/cax8_kinematics.cpp
     src/detail/matrix3.cpp
     src/line2_rz_boundary.cpp
     src/line2_rz_contact.cpp
@@ -59,6 +60,11 @@ endfunction()
 fuelsim_element_warnings(fuelsim_elements)
 
 if(BUILD_TESTING)
+    add_test(NAME fuelsim_element_detail_boundaries
+        COMMAND ${CMAKE_COMMAND}
+            -DELEMENTS_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+            -DFUELSIM_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/detail_boundaries.cmake)
     function(fuelsim_add_element_test name source)
         add_executable(${name} tests/${source})
         target_link_libraries(${name} PRIVATE fuelsim_elements_test_support)

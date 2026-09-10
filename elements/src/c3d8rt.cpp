@@ -10,7 +10,7 @@
 
 namespace fuelsim {
 namespace {
-using namespace element_detail;
+using namespace c3d8_detail;
 using namespace cartesian_detail;
 constexpr std::array<std::array<double, 4>, hex8_node_count> finite_reduced_hex8_raw_hourglass = {
     {{{1.0, -1.0, 1.0, -1.0}},
@@ -1736,6 +1736,6 @@ C3d8Diagnostics diagnose_c3d8rt(const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues& committed_state,
     StrainFormulation strain_formulation) {
-    return element_detail::diagnose_hex8(geometry, state, committed_state, strain_formulation, true);
+    return c3d8_detail::diagnose_hex8(geometry, state, committed_state, strain_formulation, true);
 }
 } // namespace fuelsim::elements

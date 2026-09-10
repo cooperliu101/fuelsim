@@ -114,7 +114,7 @@ Hex20ReferenceMapping evaluate_hex20_mapping(const Hex20Coordinates& coordinates
 
 } // namespace
 
-Hex20Geometry make_hex20_geometry(const Hex20Coordinates& coordinates, std::size_t order) {
+Hex20Geometry c3d20_detail::make_hex20_geometry(const Hex20Coordinates& coordinates, std::size_t order) {
     if (order != 2 && order != 3)
         throw std::invalid_argument("Quadratic hexahedron requires Gauss order two or three");
     const bool reduced = order == 2;

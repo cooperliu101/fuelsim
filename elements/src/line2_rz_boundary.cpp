@@ -1,7 +1,7 @@
 #include "line2_rz_boundary.hpp"
 #include "boundary_types.hpp"
-#include "detail/cax4_local_system.hpp"
 #include "detail/line2_rz_geometry.hpp"
+#include "detail/line2_rz_local_system.hpp"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -107,13 +107,13 @@ Cax4LocalResidual compute_line2_rz_boundary(const Line2RzBoundaryData& data,
     const Line2RzBoundaryGeometry& geometry,
     const Cax4LocalValues& state,
     Cax4LocalJacobian* jacobian) {
-    const Cax4LocalAdValues ad_state = cax4_detail::ad_state(state, jacobian != nullptr);
+    const Cax4LocalAdValues ad_state = line2_rz_detail::ad_state(state, jacobian != nullptr);
     Cax4LocalAdValues ad_residual{};
     if (data.kind == Line2RzBoundaryKind::convection)
         compute_line2_rz_convection_residual_ad(data, geometry, ad_state, ad_residual);
     else
         compute_line2_rz_mechanical_residual_ad(data, geometry, ad_state, ad_residual);
-    return cax4_detail::values(ad_state, ad_residual, jacobian);
+    return line2_rz_detail::values(ad_state, ad_residual, jacobian);
 }
 
 } // namespace fuelsim

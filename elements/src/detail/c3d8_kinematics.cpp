@@ -2,7 +2,7 @@
 #include <cmath>
 #include <stdexcept>
 
-namespace fuelsim::element_detail {
+namespace fuelsim::c3d8_detail {
 cartesian_detail::ActiveMatrix3 displacement_gradient(const Hex8QuadraturePoint& point,
     const Hex8LocalAdValues& state) {
     cartesian_detail::ActiveMatrix3 result{};
@@ -52,10 +52,10 @@ C3d8Kinematics evaluate_cartesian_incremental_kinematics(const Hex8QuadraturePoi
         committed_state,
         strain_formulation);
 }
-} // namespace fuelsim::element_detail
+} // namespace fuelsim::c3d8_detail
 
 namespace fuelsim {
-using namespace element_detail;
+using namespace c3d8_detail;
 
 void validate_cartesian_deformation(const Hex8QuadraturePoint& point, const Hex8LocalValues& state) {
     const double value = cartesian_detail::determinant(deformation_gradient(point, state));

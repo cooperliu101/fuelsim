@@ -2,7 +2,7 @@
 #include "c3d8_types.hpp"
 #include "cartesian_kinematics.hpp"
 
-namespace fuelsim::element_detail {
+namespace fuelsim::c3d8_detail {
 struct C3d8Kinematics final {
     SymmetricTensor3 strain_increment;
     CartesianRotation rotation;
@@ -21,4 +21,4 @@ C3d8Kinematics evaluate_cartesian_kinematics_from_gradient(const Hex8QuadratureP
     const cartesian_detail::ActiveMatrix3& gradient,
     const Hex8LocalValues& committed_state,
     StrainFormulation strain_formulation);
-} // namespace fuelsim::element_detail
+} // namespace fuelsim::c3d8_detail

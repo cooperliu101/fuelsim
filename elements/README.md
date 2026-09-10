@@ -97,20 +97,37 @@ C3D8T 的热梯度使用对应点的当前构形梯度，温度使用对应角�
 | `cax4_geometry.cpp` | CAX4 系列参考形函数、几何映射和积分测度；公共声明在 `cax4_types.hpp`，无需额外私有头文件 |
 | `cax8_geometry.*`、`c3d20_geometry.*` | 对应型号族的形函数、混合阶映射和参考积分数据 |
 | `c3d8_geometry.*` | C3D8 系列参考几何、节点顺序、积分与沙漏几何数据 |
-| `c3d8_kinematics.*`、`c3d20_kinematics.*` | 对应拓扑的位移梯度、构形转换及运动学；C3D20 同时包含当前与中间构形的热几何 |
+| `cax8_kinematics.*`、`c3d8_kinematics.*`、`c3d20_kinematics.*` | 对应拓扑的位移梯度、构形转换及运动学；CAX8、C3D20 同时包含当前与中间构形的热几何 |
 | `cax8_assembly.*`、`c3d20_assembly.*` | 型号族共用的局部热、力学装配和材料点结果计算 |
 | `c3d8_diagnostics.*` | 型号诊断入口共用的整单元输出计算 |
 | `cartesian_kinematics.*` | 不依赖节点数量的三维增量运动学，不计算材料切线 |
 | `cartesian_material.*` | 三维材料上下文、切线、增量更新和历史张量旋转 |
 | `matrix3.*` | 普通双精度与 ADlite 具体类型的三阶矩阵运算，不定义模板 |
 | `ad_local_system.hpp` | 不依赖拓扑的自动微分数据转换和结果提取 |
-| `cax4_local_system.hpp` | 两节点轴对称边界与接触共用的固定 12 自由度数组转换 |
+| `line2_rz_local_system.hpp` | 两节点轴对称边界与接触共用的固定 12 自由度数组转换 |
 | `line2_rz_geometry.hpp` | 两节点轴对称线段合法性检查，不包含自动微分播种或残量提取 |
 
 `.*` 表示同名 `.hpp/.cpp`。文件按“型号族或共享范围 + 职责”命名，私有目录
 保持平铺。只有跨文件使用的函数才建立私有声明；CAX4T 专用的四节点插值留在
-`cax4t.cpp` 的匿名命名空间，未使用的自动微分插值重载已删除。CAX8 的局部运动学
-规模较小且只服务共用装配，仍留在 `cax8_assembly.cpp` 内。
+`cax4t.cpp` 的匿名命名空间，未使用的自动微分插值重载已删除。
+
+参考构形映射归 `geometry`；新旧构形、应变、转动、当前或中间构形的形函数梯度
+及积分测度归 `kinematics`；材料函数、本构切线和历史张量更新归 `material`；
+物理项积分、材料与几何导数的组合及闭式节点链装配归 `assembly`。
+场温度插值和温度梯度与形函数梯度的收缩仍属于装配，不属于几何映射。
+诊断只汇总几何和运动学结果，不更新材料。
+
+CAX8、C3D20 的共用装配均只接收型号族 `Input` 和 `ElementRequest`，不再让调用方
+重复传递其中已有的几何、状态、历史和时间步。请求处理集中在共用装配中，型号
+入口负责积分点数量检查。私有命名空间与实际共享范围对应：`cax8_detail`、
+`c3d8_detail`、`c3d20_detail`、`cartesian_detail` 和 `line2_rz_detail`。
+`matrix3` 使用 `cartesian_detail`，不依赖材料或具体单元拓扑。
+
+`tests/detail_boundaries.cmake` 检查私有文件分类、直接包含依赖及公共调用方的
+私有头文件引用，并检查几何、运动学和诊断中显式混入材料调用的情况。
+这属于源码边界检查，不能替代 C++ 语义审查或数值验证。
+逐文件核对结果及保留不同实现的理由见
+[私有实现职责核对](../docs/element-detail-boundaries.md)。
 
 C3D20 的普通双精度残量路径和自动微分路径分别保留；文件拆分不改变播种宽度、
 材料积分规则、构形检查或运算顺序。公共头文件不包含 `src/detail/`，型号专用
@@ -141,7 +158,7 @@ cmake --build build-elements --parallel 4
 ctest --test-dir build-elements -j4 --output-on-failure
 ```
 
-八个型号测试和一个共用轴对称边界、接触测试由普通 C++ 自检程序组成。共用断言
+八个型号测试和一个共用轴对称边界、接触测试由普通 C++ 自检程序组成，另有一个 CMake 源码边界检查。共用断言
 在 `tests/support/` 编译一次，各型号分别执行其适用的分支。物理算例继续通过
 实际生产程序 `fuelsim -i <case.fsi>`，在 fuelsim 的统一 CTest 中验证。
 

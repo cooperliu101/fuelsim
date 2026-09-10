@@ -1,15 +1,14 @@
 #include "c3d20_assembly.hpp"
+#include "ad_local_system.hpp"
 #include "c3d20_kinematics.hpp"
 #include "c3d20_types.hpp"
 #include "cartesian_material.hpp"
-#include "detail/ad_local_system.hpp"
 #include <adlite/adlite.hpp>
 #include <array>
 #include <cmath>
 #include <stdexcept>
 
-namespace fuelsim {
-using namespace c3d20_detail;
+namespace fuelsim::c3d20_detail {
 
 namespace {
 using cartesian_detail::ActiveMatrix3;
@@ -96,7 +95,7 @@ void add_mechanical_point_residual_values(const Hex20MechanicalQuadraturePoint& 
     if (committed_material == nullptr) {
         stress = material.stress_values(strain, temperature, context);
         if (strain_formulation == StrainFormulation::finite)
-            stress = element_detail::rotate_cartesian_tensor_values(stress, kinematics.rotation);
+            stress = cartesian_detail::rotate_cartesian_tensor_values(stress, kinematics.rotation);
     } else if (strain_formulation == StrainFormulation::finite) {
         const double old_temperature = interpolate_temperature_values(point, old_state);
         stress = material
@@ -233,12 +232,7 @@ void add_finite_thermal_point_system(const Hex20MechanicalQuadraturePoint& point
         temperature_rate = (active_temperature - old_temperature) / time_step;
         heat_capacity = material.heat_capacity(active_temperature, context);
     }
-    std::array<std::array<double, 3>, 8> midpoint_gradient{};
-    for (std::size_t node = 0; node < 8; ++node)
-        for (std::size_t direction = 0; direction < 3; ++direction)
-            for (std::size_t reference = 0; reference < 3; ++reference)
-                midpoint_gradient[node][direction] += point.temperature_gradient[node][reference]
-                                                      * kinematics.midpoint_inverse_values[reference][direction];
+    const auto midpoint_gradient = temperature_shape_gradients(point, kinematics.midpoint_inverse_values);
     std::array<double, 3> temperature_gradient{};
     for (std::size_t node = 0; node < 8; ++node)
         for (std::size_t direction = 0; direction < 3; ++direction)
@@ -528,8 +522,6 @@ Hex20LocalResidual compute_local(const elements::C3d20Input& data,
     return residual;
 }
 
-} // namespace
-
 Hex20LocalResidual compute_hex20_thermoelastic(const elements::C3d20Input& data,
     const Hex20Geometry& geometry,
     const Hex20LocalValues& state,
@@ -631,4 +623,40 @@ compute_hex20_stress(const elements::C3d20Input& data, const Hex20Geometry& geom
     return result;
 }
 
-} // namespace fuelsim
+} // namespace
+
+elements::C3d20Result evaluate(const elements::C3d20Input& input, elements::ElementRequest request) {
+    const auto& data = input;
+    elements::C3d20Result result;
+    if (request.residual || request.jacobian) {
+        auto* tangent = request.jacobian ? &result.jacobian : nullptr;
+        if (input.committed_history)
+            result.residual = compute_hex20_transient(data,
+                input.geometry,
+                input.state,
+                input.committed_state,
+                *input.committed_history,
+                input.time_step,
+                tangent,
+                input.include_thermal_time_term);
+        else
+            result.residual = compute_hex20_thermoelastic(data,
+                input.geometry,
+                input.state,
+                input.time_step > 0 ? &input.committed_state : nullptr,
+                input.time_step,
+                tangent,
+                input.include_thermal_time_term);
+    }
+    if (request.history && input.committed_history)
+        result.history = compute_hex20_transient_update(data,
+            input.geometry,
+            input.state,
+            input.committed_state,
+            *input.committed_history,
+            input.time_step);
+    if (request.stress)
+        result.stress = compute_hex20_stress(data, input.geometry, input.state);
+    return result;
+}
+} // namespace fuelsim::c3d20_detail

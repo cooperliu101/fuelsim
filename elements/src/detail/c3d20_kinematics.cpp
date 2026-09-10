@@ -196,6 +196,17 @@ Hex20SourceMeasureValues evaluate_source_measure_values(const Hex20MechanicalQua
     return {cofactor, point.source_weighted_measure * determinant_value};
 }
 
+std::array<std::array<double, 3>, 8> temperature_shape_gradients(const Hex20MechanicalQuadraturePoint& point,
+    const Matrix3& inverse_map) {
+    std::array<std::array<double, 3>, 8> midpoint_gradient{};
+    for (std::size_t node = 0; node < 8; ++node)
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            for (std::size_t reference = 0; reference < 3; ++reference)
+                midpoint_gradient[node][direction] +=
+                    point.temperature_gradient[node][reference] * inverse_map[reference][direction];
+    return midpoint_gradient;
+}
+
 Hex20FiniteThermalKinematicsValues evaluate_finite_thermal_kinematics_values(
     const Hex20MechanicalQuadraturePoint& point,
     const Hex20LocalValues& state,
@@ -215,11 +226,7 @@ Hex20FiniteThermalKinematicsValues evaluate_finite_thermal_kinematics_values(
     if (!std::isfinite(midpoint_determinant) || !(midpoint_determinant > 0.0))
         throw std::domain_error("Finite-strain HEX20 thermal midpoint configuration requires a positive Jacobian");
     const Matrix3 midpoint_inverse = inverse(midpoint, midpoint_determinant);
-    for (std::size_t node = 0; node < 8; ++node)
-        for (std::size_t direction = 0; direction < 3; ++direction)
-            for (std::size_t reference = 0; reference < 3; ++reference)
-                result.midpoint_temperature_gradient[node][direction] +=
-                    point.temperature_gradient[node][reference] * midpoint_inverse[reference][direction];
+    result.midpoint_temperature_gradient = temperature_shape_gradients(point, midpoint_inverse);
     result.current_weighted_measure = point.weighted_measure * current_determinant;
 
     return result;

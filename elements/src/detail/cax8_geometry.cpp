@@ -72,7 +72,7 @@ Quad8RzPoint evaluate_quad8_rz_point(const Quad8RzCoordinates& coordinates, doub
     return p;
 }
 
-Quad8RzGeometry make_quad8_rz_geometry(const Quad8RzCoordinates& coordinates, std::size_t order) {
+Quad8RzGeometry cax8_detail::make_quad8_rz_geometry(const Quad8RzCoordinates& coordinates, std::size_t order) {
     Quad8RzGeometry result{coordinates, {}};
     if (order == 2) {
         result.point_count = 4;

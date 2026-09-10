@@ -10,7 +10,7 @@
 
 namespace fuelsim {
 namespace {
-using namespace element_detail;
+using namespace c3d8_detail;
 using namespace cartesian_detail;
 
 struct FiniteTracePoint final {
@@ -407,7 +407,7 @@ adlite::Scalar small_strain_element_pressure(const IsotropicThermoelasticMateria
     adlite::Scalar average_bulk_modulus = 0.0;
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const Hex8QuadraturePoint& point = geometry.points[q];
-        const adlite::Scalar temperature = state[hex8_node_to_gauss[q]];
+        const adlite::Scalar temperature = state[hex8_node_gauss_permutation[q]];
         const ActiveThermoelasticProperties properties =
             material.active_properties(temperature, material_context(time, point.position));
         average_bulk_modulus += point.weighted_measure / geometry.reference_volume
@@ -428,7 +428,7 @@ SmallStrainElementPressureSystem small_strain_element_pressure_system(const Isot
     double average_bulk_modulus = 0.0;
     std::array<double, hex8_node_count> bulk_modulus_temperature_derivatives{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
-        const std::size_t material_node = hex8_node_to_gauss[q];
+        const std::size_t material_node = hex8_node_gauss_permutation[q];
         const Hex8QuadraturePoint& point = geometry.points[q];
         const adlite::Scalar temperature = adlite::Scalar::independent(state[material_node], 0, 1);
         const ActiveThermoelasticProperties properties =
@@ -606,7 +606,7 @@ double prepare_finite_point_stresses(const IsotropicThermoelasticMaterial& mater
     double element_pressure = 0.0;
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const Hex8QuadraturePoint& point = geometry.points[q];
-        const std::size_t material_node = hex8_node_to_gauss[q];
+        const std::size_t material_node = hex8_node_gauss_permutation[q];
         FinitePointResidualCache& point_residual = point_residuals[q];
         const adlite::Scalar temperature(state[material_node]);
         const SymmetricTensor3 strain{point_residual.strain_increment.xx,
@@ -723,7 +723,7 @@ Hex8LocalResidual c3d8t_finite_residual_values(const elements::C3d8Input& data,
     Hex8LocalResidual residual{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q)
         add_finite_hex8_point_residual(geometry.points[q],
-            hex8_node_to_gauss[q],
+            hex8_node_gauss_permutation[q],
             state,
             data.material,
             data.time,
@@ -733,7 +733,7 @@ Hex8LocalResidual c3d8t_finite_residual_values(const elements::C3d8Input& data,
             element_pressure,
             residual);
     for (std::size_t node = 0; node < hex8_node_count; ++node) {
-        const double nodal_measure = point_residuals[hex8_node_to_gauss[node]].current_weighted_measure;
+        const double nodal_measure = point_residuals[hex8_node_gauss_permutation[node]].current_weighted_measure;
         residual[node] -= nodal_measure * data.volumetric_heat_source;
         if (committed_state != nullptr && include_thermal_time_term) {
             const double capacity = data.material
@@ -764,7 +764,7 @@ FiniteElementPressureSystem finite_element_pressure_system(const IsotropicThermo
     std::array<std::array<double, 3>, hex8_node_count> trace_numerator_derivatives{}, midpoint_volume_derivatives{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const Hex8QuadraturePoint& point = geometry.points[q];
-        const std::size_t material_node = hex8_node_to_gauss[q];
+        const std::size_t material_node = hex8_node_gauss_permutation[q];
         FinitePointSystemCache& point_system = point_systems[q];
         cartesian_detail::ActiveMatrix3 gradient{};
         for (std::size_t component = 0; component < 3; ++component)
@@ -1397,7 +1397,7 @@ adlite::Scalar hex8_nodal_volume_measure(const Hex8Geometry& geometry,
     std::size_t node,
     const Hex8LocalAdValues& state,
     StrainFormulation strain_formulation) {
-    const Hex8QuadraturePoint& point = geometry.points[hex8_node_to_gauss[node]];
+    const Hex8QuadraturePoint& point = geometry.points[hex8_node_gauss_permutation[node]];
     if (strain_formulation == StrainFormulation::small)
         return point.weighted_measure;
     cartesian_detail::ActiveMatrix3 current = displacement_gradient(point, state);
@@ -1413,7 +1413,7 @@ Hex8NodalVolumeSystem hex8_nodal_volume_system(const Hex8Geometry& geometry,
     std::size_t node,
     const Hex8LocalValues& state,
     StrainFormulation strain_formulation) {
-    const Hex8QuadraturePoint& point = geometry.points[hex8_node_to_gauss[node]];
+    const Hex8QuadraturePoint& point = geometry.points[hex8_node_gauss_permutation[node]];
     Hex8NodalVolumeSystem result{point.weighted_measure, {}};
     if (strain_formulation == StrainFormulation::small)
         return result;
@@ -1454,7 +1454,7 @@ void add_hex8_nodal_body_source_system(const Hex8Geometry& geometry,
     Hex8LocalAdValues& residual,
     Hex8LocalJacobian& jacobian) {
     for (std::size_t node = 0; node < hex8_node_count; ++node) {
-        const Hex8QuadraturePoint& point = geometry.points[hex8_node_to_gauss[node]];
+        const Hex8QuadraturePoint& point = geometry.points[hex8_node_gauss_permutation[node]];
         const Hex8NodalVolumeSystem measure = hex8_nodal_volume_system(geometry, node, state, strain_formulation);
         residual[node] -= measure.value * volumetric_heat_source;
         for (std::size_t component = 0; component < 3; ++component)
@@ -1496,7 +1496,7 @@ void add_hex8_lumped_capacity_system(const Hex8Geometry& geometry,
     Hex8LocalJacobian& jacobian) {
     for (std::size_t node = 0; node < hex8_node_count; ++node) {
         const Hex8CapacityPoint& point = geometry.capacity_points[node];
-        const Hex8QuadraturePoint& geometry_point = geometry.points[hex8_node_to_gauss[node]];
+        const Hex8QuadraturePoint& geometry_point = geometry.points[hex8_node_gauss_permutation[node]];
         const Hex8NodalVolumeSystem measure = hex8_nodal_volume_system(geometry, node, state, strain_formulation);
         const adlite::Scalar temperature = adlite::Scalar::independent(state[node], 0, 1);
         const adlite::Scalar capacity = material.heat_capacity(temperature, material_context(time, point.position));
@@ -1560,7 +1560,7 @@ void assemble_c3d8t_finite_strain_system(const elements::C3d8Input& data,
     const SmallStrainElementPressureSystem small_pressure{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q)
         add_hex8_point_system(geometry.points[q],
-            hex8_node_to_gauss[q],
+            hex8_node_gauss_permutation[q],
             state,
             data.material,
             StrainFormulation::finite,
@@ -1612,7 +1612,7 @@ void assemble_c3d8t_small_strain_system(const elements::C3d8Input& data,
             small_strain_element_pressure(data.material, geometry, passive, average_trace, data.time);
         for (std::size_t q = 0; q < geometry.points.size(); ++q)
             add_hex8_point_residual(geometry.points[q],
-                hex8_node_to_gauss[q],
+                hex8_node_gauss_permutation[q],
                 passive,
                 data.material,
                 StrainFormulation::small,
@@ -1646,7 +1646,7 @@ void assemble_c3d8t_small_strain_system(const elements::C3d8Input& data,
     const FiniteElementPressureSystem finite_element_pressure{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q)
         add_hex8_point_system(geometry.points[q],
-            hex8_node_to_gauss[q],
+            hex8_node_gauss_permutation[q],
             state,
             data.material,
             StrainFormulation::small,
@@ -1696,7 +1696,7 @@ std::array<SymmetricTensor3Values, 8> evaluate_hex8_stress(const Hex8Geometry& g
     std::array<SymmetricTensor3Values, 8> result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const Hex8QuadraturePoint& point = geometry.points[q];
-        const adlite::Scalar temperature = ad_state[hex8_node_to_gauss[q]];
+        const adlite::Scalar temperature = ad_state[hex8_node_gauss_permutation[q]];
         const C3d8Kinematics kinematics =
             evaluate_cartesian_incremental_kinematics(point, ad_state, Hex8LocalValues{}, strain_formulation);
         const SymmetricTensor3 constitutive_strain =
@@ -1813,7 +1813,7 @@ CartesianMaterialHistory compute_hex8_transient_update(const elements::C3d8Input
     CartesianMaterialHistory result(geometry.points.size());
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const Hex8QuadraturePoint& point = geometry.points[q];
-        const std::size_t material_node = hex8_node_to_gauss[q];
+        const std::size_t material_node = hex8_node_gauss_permutation[q];
         const adlite::Scalar temperature = passive[material_node];
         const C3d8Kinematics kinematics =
             evaluate_cartesian_incremental_kinematics(point, passive, committed_state, data.strain_formulation);
@@ -1909,6 +1909,6 @@ C3d8Diagnostics diagnose_c3d8t(const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues& committed_state,
     StrainFormulation strain_formulation) {
-    return element_detail::diagnose_hex8(geometry, state, committed_state, strain_formulation, false);
+    return c3d8_detail::diagnose_hex8(geometry, state, committed_state, strain_formulation, false);
 }
 } // namespace fuelsim::elements

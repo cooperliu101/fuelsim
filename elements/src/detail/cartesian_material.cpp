@@ -2,7 +2,7 @@
 #include <cmath>
 #include <stdexcept>
 
-namespace fuelsim::element_detail {
+namespace fuelsim::cartesian_detail {
 SymmetricTensor3Values rotate_cartesian_tensor_values(const SymmetricTensor3Values& tensor,
     const cartesian_detail::Matrix3& rotation) {
     const cartesian_detail::Matrix3 value = {{{{tensor.xx, tensor.xy, tensor.xz}},
@@ -43,10 +43,10 @@ CartesianInelasticStressResponse evaluate_incremental_cartesian_response(const I
             + committed.creep_strain[5]};
     return material.response(synthetic_total, temperature, time_step, committed, context);
 }
-} // namespace fuelsim::element_detail
+} // namespace fuelsim::cartesian_detail
 
 namespace fuelsim {
-using namespace element_detail;
+using namespace cartesian_detail;
 
 SymmetricTensor3 rotate_cartesian_tensor(const SymmetricTensor3& tensor, const CartesianRotation& rotation) {
     const cartesian_detail::ActiveMatrix3 r = {{{rotation.xx, rotation.xy, rotation.xz},
@@ -195,9 +195,7 @@ CartesianStressTangent evaluate_stress_tangent(const IsotropicThermoelasticMater
     }
     return result;
 }
-} // namespace fuelsim::cartesian_detail
 
-namespace fuelsim::element_detail {
 SymmetricTensor3Values rotate_cartesian_tensor_values(const SymmetricTensor3Values& tensor,
     const CartesianRotation& rotation) {
     const cartesian_detail::Matrix3 values = {{{{rotation.xx.value(), rotation.xy.value(), rotation.xz.value()}},
@@ -205,4 +203,4 @@ SymmetricTensor3Values rotate_cartesian_tensor_values(const SymmetricTensor3Valu
         {{rotation.zx.value(), rotation.zy.value(), rotation.zz.value()}}}};
     return rotate_cartesian_tensor_values(tensor, values);
 }
-} // namespace fuelsim::element_detail
+} // namespace fuelsim::cartesian_detail

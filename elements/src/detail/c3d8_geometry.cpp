@@ -4,8 +4,12 @@
 #include <stdexcept>
 
 namespace fuelsim {
-using namespace element_detail;
+using namespace c3d8_detail;
 using namespace cartesian_detail;
+
+namespace {
+constexpr double gauss = 0.577350269189625764509148780501957456;
+} // namespace
 
 Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates) {
     Hex8Geometry geometry{};
@@ -74,7 +78,7 @@ Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates) {
             geometry.average_shape_gradient[node][component] /= geometry.reference_volume;
     for (std::size_t node = 0; node < hex8_node_count; ++node) {
         geometry.capacity_points[node] = {coordinates[node],
-            geometry.points[hex8_node_to_gauss[node]].weighted_measure};
+            geometry.points[hex8_node_gauss_permutation[node]].weighted_measure};
         geometry.reduced_point.shape[node] = 1.0 / 8.0;
         geometry.reduced_point.gradient[node] = geometry.average_shape_gradient[node];
         geometry.reduced_capacity_points[node].position = coordinates[node];

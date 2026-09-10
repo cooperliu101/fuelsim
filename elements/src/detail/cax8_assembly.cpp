@@ -1,78 +1,10 @@
 #include "cax8_assembly.hpp"
-#include "cax8_types.hpp"
+#include "cax8_kinematics.hpp"
 #include <cmath>
 #include <stdexcept>
 
-namespace fuelsim {
+namespace fuelsim::cax8_detail {
 namespace {
-struct PointKinematics final {
-    std::array<adlite::Scalar, 6> active;
-    std::array<Quad8RzValues, 6> chain{};
-    std::array<double, 6> old{};
-    std::array<adlite::Scalar, 4> strain;
-    AxisymmetricRotation rotation;
-    adlite::Scalar frr, frz, fzr, fzz, det, radius, measure;
-};
-
-PointKinematics kinematics(const Quad8RzPoint& p,
-    const Quad8RzValues& state,
-    const Quad8RzValues& committed,
-    bool finite,
-    bool jacobian) {
-    PointKinematics k;
-    std::array<double, 6> value{};
-    for (std::size_t n = 0; n < 8; ++n) {
-        for (std::size_t c = 0; c < 2; ++c) {
-            const auto index = 4 + 8 * c + n;
-            value[2 * c] += state[index] * p.gradient_r[n];
-            value[2 * c + 1] += state[index] * p.gradient_z[n];
-            k.old[2 * c] += committed[index] * p.gradient_r[n];
-            k.old[2 * c + 1] += committed[index] * p.gradient_z[n];
-            k.chain[2 * c][index] = p.gradient_r[n];
-            k.chain[2 * c + 1][index] = p.gradient_z[n];
-        }
-        value[4] += state[4 + n] * p.shape[n];
-        k.old[4] += committed[4 + n] * p.shape[n];
-        k.chain[4][4 + n] = p.shape[n];
-    }
-    for (std::size_t n = 0; n < 4; ++n) {
-        value[5] += state[n] * p.temperature_shape[n];
-        k.old[5] += committed[n] * p.temperature_shape[n];
-        k.chain[5][n] = p.temperature_shape[n];
-    }
-    for (std::size_t i = 0; i < 6; ++i)
-        k.active[i] = jacobian ? adlite::Scalar::independent(value[i], i, 6) : adlite::Scalar(value[i]);
-    const auto& v = k.active;
-    k.frr = 1 + v[0];
-    k.frz = v[1];
-    k.fzr = v[2];
-    k.fzz = 1 + v[3];
-    k.det = k.frr * k.fzz - k.frz * k.fzr;
-    k.radius = p.radius + v[4];
-    k.measure = finite ? p.weighted_measure * k.det * k.radius / p.radius : adlite::Scalar(p.weighted_measure);
-    k.strain = {v[0], v[3], v[4] / p.radius, (v[1] + v[2]) / 2};
-    if (!finite)
-        return k;
-    const double old_det = (1 + k.old[0]) * (1 + k.old[3]) - k.old[1] * k.old[2];
-    if (!(k.det.value() > 0) || !(old_det > 0) || !(k.radius.value() > 0) || !(p.radius + k.old[4] > 0))
-        throw std::domain_error("CAX8T committed and current deformation and radius must remain positive");
-    const adlite::Scalar a = 2 + v[0] + k.old[0], b = v[1] + k.old[1], c = v[2] + k.old[2], d = 2 + v[3] + k.old[3],
-                         det = a * d - b * c;
-    if (!(det.value() > 0))
-        throw std::domain_error("CAX8T midpoint deformation must remain positive");
-    const adlite::Scalar hrr = 2 * ((v[0] - k.old[0]) * d - (v[1] - k.old[1]) * c) / det,
-                         hrz = 2 * (-(v[0] - k.old[0]) * b + (v[1] - k.old[1]) * a) / det,
-                         hzr = 2 * ((v[2] - k.old[2]) * d - (v[3] - k.old[3]) * c) / det,
-                         hzz = 2 * (-(v[2] - k.old[2]) * b + (v[3] - k.old[3]) * a) / det, spin = (hrz - hzr) / 4,
-                         den = 1 + spin * spin, cs = (1 - spin * spin) / den, sn = 2 * spin / den,
-                         shear = (hrz + hzr) / 2;
-    k.rotation = {cs, sn, -sn, cs, 1.0};
-    k.strain = {cs * cs * hrr - 2 * cs * sn * shear + sn * sn * hzz,
-        sn * sn * hrr + 2 * cs * sn * shear + cs * cs * hzz,
-        2 * (v[4] - k.old[4]) / (2 * p.radius + v[4] + k.old[4]),
-        cs * sn * (hrr - hzz) + (cs * cs - sn * sn) * shear};
-    return k;
-}
 
 void add_row(elements::Cax8Result& result,
     std::size_t row,
@@ -90,21 +22,21 @@ void add_row(elements::Cax8Result& result,
 }
 } // namespace
 
-elements::Cax8Result compute_quad8_rz(const elements::Cax8Input& data,
-    const Quad8RzGeometry& geometry,
-    const Quad8RzValues& state,
-    const Quad8RzValues& committed,
-    const Quad8MaterialHistory* history,
-    double dt,
-    bool jacobian,
-    bool thermal_time) {
+elements::Cax8Result evaluate(const elements::Cax8Input& data, elements::ElementRequest request) {
+    const auto& geometry = data.geometry;
+    const auto& state = data.state;
+    const auto& committed = data.committed_state;
+    const auto* history = data.committed_history;
+    const double dt = data.time_step;
+    const bool jacobian = request.jacobian;
+    const bool thermal_time = data.include_thermal_time_term;
     if (history && (!(dt > 0) || !std::isfinite(dt)))
         throw std::invalid_argument("CAX8T material update requires positive finite time step");
     const bool finite = data.strain_formulation == StrainFormulation::finite;
     elements::Cax8Result result;
     for (std::size_t q = 0; q < geometry.point_count; ++q) {
         const auto& p = geometry.points[q];
-        const auto k = kinematics(p, state, committed, finite, jacobian);
+        const auto k = evaluate_kinematics(p, state, committed, finite, jacobian);
         const auto& t = k.active[5];
         const MaterialFunctionContext context = {data.time, p.radius, 0, p.axial_coordinate};
         std::array<double, 5> fed = {k.strain[0].value(),
@@ -174,54 +106,28 @@ elements::Cax8Result compute_quad8_rz(const elements::Cax8Input& data,
         }
         result.history[q].stress = {stress.rr.value(), stress.zz.value(), stress.hoop.value(), stress.rz.value()};
         for (std::size_t n = 0; n < 8; ++n) {
-            const adlite::Scalar br = finite ? (p.gradient_r[n] * k.fzz - p.gradient_z[n] * k.fzr) / k.det
-                                             : adlite::Scalar(p.gradient_r[n]),
-                                 bz = finite ? (-p.gradient_r[n] * k.frz + p.gradient_z[n] * k.frr) / k.det
-                                             : adlite::Scalar(p.gradient_z[n]),
-                                 bh = finite ? p.shape[n] / k.radius : adlite::Scalar(p.shape[n] / p.radius);
+            const auto gradient = mechanical_gradient(p, k, n, finite);
+            const auto& br = gradient.radial;
+            const auto& bz = gradient.axial;
+            const auto& bh = gradient.hoop;
             add_row(result, 4 + n, k.measure * (br * stress.rr + bz * stress.rz + bh * stress.hoop), k, jacobian);
             add_row(result, 12 + n, k.measure * (bz * stress.zz + br * stress.rz), k, jacobian);
         }
         // Four temperature shape functions share the full quadratic geometric map.
-        const adlite::Scalar a = 1 + (k.active[0] + k.old[0]) / 2, b = (k.active[1] + k.old[1]) / 2,
-                             c = (k.active[2] + k.old[2]) / 2, d = 1 + (k.active[3] + k.old[3]) / 2,
-                             det = a * d - b * c;
-        std::array<adlite::Scalar, 4> gr, gz;
+        const auto thermal_map = thermal_geometry(p, k, finite);
+        const auto& gr = thermal_map.radial;
+        const auto& gz = thermal_map.axial;
         adlite::Scalar tr = 0, tz = 0;
         for (std::size_t n = 0; n < 4; ++n) {
-            gr[n] = finite ? (p.temperature_gradient_r[n] * d - p.temperature_gradient_z[n] * c) / det
-                           : adlite::Scalar(p.temperature_gradient_r[n]);
-            gz[n] = finite ? (-p.temperature_gradient_r[n] * b + p.temperature_gradient_z[n] * a) / det
-                           : adlite::Scalar(p.temperature_gradient_z[n]);
             tr += gr[n] * state[n];
             tz += gz[n] * state[n];
         }
         const auto conductivity = data.material.conductivity(t, context);
         const adlite::Scalar capacity =
             history && thermal_time ? data.material.heat_capacity(t, context) * (t - k.old[5]) / dt : adlite::Scalar(0);
-        double source_measure = p.weighted_measure;
-        Quad8RzValues source_derivative{};
-        if (finite) {
-            double fa = 1, fb = 0, fc = 0, fd = 1, radius = p.source_radius;
-            for (std::size_t n = 0; n < 4; ++n) {
-                fa += state[4 + n] * p.source_gradient_r[n];
-                fb += state[4 + n] * p.source_gradient_z[n];
-                fc += state[12 + n] * p.source_gradient_r[n];
-                fd += state[12 + n] * p.source_gradient_z[n];
-                radius += state[4 + n] * p.temperature_shape[n];
-            }
-            const double determinant = fa * fd - fb * fc;
-            if (!(determinant > 0) || !(radius > 0))
-                throw std::domain_error("CAX8T current linear source geometry must be positive");
-            source_measure = p.source_measure * determinant * radius / p.source_radius;
-            for (std::size_t n = 0; n < 4; ++n) {
-                source_derivative[4 + n] = source_measure
-                                           * ((fd * p.source_gradient_r[n] - fc * p.source_gradient_z[n]) / determinant
-                                               + p.temperature_shape[n] / radius);
-                source_derivative[12 + n] =
-                    source_measure * ((fa * p.source_gradient_z[n] - fb * p.source_gradient_r[n]) / determinant);
-            }
-        }
+        const auto source_map = source_geometry(p, state, finite);
+        const double source_measure = source_map.measure;
+        const auto& source_derivative = source_map.derivative;
         for (std::size_t n = 0; n < 4; ++n) {
             const auto row = k.measure * (conductivity * (gr[n] * tr + gz[n] * tz) + p.temperature_shape[n] * capacity);
             add_row(result, n, row, k, jacobian);
@@ -238,6 +144,13 @@ elements::Cax8Result compute_quad8_rz(const elements::Cax8Input& data,
         result.generated_heat_rate += source_measure * data.volumetric_heat_source;
         result.stored_heat_rate += k.measure.value() * capacity.value();
     }
+    if (request.stress)
+        for (std::size_t q = 0; q < result.history.size(); ++q)
+            result.stress[q] = result.history[q].stress;
+    if (!request.residual && !request.jacobian)
+        result.residual.fill(0.0);
+    if (!request.history)
+        result.history = {};
     return result;
 }
-} // namespace fuelsim
+} // namespace fuelsim::cax8_detail

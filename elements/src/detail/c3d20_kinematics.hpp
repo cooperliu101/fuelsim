@@ -51,6 +51,9 @@ Hex20Kinematics evaluate_kinematics(const Hex20MechanicalQuadraturePoint& point,
 Hex20SourceMeasureValues evaluate_source_measure_values(const Hex20MechanicalQuadraturePoint& point,
     const Hex20LocalValues& state);
 
+std::array<std::array<double, 3>, 8> temperature_shape_gradients(const Hex20MechanicalQuadraturePoint& point,
+    const Matrix3& inverse_map);
+
 Hex20FiniteThermalKinematicsValues evaluate_finite_thermal_kinematics_values(
     const Hex20MechanicalQuadraturePoint& point,
     const Hex20LocalValues& state,
