@@ -1,4 +1,5 @@
-#include "cartesian3d_hex8.hpp"
+#include "c3d8_types.hpp"
+#include "core/element_evaluation.hpp"
 #include "support/material_factory.hpp"
 #include <array>
 #include <cmath>
@@ -66,9 +67,9 @@ bool check_case(const std::string& path, const fuelsim::Hex8Coordinates& coordin
     for (std::size_t column = 0; column < 8; ++column) {
         fuelsim::Hex8LocalValues state = committed;
         state[column] += 1.0;
-        const fuelsim::Hex8LocalResidual steady = fuelsim::compute_hex8_thermoelastic(data, geometry, state);
+        const fuelsim::Hex8LocalResidual steady = fuelsim::compute_c3d8_thermoelastic(data, geometry, state);
         const fuelsim::Hex8LocalResidual transient =
-            fuelsim::compute_hex8_transient(data, geometry, state, committed, history, 1.0);
+            fuelsim::compute_c3d8_transient(data, geometry, state, committed, history, 1.0);
         for (std::size_t row = 0; row < 8; ++row) {
             fuelsim_total[row * 8 + column] = transient[row];
             fuelsim_capacity[row * 8 + column] = transient[row] - steady[row];

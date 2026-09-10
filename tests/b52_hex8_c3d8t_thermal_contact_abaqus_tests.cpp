@@ -1,5 +1,9 @@
-#include "cartesian3d_hex8.hpp"
-#include "contact.hpp"
+#include "c3d8_types.hpp"
+#include "contact_types.hpp"
+#include "core/element_evaluation.hpp"
+#include "quad4_face_boundary.hpp"
+#include "quad4_face_contact.hpp"
+
 #include "support/material_factory.hpp"
 #include <algorithm>
 #include <array>
@@ -115,9 +119,9 @@ int main(int argc, char** argv) {
         }
         const fuelsim::Hex8Coordinates secondary_cube = cube(0.0), primary_cube = cube(1.1);
         const fuelsim::Hex8LocalResidual secondary_volume =
-            fuelsim::compute_hex8_thermoelastic(data, fuelsim::make_hex8_geometry(secondary_cube), states[0]);
+            fuelsim::compute_c3d8_thermoelastic(data, fuelsim::make_hex8_geometry(secondary_cube), states[0]);
         const fuelsim::Hex8LocalResidual primary_volume =
-            fuelsim::compute_hex8_thermoelastic(data, fuelsim::make_hex8_geometry(primary_cube), states[1]);
+            fuelsim::compute_c3d8_thermoelastic(data, fuelsim::make_hex8_geometry(primary_cube), states[1]);
         const fuelsim::Quad4FaceCoordinates
             secondary_face = {{{1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {1.0, 1.0, 1.0}, {1.0, 0.0, 1.0}}},
             primary_face = {{{1.1, 0.0, 0.0}, {1.1, 1.0, 0.0}, {1.1, 1.0, 1.0}, {1.1, 0.0, 1.0}}};

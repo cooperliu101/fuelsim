@@ -1,5 +1,5 @@
 #include "material_functions.hpp"
-#include "detail/fnv_hash.hpp"
+#include "fnv_hash.hpp"
 #include "material.hpp"
 #include <algorithm>
 #include <array>

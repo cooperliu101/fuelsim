@@ -29,6 +29,7 @@
 
 [Regions]
   [material]
+    element = cax4t
     block_id = 0
     material = material
     strain = small

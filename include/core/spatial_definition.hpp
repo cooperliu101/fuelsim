@@ -1,6 +1,8 @@
+#include "contact_area_rule.hpp"
 #pragma once
-#include "contact.hpp"
-#include "kinematics.hpp"
+#include "contact_types.hpp"
+
+#include "element_types.hpp"
 #include "material.hpp"
 #include <array>
 #include <cstddef>
@@ -51,8 +53,10 @@ struct RegionDefinition final {
     StrainFormulation strain_formulation = StrainFormulation::small;
     Hex8ElementFormulation hex8_element_formulation = Hex8ElementFormulation::c3d8t;
     HeatSourceTimeEvaluation heat_source_time_evaluation = HeatSourceTimeEvaluation::end_time;
-    RzElementFormulation rz_element_formulation = RzElementFormulation::quad4;
+    RzElementFormulation rz_element_formulation = RzElementFormulation::cax4t;
     Hex20ElementFormulation hex20_element_formulation = Hex20ElementFormulation::c3d20t;
+    // Explicit input-card topology; zero means a programmatically constructed definition.
+    std::size_t requested_cartesian_node_count = 0;
 };
 enum class MechanicalContactFormulation {
     penalty,

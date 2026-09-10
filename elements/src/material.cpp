@@ -1330,3 +1330,43 @@ MaterialPointState IsotropicThermoelasticMaterial::state_values(const MaterialPo
     return state;
 }
 } // namespace fuelsim
+
+namespace fuelsim {
+// Evaluates the constitutive relation with AD seeded only on the four strain components and
+// the temperature (width 5), returning the stress values, the consistent material tangent
+// d(stress)/d(strain), and the thermal coupling d(stress)/dT.
+AxisymmetricStressTangent evaluate_axisymmetric_stress_tangent(const IsotropicThermoelasticMaterial& material,
+    const std::array<double, 4>& fed_strain,
+    double temperature,
+    double time_step,
+    const MaterialPointState* committed_material,
+    MaterialFunctionContext context) {
+    const std::array<double, 5> seeds = {fed_strain[0], fed_strain[1], fed_strain[2], fed_strain[3], temperature};
+    std::array<adlite::Scalar, 5> active{};
+    adlite::seed_identity(seeds.data(), seeds.size(), active.data());
+    const AxisymmetricStress stress =
+        committed_material == nullptr ? material.stress(active[0], active[1], active[2], active[3], active[4], context)
+                                      : material
+                                            .response(active[0],
+                                                active[1],
+                                                active[2],
+                                                active[3],
+                                                active[4],
+                                                time_step,
+                                                *committed_material,
+                                                context)
+                                            .stress;
+    const std::array<const adlite::Scalar*, 4> components = {&stress.rr, &stress.zz, &stress.hoop, &stress.rz};
+    AxisymmetricStressTangent result{};
+    result.stress = {stress.rr.value(), stress.zz.value(), stress.hoop.value(), stress.rz.value()};
+    std::array<double, 5> derivatives{};
+    for (std::size_t row = 0; row < 4; ++row) {
+        components[row]->copy_derivatives(derivatives.data(), derivatives.size());
+        for (std::size_t column = 0; column < 4; ++column)
+            result.tangent[row][column] = derivatives[column];
+        result.thermal[row] = derivatives[4];
+    }
+    return result;
+}
+
+} // namespace fuelsim

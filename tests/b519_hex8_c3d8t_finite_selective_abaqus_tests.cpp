@@ -1,4 +1,5 @@
-#include "cartesian3d_hex8.hpp"
+#include "c3d8_types.hpp"
+#include "core/element_evaluation.hpp"
 #include "support/field_error_metrics.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
@@ -204,9 +205,9 @@ int main(int argc, char** argv) {
 
         fuelsim::Hex8LocalJacobian jacobian{};
         const fuelsim::Hex8LocalResidual residual =
-            fuelsim::compute_hex8_thermoelastic(data, geometry, state, nullptr, 0.0, &jacobian);
+            fuelsim::compute_c3d8_thermoelastic(data, geometry, state, nullptr, 0.0, &jacobian);
         const std::array<fuelsim::SymmetricTensor3Values, 8> stresses =
-            fuelsim::compute_hex8_stress(data, geometry, state);
+            fuelsim::compute_c3d8_stress(data, geometry, state);
 
         std::array<fuelsim::test::FieldErrorMetrics, 3> reaction_metrics, coordinate_metrics;
         fuelsim::test::FieldErrorMetrics reaction_flux_metrics;
@@ -315,8 +316,8 @@ int main(int argc, char** argv) {
             plus[8 + column] += epsilon * direction[column];
             minus[8 + column] -= epsilon * direction[column];
         }
-        const fuelsim::Hex8LocalResidual plus_residual = fuelsim::compute_hex8_thermoelastic(data, geometry, plus);
-        const fuelsim::Hex8LocalResidual minus_residual = fuelsim::compute_hex8_thermoelastic(data, geometry, minus);
+        const fuelsim::Hex8LocalResidual plus_residual = fuelsim::compute_c3d8_thermoelastic(data, geometry, plus);
+        const fuelsim::Hex8LocalResidual minus_residual = fuelsim::compute_c3d8_thermoelastic(data, geometry, minus);
         double directional_difference_squared = 0.0, directional_reference_squared = 0.0;
         for (std::size_t row = 8; row < 32; ++row) {
             double exact = 0.0;

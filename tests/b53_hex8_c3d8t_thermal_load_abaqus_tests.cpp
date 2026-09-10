@@ -1,4 +1,7 @@
-#include "cartesian3d_hex8.hpp"
+#include "boundary_types.hpp"
+#include "c3d8_types.hpp"
+#include "core/element_evaluation.hpp"
+#include "quad4_face_boundary.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
 #include <array>
@@ -195,7 +198,7 @@ int main(int argc, char** argv) {
         fuelsim::Hex8LocalValues volume_state{};
         std::fill(volume_state.begin(), volume_state.begin() + 8, 300.0);
         const fuelsim::Hex8LocalResidual volume_residual =
-            fuelsim::compute_hex8_thermoelastic(data, geometry, volume_state);
+            fuelsim::compute_c3d8_thermoelastic(data, geometry, volume_state);
         NodalValues body{};
         std::copy(volume_residual.begin(), volume_residual.begin() + 8, body.begin());
 

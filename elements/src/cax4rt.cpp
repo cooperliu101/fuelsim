@@ -3,7 +3,7 @@
 #include <cmath>
 #include <stdexcept>
 
-namespace fuelsim::rz {
+namespace fuelsim::elements {
 namespace {
 using Gradient = std::array<std::array<double, 2>, 4>;
 using GradientDerivative = std::array<std::array<LocalValues, 2>, 4>;
@@ -136,7 +136,7 @@ struct HourglassState final {
     std::array<std::array<double, 2>, 2> deformation = {{{1, 0}, {0, 1}}};
 };
 
-HourglassState hourglass_state(const Quad4RzData& data,
+HourglassState hourglass_state(const AxisymmetricElementData& data,
     const Quad4RzGeometry& geometry,
     const ReducedGeometry& reference,
     const LocalValues& state) {
@@ -169,7 +169,7 @@ HourglassState hourglass_state(const Quad4RzData& data,
 }
 } // namespace
 
-Cax4rtResult compute_cax4rt(const Quad4RzData& data,
+elements::Cax4Result compute_cax4rt(const AxisymmetricElementData& data,
     const Quad4RzGeometry& geometry,
     const LocalValues& state,
     const LocalValues& committed,
@@ -312,7 +312,7 @@ Cax4rtResult compute_cax4rt(const Quad4RzData& data,
         for (std::size_t j = 0; j < 12; ++j)
             stress_derivative[i][j] += trace_response[i] * trace_derivative[j];
     }
-    Cax4rtResult result;
+    elements::Cax4Result result;
     if (history) {
         const AxisymmetricRotation rot = {rotation.rr.value(),
             rotation.rz.value(),
@@ -450,7 +450,7 @@ Cax4rtResult compute_cax4rt(const Quad4RzData& data,
     return result;
 }
 
-std::array<double, 2> cax4rt_thermal_rates(const Quad4RzData& data,
+std::array<double, 2> cax4rt_thermal_rates(const AxisymmetricElementData& data,
     const Quad4RzGeometry& geometry,
     const LocalValues& state,
     const LocalValues& committed,
@@ -470,10 +470,50 @@ std::array<double, 2> cax4rt_thermal_rates(const Quad4RzData& data,
     return rates;
 }
 
-double cax4rt_hourglass_energy(const Quad4RzData& data, const Quad4RzGeometry& geometry, const LocalValues& state) {
+double cax4rt_hourglass_energy(const AxisymmetricElementData& data,
+    const Quad4RzGeometry& geometry,
+    const LocalValues& state) {
     const auto hourglass = hourglass_state(data, geometry, reduce_geometry(geometry, {}, 0.0), state);
     return 0.5 * hourglass.coefficient
            * (hourglass.transported[0] * hourglass.transported[0]
                + hourglass.transported[1] * hourglass.transported[1]);
 }
-} // namespace fuelsim::rz
+} // namespace fuelsim::elements
+
+namespace fuelsim::elements {
+Cax4Result evaluate_cax4rt(const Cax4Input& input, ElementRequest request) {
+    const bool jacobian = request.jacobian;
+    if (input.committed_history && (!std::isfinite(input.time_step) || !(input.time_step > 0)))
+        throw std::invalid_argument("CAX4RT history update requires a positive finite time step");
+    const AxisymmetricElementData data{input.material,
+        input.volumetric_heat_source,
+        input.time,
+        input.strain_formulation,
+        RzElementFormulation::cax4rt,
+        input.initial_temperature};
+    auto result = compute_cax4rt(data,
+        input.geometry,
+        input.state,
+        input.committed_state,
+        input.committed_history,
+        input.time_step,
+        jacobian,
+        input.include_thermal_time_term);
+    const auto rates = cax4rt_thermal_rates(data,
+        input.geometry,
+        input.state,
+        input.committed_state,
+        input.time_step,
+        input.include_thermal_time_term);
+    result.stored_heat_rate = rates[0];
+    result.generated_heat_rate = rates[1];
+    if (request.stress)
+        for (std::size_t q = 0; q < result.history.size(); ++q)
+            result.stress[q] = result.history[q].stress;
+    if (!request.residual && !request.jacobian)
+        result.residual.fill(0.0);
+    if (!request.history)
+        result.history = {};
+    return result;
+}
+} // namespace fuelsim::elements

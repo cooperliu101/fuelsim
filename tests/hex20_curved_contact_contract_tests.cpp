@@ -1,6 +1,7 @@
-#include "cartesian3d_hex20.hpp"
+#include "c3d20_types.hpp"
 #include "io/case_input.hpp"
 #include "io/results_io.hpp"
+#include "quad8_face_boundary.hpp"
 #include "support/cartesian3d_problem_access.hpp"
 #include "support/exodus_result_reader.hpp"
 #include <algorithm>

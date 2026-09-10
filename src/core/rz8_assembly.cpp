@@ -1,4 +1,6 @@
 #include "rz8_assembly.hpp"
+#include "boundary_types.hpp"
+#include "core/element_evaluation.hpp"
 #include "line3_rz_boundary.hpp"
 #include <algorithm>
 #include <cmath>
@@ -27,7 +29,7 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
             Quad8RzCoordinates coordinates;
             for (std::size_t n = 0; n < 8; ++n)
                 coordinates[n] = mesh.nodes()[e.nodes[n]];
-            _geometries.back().push_back(make_quad8_rz_geometry(coordinates, region(r).rz_element_formulation));
+            _geometries.back().push_back(make_cax8_geometry(coordinates, region(r).rz_element_formulation));
         }
     }
     initialize_counts(nodes, elements);
@@ -172,7 +174,7 @@ void SpatialAssembly::validate_local_state(std::size_t first,
             coordinates[n].r += state[dof(Field::radial_displacement, global_node(r, nodes[n]))];
             coordinates[n].z += state[dof(Field::axial_displacement, global_node(r, nodes[n]))];
         }
-        (void)make_quad8_rz_geometry(coordinates);
+        (void)make_cax8_geometry(coordinates);
     }
     validate_contact_state(first, last, state);
 }

@@ -94,6 +94,7 @@
 
 [Regions]
   [fuel]
+    element = c3d20t
     block = fuel
     material = fuel
     strain = finite
@@ -102,6 +103,7 @@
     heat_source_function = power
   []
   [cladding]
+    element = c3d20t
     block = clad
     material = cladding
     strain = finite

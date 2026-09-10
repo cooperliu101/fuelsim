@@ -94,6 +94,7 @@
 
 [Regions]
   [fuel]
+    element = c3d20t
     block = fuel
     material = fuel
     strain = finite
@@ -103,6 +104,7 @@
     heat_source_time_evaluation = interval_average
   []
   [cladding]
+    element = c3d20t
     block = clad
     material = cladding
     strain = finite

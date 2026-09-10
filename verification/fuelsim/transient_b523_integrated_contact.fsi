@@ -83,6 +83,7 @@
 []
 [Regions]
   [primary]
+    element = c3d8t
     block = primary
     material = primary
     strain = finite
@@ -90,6 +91,7 @@
     volumetric_heat_source = 0
   []
   [secondary]
+    element = c3d8t
     block = secondary
     material = secondary
     strain = finite

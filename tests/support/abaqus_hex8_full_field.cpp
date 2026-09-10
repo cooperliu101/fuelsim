@@ -1,4 +1,5 @@
 #include "support/abaqus_hex8_full_field.hpp"
+#include "quad4_face_boundary.hpp"
 #include "support/cartesian3d_problem_access.hpp"
 #include "support/field_error_metrics.hpp"
 #include <algorithm>

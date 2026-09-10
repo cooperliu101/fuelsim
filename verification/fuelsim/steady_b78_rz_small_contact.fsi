@@ -24,6 +24,7 @@
 []
 [Regions]
   [lower]
+    element = cax4t
     block = lower
     material = solid
     strain = small
@@ -31,6 +32,7 @@
     volumetric_heat_source = 0
   []
   [upper]
+    element = cax4t
     block = upper
     material = solid
     strain = small

@@ -137,3 +137,18 @@ class IsotropicThermoelasticMaterial final {
     ThermoelasticProperties _properties;
 };
 } // namespace fuelsim
+
+namespace fuelsim {
+struct AxisymmetricStressTangent final {
+    AxisymmetricStressValues stress;
+    std::array<std::array<double, 4>, 4> tangent{};
+    std::array<double, 4> thermal{};
+};
+
+AxisymmetricStressTangent evaluate_axisymmetric_stress_tangent(const IsotropicThermoelasticMaterial& material,
+    const std::array<double, 4>& fed_strain,
+    double temperature,
+    double time_step,
+    const MaterialPointState* committed_material,
+    MaterialFunctionContext context);
+} // namespace fuelsim

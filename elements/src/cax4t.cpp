@@ -3,6 +3,28 @@
 #include <cmath>
 #include <stdexcept>
 
+namespace fuelsim {
+namespace {
+
+struct AxisymmetricKinematics final {
+    std::array<adlite::Scalar, quad4_node_count> gradient_r, gradient_z;
+    adlite::Scalar radius, weighted_measure, strain_rr, strain_zz, strain_hoop, strain_rz;
+    AxisymmetricRotation rotation;
+    adlite::Scalar midpoint_weighted_measure = 0.0;
+};
+
+AxisymmetricKinematics evaluate_axisymmetric_kinematics_from_point(const RzQuadraturePoint& point,
+    const adlite::Scalar& radial_displacement,
+    const adlite::Scalar& displacement_gradient_rr,
+    const adlite::Scalar& displacement_gradient_rz,
+    const adlite::Scalar& displacement_gradient_zr,
+    const adlite::Scalar& displacement_gradient_zz,
+    const LocalValues& committed_state,
+    StrainFormulation strain_formulation);
+
+} // namespace
+} // namespace fuelsim
+
 namespace fuelsim::elements {
 namespace {
 // CAX4T uses point-local width-six kinematics and width-five constitutive AD.
@@ -29,7 +51,8 @@ struct Cax4tPointSystem final {
 
 } // namespace
 
-Cax4tResult evaluate_cax4t(const Cax4tInput& input, bool jacobian) {
+Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
+    const bool jacobian = request.jacobian;
     const auto& data = input;
     const auto& geometry = input.geometry;
     const auto& state = input.state;
@@ -73,8 +96,7 @@ Cax4tResult evaluate_cax4t(const Cax4tInput& input, bool jacobian) {
             active[2],
             active[3],
             old_state,
-            data.strain_formulation,
-            true);
+            data.strain_formulation);
         const auto& k = s.kinematics;
         const adlite::Scalar weighted_trace = k.midpoint_weighted_measure * (k.strain_rr + k.strain_zz + k.strain_hoop);
         numerator += weighted_trace.value();
@@ -118,7 +140,7 @@ Cax4tResult evaluate_cax4t(const Cax4tInput& input, bool jacobian) {
             hoop_shape[j] * (finite_strain ? 4.0 * hoop_old / ((hoop_new + hoop_old) * (hoop_new + hoop_old)) : 1.0);
     double pressure = 0.0, hoop_stress = 0.0;
     LocalValues pressure_derivatives{}, hoop_stress_derivatives{};
-    Cax4tResult result;
+    Cax4Result result;
     for (std::size_t q = 0; q < 4; ++q) {
         const auto& point = geometry.points[q];
         auto& s = systems[q];
@@ -434,6 +456,115 @@ Cax4tResult evaluate_cax4t(const Cax4tInput& input, bool jacobian) {
                         + hoop_factor * (hoop_stress_derivatives[j] - pressure_derivatives[j]));
             }
     }
+    if (request.stress)
+        for (std::size_t q = 0; q < result.history.size(); ++q)
+            result.stress[q] = result.history[q].stress;
+    if (!request.residual && !request.jacobian)
+        result.residual.fill(0.0);
+    if (!request.history)
+        result.history = {};
     return result;
 }
 } // namespace fuelsim::elements
+
+namespace fuelsim {
+namespace {
+AxisymmetricKinematics evaluate_axisymmetric_kinematics_from_point(const RzQuadraturePoint& point,
+    const adlite::Scalar& radial_displacement,
+    const adlite::Scalar& displacement_gradient_rr,
+    const adlite::Scalar& displacement_gradient_rz,
+    const adlite::Scalar& displacement_gradient_zr,
+    const adlite::Scalar& displacement_gradient_zz,
+    const LocalValues& committed_state,
+    StrainFormulation strain_formulation) {
+    AxisymmetricKinematics result{};
+    if (strain_formulation == StrainFormulation::small) {
+        for (std::size_t node = 0; node < quad4_node_count; ++node) {
+            result.gradient_r[node] = point.gradient_r[node];
+            result.gradient_z[node] = point.gradient_z[node];
+        }
+        result.radius = point.radius;
+        result.weighted_measure = point.weighted_measure;
+        result.midpoint_weighted_measure = point.weighted_measure;
+        result.strain_rr = displacement_gradient_rr;
+        result.strain_zz = displacement_gradient_zz;
+        result.strain_hoop = radial_displacement / point.radius;
+        result.strain_rz = 0.5 * (displacement_gradient_rz + displacement_gradient_zr);
+        return result;
+    }
+    const adlite::Scalar deformation_rr = 1.0 + displacement_gradient_rr, deformation_rz = displacement_gradient_rz,
+                         deformation_zr = displacement_gradient_zr, deformation_zz = 1.0 + displacement_gradient_zz,
+                         deformation_hoop = 1.0 + radial_displacement / point.radius,
+                         determinant_rz = deformation_rr * deformation_zz - deformation_rz * deformation_zr,
+                         current_radius = point.radius + radial_displacement;
+    if (!std::isfinite(determinant_rz.value()) || !(determinant_rz.value() > 0.0))
+        throw std::domain_error("Finite-strain Quad4 RZ deformation must preserve a positive in-plane Jacobian");
+    if (!std::isfinite(deformation_hoop.value()) || !(deformation_hoop.value() > 0.0)
+        || !std::isfinite(current_radius.value()) || !(current_radius.value() > 0.0))
+        throw std::domain_error("Finite-strain RZ deformation requires positive hoop stretch and radius");
+    for (std::size_t node = 0; node < quad4_node_count; ++node) {
+        result.gradient_r[node] =
+            (deformation_zz * point.gradient_r[node] - deformation_zr * point.gradient_z[node]) / determinant_rz;
+        result.gradient_z[node] =
+            (-deformation_rz * point.gradient_r[node] + deformation_rr * point.gradient_z[node]) / determinant_rz;
+    }
+    result.radius = current_radius;
+    result.weighted_measure = point.weighted_measure * determinant_rz * deformation_hoop;
+    const double old_radial_displacement = quad4_rz_detail::interpolate(point.shape, committed_state, 4),
+                 old_deformation_rr = 1.0 + quad4_rz_detail::interpolate(point.gradient_r, committed_state, 4),
+                 old_deformation_rz = quad4_rz_detail::interpolate(point.gradient_z, committed_state, 4),
+                 old_deformation_zr = quad4_rz_detail::interpolate(point.gradient_r, committed_state, 8),
+                 old_deformation_zz = 1.0 + quad4_rz_detail::interpolate(point.gradient_z, committed_state, 8),
+                 old_deformation_hoop = 1.0 + old_radial_displacement / point.radius,
+                 old_determinant_rz = old_deformation_rr * old_deformation_zz - old_deformation_rz * old_deformation_zr;
+    if (!std::isfinite(old_determinant_rz) || !(old_determinant_rz > 0.0) || !std::isfinite(old_deformation_hoop)
+        || !(old_deformation_hoop > 0.0))
+        throw std::domain_error("Committed finite-strain RZ state requires positive Jacobian and hoop stretch");
+    const double old_inverse_rr = old_deformation_zz / old_determinant_rz,
+                 old_inverse_rz = -old_deformation_rz / old_determinant_rz,
+                 old_inverse_zr = -old_deformation_zr / old_determinant_rz,
+                 old_inverse_zz = old_deformation_rr / old_determinant_rz;
+    const adlite::Scalar incremental_rr = deformation_rr * old_inverse_rr + deformation_rz * old_inverse_zr,
+                         incremental_rz = deformation_rr * old_inverse_rz + deformation_rz * old_inverse_zz,
+                         incremental_zr = deformation_zr * old_inverse_rr + deformation_zz * old_inverse_zr,
+                         incremental_zz = deformation_zr * old_inverse_rz + deformation_zz * old_inverse_zz,
+                         incremental_hoop = deformation_hoop / old_deformation_hoop,
+                         incremental_determinant = incremental_rr * incremental_zz - incremental_rz * incremental_zr;
+    if (!std::isfinite(incremental_determinant.value()) || !(incremental_determinant.value() > 0.0)
+        || !std::isfinite(incremental_hoop.value()) || !(incremental_hoop.value() > 0.0))
+        throw std::domain_error("Incremental finite-strain RZ state requires positive Jacobian and hoop stretch");
+    {
+        const adlite::Scalar sum_rr = deformation_rr + old_deformation_rr, sum_rz = deformation_rz + old_deformation_rz,
+                             sum_zr = deformation_zr + old_deformation_zr, sum_zz = deformation_zz + old_deformation_zz,
+                             sum_hoop = deformation_hoop + old_deformation_hoop,
+                             determinant_sum = sum_rr * sum_zz - sum_rz * sum_zr;
+        if (!(determinant_sum.value() > 0.0) || !(sum_hoop.value() > 0.0))
+            throw std::domain_error("CAX4T midpoint configuration must preserve positive volume");
+        result.midpoint_weighted_measure = point.weighted_measure * determinant_sum * sum_hoop / 8.0;
+        const adlite::Scalar
+            hrr =
+                2.0 * ((deformation_rr - old_deformation_rr) * sum_zz - (deformation_rz - old_deformation_rz) * sum_zr)
+                / determinant_sum,
+            hrz = 2.0
+                  * (-(deformation_rr - old_deformation_rr) * sum_rz + (deformation_rz - old_deformation_rz) * sum_rr)
+                  / determinant_sum,
+            hzr = 2.0
+                  * ((deformation_zr - old_deformation_zr) * sum_zz - (deformation_zz - old_deformation_zz) * sum_zr)
+                  / determinant_sum,
+            hzz = 2.0
+                  * (-(deformation_zr - old_deformation_zr) * sum_rz + (deformation_zz - old_deformation_zz) * sum_rr)
+                  / determinant_sum,
+            shear = 0.5 * (hrz + hzr), spin = 0.25 * (hrz - hzr), denom = 1.0 + spin * spin,
+            cosine = (1.0 - spin * spin) / denom, sine = 2.0 * spin / denom;
+        result.rotation = {cosine, sine, -sine, cosine, adlite::Scalar(1.0)};
+        result.strain_rr = cosine * cosine * hrr - 2.0 * cosine * sine * shear + sine * sine * hzz;
+        result.strain_zz = sine * sine * hrr + 2.0 * cosine * sine * shear + cosine * cosine * hzz;
+        result.strain_rz = cosine * sine * (hrr - hzz) + (cosine * cosine - sine * sine) * shear;
+        result.strain_hoop = 2.0 * (deformation_hoop - old_deformation_hoop) / sum_hoop;
+        return result;
+    }
+}
+
+} // namespace
+
+} // namespace fuelsim

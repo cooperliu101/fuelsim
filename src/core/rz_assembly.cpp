@@ -1,4 +1,8 @@
 #include "rz_assembly.hpp"
+#include "boundary_types.hpp"
+#include "contact_types.hpp"
+#include "line2_rz_boundary.hpp"
+#include "line2_rz_contact.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>

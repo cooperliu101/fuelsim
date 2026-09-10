@@ -1,4 +1,5 @@
 #include "io/case_input.hpp"
+#include "contact_types.hpp"
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -529,12 +530,9 @@ RegionDefinition read_region(const InputDocument& document,
         result.strain_formulation = StrainFormulation::finite;
     else
         value_error(document, strain, "unknown strain formulation '" + strain.value + "'");
-    const std::string element =
-        read_optional_string(section, "element", geometry == CaseGeometry::axisymmetric_rz ? "quad4" : "c3d8t");
+    const std::string element = required_entry(document, section, "element").value;
     if (geometry == CaseGeometry::axisymmetric_rz) {
-        if (element == "quad4")
-            result.rz_element_formulation = RzElementFormulation::quad4;
-        else if (element == "cax4t")
+        if (element == "cax4t")
             result.rz_element_formulation = RzElementFormulation::cax4t;
         else if (element == "cax4rt")
             result.rz_element_formulation = RzElementFormulation::cax4rt;
@@ -546,10 +544,13 @@ RegionDefinition read_region(const InputDocument& document,
             value_error(document, required_entry(document, section, "element"), "unknown RZ element '" + element + "'");
         return result;
     }
+    result.requested_cartesian_node_count = (element == "c3d20t" || element == "c3d20rt") ? 20 : 8;
     if (element == "c3d8t")
         result.hex8_element_formulation = Hex8ElementFormulation::c3d8t;
     else if (element == "c3d8rt")
         result.hex8_element_formulation = Hex8ElementFormulation::c3d8rt;
+    else if (element == "c3d20t")
+        result.hex20_element_formulation = Hex20ElementFormulation::c3d20t;
     else if (element == "c3d20rt")
         result.hex20_element_formulation = Hex20ElementFormulation::c3d20rt;
     else

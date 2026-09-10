@@ -37,6 +37,7 @@
 []
 [Regions]
   [solid]
+    element = cax4t
     block_id = 0
     material = solid
     strain = finite

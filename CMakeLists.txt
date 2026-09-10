@@ -145,8 +145,15 @@ fuelsim_enable_warnings(fuelsim)
 include(CTest)
 
 if(BUILD_TESTING)
-    add_test(NAME fuelsim_cax4t_element_tests COMMAND fuelsim_cax4t_element_tests)
-    add_test(NAME fuelsim_rz_element_tests COMMAND fuelsim_rz_element_tests)
+    add_test(NAME fuelsim_cax4t_tests COMMAND fuelsim_cax4t_tests)
+    add_test(NAME fuelsim_cax4rt_tests COMMAND fuelsim_cax4rt_tests)
+    add_test(NAME fuelsim_cax8t_tests COMMAND fuelsim_cax8t_tests)
+    add_test(NAME fuelsim_cax8rt_tests COMMAND fuelsim_cax8rt_tests)
+    add_test(NAME fuelsim_c3d8t_tests COMMAND fuelsim_c3d8t_tests)
+    add_test(NAME fuelsim_c3d8rt_tests COMMAND fuelsim_c3d8rt_tests)
+    add_test(NAME fuelsim_c3d20t_tests COMMAND fuelsim_c3d20t_tests)
+    add_test(NAME fuelsim_c3d20rt_tests COMMAND fuelsim_c3d20rt_tests)
+    add_test(NAME fuelsim_axisymmetric_interface_tests COMMAND fuelsim_axisymmetric_interface_tests)
     include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src" "${CMAKE_CURRENT_SOURCE_DIR}/elements/tests")
 
     add_library(fuelsim_test_mesh_fixture
@@ -481,7 +488,6 @@ if(BUILD_TESTING)
     )
 
     add_executable(fuelsim_core_tests tests/core_tests.cpp)
-    add_test(NAME fuelsim_quad8_rz_tests COMMAND fuelsim_quad8_rz_tests)
     target_link_libraries(fuelsim_core_tests
         PRIVATE fuelsim_test_mesh_fixture fuelsim::core
     )
@@ -489,8 +495,6 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_core_tests COMMAND fuelsim_core_tests)
     set_tests_properties(fuelsim_core_tests PROPERTIES LABELS "unit")
 
-    add_test(NAME fuelsim_hex8_tests COMMAND fuelsim_hex8_tests)
-    set_tests_properties(fuelsim_hex8_tests PROPERTIES LABELS "unit;three-dimensional")
 
     add_executable(fuelsim_c3d20rt_probe_results tests/production_c3d20rt_probe.cpp)
     add_executable(fuelsim_c3d20rt_material_results tests/production_c3d20rt_material.cpp)
@@ -573,9 +577,6 @@ if(BUILD_TESTING)
             LABELS "three-dimensional;quadratic;abaqus;thermal;transient")
     endforeach()
 
-    add_test(NAME fuelsim_hex20_tests COMMAND fuelsim_hex20_tests)
-    set_tests_properties(fuelsim_hex20_tests
-        PROPERTIES LABELS "unit;three-dimensional;quadratic;warped-geometry;contact;friction")
 
     add_executable(fuelsim_hex8_solver_tests tests/hex8_solver_tests.cpp)
     target_link_libraries(fuelsim_hex8_solver_tests PRIVATE fuelsim::io fuelsim::solver)

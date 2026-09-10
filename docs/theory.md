@@ -40,15 +40,16 @@ fuelsim -i <case.fsi>
 
 ## 2. 软件边界与状态流
 
-实现按依赖方向分成三个库：
+实现按依赖方向分成四个库：
 
 | 层 | 当前职责 | 直接依赖 |
 | --- | --- | --- |
-| `fuelsim_core` | 网格、自由度、材料、Quad4 RZ 内核、界面和问题定义 | ADlite |
+| `fuelsim_elements` | 八种型号的局部单元、材料、边界和接触计算 | ADlite |
+| `fuelsim_core` | 全局网格、自由度、候选搜索、装配和问题定义 | fuelsim_elements |
 | `fuelsim_io` | 严格解析版本化 `.fsi` 输入，并直接读写 Exodus 网格、结果、检查点和元数据 | Exodus、`fuelsim_core` |
 | `fuelsim_solver` | 分布式向量、稀疏装配、SNES Newton、KSP 线性求解和稳态或瞬态推进 | PETSc、`fuelsim_core` |
 
-输入 v2 只接受一个 Exodus 文件、国际单位制数值和固定字段集合。程序不实现
+输入 v3 只接受一个 Exodus 文件、国际单位制数值和固定字段集合。程序不实现
 对象工厂、表达式求值、单位换算、旧键别名或运行时 Kernel 注册。ADlite 之外，
 PETSc 是唯一直接数值依赖，Exodus 是唯一直接网格 I/O 依赖。
 
@@ -70,7 +71,8 @@ Exodus Quad4/Line2 几何
 
 | 内容 | 实现位置 |
 | --- | --- |
-| Quad4、外边界和接触界面的局部残量及 Jacobian | `elements/src/rz_kernels.cpp` |
+| CAX4T/CAX4RT 体单元 | `elements/src/cax4t.cpp`、`elements/src/cax4rt.cpp` |
+| 两节点轴对称边界和接触 | `elements/src/line2_rz_boundary.cpp`、`elements/src/line2_rz_contact.cpp` |
 | 热弹性、Norton、J2 及耦合材料更新 | `elements/src/material.cpp` |
 | 区域布局、边界条件、接触搜索和贡献装配 | `src/core/rz_assembly.cpp` |
 | 稳态、瞬态及 committed/trial/commit/rollback | `src/core/spatial_problem.cpp` |
@@ -240,8 +242,7 @@ F_hoop = 1 + ur/r0
 Fhat = F_new * inverse(F_old)
 ```
 
-程序对 `Fhat` 使用与当前 MOOSE 默认一致的 Taylor 应变增量和 Rashid 增量
-转动。应力和弹性、塑性、蠕变张量历史在步末按该转动客观旋转；等效塑性和
+CAX4T 使用 Hughes-Winget 增量应变与客观转动，并施加该型号的轴对称选择性体积处理。应力和弹性、塑性、蠕变张量历史在步末按该转动客观旋转；等效塑性和
 等效蠕变标量不旋转。
 
 有限应变力学残量仍具有上一节的轴对称形式，但使用 Cauchy 应力、当前构形
@@ -251,7 +252,7 @@ Fhat = F_new * inverse(F_old)
 dV = dV0 * det(F_rz) * F_hoop
 ```
 
-默认轴对称 Quad4 的体热算子使用参考构形；显式 CAX4T 使用第 4.3 节的规则。
+默认 Quad4 型号已删除；CAX4T 使用第 4.3 节的热算子规则。
 HEX20 有限应变体热算子的构形规则见后续专节。有限应变 HEX8 的热传导按照
 Abaqus C3D8T 使用当前构形温度梯度和当前
 体积测度；它因此具有非零的热残量对位移导数。当前试探态必须满足：
@@ -266,7 +267,7 @@ r_current > 0
 夹持值继续计算。
 
 稳态有限应变没有 committed 材料历史。每个稳态载荷延续步都从 `F_old=I`
-对当前总变形做一次 Taylor 更新，所以稳态载荷步不构成增量材料路径。需要
+对当前总变形做一次 Hughes-Winget 更新，所以稳态载荷步不构成增量材料路径。需要
 非共轴路径历史时必须使用 `TransientProblem`。
 
 ## 5. 材料模型与局部更新
@@ -305,8 +306,7 @@ T_expansion = (T0+T1+...+T7)/8
 
 导热、热容、弹性参数、塑性参数和蠕变参数仍按各积分点插值温度求值。因此该
 规则只改变热膨胀本征应变及其温度—力学 Jacobian 链，不把整个材料温度场改成
-单元常量。二维轴对称默认 `quad4` 和三维 HEX20 保留各自现有的积分点温度
-热膨胀离散。显式选择轴对称 `cax4t` 或 `cax4rt` 时则使用不同规则：
+单元常量。三维 HEX20 保留积分点温度热膨胀离散。轴对称 `cax4t` 和 `cax4rt` 使用不同规则：
 
 ```text
 CAX4T:  T_expansion = (T0 + T1 + T2 + T3)/4
@@ -1065,7 +1065,7 @@ max_pointwise_relative = max_i |x_i-x_ref_i|/|x_ref_i|
 | J2、Norton 和耦合本构 | `m22.inelastic` | 闭式根、卸载—再加载、极端尺度、局部切线和 MOOSE |
 | 瞬态非匹配 PCMI | `m23.pcmi` | 节点场、压力、总力、平均量和 40 个积分点 MOOSE 对比 |
 | 时间误差和全局诊断 | `m53.time_integration`、`m32.diagnostics`、`m40.foundation` | 100 秒时间步研究、step-doubling、分场 Jacobian 和守恒 |
-| 当前构形有限应变 | `m41.finite_strain` | Taylor/Rashid 局部解析与非匹配 PCMI MOOSE 对比 |
+| 当前构形有限应变 | `m41.finite_strain` | CAX4T/CAX4RT 局部导数、客观历史及 Abaqus 生产对比 |
 | follower pressure | `m42.follower_pressure` | 四边法向、当前合力、几何刚度和三类边界 MOOSE 对比 |
 | 非共轴有限转动 | `m43.noncoaxial_finite_strain` | 四单元 100 步路径、材料分支和共享状态重放 |
 | 综合瞬态大滑移热—摩擦接触 | `m57.integrated` | 完整当前法向 MOOSE 对标和热接触跨段所有权；1-rank/2-rank/4-rank 完整状态等价保留为手动 benchmark |

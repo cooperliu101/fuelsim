@@ -1,4 +1,5 @@
-#include "cartesian3d_hex8.hpp"
+#include "c3d8_types.hpp"
+#include "core/element_evaluation.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
 #include <array>
@@ -200,7 +201,7 @@ fuelsim::Hex8LocalResidual abaqus_c3d8t_residual(const fuelsim::Hex8Geometry& ge
     const fuelsim::Hex8LocalValues& state,
     const fuelsim::IsotropicThermoelasticMaterial& material) {
     const fuelsim::CartesianThermoelasticData data{material, 0.0, 0.0};
-    fuelsim::Hex8LocalResidual result = fuelsim::compute_hex8_thermoelastic(data, geometry, state);
+    fuelsim::Hex8LocalResidual result = fuelsim::compute_c3d8_thermoelastic(data, geometry, state);
     for (std::size_t row = 8; row < local_size; ++row)
         result[row] = 0.0;
     fuelsim::Hex8LocalAdValues passive{};
@@ -278,7 +279,7 @@ bool compare_operator(const std::map<std::string, NodalStep>& steps, bool temper
     const fuelsim::CartesianThermoelasticData data{material, 0.0, 0.0};
     fuelsim::Hex8LocalJacobian fuelsim_jacobian{};
     const fuelsim::Hex8LocalResidual fuelsim_residual =
-        fuelsim::compute_hex8_thermoelastic(data, geometry, base.state, nullptr, 0.0, &fuelsim_jacobian);
+        fuelsim::compute_c3d8_thermoelastic(data, geometry, base.state, nullptr, 0.0, &fuelsim_jacobian);
     fuelsim::Hex8LocalJacobian abaqus_jacobian{};
     for (std::size_t column = 0; column < local_size; ++column) {
         std::ostringstream plus_name, minus_name;
@@ -397,7 +398,7 @@ bool compare_integration_points(const NodalStep& base,
     const fuelsim::IsotropicThermoelasticMaterial material(properties(temperature_dependent));
     const fuelsim::CartesianThermoelasticData data{material, 0.0, 0.0};
     const std::array<fuelsim::SymmetricTensor3Values, 8> production_stresses =
-        fuelsim::compute_hex8_stress(data, geometry, base.state);
+        fuelsim::compute_c3d8_stress(data, geometry, base.state);
     fuelsim::Hex8LocalAdValues passive{};
     for (std::size_t dof = 0; dof < local_size; ++dof)
         passive[dof] = base.state[dof];

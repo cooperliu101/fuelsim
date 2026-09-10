@@ -1,3 +1,4 @@
+#include "contact_types.hpp"
 #include "core/problem_backend_access.hpp"
 #include "io/case_input.hpp"
 #include "io/checkpoint.hpp"

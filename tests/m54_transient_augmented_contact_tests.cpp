@@ -1,3 +1,4 @@
+#include "contact_types.hpp"
 #include "io/case_input.hpp"
 #include "io/results_io.hpp"
 #include "solver/solve_workflows.hpp"

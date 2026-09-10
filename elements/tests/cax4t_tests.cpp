@@ -75,8 +75,8 @@ void check_analytic_and_contract(StrainFormulation form) {
         heated[n] = 620.0;
     }
     const Quad4MaterialHistory history{};
-    const Cax4tInput input{m, g, heated, old, &history, 0.5, 0.5, 2e7, form, true};
-    const auto result = evaluate_cax4t(input, true);
+    const Cax4Input input{m, g, heated, old, &history, 0.5, 0.5, 2e7, form, true};
+    const auto result = evaluate_cax4t(input, {true, true, true, false});
     const double volume = 3.0 * std::acos(-1.0);
     require(std::abs(result.stored_heat_rate / (2e7 * volume) - 1.0) < 1e-14, "Analytical stored heat rate");
     require(std::abs(result.generated_heat_rate / (2e7 * volume) - 1.0) < 1e-14, "Analytical generated heat rate");
@@ -122,8 +122,8 @@ void check_nonlinear_transaction(StrainFormulation form) {
     const auto history = evaluate_cax4t({m, g, old, initial, &initial_history, 0.1, 0.1, 0.0, form}).history;
     const auto saved_history = history;
     const auto saved_state = state, saved_old = old;
-    const Cax4tInput input{m, g, state, old, &history, 0.1, 0.2, 2e6, form, true};
-    const auto active = evaluate_cax4t(input, true);
+    const Cax4Input input{m, g, state, old, &history, 0.1, 0.2, 2e6, form, true};
+    const auto active = evaluate_cax4t(input, {true, true, true, false});
     const auto passive = evaluate_cax4t(input);
     require(active.residual == passive.residual, "Residual-only and tangent calls must match exactly");
     require(same_history(active.history, passive.history), "Trial history must not depend on requesting tangent");
@@ -169,12 +169,12 @@ void check_nonlinear_transaction(StrainFormulation form) {
         invalid[0] = -1.0;
     bool caught = false;
     try {
-        (void)evaluate_cax4t({m, g, invalid, old, &history, 0.1, 0.2, 2e6, form, true}, true);
+        (void)evaluate_cax4t({m, g, invalid, old, &history, 0.1, 0.2, 2e6, form, true}, {true, true, true, false});
     } catch (const std::domain_error&) {
         caught = true;
     }
     require(caught, "Invalid trial must raise a domain error");
-    const auto retry = evaluate_cax4t(input, true);
+    const auto retry = evaluate_cax4t(input, {true, true, true, false});
     require(retry.residual == active.residual && retry.jacobian == active.jacobian
                 && same_history(retry.history, active.history) && same_history(history, saved_history),
         "Discarding a failed trial must preserve exact repeatability");
@@ -183,7 +183,11 @@ void check_nonlinear_transaction(StrainFormulation form) {
 }
 } // namespace
 
+int run_cax4t_contract_tests();
+
 int main() {
+    if (run_cax4t_contract_tests() != 0)
+        return 1;
     try {
         for (const auto form : {StrainFormulation::small, StrainFormulation::finite}) {
             check_analytic_and_contract(form);

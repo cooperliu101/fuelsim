@@ -44,6 +44,7 @@
 
 [Regions]
   [lower]
+    element = cax4t
     block = lower_pellet
     material = lower
     strain = small
@@ -51,6 +52,7 @@
     volumetric_heat_source = 0
   []
   [upper]
+    element = cax4t
     block = upper_pellet
     material = upper
     strain = small

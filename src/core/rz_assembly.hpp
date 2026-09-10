@@ -1,9 +1,12 @@
 #pragma once
-#include "contact.hpp"
+#include "contact_types.hpp"
+#include "line2_rz_boundary.hpp"
+#include "line2_rz_contact.hpp"
+
+#include "axisymmetric_types.hpp"
 #include "core/mesh.hpp"
 #include "core/nonlinear_problem.hpp"
 #include "core/spatial_definition.hpp"
-#include "rz_quad4.hpp"
 #include "spatial_layout.hpp"
 #include <array>
 #include <cstddef>

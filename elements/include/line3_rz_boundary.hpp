@@ -1,5 +1,8 @@
 #pragma once
-#include "rz_quad4.hpp"
+#include "boundary_types.hpp"
+#include "coordinates.hpp"
+#include <adlite/adlite.hpp>
+#include <array>
 #include <vector>
 
 namespace fuelsim::elements {

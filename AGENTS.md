@@ -59,7 +59,8 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
   同样经 `adlite::compose` 挂回并由闭式链组装 32×32 Jacobian；HEX20 使用
   相同的宽度 10 运动学链和宽度 7 本构链，并闭式组装 68×68 Jacobian。
 - RZ 积分测度为完整的 `2*pi*r*detJ*w`。
-- 轴对称区域可显式选择 `element = quad4|cax4t|cax4rt|cax8t|cax8rt`，省略时保留 `quad4`。
+- 每个区域必须显式设置 `element`；轴对称只接受 `cax4t|cax4rt|cax8t|cax8rt`。
+  默认 `quad4` 型号及其专用实现已经删除，不提供别名或隐式回退。
   `cax4t` 使用四个材料积分点和 Abaqus 轴对称选择性体积处理：平均完整体积应变，
   环向分量单独平均，剩余修正只平均分配到两个面内正应变，不能套用三维的三等分规则。
   有限应变使用增量中间构形的 Hughes-Winget 应变与转动；环向变形梯度按参考体积
@@ -128,18 +129,14 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
   重复完整残量。残量必须使用独立的普通双精度路径，并与 Jacobian 调用返回的
   残量逐项相同。有限应变还必须分别保持 committed、midpoint 和 current 构形
   Jacobian 为正。
-- 小应变区域在参考构形装配力学。默认 `quad4` 轴对称有限应变区域从变形梯度形成
-  `Fhat=F_new*inverse(F_old)`，使用 MOOSE 默认 Taylor 应变增量和 Rashid
-  增量转动，并用 Cauchy 应力、当前构形形函数梯度和
-  `2*pi*r_current*detJ_current*w` 装配内力。
+- 小应变区域在参考构形装配力学。轴对称有限应变遵循前述各 CAX 型号规则。
 - 三维有限应变区域使用 Abaqus 风格的增量应变、Hughes-Winget 客观转动、
   Cauchy 应力、当前构形形函数梯度和当前体积测度装配力学。轴对称试探态必须
   保持面内变形 Jacobian、`F_hoop` 和当前半径为正；三维试探态必须保持
   committed、incremental 和 current 构形 Jacobian 为正，HEX8 有限应变选择性
   体积积分还必须保持 midpoint 构形 Jacobian 为正。非法态必须作为 domain
   error 进入线搜索或拒绝这个时间步、缩小步长重试，不得夹持。
-- RZ `quad4` 的热传导、体热源及 Backward Euler 热容在参考构形积分。
-  `cax4t` 使用前述经原生识别的热算子规则。
+- `cax4t` 使用前述经原生识别的热算子规则。
   `cax4rt` 使用前述减缩积分专用热算子。三维 HEX20
   小应变的上述三个体热算子也使用参考构形。有限应变 C3D20T 按 Abaqus 识别结果
   使用 `3*3*3` 积分：热传导的试函数梯度和温度梯度使用增量中间构形，积分测度
@@ -157,7 +154,7 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
   非共轴对标必须比较 MOOSE 的总非弹性张量、应力、弹性张量和两个等效标量；
   fuelsim 分机制张量另由局部客观性测试约束。
 - 历史变量使用 `double` 保存；只有 trial state 使用 ADlite。
-- RZ `quad4` 与小应变三维 HEX20 热容使用参考构形一致质量矩阵；有限应变三维
+- 小应变三维 HEX20 热容使用参考构形一致质量矩阵；有限应变三维
   HEX20 使用上一条规定的当前构形一致热容矩阵。三维 C3D8T 按 Abaqus
   一阶热单元规则在八个自然坐标角点做节点积分，第 `i` 个节点的热容残量为
   `detJ_i*rho(T_i)*cp(T_i)*(T_i_new-T_i_old)/dt`。小应变的 `detJ_i` 为参考构形
@@ -209,9 +206,11 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
 ## 架构边界
 
 - `fuelsim_elements`：位于 `elements/`，独立配置、构建和测试的局部单元计算库；
-  持有 Quad4、CAX4T/CAX4RT、CAX8T/CAX8RT、C3D8T/C3D8RT、C3D20T/C3D20RT
+  持有 CAX4T/CAX4RT、CAX8T/CAX8RT、C3D8T/C3D8RT、C3D20T/C3D20RT
   体单元、局部边界积分与接触计算，以及材料积分、材料函数、坐标和局部几何，仅依赖 ADlite。
   局部入口接收坐标、材料、节点状态与已接受历史，返回残量、切线矩阵和试探结果；
+  体单元按八种型号分别建立同名头文件、实现和测试；共用实现位于 `src/detail/`，
+  专用算法留在型号文件，型号之间不互相调用。边界、接触按表面拓扑分别命名。
   不持有全局网格、不执行全局装配或状态提交，也不得反向依赖 fuelsim_core。
 - `fuelsim_core`：全局网格、自由度、接触候选搜索与归属、全局装配和问题定义，调用
   `fuelsim::elements`；所有时间步历史的接受与失败恢复仍由 fuelsim 负责。

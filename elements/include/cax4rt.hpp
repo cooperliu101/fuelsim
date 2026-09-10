@@ -1,26 +1,13 @@
 #pragma once
-#include "rz_quad4.hpp"
+#include "axisymmetric_types.hpp"
+#include "cax4_types.hpp"
+#include "element_types.hpp"
 
-namespace fuelsim::rz {
-struct Cax4rtResult final {
-    LocalResidual residual{};
-    LocalJacobian jacobian{};
-    Quad4MaterialHistory history{};
-};
+namespace fuelsim::elements {
+Cax4Result evaluate_cax4rt(const Cax4Input& input, ElementRequest request = {});
+}
 
-Cax4rtResult compute_cax4rt(const Quad4RzData& data,
-    const Quad4RzGeometry& geometry,
-    const LocalValues& state,
-    const LocalValues& committed,
-    const Quad4MaterialHistory* history,
-    double time_step,
-    bool jacobian,
-    bool thermal_time);
-std::array<double, 2> cax4rt_thermal_rates(const Quad4RzData& data,
-    const Quad4RzGeometry& geometry,
-    const LocalValues& state,
-    const LocalValues& committed,
-    double time_step,
-    bool thermal_time);
-double cax4rt_hourglass_energy(const Quad4RzData& data, const Quad4RzGeometry& geometry, const LocalValues& state);
-} // namespace fuelsim::rz
+namespace fuelsim::elements {
+double
+cax4rt_hourglass_energy(const AxisymmetricElementData& data, const Quad4RzGeometry& geometry, const LocalValues& state);
+}

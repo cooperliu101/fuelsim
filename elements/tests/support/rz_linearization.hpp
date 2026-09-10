@@ -1,6 +1,9 @@
 #pragma once
-#include "contact.hpp"
-#include "rz_quad4.hpp"
+#include "contact_types.hpp"
+#include "line2_rz_boundary.hpp"
+#include "line2_rz_contact.hpp"
+
+#include "axisymmetric_types.hpp"
 
 namespace fuelsim::rz {
 struct LocalLinearization final {
@@ -8,14 +11,15 @@ struct LocalLinearization final {
     LocalJacobian jacobian;
 };
 
-inline LocalLinearization
-linearize_quad4_rz_thermoelastic(const Quad4RzData& data, const Quad4RzGeometry& geometry, const LocalValues& state) {
+inline LocalLinearization linearize_cax4_thermoelastic(const AxisymmetricElementData& data,
+    const Quad4RzGeometry& geometry,
+    const LocalValues& state) {
     LocalLinearization result{};
-    result.residual = compute_quad4_rz_thermoelastic(data, geometry, state, &result.jacobian);
+    result.residual = compute_cax4_thermoelastic(data, geometry, state, &result.jacobian);
     return result;
 }
 
-inline LocalLinearization linearize_quad4_rz_transient(const Quad4RzData& data,
+inline LocalLinearization linearize_cax4_transient(const AxisymmetricElementData& data,
     const Quad4RzGeometry& geometry,
     const LocalValues& state,
     const LocalValues& committed_state,
@@ -23,7 +27,7 @@ inline LocalLinearization linearize_quad4_rz_transient(const Quad4RzData& data,
     double time_step) {
     LocalLinearization result{};
     result.residual =
-        compute_quad4_rz_transient(data, geometry, state, committed_state, history, time_step, &result.jacobian);
+        compute_cax4_transient(data, geometry, state, committed_state, history, time_step, &result.jacobian);
     return result;
 }
 

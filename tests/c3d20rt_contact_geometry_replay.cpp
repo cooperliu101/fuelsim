@@ -1,6 +1,7 @@
 #include "io/case_input.hpp"
 #include "io/checkpoint.hpp"
 #include "io/results_io.hpp"
+#include "quad8_face_contact.hpp"
 #include "support/cartesian3d_problem_access.hpp"
 #include <cmath>
 #include <fstream>

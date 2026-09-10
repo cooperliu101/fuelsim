@@ -1,5 +1,8 @@
-#include "cartesian3d_hex20.hpp"
-#include "contact.hpp"
+#include "c3d20_types.hpp"
+#include "contact_types.hpp"
+#include "quad8_face_boundary.hpp"
+#include "quad8_face_contact.hpp"
+
 #include "io/results_io.hpp"
 #include "support/field_error_metrics.hpp"
 #include <algorithm>

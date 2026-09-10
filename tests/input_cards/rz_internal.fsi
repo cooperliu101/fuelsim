@@ -60,6 +60,7 @@
 
 [Regions]
   [fuel]
+    element = cax4t
     block = fuel
     material = fuel
     strain = small
@@ -67,6 +68,7 @@
     volumetric_heat_source = 2e8
   []
   [cladding]
+    element = cax4t
     block = clad
     material = cladding
     strain = small

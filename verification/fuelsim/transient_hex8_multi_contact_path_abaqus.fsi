@@ -27,6 +27,7 @@
 
 [Regions]
   [primary_a]
+    element = c3d8t
     block = primary_a
     material = elastic
     strain = finite
@@ -34,6 +35,7 @@
     volumetric_heat_source = 0
   []
   [secondary_a]
+    element = c3d8t
     block = secondary_a
     material = elastic
     strain = finite
@@ -41,6 +43,7 @@
     volumetric_heat_source = 0
   []
   [primary_b]
+    element = c3d8t
     block = primary_b
     material = elastic
     strain = finite
@@ -48,6 +51,7 @@
     volumetric_heat_source = 0
   []
   [secondary_b]
+    element = c3d8t
     block = secondary_b
     material = elastic
     strain = finite

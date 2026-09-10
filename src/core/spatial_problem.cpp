@@ -1,7 +1,10 @@
+#include "c3d8_types.hpp"
 #include "cartesian3d_assembly.hpp"
-#include "cartesian3d_hex8.hpp"
 #include "cax4rt.hpp"
 #include "cax4t.hpp"
+#include "contact_types.hpp"
+#include "core/cax4_evaluation.hpp"
+#include "core/element_evaluation.hpp"
 #include "core/nonlinear_problem.hpp"
 #include "core/problem_backend_access.hpp"
 #include "core/spatial_definition.hpp"
@@ -375,7 +378,7 @@ class SpatialProblemStorage {
     std::unique_ptr<rz8::SpatialAssembly> rz8;
     std::vector<std::vector<Quad8MaterialHistory>> quad8_material_histories;
     std::unique_ptr<cartesian::SpatialAssembly> cartesian;
-    std::vector<Quad4RzData> kernel_data;
+    std::vector<AxisymmetricElementData> kernel_data;
     std::vector<std::vector<Quad4MaterialHistory>> material_histories;
     std::vector<std::vector<Quad4MaterialHistory>> _staged_material_histories;
     std::vector<std::vector<CartesianMaterialHistory>> cartesian_material_histories;
@@ -429,7 +432,7 @@ bool BackendAccess::uses_quad8(const SteadyProblem& problem) noexcept {
     return problem._impl->rz8 != nullptr;
 }
 
-const std::vector<Quad4RzData>& BackendAccess::quad8_kernel_data(const SteadyProblem& problem) noexcept {
+const std::vector<AxisymmetricElementData>& BackendAccess::quad8_kernel_data(const SteadyProblem& problem) noexcept {
     return problem._impl->kernel_data;
 }
 
@@ -478,7 +481,7 @@ void SteadyProblem::set_time(double value) {
         return;
     }
     _impl->set_time(value);
-    for (Quad4RzData& data : _impl->kernel_data)
+    for (AxisymmetricElementData& data : _impl->kernel_data)
         data.time = value;
     for (std::size_t region = 0; region < _impl->layout().region_count(); ++region)
         _impl->kernel_data[region].volumetric_heat_source = _impl->layout().region_heat_source(region);
@@ -586,7 +589,7 @@ void SteadyProblem::compute_contribution(std::size_t index,
         Quad8RzValues local{};
         std::copy(state.begin(), state.end(), local.begin());
         const auto [r, e] = _impl->rz8->element_location(index);
-        const auto result = compute_quad8_rz(_impl->kernel_data[r],
+        const auto result = compute_cax8(_impl->kernel_data[r],
             _impl->rz8->region_element_geometry(r, e),
             local,
             {},
@@ -611,7 +614,7 @@ void SteadyProblem::compute_contribution(std::size_t index,
             _impl->rz->compute_contribution(index, local_state, jacobian == nullptr ? nullptr : &local_jacobian);
     else {
         const auto location = _impl->rz->element_location(index);
-        local_residual = compute_quad4_rz_thermoelastic(_impl->kernel_data[location.first],
+        local_residual = compute_cax4_thermoelastic(_impl->kernel_data[location.first],
             _impl->rz->region_element_geometry(location.first, location.second),
             local_state,
             jacobian == nullptr ? nullptr : &local_jacobian);
@@ -1485,7 +1488,7 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                 old[i] = _impl->committed_solution[dofs[i]];
             }
             const auto& geometry = _impl->rz8->region_element_geometry(r, e);
-            const auto update = compute_quad8_rz(_impl->kernel_data[r],
+            const auto update = compute_cax8(_impl->kernel_data[r],
                 geometry,
                 current,
                 old,
@@ -1729,68 +1732,28 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     gather_rz_state(*_impl->rz, offset + element, _impl->committed_solution);
                 const Quad4RzGeometry& geometry = _impl->rz->region_element_geometry(region, element);
                 const auto& element_data = _impl->kernel_data[region];
-                const bool cax4t = element_data.element_formulation == RzElementFormulation::cax4t;
                 const bool reduced = element_data.element_formulation == RzElementFormulation::cax4rt;
-                Quad4MaterialHistory update;
-                if (cax4t) {
-                    auto result = elements::evaluate_cax4t({element_data.material,
-                        geometry,
-                        state,
-                        committed_state,
-                        &_impl->material_histories[region][element],
-                        _impl->active_time_step,
-                        element_data.time,
-                        element_data.volumetric_heat_source,
-                        element_data.strain_formulation,
-                        _impl->include_thermal_time_term});
-                    update = std::move(result.history);
-                    conservation.stored_heat_rate += result.stored_heat_rate;
-                    conservation.generated_heat_rate += result.generated_heat_rate;
-                } else {
-                    update = compute_quad4_rz_transient_update(element_data,
-                        geometry,
-                        state,
-                        committed_state,
-                        _impl->material_histories[region][element],
-                        _impl->active_time_step);
-                }
+                auto result = evaluate_cax4(element_data,
+                    geometry,
+                    state,
+                    committed_state,
+                    &_impl->material_histories[region][element],
+                    _impl->active_time_step,
+                    false,
+                    _impl->include_thermal_time_term);
+                auto update = std::move(result.history);
+                conservation.stored_heat_rate += result.stored_heat_rate;
+                conservation.generated_heat_rate += result.generated_heat_rate;
                 if (reduced) {
-                    const auto rates = rz::cax4rt_thermal_rates(_impl->kernel_data[region],
-                        geometry,
-                        state,
-                        committed_state,
-                        _impl->active_time_step,
-                        _impl->include_thermal_time_term);
-                    conservation.stored_heat_rate += rates[0];
-                    conservation.generated_heat_rate += rates[1];
                     const double current_hourglass =
-                        rz::cax4rt_hourglass_energy(_impl->kernel_data[region], geometry, state);
+                        elements::cax4rt_hourglass_energy(_impl->kernel_data[region], geometry, state);
                     const double old_hourglass =
-                        rz::cax4rt_hourglass_energy(_impl->kernel_data[region], geometry, committed_state);
+                        elements::cax4rt_hourglass_energy(_impl->kernel_data[region], geometry, committed_state);
                     conservation.mechanical_hourglass_energy += current_hourglass;
                     conservation.mechanical_hourglass_energy_change += current_hourglass - old_hourglass;
                 }
                 for (std::size_t q = 0; q < geometry.points.size(); ++q) {
                     const RzQuadraturePoint& point = geometry.points[q];
-                    double current_temperature = 0.0, old_temperature = 0.0;
-                    for (std::size_t node = 0; node < quad4_node_count; ++node) {
-                        current_temperature += point.shape[node] * state[node];
-                        old_temperature += point.shape[node] * committed_state[node];
-                    }
-                    const Quad4RzData& kernel_data = _impl->kernel_data[region];
-                    const MaterialFunctionContext context = {kernel_data.time,
-                        point.radius,
-                        0.0,
-                        point.axial_coordinate};
-                    const double heat_capacity =
-                        kernel_data.material.heat_capacity(current_temperature, context).value();
-                    if (!reduced && !cax4t) {
-                        if (_impl->include_thermal_time_term)
-                            conservation.stored_heat_rate += point.weighted_measure * heat_capacity
-                                                             * (current_temperature - old_temperature)
-                                                             / _impl->active_time_step;
-                        conservation.generated_heat_rate += point.weighted_measure * kernel_data.volumetric_heat_source;
-                    }
                     const MaterialPointState &old_history = _impl->material_histories[region][element][reduced ? 0 : q],
                                              &new_history = update[reduced ? 0 : q];
                     const AxisymmetricStressValues &old_stress = old_history.stress, &new_stress = new_history.stress;
@@ -1851,7 +1814,7 @@ void TransientProblem::apply_spatial_controls(double time, double load_factor) {
     _impl->set_load_factor(load_factor);
     if (_impl->is_cartesian())
         return;
-    for (Quad4RzData& kernel_data : _impl->kernel_data)
+    for (AxisymmetricElementData& kernel_data : _impl->kernel_data)
         kernel_data.time = time;
     for (std::size_t region = 0; region < _impl->layout().region_count(); ++region)
         _impl->kernel_data[region].volumetric_heat_source = _impl->layout().region_heat_source(region);
@@ -1968,7 +1931,7 @@ void TransientProblem::compute_contribution(std::size_t index,
         for (std::size_t i = 0; i < 20; ++i)
             old[i] = _impl->committed_solution[dofs[i]];
         const auto [r, e] = _impl->rz8->element_location(index);
-        const auto result = compute_quad8_rz(_impl->kernel_data[r],
+        const auto result = compute_cax8(_impl->kernel_data[r],
             _impl->rz8->region_element_geometry(r, e),
             local,
             old,
@@ -2006,7 +1969,7 @@ void TransientProblem::compute_contribution(std::size_t index,
             backend.spatial.compute_contribution(index, local_state, jacobian == nullptr ? nullptr : &local_jacobian);
     else {
         const auto location = backend.spatial.element_location(index);
-        local_residual = compute_quad4_rz_transient(backend.kernel_data[location.first],
+        local_residual = compute_cax4_transient(backend.kernel_data[location.first],
             backend.spatial.region_element_geometry(location.first, location.second),
             local_state,
             gather_rz_state(backend.spatial, index, backend.committed_solution),

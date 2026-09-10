@@ -1,11 +1,11 @@
 #include "cax4rt.hpp"
-#include "contact.hpp"
+
+#include "axisymmetric_types.hpp"
 #include "core/mesh.hpp"
 #include "core/spatial_definition.hpp"
 #include "core/spatial_layout.hpp"
 #include "core/steady_problem.hpp"
 #include "material.hpp"
-#include "rz_quad4.hpp"
 #include "support/material_factory.hpp"
 #include "support/mesh_fixture.hpp"
 #include "support/rz_problem_access.hpp"
@@ -459,4 +459,4 @@ int main() {
     return 0;
 }
 
-#include "rz_quad4.hpp"
+#include "axisymmetric_types.hpp"

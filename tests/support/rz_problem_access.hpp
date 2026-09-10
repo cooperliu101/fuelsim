@@ -1,3 +1,5 @@
+#include "contact_types.hpp"
+#include "core/cax4_evaluation.hpp"
 #ifndef FUELSIM_TEST_RZ_PROBLEM_ACCESS_HPP
 #define FUELSIM_TEST_RZ_PROBLEM_ACCESS_HPP
 #include "core/problem_backend_access.hpp"
@@ -47,7 +49,7 @@ class ProblemAccess final {
         return view(problem).spatial.region_mesh(index);
     }
 
-    static const Quad4RzData& region_kernel_data(const SteadyProblem& problem, std::size_t index) {
+    static const AxisymmetricElementData& region_kernel_data(const SteadyProblem& problem, std::size_t index) {
         return view(problem).kernel_data.at(index);
     }
 
@@ -124,7 +126,7 @@ class ProblemAccess final {
         if (contribution >= backend.spatial.volume_contribution_count())
             return backend.spatial.compute_contribution(contribution, state);
         const auto location = backend.spatial.element_location(contribution);
-        return compute_quad4_rz_thermoelastic(backend.kernel_data[location.first],
+        return compute_cax4_thermoelastic(backend.kernel_data[location.first],
             backend.spatial.region_element_geometry(location.first, location.second),
             state);
     }
@@ -137,7 +139,7 @@ class ProblemAccess final {
             result.residual = backend.spatial.compute_contribution(contribution, state, &result.jacobian);
         else {
             const auto location = backend.spatial.element_location(contribution);
-            result.residual = compute_quad4_rz_thermoelastic(backend.kernel_data[location.first],
+            result.residual = compute_cax4_thermoelastic(backend.kernel_data[location.first],
                 backend.spatial.region_element_geometry(location.first, location.second),
                 state,
                 &result.jacobian);
@@ -173,7 +175,7 @@ class ProblemAccess final {
         return view(problem).spatial.region_mesh(index);
     }
 
-    static const Quad4RzData& region_kernel_data(const TransientProblem& problem, std::size_t index) {
+    static const AxisymmetricElementData& region_kernel_data(const TransientProblem& problem, std::size_t index) {
         return view(problem).kernel_data.at(index);
     }
 
@@ -246,7 +248,7 @@ class ProblemAccess final {
         if (contribution >= backend.spatial.volume_contribution_count())
             return backend.spatial.compute_contribution(contribution, state);
         const auto location = backend.spatial.element_location(contribution);
-        return compute_quad4_rz_transient(backend.kernel_data[location.first],
+        return compute_cax4_transient(backend.kernel_data[location.first],
             backend.spatial.region_element_geometry(location.first, location.second),
             state,
             contribution_state(problem, contribution, backend.committed_solution),
@@ -264,7 +266,7 @@ class ProblemAccess final {
             result.residual = backend.spatial.compute_contribution(contribution, state, &result.jacobian);
         else {
             const auto location = backend.spatial.element_location(contribution);
-            result.residual = compute_quad4_rz_transient(backend.kernel_data[location.first],
+            result.residual = compute_cax4_transient(backend.kernel_data[location.first],
                 backend.spatial.region_element_geometry(location.first, location.second),
                 state,
                 contribution_state(problem, contribution, backend.committed_solution),

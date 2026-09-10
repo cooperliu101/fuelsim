@@ -106,7 +106,9 @@ int main(int argc, char** argv) {
             throw std::runtime_error("Trial evaluation or rollback changed complete committed state");
         auto wrong_input = input.spatial;
         for (auto& region : wrong_input.regions)
-            region.rz_element_formulation = fuelsim::RzElementFormulation::quad4;
+            region.rz_element_formulation = region.rz_element_formulation == fuelsim::RzElementFormulation::cax4t
+                                                ? fuelsim::RzElementFormulation::cax4rt
+                                                : fuelsim::RzElementFormulation::cax4t;
         fuelsim::TransientProblem wrong_element(wrong_input, mesh);
         bool rejected = false;
         try {

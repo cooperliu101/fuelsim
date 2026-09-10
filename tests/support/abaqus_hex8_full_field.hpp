@@ -1,7 +1,8 @@
+#include "contact_types.hpp"
 #ifndef FUELSIM_TEST_ABAQUS_HEX8_FULL_FIELD_HPP
 #define FUELSIM_TEST_ABAQUS_HEX8_FULL_FIELD_HPP
 
-#include "cartesian3d_hex8.hpp"
+#include "c3d8_types.hpp"
 #include "core/spatial_definition.hpp"
 #include "solver/solve_workflows.hpp"
 #include <string>

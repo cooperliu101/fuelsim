@@ -1,7 +1,14 @@
 #pragma once
-#include "cartesian3d_hex20.hpp"
-#include "cartesian3d_hex8.hpp"
-#include "contact.hpp"
+#include "boundary_types.hpp"
+#include "c3d20_types.hpp"
+#include "c3d8_types.hpp"
+#include "contact_types.hpp"
+#include "core/element_evaluation.hpp"
+#include "quad4_face_boundary.hpp"
+#include "quad4_face_contact.hpp"
+#include "quad8_face_boundary.hpp"
+#include "quad8_face_contact.hpp"
+
 #include "core/mesh.hpp"
 #include "core/nonlinear_problem.hpp"
 #include "core/spatial_definition.hpp"
@@ -276,7 +283,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     void hex20_thermal_patch_dofs(std::size_t patch, std::vector<std::size_t>& dofs, bool all_candidates = false) const;
     std::vector<Quad8HeatPatchSample> hex20_thermal_patch_samples(std::size_t patch,
         const std::vector<std::size_t>& dofs) const;
-    void compute_hex20_finite_constraint_jacobian(const AbaqusAveragedConstraint& constraint,
+    void compute_c3d20_finite_constraint_jacobian(const AbaqusAveragedConstraint& constraint,
         const std::vector<double>& state,
         const std::vector<double>& committed_state,
         const ContactPointHistory& history,

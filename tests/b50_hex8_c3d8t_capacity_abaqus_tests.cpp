@@ -1,4 +1,5 @@
-#include "cartesian3d_hex8.hpp"
+#include "c3d8_types.hpp"
+#include "core/element_evaluation.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
 #include <array>
@@ -118,9 +119,9 @@ int main(int argc, char** argv) {
         for (std::size_t column = 0; column < node_count; ++column) {
             fuelsim::Hex8LocalValues state = committed_state;
             state[column] += 1.0;
-            const fuelsim::Hex8LocalResidual steady = fuelsim::compute_hex8_thermoelastic(data, geometry, state);
+            const fuelsim::Hex8LocalResidual steady = fuelsim::compute_c3d8_thermoelastic(data, geometry, state);
             const fuelsim::Hex8LocalResidual transient =
-                fuelsim::compute_hex8_transient(data, geometry, state, committed_state, committed_material, 1.0);
+                fuelsim::compute_c3d8_transient(data, geometry, state, committed_state, committed_material, 1.0);
             for (std::size_t row = 0; row < node_count; ++row) {
                 const std::size_t entry = row * node_count + column;
                 conduction[entry] = steady[row];

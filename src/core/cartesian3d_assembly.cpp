@@ -1,4 +1,11 @@
 #include "cartesian3d_assembly.hpp"
+#include "boundary_types.hpp"
+#include "contact_types.hpp"
+#include "core/element_evaluation.hpp"
+#include "quad4_face_boundary.hpp"
+#include "quad4_face_contact.hpp"
+#include "quad8_face_boundary.hpp"
+#include "quad8_face_contact.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -752,6 +759,11 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
     : SpatialLayout(definition,
           spatial_detail::resolve_block_ids(definition, source_mesh, true, true),
           spatial_detail::DofLayout::cartesian_3d) {
+    for (const auto& region : _definition.regions)
+        if (region.requested_cartesian_node_count != 0 && region.requested_cartesian_node_count != 8)
+            throw std::invalid_argument(
+                "Region '" + region.name + "' element model does not match the UnstructuredHex8Mesh topology");
+
     for (const RegionDefinition& region : _definition.regions)
         if (region.hex20_element_formulation != Hex20ElementFormulation::c3d20t)
             throw std::invalid_argument("C3D20RT formulation requires a twenty-node HEX20 mesh: " + region.name);
@@ -841,6 +853,11 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
           spatial_detail::resolve_block_ids(definition, source_mesh, true, true),
           spatial_detail::DofLayout::cartesian_3d),
       _uses_hex20(true) {
+    for (const auto& region : _definition.regions)
+        if (region.requested_cartesian_node_count != 0 && region.requested_cartesian_node_count != 20)
+            throw std::invalid_argument(
+                "Region '" + region.name + "' element model does not match the UnstructuredHex20Mesh topology");
+
     for (const RegionDefinition& region : _definition.regions)
         if (region.hex8_element_formulation != Hex8ElementFormulation::c3d8t)
             throw std::invalid_argument("C3D8RT formulation requires an eight-node HEX8 mesh: " + region.name);
@@ -865,7 +882,7 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
             for (std::size_t node = 0; node < coordinates.size(); ++node)
                 coordinates[node] = _hex20_meshes[region].nodes().at(element.nodes[node]);
             _hex20_geometries[region].push_back(
-                make_hex20_geometry(coordinates, this->region(region).hex20_element_formulation));
+                make_c3d20_geometry(coordinates, this->region(region).hex20_element_formulation));
         }
     build_hex20_contacts(source_mesh);
     for (std::size_t boundary_index = 0; boundary_index < _definition.boundary_conditions.size(); ++boundary_index) {
@@ -1393,13 +1410,13 @@ void SpatialAssembly::compute_contribution(std::size_t index,
                 committed_solution == nullptr ? Hex20LocalValues{} : hex20_volume_state(index, *committed_solution);
             Hex20LocalJacobian local_jacobian{};
             const Hex20LocalResidual result = committed_material == nullptr
-                                                  ? compute_hex20_thermoelastic(_kernel_data[location.first],
+                                                  ? compute_c3d20_thermoelastic(_kernel_data[location.first],
                                                         hex20_region_element_geometry(location.first, location.second),
                                                         current,
                                                         committed_solution == nullptr ? nullptr : &committed,
                                                         time_step,
                                                         jacobian == nullptr ? nullptr : &local_jacobian)
-                                                  : compute_hex20_transient(_kernel_data[location.first],
+                                                  : compute_c3d20_transient(_kernel_data[location.first],
                                                         hex20_region_element_geometry(location.first, location.second),
                                                         current,
                                                         committed,
@@ -1421,13 +1438,13 @@ void SpatialAssembly::compute_contribution(std::size_t index,
             committed_solution == nullptr ? Hex8LocalValues{} : volume_state(index, *committed_solution);
         Hex8LocalJacobian local_jacobian{};
         const Hex8LocalResidual result = committed_material == nullptr
-                                             ? compute_hex8_thermoelastic(_kernel_data[location.first],
+                                             ? compute_c3d8_thermoelastic(_kernel_data[location.first],
                                                    region_element_geometry(location.first, location.second),
                                                    current,
                                                    committed_solution == nullptr ? nullptr : &committed,
                                                    time_step,
                                                    jacobian == nullptr ? nullptr : &local_jacobian)
-                                             : compute_hex8_transient(_kernel_data[location.first],
+                                             : compute_c3d8_transient(_kernel_data[location.first],
                                                    region_element_geometry(location.first, location.second),
                                                    current,
                                                    committed,
@@ -1580,7 +1597,7 @@ CartesianMaterialHistory SpatialAssembly::transient_update(std::size_t region,
     const Hex8LocalValues& committed_state,
     const CartesianMaterialHistory& committed_material,
     double time_step) const {
-    return compute_hex8_transient_update(_kernel_data.at(region),
+    return compute_c3d8_transient_update(_kernel_data.at(region),
         region_element_geometry(region, element),
         state,
         committed_state,
@@ -1594,7 +1611,7 @@ CartesianMaterialHistory SpatialAssembly::transient_update(std::size_t region,
     const Hex20LocalValues& committed_state,
     const CartesianMaterialHistory& committed_material,
     double time_step) const {
-    return compute_hex20_transient_update(_kernel_data.at(region),
+    return compute_c3d20_transient_update(_kernel_data.at(region),
         hex20_region_element_geometry(region, element),
         state,
         committed_state,
@@ -1604,14 +1621,14 @@ CartesianMaterialHistory SpatialAssembly::transient_update(std::size_t region,
 
 std::array<SymmetricTensor3Values, 8>
 SpatialAssembly::stress(std::size_t region, std::size_t element, const std::vector<double>& state) const {
-    return compute_hex8_stress(_kernel_data.at(region),
+    return compute_c3d8_stress(_kernel_data.at(region),
         region_element_geometry(region, element),
         volume_state(region_element_offset(region) + element, state));
 }
 
 std::vector<SymmetricTensor3Values>
 SpatialAssembly::hex20_stress(std::size_t region, std::size_t element, const std::vector<double>& state) const {
-    return compute_hex20_stress(_kernel_data.at(region),
+    return compute_c3d20_stress(_kernel_data.at(region),
         hex20_region_element_geometry(region, element),
         hex20_volume_state(region_element_offset(region) + element, state));
 }
@@ -1624,7 +1641,7 @@ double SpatialAssembly::heat_capacity(std::size_t region, double temperature, co
 double SpatialAssembly::mechanical_hourglass_energy(std::size_t region,
     std::size_t element,
     const Hex8LocalValues& state) const {
-    return compute_hex8_mechanical_hourglass_energy(_kernel_data.at(region),
+    return compute_c3d8_mechanical_hourglass_energy(_kernel_data.at(region),
         region_element_geometry(region, element),
         state);
 }
@@ -2781,7 +2798,7 @@ void SpatialAssembly::compute_averaged_friction_traction_derivatives(const Abaqu
     }
 }
 
-void SpatialAssembly::compute_hex20_finite_constraint_jacobian(const AbaqusAveragedConstraint& constraint,
+void SpatialAssembly::compute_c3d20_finite_constraint_jacobian(const AbaqusAveragedConstraint& constraint,
     const std::vector<double>& state,
     const std::vector<double>& committed_state,
     const ContactPointHistory& history,
@@ -3214,7 +3231,7 @@ void SpatialAssembly::compute_averaged_constraint(const AbaqusAveragedConstraint
     if (jacobian == nullptr)
         return;
     if (_uses_hex20 && constraint.finite_sliding) {
-        compute_hex20_finite_constraint_jacobian(constraint, state, committed_state, history, value, *jacobian);
+        compute_c3d20_finite_constraint_jacobian(constraint, state, committed_state, history, value, *jacobian);
         return;
     }
     const NormalContactProperties& properties = _mechanical_properties[constraint.contact];

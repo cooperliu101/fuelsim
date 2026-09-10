@@ -1,3 +1,4 @@
+#include "contact_types.hpp"
 #include "rz8_assembly.hpp"
 #include <algorithm>
 #include <cmath>

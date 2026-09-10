@@ -1,5 +1,7 @@
-#include "cartesian3d_hex8.hpp"
-#include "contact.hpp"
+#include "c3d8_types.hpp"
+#include "quad4_face_boundary.hpp"
+#include "quad4_face_contact.hpp"
+
 #include "core/steady_problem.hpp"
 #include "io/results_io.hpp"
 #include "support/cartesian3d_problem_access.hpp"

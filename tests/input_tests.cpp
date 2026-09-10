@@ -1,3 +1,4 @@
+#include "contact_types.hpp"
 #include "core/problem_backend_access.hpp"
 #include "core/steady_problem.hpp"
 #include "io/case_input.hpp"
@@ -419,6 +420,9 @@ bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, co
     if (rz_geometry == std::string::npos)
         return check(false, "steady fixture has RZ geometry");
     nts_heat_case.replace(rz_geometry, std::string("axisymmetric_rz").size(), "cartesian_3d");
+    for (auto at = nts_heat_case.find("element = cax4t"); at != std::string::npos;
+        at = nts_heat_case.find("element = cax4t"))
+        nts_heat_case.replace(at, std::string("element = cax4t").size(), "element = c3d8t");
     passed = expect_case_failure(malformed_path,
                  nts_heat_case,
                  "node_to_surface thermal contact currently requires axisymmetric_rz")
@@ -480,6 +484,9 @@ bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, co
                  "RZ NTS accepts explicit finite sliding and elastic slip tolerance")
              && passed;
     node_sliding_case.replace(node_sliding_case.find("axisymmetric_rz"), 15, "cartesian_3d");
+    for (auto at = node_sliding_case.find("element = cax4t"); at != std::string::npos;
+        at = node_sliding_case.find("element = cax4t"))
+        node_sliding_case.replace(at, std::string("element = cax4t").size(), "element = c3d8t");
     passed = expect_case_failure(malformed_path,
                  node_sliding_case,
                  "sliding applies only to discretization = surface_to_surface")
@@ -494,8 +501,27 @@ bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, co
                        == fuelsim::Hex20ElementFormulation::c3d20rt,
                  "Cartesian input selects C3D20RT reduced integration")
              && passed;
+    bool rejected_topology = false;
+    try {
+        const auto quadratic_cartesian = fuelsim::read_case_input(malformed_path);
+        const auto linear_cartesian = fuelsim::read_case_input(c3d8rt_path);
+        const fuelsim::SteadyProblem invalid(quadratic_cartesian.spatial,
+            fuelsim::read_exodus_hex8(linear_cartesian.mesh_file));
+    } catch (const std::invalid_argument& error) {
+        rejected_topology = std::string(error.what()).find("does not match") != std::string::npos;
+    }
+    passed = check(rejected_topology, "An explicit C3D20RT model rejects an eight-node mesh") && passed;
+    std::string obsolete_quad4_case = steady_text;
+    obsolete_quad4_case.replace(obsolete_quad4_case.find("element = cax4t"),
+        std::string("element = cax4t").size(),
+        "element = quad4");
+    passed = expect_case_failure(malformed_path, obsolete_quad4_case, "unknown RZ element 'quad4'") && passed;
+    std::string missing_element_case = steady_text;
+    missing_element_case.erase(missing_element_case.find("    element = cax4t\n"),
+        std::string("    element = cax4t\n").size());
+    passed = expect_case_failure(malformed_path, missing_element_case, "element") && passed;
     std::string cax4t_case = steady_text;
-    cax4t_case.insert(cax4t_case.find("    strain ="), "    element = cax4t\n");
+    // The baseline input already explicitly selects CAX4T.
     {
         std::ofstream output(malformed_path);
         output << cax4t_case;
@@ -507,7 +533,7 @@ bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, co
     cax4t_case.replace(cax4t_case.find("axisymmetric_rz"), 15, "cartesian_3d");
     passed = expect_case_failure(malformed_path, cax4t_case, "unknown Cartesian element 'cax4t'") && passed;
     std::string cax4rt_case = steady_text;
-    cax4rt_case.insert(cax4rt_case.find("    strain ="), "    element = cax4rt\n");
+    cax4rt_case.replace(cax4rt_case.find("element = cax4t"), std::string("element = cax4t").size(), "element = cax4rt");
     {
         std::ofstream output(malformed_path);
         output << cax4rt_case;
@@ -520,7 +546,9 @@ bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, co
     passed = expect_case_failure(malformed_path, cax4rt_case, "unknown Cartesian element 'cax4rt'") && passed;
     for (const auto& element : {std::string("cax8t"), std::string("cax8rt")}) {
         std::string quadratic_case = steady_text;
-        quadratic_case.insert(quadratic_case.find("    strain ="), "    element = " + element + "\n");
+        quadratic_case.replace(quadratic_case.find("element = cax4t"),
+            std::string("element = cax4t").size(),
+            "element = " + element);
         {
             std::ofstream output(malformed_path);
             output << quadratic_case;

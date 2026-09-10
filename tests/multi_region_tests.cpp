@@ -322,13 +322,19 @@ bool test_shared_block_nodes() {
         direction[dofs.dof(fuelsim::Field::radial_displacement, node)] = 1.0e-7;
         direction[dofs.dof(fuelsim::Field::axial_displacement, node)] = -2.0e-7;
     }
-    const fuelsim::test::DirectionalJacobianCheck jacobian =
-        fuelsim::test::check_directional_jacobian(problem, state, direction, 1.0e-5);
-    for (std::size_t field = 0; field < 3; ++field)
-        passed = check(jacobian.difference.l2[field]
-                           <= 2.0e-7 * (1.0 + jacobian.finite_difference_directional_derivative.l2[field]),
-                     "shared-node RZ assembled Jacobian matches a centered directional difference")
-                 && passed;
+    // Avoid cancellation when subtracting the large initial thermal forces.
+    // Check two perturbation sizes with the original derivative tolerance.
+    for (const double step : {1.0e-3, 3.0e-3}) {
+        const auto jacobian = fuelsim::test::check_directional_jacobian(problem, state, direction, step);
+        for (std::size_t field = 0; field < 3; ++field) {
+            const double scaled_error =
+                jacobian.difference.l2[field] / (1.0 + jacobian.finite_difference_directional_derivative.l2[field]);
+            std::cout << "shared_rz_fd_step=" << step << " field=" << field << " scaled_error=" << scaled_error << '\n';
+            passed = check(scaled_error <= 2.0e-7,
+                         "shared-node RZ assembled Jacobian matches a centered directional difference")
+                     && passed;
+        }
+    }
     const fuelsim::SteadyResult solve = fuelsim::solve_steady(problem, {1, 0.5, 4, 1.0e-6});
     passed = check(solve.completed && solve.solve.converged,
                  "two conforming RZ material blocks solve without a contact or binding constraint")

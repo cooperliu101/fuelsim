@@ -1,5 +1,7 @@
 # 三维热力耦合重构参考
 
+> 历史记录：默认轴对称 Quad4 及其 Taylor/Rashid 实现现已删除。当前八种型号的实现与调用边界见 [单元库说明](../elements/README.md)；本文旧算法及旧测试结果不作为当前型号的验收记录。
+
 ## 1. 文档状态与目的
 
 本文档记录 2026 年 8 月 12 日开始的架构审查，以及随后完成的阶段 A 和阶段 B
@@ -355,7 +357,7 @@ RZ 假定：
 
 ### 4.1 局部贡献宽度
 
-`elements/include/rz_quad4.hpp` 继续把 RZ 具体贡献固定为 12 个自由度，但
+`elements/include/axisymmetric_types.hpp` 继续把 RZ 具体贡献固定为 12 个自由度，但
 阶段 A 已将它移出 `NonlinearProblem`、PETSc 残量回调、Jacobian 回调和公共
 方向导数端口。RZ 后端通过一次适配把定长结果写入运行时工作区。
 

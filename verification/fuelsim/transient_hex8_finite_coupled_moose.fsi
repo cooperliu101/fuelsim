@@ -35,6 +35,7 @@
 []
 [Regions]
   [solid]
+    element = c3d8t
     block = solid
     material = solid
     strain = finite

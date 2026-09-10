@@ -51,6 +51,7 @@
 []
 [Regions]
   [fuel]
+    element = c3d8t
     block = fuel
     material = fuel
     strain = finite
@@ -58,6 +59,7 @@
     volumetric_heat_source = 0
   []
   [clad]
+    element = c3d8t
     block = clad
     material = clad
     strain = finite

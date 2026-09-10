@@ -1,4 +1,5 @@
 #include "line3_rz_contact.hpp"
+#include "contact_types.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>

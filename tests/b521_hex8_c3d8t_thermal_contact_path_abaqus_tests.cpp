@@ -1,3 +1,4 @@
+#include "contact_types.hpp"
 #include "io/checkpoint.hpp"
 #include "io/results_io.hpp"
 #include "support/cartesian3d_problem_access.hpp"

@@ -1,4 +1,5 @@
 #include "line3_rz_boundary.hpp"
+#include "boundary_types.hpp"
 #include <cmath>
 #include <stdexcept>
 

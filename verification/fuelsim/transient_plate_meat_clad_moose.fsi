@@ -76,6 +76,7 @@
 
 [Regions]
   [meat]
+    element = c3d8t
     block = meat
     material = meat_material
     strain = small
@@ -83,6 +84,7 @@
     volumetric_heat_source = 3.291e5
   []
   [clad]
+    element = c3d8t
     block = clad
     material = clad_material
     strain = small

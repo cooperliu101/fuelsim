@@ -29,6 +29,7 @@
 []
 [Regions]
   [solid]
+    element = c3d20t
     block_id = 0
     material = solid
     strain = small

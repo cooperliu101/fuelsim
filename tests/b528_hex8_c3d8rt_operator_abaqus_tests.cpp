@@ -1,4 +1,5 @@
-#include "cartesian3d_hex8.hpp"
+#include "c3d8_types.hpp"
+#include "core/element_evaluation.hpp"
 #include "support/material_factory.hpp"
 #include <array>
 #include <cmath>
@@ -136,7 +137,7 @@ bool check_case(const std::string& path,
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
     fuelsim::Hex8LocalJacobian actual{};
     const fuelsim::Hex8LocalResidual actual_residual =
-        fuelsim::compute_hex8_thermoelastic(data, geometry, base.state, nullptr, 0.0, &actual);
+        fuelsim::compute_c3d8_thermoelastic(data, geometry, base.state, nullptr, 0.0, &actual);
     fuelsim::Hex8LocalJacobian expected{};
     for (std::size_t column = 0; column < local_size; ++column) {
         std::ostringstream plus_name, minus_name;
@@ -160,8 +161,8 @@ bool check_case(const std::string& path,
         fuelsim::Hex8LocalValues plus = base.state, minus = base.state;
         plus[column] += perturbation;
         minus[column] -= perturbation;
-        const fuelsim::Hex8LocalResidual plus_residual = fuelsim::compute_hex8_thermoelastic(data, geometry, plus);
-        const fuelsim::Hex8LocalResidual minus_residual = fuelsim::compute_hex8_thermoelastic(data, geometry, minus);
+        const fuelsim::Hex8LocalResidual plus_residual = fuelsim::compute_c3d8_thermoelastic(data, geometry, plus);
+        const fuelsim::Hex8LocalResidual minus_residual = fuelsim::compute_c3d8_thermoelastic(data, geometry, minus);
         for (std::size_t row = 0; row < local_size; ++row)
             finite_difference[row * local_size + column] =
                 (plus_residual[row] - minus_residual[row]) / (2.0 * perturbation);

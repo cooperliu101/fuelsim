@@ -1,4 +1,5 @@
-#include "cartesian3d_hex8.hpp"
+#include "c3d8_types.hpp"
+#include "core/element_evaluation.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
 #include <array>
@@ -153,8 +154,8 @@ int main(int argc, char** argv) {
         const fuelsim::CartesianMaterialHistory history(geometry.points.size());
         fuelsim::Hex8LocalJacobian transient_jacobian{}, steady_jacobian{};
         const fuelsim::Hex8LocalResidual transient =
-            fuelsim::compute_hex8_transient(data, geometry, state, committed_state, history, 1.0, &transient_jacobian);
-        const fuelsim::Hex8LocalResidual steady = fuelsim::compute_hex8_transient(data,
+            fuelsim::compute_c3d8_transient(data, geometry, state, committed_state, history, 1.0, &transient_jacobian);
+        const fuelsim::Hex8LocalResidual steady = fuelsim::compute_c3d8_transient(data,
             geometry,
             state,
             committed_state,

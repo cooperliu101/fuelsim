@@ -1,3 +1,4 @@
+#include "contact_types.hpp"
 #include "solver/solve_workflows.hpp"
 // Offline parameter studies only; registered acceptance paths run fuelsim -i.
 #include "support/abaqus_hex8_full_field.hpp"

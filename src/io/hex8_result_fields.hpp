@@ -1,5 +1,5 @@
 #pragma once
-#include "cartesian3d_hex8.hpp"
+#include "c3d8_types.hpp"
 #include <array>
 
 namespace fuelsim::io_detail {

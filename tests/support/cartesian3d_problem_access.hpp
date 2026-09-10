@@ -1,3 +1,4 @@
+#include "contact_types.hpp"
 #ifndef FUELSIM_TEST_CARTESIAN3D_PROBLEM_ACCESS_HPP
 #define FUELSIM_TEST_CARTESIAN3D_PROBLEM_ACCESS_HPP
 #include "core/problem_backend_access.hpp"

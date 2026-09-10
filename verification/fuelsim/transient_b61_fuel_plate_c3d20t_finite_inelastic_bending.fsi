@@ -89,6 +89,7 @@
 
 [Regions]
   [fuel]
+    element = c3d20t
     block = meat
     material = fuel
     strain = finite
@@ -96,6 +97,7 @@
     volumetric_heat_source = 2e8
   []
   [cladding]
+    element = c3d20t
     block = clad
     material = cladding
     strain = finite

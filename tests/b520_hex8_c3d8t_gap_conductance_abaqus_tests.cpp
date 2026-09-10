@@ -1,5 +1,8 @@
-#include "cartesian3d_hex8.hpp"
-#include "contact.hpp"
+#include "c3d8_types.hpp"
+#include "contact_types.hpp"
+#include "quad4_face_boundary.hpp"
+#include "quad4_face_contact.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>

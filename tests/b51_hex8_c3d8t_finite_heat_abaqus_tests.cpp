@@ -1,4 +1,5 @@
-#include "cartesian3d_hex8.hpp"
+#include "c3d8_types.hpp"
+#include "core/element_evaluation.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
 #include <array>
@@ -146,7 +147,7 @@ int main(int argc, char** argv) {
             0.0,
             1.0,
             fuelsim::StrainFormulation::finite};
-        const fuelsim::Hex8LocalResidual fuelsim_residual = fuelsim::compute_hex8_thermoelastic(data, geometry, state);
+        const fuelsim::Hex8LocalResidual fuelsim_residual = fuelsim::compute_c3d8_thermoelastic(data, geometry, state);
         double abaqus_hot_reaction = 0.0, fuelsim_hot_reaction = 0.0;
         for (std::size_t node : {std::size_t{1}, std::size_t{2}, std::size_t{5}, std::size_t{6}}) {
             abaqus_hot_reaction += nodal[node].reaction_heat_flux;

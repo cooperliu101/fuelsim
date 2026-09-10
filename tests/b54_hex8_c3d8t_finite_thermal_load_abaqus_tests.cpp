@@ -1,4 +1,7 @@
-#include "cartesian3d_hex8.hpp"
+#include "boundary_types.hpp"
+#include "c3d8_types.hpp"
+#include "core/element_evaluation.hpp"
+#include "quad4_face_boundary.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
 #include <array>
@@ -178,9 +181,9 @@ int main(int argc, char** argv) {
                 1.0,
                 fuelsim::StrainFormulation::small};
             const fuelsim::Hex8LocalResidual current_residual =
-                fuelsim::compute_hex8_transient(current_data, geometry, state, committed, history, 1.0);
+                fuelsim::compute_c3d8_transient(current_data, geometry, state, committed, history, 1.0);
             const fuelsim::Hex8LocalResidual reference_residual =
-                fuelsim::compute_hex8_transient(reference_data, geometry, state, committed, history, 1.0);
+                fuelsim::compute_c3d8_transient(reference_data, geometry, state, committed, history, 1.0);
             std::copy(current_residual.begin(), current_residual.begin() + 8, capacity[input].begin());
             std::copy(reference_residual.begin(), reference_residual.begin() + 8, reference_capacity[input].begin());
         }
@@ -195,9 +198,9 @@ int main(int argc, char** argv) {
             fuelsim::StrainFormulation::small};
         const fuelsim::Hex8LocalValues uniform_state = volume_state(coordinates, uniform);
         const fuelsim::Hex8LocalResidual current_body_residual =
-            fuelsim::compute_hex8_thermoelastic(current_body_data, geometry, uniform_state);
+            fuelsim::compute_c3d8_thermoelastic(current_body_data, geometry, uniform_state);
         const fuelsim::Hex8LocalResidual reference_body_residual =
-            fuelsim::compute_hex8_thermoelastic(reference_body_data, geometry, uniform_state);
+            fuelsim::compute_c3d8_thermoelastic(reference_body_data, geometry, uniform_state);
         NodalValues body{}, reference_body{};
         std::copy(current_body_residual.begin(), current_body_residual.begin() + 8, body.begin());
         std::copy(reference_body_residual.begin(), reference_body_residual.begin() + 8, reference_body.begin());

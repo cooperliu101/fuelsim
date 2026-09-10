@@ -1,7 +1,9 @@
 #include "io/results_io.hpp"
+#include "core/cax4_evaluation.hpp"
+#include "core/element_evaluation.hpp"
 #include "core/problem_backend_access.hpp"
 #include "core/transient_problem.hpp"
-#include "detail/fnv_hash.hpp"
+#include "fnv_hash.hpp"
 #include "io/hex8_result_fields.hpp"
 #include "io/problem_signature.hpp"
 #include <algorithm>
@@ -1057,7 +1059,7 @@ std::vector<std::vector<double>> quad8_elements(const UnstructuredQuad8Mesh& sou
     const rz8::SpatialAssembly& spatial,
     const std::vector<double>& state,
     const std::vector<std::vector<Quad8MaterialHistory>>* histories,
-    const std::vector<Quad4RzData>* data) {
+    const std::vector<AxisymmetricElementData>* data) {
     std::vector<std::vector<double>> values(quad8_element_names(histories != nullptr).size(),
         std::vector<double>(source.elements().size(), std::numeric_limits<double>::quiet_NaN()));
     std::vector<std::size_t> dofs;
@@ -1071,7 +1073,7 @@ std::vector<std::vector<double>> quad8_elements(const UnstructuredQuad8Mesh& sou
         const auto& geometry = spatial.region_element_geometry(r, e);
         const auto history = histories
                                  ? (*histories)[r][e]
-                                 : compute_quad8_rz((*data)[r], geometry, local, {}, nullptr, 0, false, false).history;
+                                 : compute_cax8((*data)[r], geometry, local, {}, nullptr, 0, false, false).history;
         std::size_t variable = 0;
         for (std::size_t q = 0; q < geometry.point_count; ++q) {
             const auto& point = history[q];
@@ -1146,7 +1148,7 @@ steady_elements(const UnstructuredQuad4Mesh& mesh, const SteadyProblem& problem,
             LocalValues local{};
             for (std::size_t index = 0; index < dofs.size(); ++index)
                 local[index] = state.at(dofs[index]);
-            const auto stresses = compute_quad4_rz_thermoelastic_stress(backend.kernel_data[region],
+            const auto stresses = compute_cax4_thermoelastic_stress(backend.kernel_data[region],
                 backend.spatial.region_element_geometry(region, element),
                 local);
             const std::size_t source = region_mesh.source_element_ids().at(element);
