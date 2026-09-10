@@ -1,0 +1,29 @@
+*Heading
+** Diagnostic: one finite-strain increment, same final loads and mesh.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Include, input=rz_performance_medium_mesh.inc
+*Include, input=material_contact.inc
+*Step, name=HEATING, nlgeom=YES, inc=1, unsymm=YES
+*Coupled Temperature-Displacement, steady state
+20, 20, 20, 20
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1e-10, 1e-10, , , , 1e-10
+*Controls, parameters=FIELD, field=TEMPERATURE
+1e-10, 1e-10, , , , 1e-10
+*Boundary
+FUEL_LEFT, 1, 1, 0
+FUEL_BOTTOM, 2, 2, 0
+CLAD_BOTTOM, 2, 2, 0
+CLAD_RIGHT, 11, 11, 600
+*Dflux
+FUEL, BF, 2e8
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output, directions=YES
+S, EE, COORD, IVOL
+*Contact Output
+CSTRESS, CDISP, CFORCE, HFL
+*Output, history, frequency=0
+*Restart, write, frequency=0
+*End Step

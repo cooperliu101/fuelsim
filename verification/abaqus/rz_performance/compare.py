@@ -66,13 +66,17 @@ def metric(actual, reference, zero_tolerance):
     return result
 
 
-def compare(result_path, prefix, element="cax4t"):
+def compare(result_path, prefix, element="cax4t", incremental=False):
     point_count = {"cax4rt": 1, "cax4t": 4, "cax8t": 9, "cax8rt": 4}[element]
     def rows(kind):
         with gzip.open(str(prefix)+'_'+kind+'.csv.gz','rt') as f:return list(csv.DictReader(f))
     nodes,points,contacts=rows('nodes'),rows('points'),rows('contact')
     with result_database(result_path) as f:
-        if len(f.variables['time_whole'][:]) != 1:raise ValueError('Expected final steady output only')
+        times=np.asarray(f.variables['time_whole'])
+        if incremental:
+            if not np.array_equal(times,np.arange(21,dtype=float)):
+                raise ValueError('Expected initial state and 20 unit equilibrium increments')
+        elif len(times) != 1:raise ValueError('Expected final steady output only')
         nodal={name:np.array(f.variables['vals_nod_var%d'%i][-1]) for i,name in enumerate(names(f.variables['name_nod_var']),1)}
         elem={name:np.concatenate([np.array(f.variables['vals_elem_var%deb%d'%(i,b)][-1]) for b in range(1,f.dimensions['num_el_blk']+1)]) for i,name in enumerate(names(f.variables['name_elem_var']),1)}
         glob=dict(zip(names(f.variables['name_glo_var']),map(float,f.variables['vals_glo_var'][-1])))
@@ -88,7 +92,7 @@ def compare(result_path, prefix, element="cax4t"):
         raise ValueError('Temperature lies outside the sampled conductivity table')
     if [int(r['node']) for r in nodes] != list(range(1,len(nodal['temperature'])+1)):raise ValueError('Node labels/coverage differ')
     if len(points)!=point_count*len(elem['material_point_count']):raise ValueError('Material point coverage differs')
-    if any(float(r['time'])!=20 for r in nodes+points+contacts):raise ValueError('Reference is not the final 20-increment state')
+    if any(float(r['time'])!=20 for r in nodes+points+contacts):raise ValueError('Reference is not the final state at step time 20')
     metrics={}
     metrics['temperature']=metric(nodal['temperature'][thermal_nodes],[float(nodes[n]['temperature']) for n in thermal_nodes],1e-8)
     if element in ('cax8t','cax8rt'):
@@ -124,7 +128,7 @@ def compare(result_path, prefix, element="cax4t"):
     return metrics
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('result');p.add_argument('prefix');p.add_argument('--report',required=True);p.add_argument('--element',choices=('cax4t','cax4rt','cax8t','cax8rt'),default='cax4t');args=p.parse_args()
-    m=compare(args.result,Path(args.prefix),args.element);Path(args.report).write_text(json.dumps(m,indent=2)+'\n')
+    p=argparse.ArgumentParser();p.add_argument('result');p.add_argument('prefix');p.add_argument('--report',required=True);p.add_argument('--element',choices=('cax4t','cax4rt','cax8t','cax8rt'),default='cax4t');p.add_argument('--incremental',action='store_true',help='Require initial state and 20 unit equilibrium increments; compare the final state');args=p.parse_args()
+    m=compare(args.result,Path(args.prefix),args.element,args.incremental);Path(args.report).write_text(json.dumps(m,indent=2)+'\n')
     for name,r in m.items():print(name,'PASS' if r['passed'] else 'FAIL', 'relative errors (%)',*[100*r.get(k,0) for k in ['relative_l2','relative_absolute_peak','maximum_pointwise_relative']])
     raise SystemExit(0 if all(r['passed'] for r in m.values()) else 1)

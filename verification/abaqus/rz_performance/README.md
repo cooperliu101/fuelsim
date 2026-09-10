@@ -516,7 +516,9 @@ Fuelsim 外部耗时少 **49.06%**，耗时比为 **1.96**。
 
 ## 中等规模 CAX4T 有限应变对比（2026-09-10）
 
-**精度尚未通过，不列为已鉴定算例。** 两套程序均完成 20 个固定加载增量，
+**以下为原 steady 执行方式的未通过记录。** 后续已定位增量历史差异，
+匹配 Abaqus 的增量执行结果见下节。原记录保留，不覆盖其误差或性能数据。
+两套程序均完成 20 个固定加载增量，
 但最终场不满足既有 0.01% 门槛。没有修改单元数值实现、物理参数或误差门槛。
 
 新增 `steady_rz_performance_medium_cax4t_finite.fsi` 和对应 `_timing.fsi`。
@@ -561,8 +563,77 @@ WSL/Windows 跨平台、启动开销以及逻辑 CPU 编号的限制仍适用。
 规定零位移的绝对误差检查通过。65 个接触节点全部活跃，Fuelsim 法向反力合计约
 667.46 N。最大应力误差位于芯块第 6001 单元的 Abaqus 第 2 积分点，参考张量
 范数约 9.44 MPa、差值约 0.0730 MPa；不是零参考值舍入造成的误差。该 0.7731%
-最大应力误差也超过轴对称既有 0.5% 逐点门槛。差异原因尚未定位，不作原因推断。
+最大应力误差也超过轴对称既有 0.5% 逐点门槛。该批测量时尚未定位差异原因。
 
 原始日志、独立 Abaqus 参考、完整误差指标和最大应力点信息保存在
 [`medium_cax4t_finite/`](medium_cax4t_finite/summary.json)。本次增加的是手动对比输入与
 未通过结果记录，没有把未通过算例加入自动回归，也没有放宽任何验收条件。
+
+## CAX4T 有限应变增量历史诊断与匹配结果
+
+**全部最终场指标通过，最大逐点相对误差为 0.00000430214%。**
+这低于本次要求的 0.1%，也通过比较脚本原有的 0.01% 门槛。
+全部 7,670 个节点、29,696 个材料积分点和 65 个接触节点均参与比较。
+没有剔除原最大应力误差点，也没有改变材料、网格、载荷、接触参数或误差算法。
+
+原因是两种执行方式的有限应变历史不同。`SteadyProblem::compute_contribution`
+调用 `compute_cax4_thermoelastic`，后者向单元传入零的已接受节点状态和空材料历史；
+`SteadyProblem::commit_internal_state` 只提交接触历史。因此原输入中的 20 个
+载荷步用于逐步求解，但体单元每次仍从初始构形计算有限应变。
+Abaqus 的 20 个增量则逐次累积材料历史，并使用相邻增量的中间构形计算热传导。
+
+两个独立计算验证了这个判断：
+
+1. 新增完整 Abaqus 输入
+   `rz_performance_medium_cax4t_finite_single_increment.inp`，只把原 20 个增量
+   改为一次达到同一最终载荷。原 Fuelsim steady 结果与它的所有最终场指标
+   通过，最大逐点相对误差为 0.00000445988%。
+2. 新增完整 Fuelsim 输入
+   `verification/fuelsim/quasistatic_rz_performance_medium_cax4t_finite.fsi`，
+   使用已有 transient 执行器提交每个接受增量的节点状态和材料历史。
+   `include_thermal_time_term = false` 关闭热容项，因此每个增量仍求解稳态
+   热平衡；本算例也不包含位移惯性、塑性或蠕变。固定增量为 1，结束时间和
+   载荷上升时间均为 20，与原 Abaqus 参考的 20 个等分增量一致。
+
+这是算例执行配置的修正，没有修改生产单元或求解器实现，也没有改变
+`SteadyProblem` 的现有行为。需要累积有限应变历史的本算例使用新输入。
+该路径完成 20 个增量，无失败重试，共 46 次非线性迭代，65 个接触节点全部活跃。
+
+| 比较量 | 原 steady 最大逐点误差 | 匹配增量历史后的最大逐点误差 |
+|---|---:|---:|
+| 温度 | 0.011720% | 0.000000265783% |
+| 自由位移向量 | 0.079766% | 0.00000336718% |
+| 应力张量 | 0.773119% | 0.00000430214% |
+| 接触压力 | 0.159140% | 0.00000393020% |
+| 接触间隙 | 0.159140% | 0.00000392508% |
+| 节点法向反力 | 0.159157% | 0.00000393122% |
+| 接触总反力 | 0.049146% | 0.00000310324% |
+
+规定零位移继续按绝对误差检查并通过。相对 L2、相对绝对峰值和最大逐点
+相对误差全部保存在
+[`medium_cax4t_finite_incremental/accuracy.json`](medium_cax4t_finite_incremental/accuracy.json)。
+参考仍为原 `medium_cax4t_finite/` 中的 20 增量 Abaqus 数据，没有重新拟合或替换。
+检查脚本的 `--incremental` 选项要求初始状态及 20 个单位增量均存在，
+最终载荷因子为 1；跨程序精度结论只覆盖最终状态，不声称已逐增量比较全部历史场。
+
+```bash
+env -u PETSC_OPTIONS OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+  NUMEXPR_NUM_THREADS=1 taskset -c 0 build/fuelsim \
+  -i verification/fuelsim/quasistatic_rz_performance_medium_cax4t_finite.fsi
+env NETCDF_LIBRARY=/home/cooper/miniforge/envs/moose/lib/libnetcdf.so \
+  python verification/abaqus/rz_performance/compare.py \
+  verification/fuelsim/quasistatic_rz_performance_medium_cax4t_finite_results.e \
+  verification/abaqus/rz_performance/medium_cax4t_finite/rz_performance_medium_cax4t_finite \
+  --element cax4t --incremental --report /tmp/cax4t-finite-accuracy.json
+```
+
+运行时可把完整输入逐字复制到隔离目录，并保持 `../meshes/` 网格路径有效。
+单增量 Abaqus 诊断在包含原网格和材料 `.inc` 文件的目录中直接运行新 `.inp`，
+再使用 `extract_results.py` 提取结果。归档诊断的作业名沿用
+`rz_performance_medium_cax4t_finite`，其实际单增量输入由
+[`provenance.json`](medium_cax4t_finite_incremental/provenance.json) 中的 SHA256 标识。
+
+新输入的生产日志、可执行文件和输入摘要、单增量 Abaqus 原始日志及参考保存在
+[`medium_cax4t_finite_incremental/`](medium_cax4t_finite_incremental/summary.json)。
+原四种小应变中等规模算例的全部比较指标复查保持不变。
+**新执行路径尚未做关闭输出后的重复计时，原 1.57 倍耗时比不能用于此处。**

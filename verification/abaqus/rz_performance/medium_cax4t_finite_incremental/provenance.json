@@ -1,0 +1,26 @@
+{
+  "git_revision": "e335c1c0ad5a2b3aa90fc7b0dae83ee085d725d6",
+  "note": "Input and checker changes were uncommitted during this run; production executable unchanged. Hashes identify exact artifacts.",
+  "sha256": {
+    "verification/fuelsim/quasistatic_rz_performance_medium_cax4t_finite.fsi": "1ee6063aa1643ebf0e7aea5502cc81b4ac8d9d849d75642fdb7c46ecd80301c7",
+    "build/fuelsim": "d4ae6f0665cef98017cf9f11c4c04bd85c051d1ce6ff9f21949dd4b5dd404c8d",
+    "verification/meshes/rz_performance_medium.e": "2474721e4e17738601bc750f81dd678fde7be16aba621477b083f46af824b8c7",
+    "verification/abaqus/rz_performance/compare.py": "015c95ea3e58b04d8613b6f19b4f86635000651f82abb8e0df80cac0ff426bee",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax4t_finite.inp": "a92f014047e575eb6109c47b2b79d21d93fe28644c7ac778387d651589cfd626",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax4t_finite_single_increment.inp": "53ee783dcc423e4bcd1b508f7808e67473fe2197d8c84cd6477173d4db7c656b",
+    "verification/abaqus/rz_performance/rz_performance_medium_mesh.inc": "6f85d8fc0535c50b2c5ad5ce5cfc0c9bd5e9a479817ccf723817046141be1198",
+    "verification/abaqus/rz_performance/material_contact.inc": "750d4945e330983e8d84d6cafceccf2a12b4b6291547fef0dd3ce946a3ab7efe",
+    "verification/abaqus/rz_performance/medium_cax4t_finite/rz_performance_medium_cax4t_finite_points.csv.gz": "b704cec8414bc0c43ca81a7d09a1733dc39c33075e2e7b657ef79fc2edc6a538",
+    "verification/abaqus/rz_performance/medium_cax4t_finite/rz_performance_medium_cax4t_finite_contact.csv.gz": "c13be13782940d16ed2e8ff3ae1637814a75aa813e2a4b5a53ef4d099da0913c",
+    "verification/abaqus/rz_performance/medium_cax4t_finite/rz_performance_medium_cax4t_finite_nodes.csv.gz": "16ed33d61b7a71fb2b994c8243ae018c8c17de836b730040079eba528e5b6a6d"
+  },
+  "result_sha256": "c73d51a44ed6913a65b4c20f46639c49914cafa2c7532c6b22300b36dc530962",
+  "environment": {
+    "cpu": 0,
+    "mpi_ranks": 1,
+    "threads": 1,
+    "linear_solver": "MUMPS",
+    "ADlite": "0.2.3 SIMD enabled"
+  },
+  "command": "env -u PETSC_OPTIONS OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 taskset -c 0 build/fuelsim -i verification/fuelsim/quasistatic_rz_performance_medium_cax4t_finite.fsi"
+}

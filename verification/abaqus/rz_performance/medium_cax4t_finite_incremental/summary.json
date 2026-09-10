@@ -1,0 +1,27 @@
+{
+  "element": "cax4t",
+  "strain": "finite",
+  "execution": "transient driver, thermal time term disabled, 20 unit equilibrium increments",
+  "physical_inputs_changed": false,
+  "production_code_changed": false,
+  "completed": true,
+  "accepted_steps": 20,
+  "rejected_steps": 0,
+  "nonlinear_iterations": 46,
+  "elements": 7424,
+  "nodes": 7670,
+  "dofs": 23010,
+  "material_points": 29696,
+  "active_contact_nodes": 65,
+  "accuracy_passed": true,
+  "relative_gate": 0.0001,
+  "requested_relative_gate": 0.001,
+  "maximum_pointwise_relative": 4.3021368371258726e-08,
+  "reference": "../medium_cax4t_finite/rz_performance_medium_cax4t_finite_{nodes,points,contact}.csv.gz",
+  "scope": "All final nodes, material points and contact nodes; intermediate frames are not cross-program accuracy-qualified.",
+  "performance": "No comparable output-disabled timing measured for this incremental execution; old steady timing does not apply.",
+  "validation": {
+    "related_ctest": "20/20 passed with -j4",
+    "existing_small_strain_comparisons": "CAX4T, CAX4RT, CAX8T, CAX8RT: all metrics identical to archived results"
+  }
+}
