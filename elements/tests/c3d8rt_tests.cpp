@@ -1,3 +1,4 @@
+#include "c3d8rt.hpp"
 #include "support/c3d8_common_tests.hpp"
 
 namespace {
@@ -5,7 +6,7 @@ using namespace fuelsim::test::c3d8;
 
 bool test_reduced_integration_inelastic_jacobian() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
-    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
+    const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8rt_geometry(coordinates);
     fuelsim::Hex8LocalValues committed_state{}, state{};
     for (std::size_t node = 0; node < 8; ++node) {
         committed_state[node] = 300.0;
@@ -157,7 +158,7 @@ bool test_reduced_integration_inelastic_jacobian() {
 }
 
 bool test_reduced_integration_thermoelastic_capacity_gate() {
-    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
+    const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8rt_geometry(unit_cube());
     fuelsim::Hex8LocalValues committed_state{}, state{};
     for (std::size_t node = 0; node < 8; ++node) {
         committed_state[node] = 300.0;
@@ -213,7 +214,7 @@ bool test_reduced_integration_thermoelastic_capacity_gate() {
 }
 
 bool test_reduced_integration_hourglass_energy() {
-    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
+    const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8rt_geometry(unit_cube());
     fuelsim::Hex8LocalValues state{};
     for (std::size_t node = 0; node < 8; ++node) {
         state[node] = 400.0;

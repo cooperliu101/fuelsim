@@ -23,8 +23,6 @@ struct Quad8RzGeometry final {
     std::size_t point_count = 9;
 };
 
-Quad8RzPoint evaluate_quad8_rz_point(const Quad8RzCoordinates& coordinates, double xi, double eta, double weight);
-
 } // namespace fuelsim
 
 namespace fuelsim::elements {

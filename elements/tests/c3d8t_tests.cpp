@@ -1,10 +1,11 @@
+#include "c3d8t.hpp"
 #include "support/c3d8_common_tests.hpp"
 
 namespace {
 using namespace fuelsim::test::c3d8;
 
 bool test_element_average_thermal_expansion_temperature() {
-    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
+    const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(unit_cube());
     const fuelsim::IsotropicThermoelasticMaterial material(properties());
     const fuelsim::CartesianTestData data{material, 0.0, 0.0};
     fuelsim::Hex8LocalValues state{};
@@ -56,7 +57,7 @@ double equivalent_stress(const fuelsim::SymmetricTensor3& stress) {
 
 bool test_geometry_and_constant_strain() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
-    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
+    const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(coordinates);
     double volume = 0.0;
     for (const fuelsim::Hex8QuadraturePoint& point : geometry.points) {
         volume += point.weighted_measure;
@@ -112,7 +113,7 @@ bool test_distorted_selective_volumetric_integration() {
     coordinates[5] = {0.94, 0.06, 1.12};
     coordinates[6] = {1.24, 1.13, 1.28};
     coordinates[7] = {-0.08, 0.91, 1.06};
-    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
+    const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(coordinates);
     constexpr double young_modulus = 2.0e11, poisson_ratio = 0.499;
     const fuelsim::CartesianTestData data{
         fuelsim::IsotropicThermoelasticMaterial(
@@ -168,7 +169,7 @@ bool test_distorted_selective_volumetric_integration() {
 }
 
 bool test_selective_integration_constrained_face_rank() {
-    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
+    const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(unit_cube());
     const fuelsim::CartesianTestData data{
         fuelsim::IsotropicThermoelasticMaterial(fuelsim::test::thermoelastic(0.0, 1.0, 1.0e9, 0.0, 0.0, 300.0)),
         0.0,
@@ -217,7 +218,7 @@ bool test_selective_integration_constrained_face_rank() {
 
 bool test_free_thermal_expansion_and_jacobian() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
-    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
+    const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(coordinates);
     const fuelsim::CartesianTestData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 7.0e5, 0.0};
     fuelsim::Hex8LocalValues state{};
     const double temperature = 650.0;
@@ -270,7 +271,7 @@ bool test_free_thermal_expansion_and_jacobian() {
 }
 
 bool test_transient_capacity_and_faces() {
-    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
+    const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(unit_cube());
     const fuelsim::CartesianTestData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 1.2e7, 0.0};
     fuelsim::Hex8LocalValues old_state{};
     fuelsim::Hex8LocalValues state{};
@@ -354,7 +355,7 @@ bool test_transient_capacity_and_faces() {
         return false;
     fuelsim::Hex8Coordinates distorted_coordinates = unit_cube();
     distorted_coordinates[6] = {1.20, 1.10, 1.30};
-    const fuelsim::Hex8Geometry distorted = fuelsim::make_hex8_geometry(distorted_coordinates);
+    const fuelsim::Hex8Geometry distorted = fuelsim::elements::make_c3d8t_geometry(distorted_coordinates);
     double minimum_capacity_weight = distorted.capacity_points[0].weighted_measure,
            maximum_capacity_weight = minimum_capacity_weight, capacity_gauss_mapping_error = 0.0;
     constexpr std::array<std::size_t, 8> node_to_gauss = {0, 1, 3, 2, 4, 5, 7, 6};
@@ -625,7 +626,7 @@ bool test_cartesian_inelastic_material() {
 
 bool test_finite_strain_kinematics_and_coupled_jacobian() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
-    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
+    const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(coordinates);
     fuelsim::Hex8LocalValues state{};
     const double stretch_x = 1.12, stretch_y = 0.94, stretch_z = 1.03;
     for (std::size_t node = 0; node < 8; ++node) {

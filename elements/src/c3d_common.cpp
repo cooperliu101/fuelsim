@@ -230,7 +230,7 @@ namespace {
 constexpr double gauss = 0.577350269189625764509148780501957456;
 } // namespace
 
-Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates) {
+Hex8Geometry c3d8_detail::make_hex8_geometry(const Hex8Coordinates& coordinates) {
     Hex8Geometry geometry{};
     for (const CartesianPoint3& coordinate : coordinates) {
         geometry.selective_position.x += coordinate.x / 8.0;
@@ -444,7 +444,7 @@ C3d8Kinematics evaluate_cartesian_incremental_kinematics(const Hex8QuadraturePoi
 namespace fuelsim {
 using namespace c3d8_detail;
 
-void validate_cartesian_deformation(const Hex8QuadraturePoint& point, const Hex8LocalValues& state) {
+void c3d8_detail::validate_cartesian_deformation(const Hex8QuadraturePoint& point, const Hex8LocalValues& state) {
     const double value = cartesian_detail::determinant(deformation_gradient(point, state));
     if (!std::isfinite(value) || !(value > 0.0))
         throw std::domain_error("Finite-strain HEX8 deformation must preserve a positive Jacobian");
@@ -930,7 +930,8 @@ namespace fuelsim {
 using namespace c3d20_detail;
 using cartesian_detail::determinant;
 
-void validate_hex20_deformation(const Hex20MechanicalQuadraturePoint& point, const Hex20LocalValues& state) {
+void c3d20_detail::validate_hex20_deformation(const Hex20MechanicalQuadraturePoint& point,
+    const Hex20LocalValues& state) {
     const double value = determinant(deformation_gradient(point, state));
     if (!std::isfinite(value) || !(value > 0.0))
         throw std::domain_error("Finite-strain HEX20 deformation must preserve a positive Jacobian");

@@ -1,4 +1,5 @@
 #include "cax4t.hpp"
+#include "cax_common.hpp"
 #include <cmath>
 #include <stdexcept>
 
@@ -571,3 +572,9 @@ AxisymmetricKinematics evaluate_axisymmetric_kinematics_from_point(const RzQuadr
 } // namespace
 
 } // namespace fuelsim
+
+namespace fuelsim::elements {
+Quad4RzGeometry make_cax4t_geometry(const Quad4Coordinates& coordinates) {
+    return cax4_detail::make_quad4_rz_geometry(coordinates);
+}
+} // namespace fuelsim::elements

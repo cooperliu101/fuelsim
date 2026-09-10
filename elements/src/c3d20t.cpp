@@ -15,3 +15,9 @@ Hex20Geometry make_c3d20t_geometry(const Hex20Coordinates& coordinates) {
     return c3d20_detail::make_hex20_geometry(coordinates, 3);
 }
 } // namespace fuelsim::elements
+
+namespace fuelsim::elements {
+void validate_c3d20t_deformation(const Hex20MechanicalQuadraturePoint& point, const Hex20LocalValues& state) {
+    c3d20_detail::validate_hex20_deformation(point, state);
+}
+} // namespace fuelsim::elements

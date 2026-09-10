@@ -1,4 +1,5 @@
 #include "c3d8_types.hpp"
+#include "c3d8t.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
 #include "support/test_support.hpp"
@@ -110,7 +111,7 @@ int main(int argc, char** argv) {
     }
     try {
         const Matrix8 abaqus_total = read_abaqus_total_matrix(argv[1]);
-        const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
+        const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(unit_cube());
         const fuelsim::CartesianRegionData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 0.0, 1.0};
         fuelsim::Hex8LocalValues committed_state{};
         for (std::size_t node = 0; node < node_count; ++node)

@@ -1,4 +1,5 @@
 #include "c3d8_types.hpp"
+#include "c3d8t.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
 #include "support/test_support.hpp"
@@ -119,7 +120,7 @@ int main(int argc, char** argv) {
         const std::array<NodalReference, 8> nodal = read_nodal(argv[1]);
         const std::array<IntegrationPointReference, 8> integration_points = read_integration_points(argv[2]);
         const fuelsim::Hex8Coordinates coordinates = unit_cube();
-        const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
+        const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(coordinates);
         fuelsim::Hex8LocalValues state{};
         double coordinate_maximum_difference = 0.0, displacement_maximum_difference = 0.0;
         for (std::size_t node = 0; node < 8; ++node) {

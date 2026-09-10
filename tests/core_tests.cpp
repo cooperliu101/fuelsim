@@ -1,4 +1,5 @@
 #include "cax4rt.hpp"
+#include "cax4t.hpp"
 
 #include "core/mesh.hpp"
 #include "core/spatial_definition.hpp"
@@ -114,7 +115,7 @@ bool test_mesh_and_geometry() {
         fuelsim::Quad4Coordinates coordinates{};
         for (std::size_t node = 0; node < element.nodes.size(); ++node)
             coordinates[node] = mesh.nodes()[element.nodes[node]];
-        const fuelsim::Quad4RzGeometry geometry = fuelsim::make_quad4_rz_geometry(coordinates);
+        const fuelsim::Quad4RzGeometry geometry = fuelsim::elements::make_cax4t_geometry(coordinates);
         for (const fuelsim::RzQuadraturePoint& point : geometry.points) {
             double shape_sum = 0.0;
             double gradient_r_sum = 0.0;

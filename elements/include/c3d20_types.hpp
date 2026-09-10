@@ -51,8 +51,6 @@ struct Hex20Geometry final {
     std::vector<Hex20MechanicalQuadraturePoint> mechanical_points;
 };
 
-void validate_hex20_deformation(const Hex20MechanicalQuadraturePoint& point, const Hex20LocalValues& state);
-
 } // namespace fuelsim
 
 namespace fuelsim::elements {

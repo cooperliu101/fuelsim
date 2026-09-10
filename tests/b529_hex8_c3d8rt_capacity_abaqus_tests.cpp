@@ -1,4 +1,5 @@
 #include "c3d8_types.hpp"
+#include "c3d8rt.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
 #include "support/test_support.hpp"
@@ -59,7 +60,7 @@ bool check_case(const std::string& path, const fuelsim::Hex8Coordinates& coordin
         fuelsim::StrainFormulation::small,
         fuelsim::Hex8ElementFormulation::c3d8rt,
         300.0};
-    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
+    const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8rt_geometry(coordinates);
     fuelsim::Hex8LocalValues committed{};
     for (std::size_t node = 0; node < 8; ++node)
         committed[node] = 300.0;

@@ -1,5 +1,6 @@
 #pragma once
 #include "cax4rt.hpp"
+#include "cax4t.hpp"
 #include "contact_types.hpp"
 #include "line2_rz.hpp"
 #include "quad4_face.hpp"
@@ -41,7 +42,8 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
     const std::string name = reduced ? "CAX4RT" : "CAX4T";
     const std::size_t points = reduced ? 1 : 4;
     const fuelsim::Quad4Coordinates coordinates = {{{1.0, 0.0}, {2.1, 0.1}, {2.0, 1.2}, {0.9, 1.0}}};
-    const auto geometry = fuelsim::make_quad4_rz_geometry(coordinates);
+    const auto geometry = (reduced ? fuelsim::elements::make_cax4rt_geometry(coordinates)
+                                   : fuelsim::elements::make_cax4t_geometry(coordinates));
     fuelsim::AxisymmetricTestData data{fuelsim::IsotropicThermoelasticMaterial(properties())};
     data.element_formulation = reduced ? fuelsim::RzElementFormulation::cax4rt : fuelsim::RzElementFormulation::cax4t;
     const fuelsim::Cax4LocalValues direction = {0.2, -0.3, 0.4, -0.1, 0.3, -0.5, 0.2, 0.4, -0.2, 0.35, -0.45, 0.25};
@@ -154,7 +156,8 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
                     thermal_coordinates[n].r += state[4 + n];
                     thermal_coordinates[n].z += state[8 + n];
                 }
-            const auto thermal_geometry = fuelsim::make_quad4_rz_geometry(thermal_coordinates);
+            const auto thermal_geometry = (reduced ? fuelsim::elements::make_cax4rt_geometry(thermal_coordinates)
+                                                   : fuelsim::elements::make_cax4t_geometry(thermal_coordinates));
             for (std::size_t n = 0; n < 4; ++n) {
                 double weight = 0.0;
                 for (const auto& p : thermal_geometry.points)

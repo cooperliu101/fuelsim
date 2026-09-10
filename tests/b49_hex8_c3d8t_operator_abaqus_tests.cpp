@@ -274,7 +274,7 @@ fuelsim::Hex8LocalResidual abaqus_c3d8t_residual(const fuelsim::Hex8Geometry& ge
 
 bool compare_operator(const std::map<std::string, NodalStep>& steps, bool temperature_dependent) {
     const NodalStep& base = steps.at("BASE");
-    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
+    const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(unit_cube());
     const fuelsim::IsotropicThermoelasticMaterial material(properties(temperature_dependent));
     const fuelsim::CartesianRegionData data{material, 0.0, 0.0};
     fuelsim::Hex8LocalJacobian fuelsim_jacobian{};
@@ -394,7 +394,7 @@ double tensor_maximum_difference(const fuelsim::SymmetricTensor3Values& first,
 bool compare_integration_points(const NodalStep& base,
     const std::vector<IntegrationPointReference>& references,
     bool temperature_dependent) {
-    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
+    const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(unit_cube());
     const fuelsim::IsotropicThermoelasticMaterial material(properties(temperature_dependent));
     const fuelsim::CartesianRegionData data{material, 0.0, 0.0};
     const std::array<fuelsim::SymmetricTensor3Values, 8> production_stresses =

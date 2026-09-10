@@ -1,4 +1,8 @@
 #include "cartesian3d_assembly.hpp"
+#include "c3d20rt.hpp"
+#include "c3d20t.hpp"
+#include "c3d8rt.hpp"
+#include "c3d8t.hpp"
 #include "contact_types.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
@@ -787,7 +791,10 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
             Hex8Coordinates coordinates{};
             for (std::size_t node = 0; node < coordinates.size(); ++node)
                 coordinates[node] = _meshes[region].nodes().at(element.nodes[node]);
-            _geometries[region].push_back(make_hex8_geometry(coordinates));
+            _geometries[region].push_back(
+                this->region(region).hex8_element_formulation == Hex8ElementFormulation::c3d8rt
+                    ? elements::make_c3d8rt_geometry(coordinates)
+                    : elements::make_c3d8t_geometry(coordinates));
         }
     }
     build_contacts(source_mesh);
@@ -1048,12 +1055,18 @@ void SpatialAssembly::validate_state(const std::vector<double>& state) const {
                 const Hex20LocalValues local = hex20_volume_state(region_element_offset(region_index) + element, state);
                 for (const Hex20MechanicalQuadraturePoint& point :
                     hex20_region_element_geometry(region_index, element).mechanical_points)
-                    validate_hex20_deformation(point, local);
+                    if (region(region_index).hex20_element_formulation == Hex20ElementFormulation::c3d20rt)
+                        elements::validate_c3d20rt_deformation(point, local);
+                    else
+                        elements::validate_c3d20t_deformation(point, local);
                 continue;
             }
             const Hex8LocalValues local = volume_state(region_element_offset(region_index) + element, state);
             for (const Hex8QuadraturePoint& point : region_element_geometry(region_index, element).points)
-                validate_cartesian_deformation(point, local);
+                if (region(region_index).hex8_element_formulation == Hex8ElementFormulation::c3d8rt)
+                    elements::validate_c3d8rt_deformation(point, local);
+                else
+                    elements::validate_c3d8t_deformation(point, local);
         }
     }
     validate_local_state(0, contribution_count(), state);

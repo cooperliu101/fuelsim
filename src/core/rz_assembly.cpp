@@ -1,4 +1,6 @@
 #include "rz_assembly.hpp"
+#include "cax4rt.hpp"
+#include "cax4t.hpp"
 #include "contact_types.hpp"
 #include "line2_rz.hpp"
 #include "quad4_face.hpp"
@@ -509,7 +511,9 @@ void SpatialAssembly::build_volume_geometries() {
             Quad4Coordinates coordinates{};
             for (std::size_t node = 0; node < element.nodes.size(); ++node)
                 coordinates[node] = mesh.nodes().at(element.nodes[node]);
-            geometries.push_back(make_quad4_rz_geometry(coordinates));
+            geometries.push_back(region(region_index).rz_element_formulation == RzElementFormulation::cax4rt
+                                     ? elements::make_cax4rt_geometry(coordinates)
+                                     : elements::make_cax4t_geometry(coordinates));
         }
     }
 }

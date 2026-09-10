@@ -1,3 +1,4 @@
+#include "c3d20t.hpp"
 #include "support/c3d20_common_tests.hpp"
 
 namespace {
@@ -301,7 +302,7 @@ bool test_jacobian_and_transient_history() {
         invalid[8 + node] = -2.0 * coordinates[node].x;
     bool invalid_rejected = false;
     try {
-        fuelsim::validate_hex20_deformation(geometry.mechanical_points[0], invalid);
+        fuelsim::elements::validate_c3d20t_deformation(geometry.mechanical_points[0], invalid);
     } catch (const std::domain_error&) {
         invalid_rejected = true;
     }

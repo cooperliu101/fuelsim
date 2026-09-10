@@ -1,4 +1,5 @@
 #include "c3d8_types.hpp"
+#include "c3d8t.hpp"
 #include "contact_types.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
@@ -118,10 +119,11 @@ int main(int argc, char** argv) {
             states[1][node] = reference[8 + node].temperature;
         }
         const fuelsim::Hex8Coordinates secondary_cube = cube(0.0), primary_cube = cube(1.1);
-        const fuelsim::Hex8LocalResidual secondary_volume =
-            fuelsim::compute_c3d8_thermoelastic(data, fuelsim::make_hex8_geometry(secondary_cube), states[0]);
+        const fuelsim::Hex8LocalResidual secondary_volume = fuelsim::compute_c3d8_thermoelastic(data,
+            fuelsim::elements::make_c3d8t_geometry(secondary_cube),
+            states[0]);
         const fuelsim::Hex8LocalResidual primary_volume =
-            fuelsim::compute_c3d8_thermoelastic(data, fuelsim::make_hex8_geometry(primary_cube), states[1]);
+            fuelsim::compute_c3d8_thermoelastic(data, fuelsim::elements::make_c3d8t_geometry(primary_cube), states[1]);
         const fuelsim::Quad4FaceCoordinates
             secondary_face = {{{1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {1.0, 1.0, 1.0}, {1.0, 0.0, 1.0}}},
             primary_face = {{{1.1, 0.0, 0.0}, {1.1, 1.0, 0.0}, {1.1, 1.0, 1.0}, {1.1, 0.0, 1.0}}};

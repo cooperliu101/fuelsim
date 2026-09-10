@@ -1899,3 +1899,15 @@ C3d8Result evaluate_c3d8t(const C3d8Input& input, ElementRequest request) {
     return result;
 }
 } // namespace fuelsim::elements
+
+namespace fuelsim::elements {
+Hex8Geometry make_c3d8t_geometry(const Hex8Coordinates& coordinates) {
+    return c3d8_detail::make_hex8_geometry(coordinates);
+}
+} // namespace fuelsim::elements
+
+namespace fuelsim::elements {
+void validate_c3d8t_deformation(const Hex8QuadraturePoint& point, const Hex8LocalValues& state) {
+    c3d8_detail::validate_cartesian_deformation(point, state);
+}
+} // namespace fuelsim::elements

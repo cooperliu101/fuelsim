@@ -197,7 +197,7 @@ int main(int argc, char** argv) {
         const std::array<NodalReference, 8> nodal = read_nodes(argv[1]);
         const std::array<IntegrationReference, 8> integration = read_integration(argv[2]);
         const fuelsim::Hex8Coordinates coordinates = unit_cube();
-        const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
+        const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(coordinates);
         const fuelsim::Hex8LocalValues state = prescribed_state();
         const fuelsim::ThermoelasticProperties properties =
             fuelsim::test::thermoelastic(0.0, 1.0, 2.0e11, 0.25, 0.0, 600.0, 0.0, 0.0, 0.0, 1.0, 1.0);

@@ -1,4 +1,5 @@
 #include "c3d8_types.hpp"
+#include "c3d8t.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
 #include "support/test_support.hpp"
@@ -145,7 +146,7 @@ int main(int argc, char** argv) {
         constexpr double perturbation = 1.0e-3;
         const std::map<std::string, StateReference> reference = read_reference(argv[1]);
         const StateReference& base = reference.at("BASE");
-        const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(distorted_coordinates());
+        const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(distorted_coordinates());
         const fuelsim::CartesianRegionData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 0.0, 1.0};
         fuelsim::Hex8LocalValues committed_state{}, state{};
         for (std::size_t node = 0; node < node_count; ++node) {

@@ -35,7 +35,7 @@ std::array<double, quad4_node_count> shape_derivative_eta(double xi) {
 }
 } // namespace
 
-Quad4RzGeometry make_quad4_rz_geometry(const Quad4Coordinates& coordinates) {
+Quad4RzGeometry cax4_detail::make_quad4_rz_geometry(const Quad4Coordinates& coordinates) {
     const std::array<std::array<double, 2>, 4> locations = {{
         {{-gauss, -gauss}},
         {{gauss, -gauss}},
@@ -79,6 +79,7 @@ Quad4RzGeometry make_quad4_rz_geometry(const Quad4Coordinates& coordinates) {
 } // namespace fuelsim
 
 namespace fuelsim {
+namespace {
 Quad8RzPoint evaluate_quad8_rz_point(const Quad8RzCoordinates& coordinates, double x, double y, double weight) {
     constexpr std::array<std::array<double, 2>, 4> signs = {{{-1, -1}, {1, -1}, {1, 1}, {-1, 1}}};
     Quad8RzPoint p;
@@ -147,6 +148,8 @@ Quad8RzPoint evaluate_quad8_rz_point(const Quad8RzCoordinates& coordinates, doub
     }
     return p;
 }
+
+} // namespace
 
 Quad8RzGeometry cax8_detail::make_quad8_rz_geometry(const Quad8RzCoordinates& coordinates, std::size_t order) {
     Quad8RzGeometry result{coordinates, {}};

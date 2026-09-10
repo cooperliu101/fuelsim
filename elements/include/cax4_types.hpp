@@ -26,8 +26,6 @@ struct Quad4RzGeometry final {
     Quad4Coordinates coordinates{};
 };
 
-Quad4RzGeometry make_quad4_rz_geometry(const Quad4Coordinates& coordinates);
-
 using Quad4MaterialHistory = std::array<MaterialPointState, 4>;
 
 } // namespace fuelsim

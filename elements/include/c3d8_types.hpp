@@ -47,10 +47,6 @@ struct Hex8Geometry final {
     double reference_volume, reduced_body_source_measure;
 };
 
-Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates);
-
-void validate_cartesian_deformation(const Hex8QuadraturePoint& point, const Hex8LocalValues& state);
-
 } // namespace fuelsim
 
 namespace fuelsim::elements {

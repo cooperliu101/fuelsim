@@ -1,3 +1,4 @@
+#include "c3d8t.hpp"
 #include "io/hex8_result_fields.hpp"
 #include "support/test_support.hpp"
 #include <array>
@@ -14,7 +15,7 @@ void close(double actual, double expected, const char* field) {
 void affine_case(double angle, bool reduced, bool finite) {
     const fuelsim::Hex8Coordinates nodes = {
         {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}}};
-    const auto geometry = fuelsim::make_hex8_geometry(nodes);
+    const auto geometry = fuelsim::elements::make_c3d8t_geometry(nodes);
     const fuelsim::IsotropicThermoelasticMaterial material(fuelsim::test::thermoelastic(0, 4, 1e9, 0.3, 0, 300));
     const double c = std::cos(angle), s = std::sin(angle);
     constexpr double a = 1.1, b = 0.9, d = 1.05;
@@ -63,7 +64,7 @@ void affine_case(double angle, bool reduced, bool finite) {
 void singular_small_strain() {
     const fuelsim::Hex8Coordinates nodes = {
         {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}}};
-    const auto geometry = fuelsim::make_hex8_geometry(nodes);
+    const auto geometry = fuelsim::elements::make_c3d8t_geometry(nodes);
     fuelsim::Hex8LocalValues state{};
     for (std::size_t node = 0; node < 8; ++node) {
         state[node] = 300;

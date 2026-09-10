@@ -106,7 +106,7 @@ bool same_history(const Quad4MaterialHistory& a, const Quad4MaterialHistory& b) 
 
 void check_analytic_and_contract(StrainFormulation form) {
     const auto m = material(false);
-    const auto g = make_quad4_rz_geometry({{{1.0, 0.0}, {2.0, 0.0}, {2.0, 1.0}, {1.0, 1.0}}});
+    const auto g = fuelsim::elements::make_cax4t_geometry({{{1.0, 0.0}, {2.0, 0.0}, {2.0, 1.0}, {1.0, 1.0}}});
     Cax4LocalValues old{}, heated{};
     for (std::size_t n = 0; n < 4; ++n) {
         old[n] = 600.0;
@@ -143,7 +143,7 @@ void check_analytic_and_contract(StrainFormulation form) {
 
 void check_nonlinear_transaction(StrainFormulation form) {
     const auto m = material(true);
-    const auto g = make_quad4_rz_geometry({{{1.0, 0.0}, {2.1, 0.1}, {2.0, 1.2}, {0.9, 1.0}}});
+    const auto g = fuelsim::elements::make_cax4t_geometry({{{1.0, 0.0}, {2.1, 0.1}, {2.0, 1.2}, {0.9, 1.0}}});
     Cax4LocalValues initial{}, old{}, state{};
     for (std::size_t n = 0; n < 4; ++n) {
         initial[n] = 600.0;

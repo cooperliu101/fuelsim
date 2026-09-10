@@ -1,4 +1,5 @@
 #include "c3d8_types.hpp"
+#include "c3d8t.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
 #include "quad4_face.hpp"
@@ -159,7 +160,7 @@ int main(int argc, char** argv) {
         const CapacityMatrix capacity_reference = read_capacity(argv[1]);
         const LoadValues load_reference = read_loads(argv[2]);
         const fuelsim::Hex8Coordinates coordinates = distorted_coordinates();
-        const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
+        const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(coordinates);
         const fuelsim::ThermoelasticProperties properties =
             fuelsim::test::thermoelastic(0.0, 4.0, 2.0e11, 0.25, 0.0, 300.0, 0.0, 0.0, 0.0, 2000.0, 3000.0);
         const fuelsim::IsotropicThermoelasticMaterial material(properties);

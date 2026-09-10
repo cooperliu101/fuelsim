@@ -1,4 +1,5 @@
 #include "cax4rt.hpp"
+#include "cax_common.hpp"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -511,5 +512,11 @@ Cax4Result evaluate_cax4rt(const Cax4Input& input, ElementRequest request) {
     if (!request.history)
         result.history = {};
     return result;
+}
+} // namespace fuelsim::elements
+
+namespace fuelsim::elements {
+Quad4RzGeometry make_cax4rt_geometry(const Quad4Coordinates& coordinates) {
+    return cax4_detail::make_quad4_rz_geometry(coordinates);
 }
 } // namespace fuelsim::elements

@@ -1,5 +1,6 @@
 #pragma once
 #include "c3d8_types.hpp"
+#include "c3d8rt.hpp"
 #include "c3d8t.hpp"
 #include "contact_types.hpp"
 #include "quad4_face.hpp"
@@ -79,7 +80,8 @@ inline fuelsim::ThermoelasticProperties capacity_properties() {
 
 inline bool test_history_geometry(bool reduced) {
     const auto coordinates = unit_cube();
-    const auto geometry = fuelsim::make_hex8_geometry(coordinates);
+    const auto geometry = reduced ? fuelsim::elements::make_c3d8rt_geometry(coordinates)
+                                  : fuelsim::elements::make_c3d8t_geometry(coordinates);
     fuelsim::Hex8LocalValues old{}, state{};
     const double angle = 0.35, c = std::cos(angle), s = std::sin(angle);
     for (std::size_t n = 0; n < 8; ++n) {

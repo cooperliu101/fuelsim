@@ -1,4 +1,5 @@
 #include "c3d8_types.hpp"
+#include "c3d8rt.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
 #include "support/test_support.hpp"
@@ -135,7 +136,7 @@ bool check_case(const std::string& path,
         strain_formulation,
         fuelsim::Hex8ElementFormulation::c3d8rt,
         300.0};
-    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
+    const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8rt_geometry(coordinates);
     fuelsim::Hex8LocalJacobian actual{};
     const fuelsim::Hex8LocalResidual actual_residual =
         fuelsim::compute_c3d8_thermoelastic(data, geometry, base.state, nullptr, 0.0, &actual);
