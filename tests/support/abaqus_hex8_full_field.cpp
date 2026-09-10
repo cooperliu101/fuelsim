@@ -1,5 +1,6 @@
 #include "support/abaqus_hex8_full_field.hpp"
-#include "c3d8_kinematics.hpp"
+#include "c3d8rt.hpp"
+#include "c3d8t.hpp"
 #include "quad4_face_boundary.hpp"
 #include "support/cartesian3d_problem_access.hpp"
 #include "support/field_error_metrics.hpp"
@@ -697,7 +698,6 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem,
     std::vector<IsotropicThermoelasticMaterial> materials;
     for (const RegionDefinition& region : definition.regions)
         materials.emplace_back(region.material);
-    constexpr std::array<std::size_t, 8> gauss_to_material_node = {0, 1, 3, 2, 4, 5, 7, 6};
     double maximum_integration_coordinate_difference = 0.0;
     std::set<std::tuple<std::size_t, std::size_t, std::size_t>> mapped_integration_points;
     for (const IntegrationReference& reference : integration) {
@@ -748,42 +748,14 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem,
             throw std::invalid_argument(options.case_name + " maps two Abaqus rows to one Fuelsim integration point");
         const Hex8QuadraturePoint& point =
             options.reduced_integration ? geometry.reduced_point : geometry.points[closest];
-        Hex8LocalAdValues passive{};
-        for (std::size_t local = 0; local < local_state.size(); ++local)
-            passive[local] = local_state[local];
         const StrainFormulation formulation = definition.regions.at(region).strain_formulation;
-        const C3d8Kinematics kinematics =
-            evaluate_cartesian_incremental_kinematics(point, passive, Hex8LocalValues{}, formulation);
-        double current_volume = geometry.reference_volume;
-        if (formulation == StrainFormulation::finite) {
-            current_volume = 0.0;
-            for (const Hex8QuadraturePoint& volume_point : geometry.points)
-                current_volume +=
-                    evaluate_cartesian_incremental_kinematics(volume_point, passive, Hex8LocalValues{}, formulation)
-                        .current_weighted_measure.value();
-        }
-        double material_temperature = local_state[gauss_to_material_node[closest]];
-        std::array<std::array<double, 3>, 8> thermal_gradient{};
-        if (options.reduced_integration) {
-            material_temperature = 0.0;
-            for (const Hex8QuadraturePoint& volume_point : geometry.points) {
-                const C3d8Kinematics volume_kinematics =
-                    evaluate_cartesian_incremental_kinematics(volume_point, passive, Hex8LocalValues{}, formulation);
-                const double measure = formulation == StrainFormulation::finite
-                                           ? volume_kinematics.current_weighted_measure.value()
-                                           : volume_point.weighted_measure;
-                for (std::size_t local = 0; local < 8; ++local) {
-                    material_temperature += measure * volume_point.shape[local] * local_state[local] / current_volume;
-                    for (std::size_t component = 0; component < 3; ++component)
-                        thermal_gradient[local][component] +=
-                            measure * volume_kinematics.current_gradient[local][component].value() / current_volume;
-                }
-            }
-        } else {
-            for (std::size_t local = 0; local < 8; ++local)
-                for (std::size_t component = 0; component < 3; ++component)
-                    thermal_gradient[local][component] = kinematics.current_gradient[local][component].value();
-        }
+        const auto diagnostics = options.reduced_integration
+                                     ? elements::diagnose_c3d8rt(geometry, local_state, {}, formulation)
+                                     : elements::diagnose_c3d8t(geometry, local_state, {}, formulation);
+        const auto& point_diagnostics = diagnostics.points[closest];
+        const double current_volume = diagnostics.current_volume;
+        const double material_temperature = point_diagnostics.temperature;
+        const auto& thermal_gradient = point_diagnostics.thermal_gradient;
         const double conductivity = materials.at(region)
                                         .conductivity(adlite::Scalar(material_temperature),
                                             {snapshot.time, point.position.x, point.position.y, point.position.z})

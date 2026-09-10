@@ -1,5 +1,5 @@
-#include "c3d8_kinematics.hpp"
 #include "c3d8_types.hpp"
+#include "c3d8t.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
 #include "support/field_error_metrics.hpp"
@@ -239,16 +239,8 @@ int main(int argc, char** argv) {
         std::array<fuelsim::test::FieldErrorMetrics, 6> stress_metrics;
         std::array<fuelsim::test::FieldErrorMetrics, 3> point_coordinate_metrics;
         fuelsim::test::FieldErrorMetrics volume_metrics, point_temperature_metrics;
-        fuelsim::Hex8LocalAdValues passive{};
-        for (std::size_t dof = 0; dof < local_size; ++dof)
-            passive[dof] = state[dof];
-        double current_volume = 0.0;
-        for (const fuelsim::Hex8QuadraturePoint& point : geometry.points)
-            current_volume += fuelsim::evaluate_cartesian_incremental_kinematics(point,
-                passive,
-                fuelsim::Hex8LocalValues{},
-                fuelsim::StrainFormulation::finite)
-                                  .current_weighted_measure.value();
+        const double current_volume =
+            fuelsim::elements::diagnose_c3d8t(geometry, state, {}, fuelsim::StrainFormulation::finite).current_volume;
         std::array<bool, 8> reference_used{};
         for (std::size_t q = 0; q < 8; ++q) {
             const fuelsim::CartesianPoint3 point_position = current_position(geometry.points[q], coordinates, state);

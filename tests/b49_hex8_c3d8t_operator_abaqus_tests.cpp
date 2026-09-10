@@ -1,5 +1,5 @@
-#include "c3d8_kinematics.hpp"
 #include "c3d8_types.hpp"
+#include "c3d8t.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
 #include "support/material_factory.hpp"
@@ -206,9 +206,7 @@ fuelsim::Hex8LocalResidual abaqus_c3d8t_residual(const fuelsim::Hex8Geometry& ge
     fuelsim::Hex8LocalResidual result = fuelsim::compute_c3d8_thermoelastic(data, geometry, state);
     for (std::size_t row = 8; row < local_size; ++row)
         result[row] = 0.0;
-    fuelsim::Hex8LocalAdValues passive{};
-    for (std::size_t dof = 0; dof < local_size; ++dof)
-        passive[dof] = state[dof];
+    const auto diagnostics = fuelsim::elements::diagnose_c3d8t(geometry, state, {}, fuelsim::StrainFormulation::small);
     double volume = 0.0, average_trace = 0.0, average_temperature = 0.0;
     for (std::size_t node = 0; node < 8; ++node)
         average_temperature += state[node] / 8.0;
@@ -216,23 +214,22 @@ fuelsim::Hex8LocalResidual abaqus_c3d8t_residual(const fuelsim::Hex8Geometry& ge
     double element_pressure = 0.0;
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const fuelsim::Hex8QuadraturePoint& point = geometry.points[q];
-        const fuelsim::C3d8Kinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
-            passive,
-            fuelsim::Hex8LocalValues{},
-            fuelsim::StrainFormulation::small);
+        const auto& kinematics = diagnostics.points[static_cast<std::size_t>(&point - geometry.points.data())];
         volume += point.weighted_measure;
-        average_trace += point.weighted_measure
-                         * (kinematics.strain_increment.xx.value() + kinematics.strain_increment.yy.value()
-                             + kinematics.strain_increment.zz.value());
+        average_trace +=
+            point.weighted_measure
+            * (kinematics.strain_increment.xx + kinematics.strain_increment.yy + kinematics.strain_increment.zz);
     }
     average_trace /= volume;
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const fuelsim::Hex8QuadraturePoint& point = geometry.points[q];
-        const fuelsim::C3d8Kinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
-            passive,
-            fuelsim::Hex8LocalValues{},
-            fuelsim::StrainFormulation::small);
-        fuelsim::SymmetricTensor3 selective_strain = kinematics.strain_increment;
+        const auto& kinematics = diagnostics.points[static_cast<std::size_t>(&point - geometry.points.data())];
+        fuelsim::SymmetricTensor3 selective_strain{kinematics.strain_increment.xx,
+            kinematics.strain_increment.yy,
+            kinematics.strain_increment.zz,
+            kinematics.strain_increment.xy,
+            kinematics.strain_increment.yz,
+            kinematics.strain_increment.xz};
         const adlite::Scalar correction =
             (average_trace - selective_strain.xx - selective_strain.yy - selective_strain.zz) / 3.0;
         selective_strain.xx += correction;
@@ -401,22 +398,18 @@ bool compare_integration_points(const NodalStep& base,
     const fuelsim::CartesianRegionData data{material, 0.0, 0.0};
     const std::array<fuelsim::SymmetricTensor3Values, 8> production_stresses =
         fuelsim::compute_c3d8_stress(data, geometry, base.state);
-    fuelsim::Hex8LocalAdValues passive{};
-    for (std::size_t dof = 0; dof < local_size; ++dof)
-        passive[dof] = base.state[dof];
+    const auto diagnostics =
+        fuelsim::elements::diagnose_c3d8t(geometry, base.state, {}, fuelsim::StrainFormulation::small);
     double average_temperature = 0.0;
     for (std::size_t node = 0; node < 8; ++node)
         average_temperature += base.state[node] / 8.0;
     double volume = 0.0, average_trace = 0.0;
     for (const fuelsim::Hex8QuadraturePoint& point : geometry.points) {
-        const fuelsim::C3d8Kinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
-            passive,
-            fuelsim::Hex8LocalValues{},
-            fuelsim::StrainFormulation::small);
+        const auto& kinematics = diagnostics.points[static_cast<std::size_t>(&point - geometry.points.data())];
         volume += point.weighted_measure;
-        average_trace += point.weighted_measure
-                         * (kinematics.strain_increment.xx.value() + kinematics.strain_increment.yy.value()
-                             + kinematics.strain_increment.zz.value());
+        average_trace +=
+            point.weighted_measure
+            * (kinematics.strain_increment.xx + kinematics.strain_increment.yy + kinematics.strain_increment.zz);
     }
     average_trace /= volume;
     double maximum_coordinate_difference = 0.0, maximum_strain_difference = 0.0, maximum_heat_flux_difference = 0.0,
@@ -440,11 +433,13 @@ bool compare_integration_points(const NodalStep& base,
         used[closest] = true;
         maximum_coordinate_difference = std::max(maximum_coordinate_difference, std::sqrt(closest_squared));
         const fuelsim::Hex8QuadraturePoint& point = geometry.points[closest];
-        const fuelsim::C3d8Kinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
-            passive,
-            fuelsim::Hex8LocalValues{},
-            fuelsim::StrainFormulation::small);
-        fuelsim::SymmetricTensor3 selective_strain = kinematics.strain_increment;
+        const auto& kinematics = diagnostics.points[static_cast<std::size_t>(&point - geometry.points.data())];
+        fuelsim::SymmetricTensor3 selective_strain{kinematics.strain_increment.xx,
+            kinematics.strain_increment.yy,
+            kinematics.strain_increment.zz,
+            kinematics.strain_increment.xy,
+            kinematics.strain_increment.yz,
+            kinematics.strain_increment.xz};
         const adlite::Scalar correction =
             (average_trace - selective_strain.xx - selective_strain.yy - selective_strain.zz) / 3.0;
         selective_strain.xx += correction;

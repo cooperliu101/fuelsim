@@ -1,5 +1,4 @@
 #include "c3d8t.hpp"
-#include "c3d8_kinematics.hpp"
 #include "detail/hex8_geometry.hpp"
 
 namespace fuelsim {
@@ -1894,5 +1893,14 @@ C3d8Result evaluate_c3d8t(const C3d8Input& input, ElementRequest request) {
     if (request.stress)
         result.stress = compute_hex8_stress(data, input.geometry, input.state);
     return result;
+}
+} // namespace fuelsim::elements
+
+namespace fuelsim::elements {
+C3d8Diagnostics diagnose_c3d8t(const Hex8Geometry& geometry,
+    const Hex8LocalValues& state,
+    const Hex8LocalValues& committed_state,
+    StrainFormulation strain_formulation) {
+    return element_detail::diagnose_hex8(geometry, state, committed_state, strain_formulation, false);
 }
 } // namespace fuelsim::elements

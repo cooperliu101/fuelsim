@@ -1,6 +1,6 @@
 #include "boundary_types.hpp"
-#include "c3d8_kinematics.hpp"
 #include "c3d8_types.hpp"
+#include "c3d8t.hpp"
 #include "contact_types.hpp"
 #include "quad4_face_boundary.hpp"
 #include "quad4_face_contact.hpp"
@@ -1004,6 +1004,92 @@ bool test_reduced_integration_hourglass_energy() {
     return passed;
 }
 
+bool test_model_diagnostics(bool reduced) {
+    const auto coordinates = unit_cube();
+    const auto geometry = fuelsim::make_hex8_geometry(coordinates);
+    fuelsim::Hex8LocalValues old{}, state{};
+    const double angle = 0.35, c = std::cos(angle), s = std::sin(angle);
+    for (std::size_t n = 0; n < 8; ++n) {
+        const auto& x = coordinates[n];
+        const double ox = 1.1 * x.x, oy = 0.9 * x.y, oz = 1.2 * x.z;
+        const double nx = c * ox - s * oy, ny = s * ox + c * oy;
+        old[8 + n] = ox - x.x;
+        old[16 + n] = oy - x.y;
+        old[24 + n] = oz - x.z;
+        old[n] = 300;
+        state[8 + n] = nx - x.x;
+        state[16 + n] = ny - x.y;
+        state[24 + n] = oz - x.z;
+        state[n] = 300 + 2 * nx + 3 * ny - 4 * oz;
+    }
+    const auto saved_old = old, saved_state = state;
+    const auto diagnose = reduced ? fuelsim::elements::diagnose_c3d8rt : fuelsim::elements::diagnose_c3d8t;
+    const auto result = diagnose(geometry, state, old, fuelsim::StrainFormulation::finite);
+    bool passed =
+        check(result.material_point_count == (reduced ? 1u : 8u) && near(result.current_volume, 1.1 * 0.9 * 1.2, 2e-14)
+                  && near(result.committed_volume, 1.1 * 0.9 * 1.2, 2e-14),
+            "model diagnostics report active material points and both physical volumes");
+    const std::array<double, 9> rotation = {c, -s, 0, s, c, 0, 0, 0, 1};
+    constexpr std::array<std::size_t, 8> gauss_to_node = {0, 1, 3, 2, 4, 5, 7, 6};
+    double average_temperature = 0;
+    for (std::size_t n = 0; n < 8; ++n)
+        average_temperature += state[n] / 8;
+    for (std::size_t q = 0; q < result.material_point_count; ++q) {
+        const auto& point = result.points[q];
+        for (std::size_t j = 0; j < 9; ++j)
+            passed = check(near(point.rotation[j], rotation[j], 2e-14),
+                         "diagnostic rotation is incremental from the committed configuration")
+                     && passed;
+        for (std::size_t d = 0; d < 3; ++d) {
+            double gradient = 0;
+            for (std::size_t n = 0; n < 8; ++n)
+                gradient += point.thermal_gradient[n][d] * state[n];
+            passed = check(near(gradient, std::array<double, 3>{2, 3, -4}[d], 2e-12),
+                         "diagnostic thermal gradient reconstructs an affine current-coordinate temperature")
+                     && passed;
+        }
+        passed = check(near(point.temperature, reduced ? average_temperature : state[gauss_to_node[q]], 2e-12),
+                     "diagnostic temperature follows the selected model rule")
+                 && passed;
+    }
+    for (std::size_t q = result.material_point_count; q < 8; ++q) {
+        passed = check(result.points[q].temperature == 0 && result.points[q].current_weighted_measure == 0,
+                     "inactive diagnostic entries remain unused")
+                 && passed;
+    }
+    auto expanded = state;
+    for (std::size_t n = 0; n < 8; ++n) {
+        expanded[8 + n] = 1.03 * (coordinates[n].x + state[8 + n]) - coordinates[n].x;
+        expanded[16 + n] = 1.03 * (coordinates[n].y + state[16 + n]) - coordinates[n].y;
+        expanded[24 + n] = 1.03 * (coordinates[n].z + state[24 + n]) - coordinates[n].z;
+    }
+    const auto volume = diagnose(geometry, expanded, old, fuelsim::StrainFormulation::finite);
+    passed = check(near(volume.current_volume, 1.1 * 0.9 * 1.2 * 1.03 * 1.03 * 1.03, 2e-14)
+                       && near(volume.committed_volume, 1.1 * 0.9 * 1.2, 2e-14),
+                 "diagnostics distinguish current and committed volumes")
+             && passed;
+    for (int invalid = 0; invalid < 3; ++invalid) {
+        fuelsim::Hex8LocalValues bad{}, reference{};
+        for (std::size_t n = 0; n < 8; ++n) {
+            bad[8 + n] = -2 * coordinates[n].x;
+            if (invalid == 2)
+                bad[16 + n] = -2 * coordinates[n].y;
+        }
+        bool rejected = false;
+        try {
+            (void)diagnose(geometry,
+                invalid == 1 ? reference : bad,
+                invalid == 1 ? bad : reference,
+                fuelsim::StrainFormulation::finite);
+        } catch (const std::domain_error&) {
+            rejected = true;
+        }
+        passed = check(rejected, "diagnostics reject invalid current, committed and midpoint configurations") && passed;
+    }
+    passed = check(state == saved_state && old == saved_old, "diagnostics do not mutate borrowed states") && passed;
+    return passed;
+}
+
 bool test_finite_strain_kinematics_and_coupled_jacobian() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
@@ -1015,20 +1101,15 @@ bool test_finite_strain_kinematics_and_coupled_jacobian() {
         state[16 + node] = (stretch_y - 1.0) * coordinates[node].y;
         state[24 + node] = (stretch_z - 1.0) * coordinates[node].z;
     }
-    fuelsim::Hex8LocalAdValues passive{};
-    for (std::size_t dof = 0; dof < state.size(); ++dof)
-        passive[dof] = state[dof];
-    const fuelsim::C3d8Kinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(geometry.points[0],
-        passive,
-        fuelsim::Hex8LocalValues{},
-        fuelsim::StrainFormulation::finite);
+    const auto diagnostics = fuelsim::elements::diagnose_c3d8t(geometry, state, {}, fuelsim::StrainFormulation::finite);
+    const auto& kinematics = diagnostics.points[0];
     const auto hughes_winget = [](double stretch) {
         return 2.0 * (stretch - 1.0) / (stretch + 1.0);
     };
-    bool passed = check(near(kinematics.strain_increment.xx.value(), hughes_winget(stretch_x), 2.0e-14)
-                            && near(kinematics.strain_increment.yy.value(), hughes_winget(stretch_y), 2.0e-14)
-                            && near(kinematics.strain_increment.zz.value(), hughes_winget(stretch_z), 2.0e-14)
-                            && near(kinematics.current_weighted_measure.value(),
+    bool passed = check(near(kinematics.strain_increment.xx, hughes_winget(stretch_x), 2.0e-14)
+                            && near(kinematics.strain_increment.yy, hughes_winget(stretch_y), 2.0e-14)
+                            && near(kinematics.strain_increment.zz, hughes_winget(stretch_z), 2.0e-14)
+                            && near(kinematics.current_weighted_measure,
                                 geometry.points[0].weighted_measure * stretch_x * stretch_y * stretch_z,
                                 2.0e-14),
         "finite-strain HEX8 recovers the Abaqus Hughes-Winget diagonal increment and current volume measure");
@@ -1553,7 +1634,7 @@ bool test_cartesian_surface_contact_kernels() {
 } // namespace
 
 int run_c3d8t_tests() {
-    bool passed = true;
+    bool passed = test_model_diagnostics(false);
     passed = test_geometry_and_constant_strain() && passed;
     passed = test_distorted_selective_volumetric_integration() && passed;
     passed = test_selective_integration_constrained_face_rank() && passed;
@@ -1570,7 +1651,7 @@ int run_c3d8t_tests() {
 }
 
 int run_c3d8rt_tests() {
-    bool passed = true;
+    bool passed = test_model_diagnostics(true);
     passed = test_reduced_integration_inelastic_jacobian() && passed;
     passed = test_reduced_integration_thermoelastic_capacity_gate() && passed;
     passed = test_reduced_integration_hourglass_energy() && passed;

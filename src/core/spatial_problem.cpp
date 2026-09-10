@@ -1,5 +1,6 @@
-#include "c3d8_kinematics.hpp"
 #include "c3d8_types.hpp"
+#include "c3d8rt.hpp"
+#include "c3d8t.hpp"
 #include "cartesian3d_assembly.hpp"
 #include "cax4rt.hpp"
 #include "cax4t.hpp"
@@ -1632,24 +1633,10 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     conservation.mechanical_hourglass_energy += current_hourglass;
                     conservation.mechanical_hourglass_energy_change += current_hourglass - old_hourglass;
                 }
-                double finite_current_volume = 0.0, finite_old_volume = 0.0;
-                if (_impl->cartesian->region(region).strain_formulation == StrainFormulation::finite) {
-                    Hex8LocalAdValues active_current{}, active_old{};
-                    for (std::size_t local = 0; local < current.size(); ++local) {
-                        active_current[local] = current[local];
-                        active_old[local] = old[local];
-                    }
-                    for (const Hex8QuadraturePoint& point : geometry.points) {
-                        finite_current_volume += evaluate_cartesian_incremental_kinematics(point,
-                            active_current,
-                            old,
-                            StrainFormulation::finite)
-                                                     .current_weighted_measure.value();
-                        finite_old_volume +=
-                            evaluate_cartesian_incremental_kinematics(point, active_old, old, StrainFormulation::finite)
-                                .current_weighted_measure.value();
-                    }
-                }
+                elements::C3d8Diagnostics diagnostics;
+                if (_impl->cartesian->region(region).strain_formulation == StrainFormulation::finite)
+                    diagnostics = reduced ? elements::diagnose_c3d8rt(geometry, current, old, StrainFormulation::finite)
+                                          : elements::diagnose_c3d8t(geometry, current, old, StrainFormulation::finite);
                 for (std::size_t q = 0; q < update.size(); ++q) {
                     const Hex8QuadraturePoint& point = reduced ? geometry.reduced_point : geometry.points[q];
                     const CartesianMaterialPointState &old_history =
@@ -1660,24 +1647,19 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     std::array<double, 6> diagnostic_new_plastic = new_history.plastic_strain;
                     std::array<double, 6> diagnostic_new_creep = new_history.creep_strain;
                     if (_impl->cartesian->region(region).strain_formulation == StrainFormulation::finite) {
-                        Hex8LocalAdValues active_current{};
-                        for (std::size_t local = 0; local < current.size(); ++local)
-                            active_current[local] = current[local];
-                        const C3d8Kinematics kinematics = evaluate_cartesian_incremental_kinematics(point,
-                            active_current,
-                            old,
-                            StrainFormulation::finite);
-                        current_measure = point.weighted_measure / geometry.reference_volume * finite_current_volume;
-                        old_measure = point.weighted_measure / geometry.reference_volume * finite_old_volume;
-                        const CartesianRotation inverse_rotation = {kinematics.rotation.xx,
-                            kinematics.rotation.yx,
-                            kinematics.rotation.zx,
-                            kinematics.rotation.xy,
-                            kinematics.rotation.yy,
-                            kinematics.rotation.zy,
-                            kinematics.rotation.xz,
-                            kinematics.rotation.yz,
-                            kinematics.rotation.zz};
+                        current_measure =
+                            point.weighted_measure / geometry.reference_volume * diagnostics.current_volume;
+                        old_measure = point.weighted_measure / geometry.reference_volume * diagnostics.committed_volume;
+                        const auto& rotation = diagnostics.points[q].rotation;
+                        const CartesianRotation inverse_rotation = {rotation[0],
+                            rotation[3],
+                            rotation[6],
+                            rotation[1],
+                            rotation[4],
+                            rotation[7],
+                            rotation[2],
+                            rotation[5],
+                            rotation[8]};
                         diagnostic_new_stress = cartesian::rotate_tensor_values(new_history.stress, inverse_rotation);
                         diagnostic_new_plastic = cartesian::components(
                             cartesian::rotate_tensor_values(new_history.plastic_strain, inverse_rotation));

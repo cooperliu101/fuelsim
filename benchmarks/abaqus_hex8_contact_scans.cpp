@@ -1,4 +1,4 @@
-#include "c3d8_kinematics.hpp"
+#include "c3d8t.hpp"
 #include "contact_types.hpp"
 #include "solver/solve_workflows.hpp"
 // Offline parameter studies only; registered acceptance paths run fuelsim -i.
@@ -1542,20 +1542,10 @@ int main(int argc, char** argv) {
             }
             maximum_coordinate_difference = std::max(maximum_coordinate_difference, std::sqrt(closest_squared));
             const fuelsim::Hex8QuadraturePoint& point = geometry.points[closest];
-            fuelsim::Hex8LocalAdValues passive{};
-            for (std::size_t local = 0; local < local_state.size(); ++local)
-                passive[local] = local_state[local];
-            const fuelsim::C3d8Kinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
-                passive,
-                fuelsim::Hex8LocalValues{},
-                fuelsim::StrainFormulation::finite);
-            double current_volume = 0.0;
-            for (const fuelsim::Hex8QuadraturePoint& volume_point : geometry.points)
-                current_volume += fuelsim::evaluate_cartesian_incremental_kinematics(volume_point,
-                    passive,
-                    fuelsim::Hex8LocalValues{},
-                    fuelsim::StrainFormulation::finite)
-                                      .current_weighted_measure.value();
+            const auto diagnostics =
+                fuelsim::elements::diagnose_c3d8t(geometry, local_state, {}, fuelsim::StrainFormulation::finite);
+            const auto& kinematics = diagnostics.points[closest];
+            const double current_volume = diagnostics.current_volume;
             const double material_temperature = local_state[gauss_to_material_node[closest]];
             const fuelsim::IsotropicThermoelasticMaterial& constitutive =
                 region == 0 ? primary_constitutive : secondary_constitutive;
@@ -1567,7 +1557,7 @@ int main(int argc, char** argv) {
             for (std::size_t node = 0; node < 8; ++node)
                 for (std::size_t component = 0; component < 3; ++component)
                     heat_flux[component] -=
-                        conductivity * kinematics.current_gradient[node][component].value() * local_state[node];
+                        conductivity * kinematics.thermal_gradient[node][component] * local_state[node];
             const fuelsim::CartesianMaterialPointState& material =
                 snapshot.material.at(reference.element - 1).at(closest);
             const std::array<double, 6> actual_stress = components(material.stress);
