@@ -1,7 +1,7 @@
 # 轴对称生产输入性能与 Abaqus 验证
 
 原 `fuelsim_m1_single_core_benchmark` 已删除，现使用 `fuelsim -i` 运行完整输入卡。
-本模型检查稳态热弹性接触，不包含塑性、蠕变或有限应变。
+基础版本检查小应变稳态热弹性接触，不包含塑性或蠕变；有限应变 CAX4T 版本及其未通过的精度结果见文末。
 
 | 输入 | 芯块径向×轴向 | 包壳径向×轴向 | 单元数 | 节点数 | 自由度数 |
 |---|---:|---:|---:|---:|---:|
@@ -512,3 +512,57 @@ Fuelsim 外部耗时少 **49.06%**，耗时比为 **1.96**。
 不参与统计。原 CAX4T、CAX4RT、CAX8T 精度检查复查仍通过。只比较最终状态，
 未修改生产数值代码，未增加重复自动回归。原始证据见
 [`medium_cax8rt/summary.json`](medium_cax8rt/summary.json)。
+
+
+## 中等规模 CAX4T 有限应变对比（2026-09-10）
+
+**精度尚未通过，不列为已鉴定算例。** 两套程序均完成 20 个固定加载增量，
+但最终场不满足既有 0.01% 门槛。没有修改单元数值实现、物理参数或误差门槛。
+
+新增 `steady_rz_performance_medium_cax4t_finite.fsi` 和对应 `_timing.fsi`。
+沿用原 CAX4T 中等规模网格：7,424 个单元、7,670 个节点、23,010 个自由度。
+两个区域均改为 `strain = finite`，Abaqus 设置 `nlgeom=YES`；材料、接触、
+载荷、20 个增量、MUMPS、载荷预测和求解器容差保持不变。
+
+```bash
+build/fuelsim -i verification/fuelsim/steady_rz_performance_medium_cax4t_finite.fsi
+python benchmarks/run_rz_performance.py --size medium --element cax4t --strain finite \
+  --results-directory verification/abaqus/rz_performance/medium_cax4t_finite \
+  --windows-source '\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\rz_performance' \
+  --windows-results '\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\rz_performance\medium_cax4t_finite'
+```
+
+重复测量时选择新的结果目录。Abaqus 参考使用 `run.ps1 -Size medium -Element cax4t
+-Strain finite` 且不带 `-Timing` 重新生成。比较脚本不变，使用 `--element cax4t`。
+单进程、单线程、逻辑 CPU 0、ADlite 0.2.3 SIMD 开启、关闭结果输出，各预热一次后
+正式测量两次，得到以下实际耗时：
+
+| 程序 | 第一次外部耗时 | 第二次外部耗时 | 外部耗时均值 | 内部求解或分析均值 | 非线性迭代数 |
+|---|---:|---:|---:|---:|---:|
+| Fuelsim | 28.4315 s | 28.5623 s | **28.4969 s** | 28.0025 s | 46 |
+| Abaqus | 43.7750 s | 45.8381 s | **44.8066 s** | 39.5000 s | 53 |
+
+本批外部耗时比为 1.57，Fuelsim 实际耗时少
+36.40%。由于精度未通过，这不是精度达标后的性能结论。
+WSL/Windows 跨平台、启动开销以及逻辑 CPU 编号的限制仍适用。
+
+最终场检查覆盖全部节点、29,696 个材料积分点和 65 个接触节点；最大逐点误差如下：
+
+| 比较量 | 最大逐点相对误差 | 原 0.01% 门槛 |
+|---|---:|---|
+| 温度 | 0.011720% | 未通过 |
+| 自由位移向量 | 0.079766% | 未通过 |
+| 应力张量 | 0.773119% | 未通过 |
+| 接触压力 | 0.159140% | 未通过 |
+| 接触间隙 | 0.159140% | 未通过 |
+| 节点法向反力 | 0.159157% | 未通过 |
+| 接触总反力 | 0.049146% | 未通过 |
+
+规定零位移的绝对误差检查通过。65 个接触节点全部活跃，Fuelsim 法向反力合计约
+667.46 N。最大应力误差位于芯块第 6001 单元的 Abaqus 第 2 积分点，参考张量
+范数约 9.44 MPa、差值约 0.0730 MPa；不是零参考值舍入造成的误差。该 0.7731%
+最大应力误差也超过轴对称既有 0.5% 逐点门槛。差异原因尚未定位，不作原因推断。
+
+原始日志、独立 Abaqus 参考、完整误差指标和最大应力点信息保存在
+[`medium_cax4t_finite/`](medium_cax4t_finite/summary.json)。本次增加的是手动对比输入与
+未通过结果记录，没有把未通过算例加入自动回归，也没有放宽任何验收条件。

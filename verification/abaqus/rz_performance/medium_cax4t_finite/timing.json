@@ -1,0 +1,62 @@
+[
+  {
+    "solver": "fuelsim",
+    "size": "medium",
+    "run": 0,
+    "warmup": true,
+    "external_wall_seconds": 28.855545995000284,
+    "solver_internal_seconds": 28.161722225,
+    "nonlinear_iterations": 46,
+    "cpu": 0
+  },
+  {
+    "solver": "fuelsim",
+    "size": "medium",
+    "run": 1,
+    "warmup": false,
+    "external_wall_seconds": 28.431546117004473,
+    "solver_internal_seconds": 27.930082678,
+    "nonlinear_iterations": 46,
+    "cpu": 0
+  },
+  {
+    "solver": "fuelsim",
+    "size": "medium",
+    "run": 2,
+    "warmup": false,
+    "external_wall_seconds": 28.562346100981813,
+    "solver_internal_seconds": 28.07498301,
+    "nonlinear_iterations": 46,
+    "cpu": 0
+  },
+  {
+    "solver": "abaqus",
+    "size": "medium",
+    "run": 0,
+    "warmup": true,
+    "external_wall_seconds": 43.833251,
+    "analysis_wall_seconds": 39.0,
+    "nonlinear_iterations": 53,
+    "cpu": 0
+  },
+  {
+    "solver": "abaqus",
+    "size": "medium",
+    "run": 1,
+    "warmup": false,
+    "external_wall_seconds": 43.775036,
+    "analysis_wall_seconds": 39.0,
+    "nonlinear_iterations": 53,
+    "cpu": 0
+  },
+  {
+    "solver": "abaqus",
+    "size": "medium",
+    "run": 2,
+    "warmup": false,
+    "external_wall_seconds": 45.838116,
+    "analysis_wall_seconds": 40.0,
+    "nonlinear_iterations": 53,
+    "cpu": 0
+  }
+]

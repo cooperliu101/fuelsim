@@ -1,0 +1,30 @@
+{
+  "git_revision": "67f18991cae3cdf58910163543e30f349afeb15b",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "sizes": [
+    "medium"
+  ],
+  "element": "cax4t",
+  "strain": "finite",
+  "sha256": {
+    "build/fuelsim": "d4ae6f0665cef98017cf9f11c4c04bd85c051d1ce6ff9f21949dd4b5dd404c8d",
+    "benchmarks/run_rz_performance.py": "27b4ab8a2784ae3253fc0b5e74991c52e70caf98924f02aa9e99d61df8291909",
+    "verification/abaqus/rz_performance/run.ps1": "2cf458ef6c9b56c9173f60efd9dff700cde71a89dc185c572b458128650ec349",
+    "verification/abaqus/rz_performance/compare.py": "bab041ef79abd0cd02ef25802943132380a7877b9b8954a03f262745aeace191",
+    "verification/abaqus/rz_performance/material_contact.inc": "750d4945e330983e8d84d6cafceccf2a12b4b6291547fef0dd3ce946a3ab7efe",
+    "verification/fuelsim/steady_rz_performance_medium_cax4t_finite.fsi": "6d716f6dfbb5293145f2b2334fb81f92f80e3f75634893454c56e137427162ad",
+    "verification/fuelsim/steady_rz_performance_medium_cax4t_finite_timing.fsi": "30dfc8b540e1a64fdea2eb24fe9939aeaa7a8dd56ab9f12ca6d307c0e0b2e6b6",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax4t_finite.inp": "a92f014047e575eb6109c47b2b79d21d93fe28644c7ac778387d651589cfd626",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax4t_finite_timing.inp": "c4f6bfae37899e08033f07cd02ead34fd5d7cd02ad2daaac412157471254eb6e",
+    "verification/abaqus/rz_performance/rz_performance_medium_mesh.inc": "6f85d8fc0535c50b2c5ad5ce5cfc0c9bd5e9a479817ccf723817046141be1198",
+    "verification/meshes/rz_performance_medium.e": "2474721e4e17738601bc750f81dd678fde7be16aba621477b083f46af824b8c7"
+  },
+  "accuracy_sha256": {
+    "verification/abaqus/rz_performance/medium_cax4t_finite/rz_performance_medium_cax4t_finite_nodes.csv.gz": "16ed33d61b7a71fb2b994c8243ae018c8c17de836b730040079eba528e5b6a6d",
+    "verification/abaqus/rz_performance/medium_cax4t_finite/rz_performance_medium_cax4t_finite_points.csv.gz": "b704cec8414bc0c43ca81a7d09a1733dc39c33075e2e7b657ef79fc2edc6a538",
+    "verification/abaqus/rz_performance/medium_cax4t_finite/rz_performance_medium_cax4t_finite_contact.csv.gz": "c13be13782940d16ed2e8ff3ae1637814a75aa813e2a4b5a53ef4d099da0913c",
+    "/tmp/rz-medium-cax4t-finite-accuracy/fuelsim/steady_rz_performance_medium_cax4t_finite_results.e": "0aa96da10842905f9d197c21a3a4365b6467a760933263655a7b6465dbc21bdf",
+    "verification/abaqus/rz_performance/extract_results.py": "4a95c614092cf6c427ba9174c5c18a9e538d5ec4c7c3678eddf09371933d5c24"
+  },
+  "source_state": "Existing executable unchanged. New explicit finite-strain inputs and runner strain option were in the worktree at measurement; all measured inputs, executable and runner are hashed."
+}

@@ -19,10 +19,13 @@ REFERENCE=ROOT/'verification/abaqus/rz_performance'
 
 
 def run(fuelsim, powershell, windows_source, cpu, resume=False, sizes=('medium','large'),
-        results=REFERENCE, windows_results=None, element="cax4t"):
+        results=REFERENCE, windows_results=None, element="cax4t", strain="small"):
     if element != "cax4t" and tuple(sizes) != ("medium",):
         raise ValueError("This element model has only a medium input")
-    variant = "_"+element if element != "cax4t" else ""
+    if strain == "finite" and (element != "cax4t" or tuple(sizes) != ("medium",)):
+        raise ValueError("Finite strain has only a medium CAX4T input")
+    mesh_variant = "_"+element if element != "cax4t" else ""
+    variant = "_cax4t_finite" if strain == "finite" else mesh_variant
     results.mkdir(parents=True,exist_ok=True)
     if results.resolve()!=REFERENCE.resolve() and not windows_results:
         raise ValueError('--windows-results is required for a separate results directory')
@@ -42,6 +45,8 @@ def run(fuelsim, powershell, windows_source, cpu, resume=False, sizes=('medium',
             raise RuntimeError('Cannot resume with a different executable')
         if provenance.get('element', 'cax4t') != element:
             raise RuntimeError('Cannot resume a different element model')
+        if provenance.get('strain', 'small') != strain:
+            raise RuntimeError('Cannot resume a different strain formulation')
         if 'sizes' in provenance and list(sizes)!=provenance['sizes']:
             raise RuntimeError('Cannot resume a different case selection')
     else:
@@ -51,10 +56,11 @@ def run(fuelsim, powershell, windows_source, cpu, resume=False, sizes=('medium',
             paths.extend([ROOT/'verification/fuelsim'/('steady_rz_performance_'+size+variant+suffix+'.fsi')
                           for suffix in ('','_timing')])
             paths.extend([REFERENCE/('rz_performance_'+size+variant+suffix) for suffix in
-                          ('.inp','_timing.inp','_mesh.inc')])
+                          ('.inp','_timing.inp')])
+            paths.append(REFERENCE/('rz_performance_'+size+mesh_variant+'_mesh.inc'))
             paths.append(ROOT/'verification/meshes'/('rz_performance_'+size+('_cax8t' if element in ('cax8t','cax8rt') else '')+'.e'))
         provenance=dict(git_revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
-                        platform=platform.platform(),sizes=list(sizes),element=element,
+                        platform=platform.platform(),sizes=list(sizes),element=element,strain=strain,
                         sha256={str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p):
                                 hashlib.sha256(p.read_bytes()).hexdigest() for p in paths})
         (results/'provenance.json').write_text(json.dumps(provenance,indent=2)+'\n')
@@ -87,7 +93,7 @@ def run(fuelsim, powershell, windows_source, cpu, resume=False, sizes=('medium',
         if not (resume and completed_files):
             with (results/('abaqus_'+size+'_timing_launcher.log')).open('w') as output:
                 subprocess.run([powershell,'-NoProfile','-ExecutionPolicy','Bypass','-File',windows_source+r'\run.ps1',
-                                '-SourceDirectory',windows_source,'-Size',size,'-Element',element,'-Timing','-Runs','3',
+                                '-SourceDirectory',windows_source,'-Size',size,'-Element',element,'-Strain',strain,'-Timing','-Runs','3',
                                 '-ResultsDirectory',windows_results or windows_source],stdout=output,stderr=subprocess.STDOUT,check=True)
         for repeat in range(3):
             if recorded('abaqus',size,repeat):continue
@@ -109,10 +115,11 @@ if __name__=='__main__':
     p.add_argument('--powershell',default='/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe')
     p.add_argument('--windows-source',required=True);p.add_argument('--cpu',type=int,default=0)
     p.add_argument('--resume',action='store_true')
+    p.add_argument('--strain',choices=('small','finite'),default='small')
     p.add_argument('--element',choices=('cax4t','cax4rt','cax8t','cax8rt'),default='cax4t')
     p.add_argument('--size',choices=('medium','large','both'),default='both')
     p.add_argument('--results-directory',type=Path,default=REFERENCE)
     p.add_argument('--windows-results')
     a=p.parse_args();run(a.fuelsim.resolve(),a.powershell,a.windows_source,a.cpu,a.resume,
                         ('medium','large') if a.size=='both' else (a.size,),
-                        a.results_directory.resolve(),a.windows_results,a.element)
+                        a.results_directory.resolve(),a.windows_results,a.element,a.strain)

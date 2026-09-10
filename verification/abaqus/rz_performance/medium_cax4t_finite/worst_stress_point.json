@@ -1,0 +1,28 @@
+{
+  "element": 6001,
+  "abaqus_point": 2,
+  "abaqus_position_r_m": 3.254270013804791e-05,
+  "abaqus_position_z_m": 0.009417858324606886,
+  "relative_error_percent": 0.7731185242373623,
+  "absolute_tensor_error_pa": 73017.57704515436,
+  "reference_tensor_norm_pa": 9444551.48286378,
+  "peak_reference_tensor_norm_pa": 268086737.3782468,
+  "fuelsim_stress_pa": [
+    -344486.0905228182,
+    -9361805.952452553,
+    992508.2129788778,
+    -332838.7703485782
+  ],
+  "abaqus_stress_pa": [
+    -395628.31319771986,
+    -9377209.640151747,
+    942726.1521679321,
+    -333344.9541575154
+  ],
+  "component_order": [
+    "rr",
+    "zz",
+    "hoop",
+    "rz"
+  ]
+}

@@ -2,9 +2,11 @@ param([Parameter(Mandatory=$true)][string]$SourceDirectory,
       [ValidateSet('medium','large')][string]$Size='medium',
       [switch]$Timing, [int]$Runs=1,
       [ValidateSet('cax4t','cax4rt','cax8t','cax8rt')][string]$Element='cax4t',
+      [ValidateSet('small','finite')][string]$Strain='small',
       [string]$ResultsDirectory='')
 $ErrorActionPreference='Stop'
 if ($Element -ne 'cax4t' -and $Size -ne 'medium') { throw 'This element model has only a medium input' }
+if ($Strain -eq 'finite' -and ($Size -ne 'medium' -or $Element -ne 'cax4t')) { throw 'Finite strain has only a medium CAX4T input' }
 if (!$ResultsDirectory) { $ResultsDirectory = $SourceDirectory }
 New-Item -ItemType Directory -Force -Path $ResultsDirectory | Out-Null
 [System.Diagnostics.Process]::GetCurrentProcess().ProcessorAffinity = [IntPtr]1
@@ -18,6 +20,7 @@ Copy-Item (Join-Path $SourceDirectory '*.inp') $Work
 Copy-Item (Join-Path $SourceDirectory 'extract_results.py') $Work
 $Job='rz_performance_'+$Size
 if ($Element -ne 'cax4t') { $Job += '_'+$Element }
+if ($Strain -eq 'finite') { $Job += '_cax4t_finite' }
 if ($Timing) { $Job += '_timing' }
 Write-Output "work_directory=$Work"
 Push-Location $Work
