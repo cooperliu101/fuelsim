@@ -1,6 +1,5 @@
 #pragma once
-#include "axisymmetric_types.hpp"
-#include "cartesian_types.hpp"
+#include "material_types.hpp"
 #include <adlite/adlite.hpp>
 #include <array>
 #include <memory>

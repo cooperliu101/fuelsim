@@ -1,7 +1,7 @@
 #include "c3d8_types.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
-#include "support/material_factory.hpp"
+#include "support/test_support.hpp"
 #include <array>
 #include <cmath>
 #include <fstream>

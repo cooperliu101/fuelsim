@@ -2,10 +2,9 @@
 #include "contact_types.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
-#include "quad4_face_boundary.hpp"
-#include "quad4_face_contact.hpp"
+#include "quad4_face.hpp"
 
-#include "support/material_factory.hpp"
+#include "support/test_support.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>

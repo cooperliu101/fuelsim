@@ -1,14 +1,14 @@
 #include "cax4rt.hpp"
 
-#include "axisymmetric_types.hpp"
 #include "core/mesh.hpp"
 #include "core/spatial_definition.hpp"
 #include "core/spatial_layout.hpp"
 #include "core/steady_problem.hpp"
 #include "material.hpp"
-#include "support/material_factory.hpp"
+#include "material_types.hpp"
 #include "support/mesh_fixture.hpp"
 #include "support/rz_problem_access.hpp"
+#include "support/test_support.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -458,5 +458,3 @@ int main() {
     std::cout << "[PASS] fuelsim core geometry, DOF, and AD Jacobian tests\n";
     return 0;
 }
-
-#include "axisymmetric_types.hpp"

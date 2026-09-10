@@ -1,6 +1,5 @@
 #include "cax8rt.hpp"
-#include "detail/cax8_assembly.hpp"
-#include "detail/cax8_geometry.hpp"
+#include "cax_common.hpp"
 #include <stdexcept>
 
 namespace fuelsim::elements {

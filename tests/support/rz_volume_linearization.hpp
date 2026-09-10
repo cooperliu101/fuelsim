@@ -1,7 +1,7 @@
 #pragma once
 #include "core/cax4_evaluation.hpp"
 #include "core/element_region_data.hpp"
-#include "support/rz_linearization.hpp"
+#include "support/test_support.hpp"
 
 namespace fuelsim::rz {
 inline LocalLinearization linearize_cax4_thermoelastic(const AxisymmetricRegionData& data,

@@ -1,10 +1,10 @@
-#include "axisymmetric_types.hpp"
 #include "core/cax4_evaluation.hpp"
 #include "core/transient_problem.hpp"
 #include "material.hpp"
-#include "support/material_factory.hpp"
+#include "material_types.hpp"
 #include "support/mesh_fixture.hpp"
 #include "support/rz_problem_access.hpp"
+#include "support/test_support.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>

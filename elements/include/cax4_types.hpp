@@ -1,5 +1,4 @@
 #pragma once
-#include "coordinates.hpp"
 #include "element_types.hpp"
 #include "material.hpp"
 #include <array>

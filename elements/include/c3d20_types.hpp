@@ -1,8 +1,7 @@
 #pragma once
-#include "cartesian_types.hpp"
-#include "coordinates.hpp"
 #include "element_types.hpp"
 #include "material.hpp"
+#include "material_types.hpp"
 #include <array>
 #include <vector>
 

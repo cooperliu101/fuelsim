@@ -14,33 +14,18 @@ add_library(fuelsim_elements
     src/c3d20t.cpp
     src/c3d8rt.cpp
     src/c3d8t.cpp
+    src/c3d_common.cpp
     src/cax4rt.cpp
     src/cax4t.cpp
     src/cax8rt.cpp
     src/cax8t.cpp
-    src/detail/c3d20_assembly.cpp
-    src/detail/c3d20_geometry.cpp
-    src/detail/c3d20_kinematics.cpp
-    src/detail/c3d8_diagnostics.cpp
-    src/detail/c3d8_geometry.cpp
-    src/detail/c3d8_kinematics.cpp
-    src/detail/cartesian_kinematics.cpp
-    src/detail/cartesian_material.cpp
-    src/detail/cax4_geometry.cpp
-    src/detail/cax8_assembly.cpp
-    src/detail/cax8_geometry.cpp
-    src/detail/cax8_kinematics.cpp
-    src/detail/matrix3.cpp
-    src/line2_rz_boundary.cpp
-    src/line2_rz_contact.cpp
-    src/line3_rz_boundary.cpp
-    src/line3_rz_contact.cpp
+    src/cax_common.cpp
+    src/line2_rz.cpp
+    src/line3_rz.cpp
     src/material.cpp
     src/material_functions.cpp
-    src/quad4_face_boundary.cpp
-    src/quad4_face_contact.cpp
-    src/quad8_face_boundary.cpp
-    src/quad8_face_contact.cpp
+    src/quad4_face.cpp
+    src/quad8_face.cpp
 )
 add_library(fuelsim::elements ALIAS fuelsim_elements)
 target_compile_features(fuelsim_elements PUBLIC cxx_std_17)
@@ -60,11 +45,11 @@ endfunction()
 fuelsim_element_warnings(fuelsim_elements)
 
 if(BUILD_TESTING)
-    add_test(NAME fuelsim_element_detail_boundaries
+    add_test(NAME fuelsim_element_library_boundaries
         COMMAND ${CMAKE_COMMAND}
             -DELEMENTS_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
             -DFUELSIM_SOURCE_DIR=${CMAKE_SOURCE_DIR}
-            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/detail_boundaries.cmake)
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/library_boundaries.cmake)
     function(fuelsim_add_element_test name source)
         add_executable(${name} tests/${source})
         target_link_libraries(${name} PRIVATE fuelsim_elements_test_support)
@@ -75,11 +60,7 @@ if(BUILD_TESTING)
             add_test(NAME ${name} COMMAND ${name})
         endif()
     endfunction()
-    add_library(fuelsim_elements_test_support STATIC
-        tests/support/cax4_contracts.cpp
-        tests/support/cax8_contracts.cpp
-        tests/support/c3d8_contracts.cpp
-        tests/support/c3d20_contracts.cpp)
+    add_library(fuelsim_elements_test_support STATIC tests/support/cax8_common_tests.cpp)
     target_link_libraries(fuelsim_elements_test_support PUBLIC fuelsim::elements)
     target_include_directories(fuelsim_elements_test_support PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")
     fuelsim_element_warnings(fuelsim_elements_test_support)
@@ -91,5 +72,8 @@ if(BUILD_TESTING)
     fuelsim_add_element_test(fuelsim_c3d8rt_tests c3d8rt_tests.cpp)
     fuelsim_add_element_test(fuelsim_c3d20t_tests c3d20t_tests.cpp)
     fuelsim_add_element_test(fuelsim_c3d20rt_tests c3d20rt_tests.cpp)
-    fuelsim_add_element_test(fuelsim_axisymmetric_interface_tests axisymmetric_interface_tests.cpp)
+    fuelsim_add_element_test(fuelsim_line2_rz_tests line2_rz_tests.cpp)
+    fuelsim_add_element_test(fuelsim_line3_rz_tests line3_rz_tests.cpp)
+    fuelsim_add_element_test(fuelsim_quad4_face_tests quad4_face_tests.cpp)
+    fuelsim_add_element_test(fuelsim_quad8_face_tests quad8_face_tests.cpp)
 endif()

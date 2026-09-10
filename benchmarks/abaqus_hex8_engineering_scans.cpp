@@ -3,7 +3,7 @@
 // Offline mesh/time/penalty studies only; the medium CTest runs fuelsim -i.
 #include "support/abaqus_hex8_full_field.hpp"
 #include "support/cartesian3d_problem_access.hpp"
-#include "support/material_factory.hpp"
+#include "support/test_support.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>

@@ -2,8 +2,9 @@
 #include "c3d8t.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
+#include "support/c3d_recovery.hpp"
 #include "support/field_error_metrics.hpp"
-#include "support/material_factory.hpp"
+#include "support/test_support.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -240,7 +241,7 @@ int main(int argc, char** argv) {
         std::array<fuelsim::test::FieldErrorMetrics, 3> point_coordinate_metrics;
         fuelsim::test::FieldErrorMetrics volume_metrics, point_temperature_metrics;
         const double current_volume =
-            fuelsim::elements::diagnose_c3d8t(geometry, state, {}, fuelsim::StrainFormulation::finite).current_volume;
+            fuelsim::test::recover_c3d8t(geometry, state, {}, fuelsim::StrainFormulation::finite).current_volume;
         std::array<bool, 8> reference_used{};
         for (std::size_t q = 0; q < 8; ++q) {
             const fuelsim::CartesianPoint3 point_position = current_position(geometry.points[q], coordinates, state);

@@ -1,7 +1,6 @@
 #include "c3d8_types.hpp"
 #include "contact_types.hpp"
-#include "quad4_face_boundary.hpp"
-#include "quad4_face_contact.hpp"
+#include "quad4_face.hpp"
 
 #include <algorithm>
 #include <array>

@@ -357,7 +357,7 @@ RZ 假定：
 
 ### 4.1 局部贡献宽度
 
-`elements/include/axisymmetric_types.hpp` 继续把 RZ 具体贡献固定为 12 个自由度，但
+`elements/include/cax4_types.hpp` 将四节点 RZ 具体贡献固定为 12 个自由度，但
 阶段 A 已将它移出 `NonlinearProblem`、PETSc 残量回调、Jacobian 回调和公共
 方向导数端口。RZ 后端通过一次适配把定长结果写入运行时工作区。
 

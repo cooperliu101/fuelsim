@@ -1,9 +1,9 @@
 #pragma once
-#include "axisymmetric_types.hpp"
 #include "cax4_types.hpp"
 #include "cax4rt.hpp"
 #include "cax4t.hpp"
 #include "core/element_region_data.hpp"
+#include "material_types.hpp"
 #include <stdexcept>
 
 namespace fuelsim {

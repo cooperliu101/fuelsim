@@ -2,7 +2,8 @@
 #include "c3d8t.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
-#include "support/material_factory.hpp"
+#include "support/c3d_recovery.hpp"
+#include "support/test_support.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -206,7 +207,7 @@ fuelsim::Hex8LocalResidual abaqus_c3d8t_residual(const fuelsim::Hex8Geometry& ge
     fuelsim::Hex8LocalResidual result = fuelsim::compute_c3d8_thermoelastic(data, geometry, state);
     for (std::size_t row = 8; row < local_size; ++row)
         result[row] = 0.0;
-    const auto diagnostics = fuelsim::elements::diagnose_c3d8t(geometry, state, {}, fuelsim::StrainFormulation::small);
+    const auto diagnostics = fuelsim::test::recover_c3d8t(geometry, state, {}, fuelsim::StrainFormulation::small);
     double volume = 0.0, average_trace = 0.0, average_temperature = 0.0;
     for (std::size_t node = 0; node < 8; ++node)
         average_temperature += state[node] / 8.0;
@@ -398,8 +399,7 @@ bool compare_integration_points(const NodalStep& base,
     const fuelsim::CartesianRegionData data{material, 0.0, 0.0};
     const std::array<fuelsim::SymmetricTensor3Values, 8> production_stresses =
         fuelsim::compute_c3d8_stress(data, geometry, base.state);
-    const auto diagnostics =
-        fuelsim::elements::diagnose_c3d8t(geometry, base.state, {}, fuelsim::StrainFormulation::small);
+    const auto diagnostics = fuelsim::test::recover_c3d8t(geometry, base.state, {}, fuelsim::StrainFormulation::small);
     double average_temperature = 0.0;
     for (std::size_t node = 0; node < 8; ++node)
         average_temperature += base.state[node] / 8.0;

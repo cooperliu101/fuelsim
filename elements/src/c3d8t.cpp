@@ -1,9 +1,6 @@
 #include "c3d8t.hpp"
-#include "detail/ad_local_system.hpp"
-#include "detail/c3d8_diagnostics.hpp"
-#include "detail/c3d8_geometry.hpp"
-#include "detail/c3d8_kinematics.hpp"
-#include "detail/cartesian_material.hpp"
+#include "ad_local_system.hpp"
+#include "c3d_common.hpp"
 #include <cmath>
 #include <stdexcept>
 #include <string>
@@ -1864,9 +1861,6 @@ compute_hex8_stress(const elements::C3d8Input& data, const Hex8Geometry& geometr
 } // namespace
 } // namespace fuelsim
 
-#include "c3d8t.hpp"
-#include <stdexcept>
-
 namespace fuelsim::elements {
 C3d8Result evaluate_c3d8t(const C3d8Input& input, ElementRequest request) {
     const auto& data = input;
@@ -1898,17 +1892,10 @@ C3d8Result evaluate_c3d8t(const C3d8Input& input, ElementRequest request) {
             input.committed_state,
             *input.committed_history,
             input.time_step);
+    if (request.history && input.committed_history)
+        c3d8_detail::set_history_geometry(input, false, result);
     if (request.stress)
         result.stress = compute_hex8_stress(data, input.geometry, input.state);
     return result;
-}
-} // namespace fuelsim::elements
-
-namespace fuelsim::elements {
-C3d8Diagnostics diagnose_c3d8t(const Hex8Geometry& geometry,
-    const Hex8LocalValues& state,
-    const Hex8LocalValues& committed_state,
-    StrainFormulation strain_formulation) {
-    return c3d8_detail::diagnose_hex8(geometry, state, committed_state, strain_formulation, false);
 }
 } // namespace fuelsim::elements

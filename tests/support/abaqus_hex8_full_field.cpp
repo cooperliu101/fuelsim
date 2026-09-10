@@ -1,7 +1,8 @@
 #include "support/abaqus_hex8_full_field.hpp"
 #include "c3d8rt.hpp"
 #include "c3d8t.hpp"
-#include "quad4_face_boundary.hpp"
+#include "quad4_face.hpp"
+#include "support/c3d_recovery.hpp"
 #include "support/cartesian3d_problem_access.hpp"
 #include "support/field_error_metrics.hpp"
 #include <algorithm>
@@ -750,8 +751,8 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem,
             options.reduced_integration ? geometry.reduced_point : geometry.points[closest];
         const StrainFormulation formulation = definition.regions.at(region).strain_formulation;
         const auto diagnostics = options.reduced_integration
-                                     ? elements::diagnose_c3d8rt(geometry, local_state, {}, formulation)
-                                     : elements::diagnose_c3d8t(geometry, local_state, {}, formulation);
+                                     ? test::recover_c3d8rt(geometry, local_state, {}, formulation)
+                                     : test::recover_c3d8t(geometry, local_state, {}, formulation);
         const auto& point_diagnostics = diagnostics.points[closest];
         const double current_volume = diagnostics.current_volume;
         const double material_temperature = point_diagnostics.temperature;

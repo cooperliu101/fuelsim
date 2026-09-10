@@ -1601,12 +1601,13 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                 const bool reduced =
                     _impl->cartesian->region(region).hex8_element_formulation == Hex8ElementFormulation::c3d8rt;
                 const auto& capacity_points = reduced ? geometry.reduced_capacity_points : geometry.capacity_points;
-                CartesianMaterialHistory update = _impl->cartesian->transient_update(region,
+                auto element_result = _impl->cartesian->transient_update(region,
                     element,
                     current,
                     old,
                     _impl->cartesian_material_histories[region][element],
                     _impl->active_time_step);
+                auto& update = element_result.history;
                 if (_impl->include_thermal_time_term)
                     for (std::size_t node = 0; node < hex8_node_count; ++node) {
                         const Hex8CapacityPoint& point = capacity_points[node];
@@ -1633,10 +1634,6 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     conservation.mechanical_hourglass_energy += current_hourglass;
                     conservation.mechanical_hourglass_energy_change += current_hourglass - old_hourglass;
                 }
-                elements::C3d8Diagnostics diagnostics;
-                if (_impl->cartesian->region(region).strain_formulation == StrainFormulation::finite)
-                    diagnostics = reduced ? elements::diagnose_c3d8rt(geometry, current, old, StrainFormulation::finite)
-                                          : elements::diagnose_c3d8t(geometry, current, old, StrainFormulation::finite);
                 for (std::size_t q = 0; q < update.size(); ++q) {
                     const Hex8QuadraturePoint& point = reduced ? geometry.reduced_point : geometry.points[q];
                     const CartesianMaterialPointState &old_history =
@@ -1648,9 +1645,10 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     std::array<double, 6> diagnostic_new_creep = new_history.creep_strain;
                     if (_impl->cartesian->region(region).strain_formulation == StrainFormulation::finite) {
                         current_measure =
-                            point.weighted_measure / geometry.reference_volume * diagnostics.current_volume;
-                        old_measure = point.weighted_measure / geometry.reference_volume * diagnostics.committed_volume;
-                        const auto& rotation = diagnostics.points[q].rotation;
+                            point.weighted_measure / geometry.reference_volume * element_result.current_volume;
+                        old_measure =
+                            point.weighted_measure / geometry.reference_volume * element_result.committed_volume;
+                        const auto& rotation = element_result.incremental_rotations[q];
                         const CartesianRotation inverse_rotation = {rotation[0],
                             rotation[3],
                             rotation[6],

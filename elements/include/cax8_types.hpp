@@ -1,8 +1,7 @@
 #pragma once
-#include "axisymmetric_types.hpp"
-#include "coordinates.hpp"
 #include "element_types.hpp"
 #include "material.hpp"
+#include "material_types.hpp"
 
 namespace fuelsim {
 using Quad8RzCoordinates = std::array<RzPoint, 8>;

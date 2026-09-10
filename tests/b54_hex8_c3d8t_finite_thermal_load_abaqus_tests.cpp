@@ -1,9 +1,8 @@
-#include "boundary_types.hpp"
 #include "c3d8_types.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
-#include "quad4_face_boundary.hpp"
-#include "support/material_factory.hpp"
+#include "quad4_face.hpp"
+#include "support/test_support.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>

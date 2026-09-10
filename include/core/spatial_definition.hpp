@@ -1,6 +1,5 @@
-#include "contact_area_rule.hpp"
-#pragma once
 #include "contact_types.hpp"
+#pragma once
 
 #include "element_types.hpp"
 #include "material.hpp"

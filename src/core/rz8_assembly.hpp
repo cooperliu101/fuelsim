@@ -1,7 +1,7 @@
 #pragma once
 #include "cax8_types.hpp"
 #include "contact_types.hpp"
-#include "line3_rz_contact.hpp"
+#include "line3_rz.hpp"
 #include "spatial_layout.hpp"
 
 namespace fuelsim::rz8 {

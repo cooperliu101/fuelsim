@@ -24,3 +24,19 @@ struct ElementRequest final {
     bool stress = false;
 };
 } // namespace fuelsim::elements
+
+namespace fuelsim {
+struct RzPoint final {
+    double r, z;
+};
+
+struct CartesianPoint3 final {
+    double x, y, z;
+};
+
+} // namespace fuelsim
+
+namespace fuelsim {
+enum class CartesianTractionComponent { x, y, z };
+enum class TractionComponent { radial, axial };
+} // namespace fuelsim

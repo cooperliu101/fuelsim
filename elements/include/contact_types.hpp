@@ -1,5 +1,5 @@
 #pragma once
-#include "coordinates.hpp"
+#include "element_types.hpp"
 #include <adlite/adlite.hpp>
 #include <array>
 #include <cstddef>
@@ -65,5 +65,12 @@ struct CartesianContactPointValue final {
     double gap, pressure, tributary_area, contact_force, tangential_traction, tangential_force, friction_dissipation;
     std::array<double, 3> normal, tangent_first, tangential_traction_vector, tangential_slip, elastic_tangential_slip;
     bool sliding;
+};
+} // namespace fuelsim
+
+namespace fuelsim {
+enum class Quad8NodalAreaRule {
+    positive_lumped,
+    consistent_shape,
 };
 } // namespace fuelsim

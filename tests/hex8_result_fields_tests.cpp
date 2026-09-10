@@ -1,5 +1,5 @@
 #include "io/hex8_result_fields.hpp"
-#include "support/material_factory.hpp"
+#include "support/test_support.hpp"
 #include <array>
 #include <cmath>
 #include <iostream>

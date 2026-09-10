@@ -94,14 +94,13 @@ inline Hex8LocalValues compute_c3d8_transient(const CartesianRegionData& data,
     return result.residual;
 }
 
-inline CartesianMaterialHistory compute_c3d8_transient_update(const CartesianRegionData& data,
+inline elements::C3d8Result compute_c3d8_transient_update(const CartesianRegionData& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues& committed,
     const CartesianMaterialHistory& history,
     double time_step) {
-    return evaluate_c3d8(data, geometry, state, committed, &history, time_step, false, {false, false, true, false})
-        .history;
+    return evaluate_c3d8(data, geometry, state, committed, &history, time_step, false, {false, false, true, false});
 }
 
 inline std::array<SymmetricTensor3Values, 8>

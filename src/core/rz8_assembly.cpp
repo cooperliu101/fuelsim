@@ -1,7 +1,7 @@
 #include "rz8_assembly.hpp"
-#include "boundary_types.hpp"
 #include "core/element_evaluation.hpp"
-#include "line3_rz_boundary.hpp"
+#include "line3_rz.hpp"
+#include "quad4_face.hpp"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>

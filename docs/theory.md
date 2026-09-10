@@ -72,7 +72,7 @@ Exodus Quad4/Line2 几何
 | 内容 | 实现位置 |
 | --- | --- |
 | CAX4T/CAX4RT 体单元 | `elements/src/cax4t.cpp`、`elements/src/cax4rt.cpp` |
-| 两节点轴对称边界和接触 | `elements/src/line2_rz_boundary.cpp`、`elements/src/line2_rz_contact.cpp` |
+| 两节点轴对称边界和接触 | `elements/src/line2_rz.cpp` |
 | 热弹性、Norton、J2 及耦合材料更新 | `elements/src/material.cpp` |
 | 区域布局、边界条件、接触搜索和贡献装配 | `src/core/rz_assembly.cpp` |
 | 稳态、瞬态及 committed/trial/commit/rollback | `src/core/spatial_problem.cpp` |

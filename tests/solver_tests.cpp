@@ -4,9 +4,9 @@
 #include "solver/petsc_solver.hpp"
 #include "solver/solve_workflows.hpp"
 #include "support/jacobian_check.hpp"
-#include "support/material_factory.hpp"
 #include "support/mesh_fixture.hpp"
 #include "support/rz_problem_access.hpp"
+#include "support/test_support.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>

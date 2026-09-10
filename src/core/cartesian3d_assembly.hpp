@@ -1,14 +1,11 @@
 #pragma once
-#include "boundary_types.hpp"
 #include "c3d20_types.hpp"
 #include "c3d8_types.hpp"
 #include "contact_types.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
-#include "quad4_face_boundary.hpp"
-#include "quad4_face_contact.hpp"
-#include "quad8_face_boundary.hpp"
-#include "quad8_face_contact.hpp"
+#include "quad4_face.hpp"
+#include "quad8_face.hpp"
 
 #include "core/mesh.hpp"
 #include "core/nonlinear_problem.hpp"
@@ -96,7 +93,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         std::vector<double>& residual,
         std::vector<double>* jacobian,
         bool include_thermal_time_term = true) const;
-    CartesianMaterialHistory transient_update(std::size_t region,
+    elements::C3d8Result transient_update(std::size_t region,
         std::size_t element,
         const Hex8LocalValues& state,
         const Hex8LocalValues& committed_state,

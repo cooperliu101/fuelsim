@@ -1,13 +1,12 @@
 #pragma once
 #include "cax4_types.hpp"
 #include "contact_types.hpp"
-#include "line2_rz_boundary.hpp"
-#include "line2_rz_contact.hpp"
+#include "line2_rz.hpp"
 
-#include "axisymmetric_types.hpp"
 #include "core/mesh.hpp"
 #include "core/nonlinear_problem.hpp"
 #include "core/spatial_definition.hpp"
+#include "material_types.hpp"
 #include "spatial_layout.hpp"
 #include <array>
 #include <cstddef>

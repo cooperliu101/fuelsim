@@ -1,3 +1,41 @@
+#include "support/cax4_common_tests.hpp"
+
+namespace {
+using namespace fuelsim::test::cax4;
+
+bool test_temperature_active_thermoelastic_properties() {
+    const fuelsim::ThermoelasticProperties active_properties =
+        fuelsim::test::thermoelastic(3824.0, 0.61, 2.0e11, 0.316, 1.0e-5, 600.0, -8.0e7, 2.0e-5, 3.0e-9);
+    const fuelsim::IsotropicThermoelasticMaterial material(active_properties);
+    constexpr double temperature = 725.0;
+    const adlite::Scalar active_temperature = adlite::Scalar::independent(temperature, 0, 1);
+    const fuelsim::AxisymmetricStress active = material.stress(1.1e-3, -0.4e-3, 0.2e-3, 0.3e-3, active_temperature);
+    constexpr double step = 1.0e-3;
+    const fuelsim::AxisymmetricStress plus = material.stress(1.1e-3, -0.4e-3, 0.2e-3, 0.3e-3, temperature + step);
+    const fuelsim::AxisymmetricStress minus = material.stress(1.1e-3, -0.4e-3, 0.2e-3, 0.3e-3, temperature - step);
+    const std::array<double, 4> analytic = {active.rr.derivative(0),
+        active.zz.derivative(0),
+        active.hoop.derivative(0),
+        active.rz.derivative(0)};
+    const std::array<double, 4> finite_difference = {(plus.rr.value() - minus.rr.value()) / (2.0 * step),
+        (plus.zz.value() - minus.zz.value()) / (2.0 * step),
+        (plus.hoop.value() - minus.hoop.value()) / (2.0 * step),
+        (plus.rz.value() - minus.rz.value()) / (2.0 * step)};
+    double maximum_error = 0.0;
+    for (std::size_t component = 0; component < analytic.size(); ++component)
+        maximum_error = std::max(maximum_error, scaled_error(analytic[component], finite_difference[component]));
+    std::cout << "active_thermoelastic_temperature_tangent_error=" << maximum_error << '\n';
+    return check(maximum_error < 1.0e-8,
+        "temperature-dependent thermoelastic AD tangent matches "
+        "centered differences");
+}
+
+int run_cax4t_contract_tests() {
+    std::cout << std::scientific << std::setprecision(12);
+    return test_cax_kinematics_and_jacobian(false) && test_temperature_active_thermoelastic_properties() ? 0 : 1;
+}
+} // namespace
+
 #include "cax4t.hpp"
 #include <algorithm>
 #include <cmath>
@@ -182,8 +220,6 @@ void check_nonlinear_transaction(StrainFormulation form) {
               << " coupled directional derivative error=" << error << '\n';
 }
 } // namespace
-
-int run_cax4t_contract_tests();
 
 int main() {
     if (run_cax4t_contract_tests() != 0)

@@ -153,7 +153,10 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_c3d8rt_tests COMMAND fuelsim_c3d8rt_tests)
     add_test(NAME fuelsim_c3d20t_tests COMMAND fuelsim_c3d20t_tests)
     add_test(NAME fuelsim_c3d20rt_tests COMMAND fuelsim_c3d20rt_tests)
-    add_test(NAME fuelsim_axisymmetric_interface_tests COMMAND fuelsim_axisymmetric_interface_tests)
+    add_test(NAME fuelsim_line2_rz_tests COMMAND fuelsim_line2_rz_tests)
+    add_test(NAME fuelsim_line3_rz_tests COMMAND fuelsim_line3_rz_tests)
+    add_test(NAME fuelsim_quad4_face_tests COMMAND fuelsim_quad4_face_tests)
+    add_test(NAME fuelsim_quad8_face_tests COMMAND fuelsim_quad8_face_tests)
     include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src" "${CMAKE_CURRENT_SOURCE_DIR}/elements/tests")
 
     add_library(fuelsim_test_mesh_fixture

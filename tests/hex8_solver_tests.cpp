@@ -2,7 +2,7 @@
 #include "io/results_io.hpp"
 #include "solver/solve_workflows.hpp"
 #include "support/cartesian3d_problem_access.hpp"
-#include "support/material_factory.hpp"
+#include "support/test_support.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>

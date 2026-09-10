@@ -1,8 +1,7 @@
 #pragma once
-#include "cartesian_types.hpp"
-#include "coordinates.hpp"
 #include "element_types.hpp"
 #include "material.hpp"
+#include "material_types.hpp"
 #include <array>
 #include <vector>
 
@@ -69,27 +68,13 @@ struct C3d8Input final {
     double initial_temperature = 600.0;
 };
 
-// Geometry diagnostics only: strain_increment precedes model-specific volumetric
-// corrections and is not the constitutive strain. All fields are passive values.
-struct C3d8PointDiagnostics final {
-    SymmetricTensor3Values strain_increment{};
-    std::array<double, 9> rotation{}; // Row-major incremental rotation.
-    std::array<std::array<double, 3>, 8> thermal_gradient{};
-    double temperature = 0.0;
-    double current_weighted_measure = 0.0;
-};
-
-struct C3d8Diagnostics final {
-    double current_volume = 0.0, committed_volume = 0.0;
-    std::size_t material_point_count = 0;
-    // Only [0, material_point_count) is active; other entries remain zero.
-    std::array<C3d8PointDiagnostics, 8> points{};
-};
-
 struct C3d8Result final {
     Hex8LocalValues residual{};
     Hex8LocalJacobian jacobian{};
     CartesianMaterialHistory history;
+    // Returned with a material-history update for the host energy accounting.
+    double current_volume = 0.0, committed_volume = 0.0;
+    std::array<std::array<double, 9>, 8> incremental_rotations{};
     std::array<SymmetricTensor3Values, 8> stress{};
 };
 

@@ -1,11 +1,12 @@
 #include "c3d8t.hpp"
 #include "contact_types.hpp"
 #include "solver/solve_workflows.hpp"
+#include "support/c3d_recovery.hpp"
 // Offline parameter studies only; registered acceptance paths run fuelsim -i.
 #include "support/abaqus_hex8_full_field.hpp"
 #include "support/cartesian3d_problem_access.hpp"
 #include "support/field_error_metrics.hpp"
-#include "support/material_factory.hpp"
+#include "support/test_support.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -1543,7 +1544,7 @@ int main(int argc, char** argv) {
             maximum_coordinate_difference = std::max(maximum_coordinate_difference, std::sqrt(closest_squared));
             const fuelsim::Hex8QuadraturePoint& point = geometry.points[closest];
             const auto diagnostics =
-                fuelsim::elements::diagnose_c3d8t(geometry, local_state, {}, fuelsim::StrainFormulation::finite);
+                fuelsim::test::recover_c3d8t(geometry, local_state, {}, fuelsim::StrainFormulation::finite);
             const auto& kinematics = diagnostics.points[closest];
             const double current_volume = diagnostics.current_volume;
             const double material_temperature = local_state[gauss_to_material_node[closest]];
