@@ -1,4 +1,4 @@
-#include "core/contact.hpp"
+#include "contact.hpp"
 #include "detail/ad_local_system.hpp"
 #include <algorithm>
 #include <array>

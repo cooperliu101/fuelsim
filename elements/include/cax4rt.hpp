@@ -1,5 +1,5 @@
 #pragma once
-#include "core/rz_quad4.hpp"
+#include "rz_quad4.hpp"
 
 namespace fuelsim::rz {
 struct Cax4rtResult final {

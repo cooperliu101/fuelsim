@@ -208,11 +208,12 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
 
 ## 架构边界
 
-- `fuelsim_elements`：位于 `elements/`，独立配置、构建和测试的 CAX4T 局部计算库；
-  持有共用材料积分、材料函数、坐标和四节点轴对称几何/运动学，仅依赖 ADlite。
-  `evaluate_cax4t` 借用局部状态和已接受历史，返回残量、切线矩阵、试探历史和热率；
-  不持有全局网格、不执行装配或状态提交，也不得反向依赖 fuelsim_core。
-- `fuelsim_core`：全局网格、自由度、其他体单元与接触数值核和问题定义，调用
+- `fuelsim_elements`：位于 `elements/`，独立配置、构建和测试的局部单元计算库；
+  持有 Quad4、CAX4T/CAX4RT、CAX8T/CAX8RT、C3D8T/C3D8RT、C3D20T/C3D20RT
+  体单元、局部边界积分与接触计算，以及材料积分、材料函数、坐标和局部几何，仅依赖 ADlite。
+  局部入口接收坐标、材料、节点状态与已接受历史，返回残量、切线矩阵和试探结果；
+  不持有全局网格、不执行全局装配或状态提交，也不得反向依赖 fuelsim_core。
+- `fuelsim_core`：全局网格、自由度、接触候选搜索与归属、全局装配和问题定义，调用
   `fuelsim::elements`；所有时间步历史的接受与失败恢复仍由 fuelsim 负责。
 - `fuelsim_io`：严格解析带版本号的 `.fsi` 输入卡，并使用 Exodus API 在
   `.e` 文件和 fuelsim 自有非结构 Quad4、QUAD8、HEX8 或 HEX20 网格及结果之间转换；

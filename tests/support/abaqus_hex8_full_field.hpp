@@ -1,7 +1,7 @@
 #ifndef FUELSIM_TEST_ABAQUS_HEX8_FULL_FIELD_HPP
 #define FUELSIM_TEST_ABAQUS_HEX8_FULL_FIELD_HPP
 
-#include "core/cartesian3d_hex8.hpp"
+#include "cartesian3d_hex8.hpp"
 #include "core/spatial_definition.hpp"
 #include "solver/solve_workflows.hpp"
 #include <string>

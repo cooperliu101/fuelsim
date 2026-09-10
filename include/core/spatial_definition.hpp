@@ -1,5 +1,5 @@
 #pragma once
-#include "core/contact.hpp"
+#include "contact.hpp"
 #include "kinematics.hpp"
 #include "material.hpp"
 #include <array>

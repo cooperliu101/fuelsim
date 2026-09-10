@@ -1,9 +1,9 @@
 #pragma once
-#include "core/contact.hpp"
+#include "contact.hpp"
 #include "core/mesh.hpp"
 #include "core/nonlinear_problem.hpp"
-#include "core/rz_quad4.hpp"
 #include "core/spatial_definition.hpp"
+#include "rz_quad4.hpp"
 #include "spatial_layout.hpp"
 #include <array>
 #include <cstddef>

@@ -1,4 +1,4 @@
-#include "core/cartesian3d_hex20.hpp"
+#include "cartesian3d_hex20.hpp"
 #include "io/case_input.hpp"
 #include "io/results_io.hpp"
 #include "support/cartesian3d_problem_access.hpp"

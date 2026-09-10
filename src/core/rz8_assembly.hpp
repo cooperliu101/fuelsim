@@ -1,6 +1,6 @@
 #pragma once
-#include "core/rz_quad8.hpp"
-#include "detail/line3_rz_contact.hpp"
+#include "line3_rz_contact.hpp"
+#include "rz_quad8.hpp"
 #include "spatial_layout.hpp"
 
 namespace fuelsim::rz8 {

@@ -1,4 +1,4 @@
-#include "core/contact.hpp"
+#include "contact.hpp"
 #include "detail/ad_local_system.hpp"
 #include <algorithm>
 #include <array>
@@ -833,9 +833,11 @@ double quad8_disk_fraction_double(const Quad8ToQuad8HeatGeometry& geometry,
                 }
             }
         }
-        std::sort(cuts.begin(),
-            cuts.begin() + static_cast<std::ptrdiff_t>(count),
-            [](const double& x, const double& y) { return x < y; });
+        // At most four cuts; bounded insertion avoids GCC's small-array
+        // std::sort bounds warning in independent non-LTO Release builds.
+        for (std::size_t i = 1; i < cuts.size() && i < count; ++i)
+            for (std::size_t j = i; j > 0 && cuts[j] < cuts[j - 1]; --j)
+                std::swap(cuts[j], cuts[j - 1]);
         for (std::size_t part = 0; part + 1 < count; ++part) {
             const double middle = 0.5 * (cuts[part] + cuts[part + 1]);
             const std::array<double, 2> u{p[0] + cuts[part] * d[0], p[1] + cuts[part] * d[1]},
@@ -942,9 +944,9 @@ adlite::Scalar quad8_disk_fraction_ad(const Quad8ToQuad8HeatGeometry& geometry,
                 }
             }
         }
-        std::sort(cuts.begin(),
-            cuts.begin() + static_cast<std::ptrdiff_t>(count),
-            [](const adlite::Scalar& x, const adlite::Scalar& y) { return x.value() < y.value(); });
+        for (std::size_t i = 1; i < cuts.size() && i < count; ++i)
+            for (std::size_t j = i; j > 0 && cuts[j].value() < cuts[j - 1].value(); --j)
+                std::swap(cuts[j], cuts[j - 1]);
         for (std::size_t part = 0; part + 1 < count; ++part) {
             const adlite::Scalar middle = 0.5 * (cuts[part] + cuts[part + 1]);
             const std::array<adlite::Scalar, 2> u{p[0] + cuts[part] * d[0], p[1] + cuts[part] * d[1]},

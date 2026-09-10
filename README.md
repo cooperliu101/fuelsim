@@ -1,6 +1,6 @@
 # fuelsim
 
-CAX4T 局部计算现由仓库内的独立[单元库](elements/README.md)提供。该库可仅依赖
+轴对称和三维体单元、边界积分及局部接触计算现由仓库内的独立[单元库](elements/README.md)提供。该库可仅依赖
 ADlite 单独构建和测试；fuelsim 负责全局装配、求解及历史状态的接受与恢复。
 
 轴对称和三维均以 Abaqus 为首要外部参考。轴对称 B7.0—B7.9 使用 CAX4T

@@ -1,7 +1,7 @@
 #pragma once
-#include "core/contact_area_rule.hpp"
-#include "core/mesh.hpp"
-#include "core/rz_quad4.hpp"
+#include "contact_area_rule.hpp"
+#include "coordinates.hpp"
+#include "rz_quad4.hpp"
 #include <array>
 #include <cstddef>
 #include <vector>

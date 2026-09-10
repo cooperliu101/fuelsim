@@ -1,5 +1,5 @@
 #pragma once
-#include "core/mesh.hpp"
+#include "coordinates.hpp"
 #include "kinematics.hpp"
 #include "material.hpp"
 #include <adlite/adlite.hpp>

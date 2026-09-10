@@ -1,7 +1,7 @@
 #pragma once
-#include "core/cartesian3d_hex20.hpp"
-#include "core/cartesian3d_hex8.hpp"
-#include "core/contact.hpp"
+#include "cartesian3d_hex20.hpp"
+#include "cartesian3d_hex8.hpp"
+#include "contact.hpp"
 #include "core/mesh.hpp"
 #include "core/nonlinear_problem.hpp"
 #include "core/spatial_definition.hpp"

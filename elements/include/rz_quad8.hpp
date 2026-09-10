@@ -1,5 +1,5 @@
 #pragma once
-#include "core/rz_quad4.hpp"
+#include "rz_quad4.hpp"
 
 namespace fuelsim {
 using Quad8RzCoordinates = std::array<RzPoint, 8>;

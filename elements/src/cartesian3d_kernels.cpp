@@ -1,4 +1,4 @@
-#include "core/cartesian3d_hex8.hpp"
+#include "cartesian3d_hex8.hpp"
 #include "detail/ad_local_system.hpp"
 #include "detail/cartesian3d_mechanics.hpp"
 #include <adlite/adlite.hpp>

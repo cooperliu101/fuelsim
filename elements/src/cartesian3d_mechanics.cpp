@@ -1,4 +1,4 @@
-#include "cartesian3d_mechanics.hpp"
+#include "detail/cartesian3d_mechanics.hpp"
 #include <cmath>
 #include <stdexcept>
 

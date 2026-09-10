@@ -1,5 +1,5 @@
 #pragma once
-#include "core/contact.hpp"
+#include "contact.hpp"
 #include <vector>
 
 namespace fuelsim::rz8 {

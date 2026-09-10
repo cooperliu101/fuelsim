@@ -1,5 +1,5 @@
-#include "core/cartesian3d_hex20.hpp"
-#include "core/contact.hpp"
+#include "cartesian3d_hex20.hpp"
+#include "contact.hpp"
 #include "io/results_io.hpp"
 #include "support/field_error_metrics.hpp"
 #include <algorithm>

@@ -1,4 +1,5 @@
 #include "rz8_assembly.hpp"
+#include "line3_rz_boundary.hpp"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -208,61 +209,36 @@ void SpatialAssembly::compute_boundary(std::size_t index,
     }
     const auto& boundary = _boundaries.at(index - volume_contribution_count());
     const auto& bc = _definition.boundary_conditions[boundary.definition];
-    if (state.size() != 8)
-        throw std::invalid_argument("CAX8T quadratic boundary requires eight local degrees of freedom");
-    std::array<adlite::Scalar, 8> v;
-    for (std::size_t i = 0; i < 8; ++i)
-        v[i] = jacobian ? adlite::Scalar::independent(state[i], i, 8) : adlite::Scalar(state[i]);
-    std::array<adlite::Scalar, 8> rows{};
-    const bool current = boundary_uses_displaced_geometry(bc, region(boundary.region));
-    const double load =
-        spatial_detail::controlled_value(_definition, _time, _load_factor, bc.value, bc.scale_with_load, bc.function);
-    const double g = std::sqrt(3.0 / 5.0);
-    const std::array<double, 3> points = {-g, 0, g}, weights = {5.0 / 9, 8.0 / 9, 5.0 / 9};
-    for (std::size_t q = 0; q < 3; ++q) {
-        const double x = points[q];
-        const std::array<double, 3> shape = {x * (x - 1) / 2, x * (x + 1) / 2, 1 - x * x},
-                                    derivative = {x - .5, x + .5, -2 * x};
-        const std::array<double, 2> thermal = {(1 - x) / 2, (1 + x) / 2};
-        adlite::Scalar radius = 0, tr = 0, tz = 0;
-        for (std::size_t n = 0; n < 3; ++n) {
-            const auto& point = _meshes[boundary.region].nodes()[boundary.edge.nodes[n]];
-            const adlite::Scalar r = current ? point.r + v[2 + n] : adlite::Scalar(point.r),
-                                 z = current ? point.z + v[5 + n] : adlite::Scalar(point.z);
-            radius += shape[n] * r;
-            tr += derivative[n] * r;
-            tz += derivative[n] * z;
-        }
-        const auto length = adlite::hypot(tr, tz), factor = 2 * std::acos(-1.0) * weights[q] * radius,
-                   measure = factor * length;
-        if (!(length.value() > 0) || !(radius.value() >= 0))
-            throw std::domain_error("CAX8T boundary geometry is invalid");
-        if (bc.type == BoundaryConditionType::pressure)
-            for (std::size_t n = 0; n < 3; ++n) {
-                rows[2 + n] += shape[n] * load * factor * tz;
-                rows[5 + n] -= shape[n] * load * factor * tr;
-            }
-        else if (bc.type == BoundaryConditionType::traction) {
-            const auto offset = bc.field == Field::radial_displacement ? 2U : 5U;
-            for (std::size_t n = 0; n < 3; ++n)
-                rows[offset + n] -= shape[n] * load * measure;
-        } else {
-            adlite::Scalar flux = -load;
-            if (bc.type == BoundaryConditionType::convection) {
-                const auto values = convection_values(bc);
-                flux = values.coefficient * (thermal[0] * v[0] + thermal[1] * v[1] - values.ambient);
-            }
-            for (std::size_t n = 0; n < 2; ++n)
-                rows[n] += thermal[n] * flux * measure;
-        }
+    elements::Line3RzBoundaryData data{elements::Line3RzBoundaryKind::pressure,
+        bc.field == Field::radial_displacement ? TractionComponent::radial : TractionComponent::axial,
+        spatial_detail::controlled_value(_definition, _time, _load_factor, bc.value, bc.scale_with_load, bc.function),
+        0.0,
+        boundary_uses_displaced_geometry(bc, region(boundary.region))};
+    switch (bc.type) {
+    case BoundaryConditionType::pressure:
+        break;
+    case BoundaryConditionType::traction:
+        data.kind = elements::Line3RzBoundaryKind::traction;
+        break;
+    case BoundaryConditionType::heat_flux:
+        data.kind = elements::Line3RzBoundaryKind::heat_flux;
+        break;
+    case BoundaryConditionType::convection: {
+        data.kind = elements::Line3RzBoundaryKind::convection;
+        const auto values = convection_values(bc);
+        data.load = values.coefficient;
+        data.ambient = values.ambient;
+        break;
     }
-    residual.resize(8);
+    default:
+        throw std::logic_error("CAX8T invalid boundary contribution");
+    }
+    std::array<RzPoint, 3> coordinates;
+    for (std::size_t n = 0; n < 3; ++n)
+        coordinates[n] = _meshes[boundary.region].nodes()[boundary.edge.nodes[n]];
+    const auto result = elements::compute_line3_rz_boundary(data, coordinates, state, jacobian != nullptr);
+    residual.assign(result.residual.begin(), result.residual.end());
     if (jacobian)
-        jacobian->assign(64, 0);
-    for (std::size_t i = 0; i < 8; ++i) {
-        residual[i] = rows[i].value();
-        if (jacobian)
-            rows[i].copy_derivatives(jacobian->data() + 8 * i, 8);
-    }
+        jacobian->assign(result.jacobian.begin(), result.jacobian.end());
 }
 } // namespace fuelsim::rz8

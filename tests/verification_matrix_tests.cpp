@@ -165,6 +165,7 @@ int main(int argc, char** argv) {
             throw std::runtime_error("Verification matrix header does not match schema");
         const std::set<std::string> required_ids = {
             "elements.cax4t",
+            "elements.local_kernels",
             "b150_cax4t_small_thermal_operator",
             "c3d20rt_thermal_probe",
             "c3d20rt_nonaffine_probe",
@@ -429,7 +430,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 177 || qualified != 10 || measured != 12 || limitations != 4)
+        if (verified != 178 || qualified != 10 || measured != 12 || limitations != 4)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         check_c3d8t_contract(argv[4], registered_tests);
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'

@@ -10,6 +10,16 @@ include(CTest)
 option(FUELSIM_ELEMENTS_WARNINGS_AS_ERRORS "Treat element library warnings as errors" ON)
 
 add_library(fuelsim_elements
+    src/rz_kernels.cpp
+    src/rz_quad8.cpp
+    src/cax4rt.cpp
+    src/cartesian3d_kernels.cpp
+    src/cartesian3d_hex20.cpp
+    src/cartesian3d_mechanics.cpp
+    src/cartesian3d_contact.cpp
+    src/cartesian3d_hex20_contact.cpp
+    src/line3_rz_contact.cpp
+    src/line3_rz_boundary.cpp
     src/cax4t.cpp
     src/rz_geometry.cpp
     src/material.cpp
@@ -20,23 +30,31 @@ target_compile_features(fuelsim_elements PUBLIC cxx_std_17)
 set_target_properties(fuelsim_elements PROPERTIES CXX_EXTENSIONS OFF)
 target_include_directories(fuelsim_elements PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries(fuelsim_elements PUBLIC adlite::adlite)
-if(COMMAND fuelsim_enable_warnings)
-    fuelsim_enable_warnings(fuelsim_elements)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(fuelsim_elements PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion)
-    if(FUELSIM_ELEMENTS_WARNINGS_AS_ERRORS)
-        target_compile_options(fuelsim_elements PRIVATE -Werror)
+function(fuelsim_element_warnings target)
+    if(COMMAND fuelsim_enable_warnings)
+        fuelsim_enable_warnings(${target})
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion)
+        if(FUELSIM_ELEMENTS_WARNINGS_AS_ERRORS)
+            target_compile_options(${target} PRIVATE -Werror)
+        endif()
     endif()
-endif()
+endfunction()
+fuelsim_element_warnings(fuelsim_elements)
 
 if(BUILD_TESTING)
-    add_executable(fuelsim_cax4t_element_tests tests/cax4t_tests.cpp)
-    target_link_libraries(fuelsim_cax4t_element_tests PRIVATE fuelsim::elements)
-    if(COMMAND fuelsim_enable_warnings)
-        fuelsim_enable_warnings(fuelsim_cax4t_element_tests)
-    endif()
-    # The parent registers this same test in its unified verification matrix.
-    if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
-        add_test(NAME fuelsim_cax4t_element_tests COMMAND fuelsim_cax4t_element_tests)
-    endif()
+    function(fuelsim_add_element_test name source)
+        add_executable(${name} tests/${source})
+        target_link_libraries(${name} PRIVATE fuelsim::elements)
+        fuelsim_element_warnings(${name})
+        # The parent keeps the same test names and its unified verification matrix.
+        if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+            add_test(NAME ${name} COMMAND ${name})
+        endif()
+    endfunction()
+    fuelsim_add_element_test(fuelsim_cax4t_element_tests cax4t_tests.cpp)
+    fuelsim_add_element_test(fuelsim_rz_element_tests rz_quad4_tests.cpp)
+    fuelsim_add_element_test(fuelsim_quad8_rz_tests quad8_rz_tests.cpp)
+    fuelsim_add_element_test(fuelsim_hex8_tests hex8_tests.cpp)
+    fuelsim_add_element_test(fuelsim_hex20_tests hex20_tests.cpp)
 endif()

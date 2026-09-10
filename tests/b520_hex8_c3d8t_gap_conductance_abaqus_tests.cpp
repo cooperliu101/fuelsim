@@ -1,5 +1,5 @@
-#include "core/cartesian3d_hex8.hpp"
-#include "core/contact.hpp"
+#include "cartesian3d_hex8.hpp"
+#include "contact.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>

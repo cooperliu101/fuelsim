@@ -1,5 +1,5 @@
 #pragma once
-#include "core/cartesian3d_hex8.hpp"
+#include "cartesian3d_hex8.hpp"
 #include <adlite/adlite.hpp>
 #include <array>
 #include <cstddef>

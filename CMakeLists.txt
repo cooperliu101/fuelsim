@@ -75,18 +75,9 @@ add_subdirectory(elements)
 add_library(fuelsim_core
     src/core/rz_assembly.cpp
     src/core/cartesian3d_assembly.cpp
-    src/core/cartesian3d_contact.cpp
-    src/core/cartesian3d_hex20_contact.cpp
     src/core/contact_search.cpp
-    src/core/detail/cartesian3d_mechanics.cpp
-    src/core/cartesian3d_kernels.cpp
-    src/core/cartesian3d_hex20.cpp
-    src/core/rz_kernels.cpp
-    src/core/rz_quad8.cpp
     src/core/rz8_assembly.cpp
     src/core/rz8_contact.cpp
-    src/core/detail/line3_rz_contact.cpp
-    src/core/detail/cax4rt.cpp
     src/core/mesh.cpp
     src/core/mesh_quad8.cpp
     src/core/nonlinear_problem.cpp
@@ -155,7 +146,8 @@ include(CTest)
 
 if(BUILD_TESTING)
     add_test(NAME fuelsim_cax4t_element_tests COMMAND fuelsim_cax4t_element_tests)
-    include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src")
+    add_test(NAME fuelsim_rz_element_tests COMMAND fuelsim_rz_element_tests)
+    include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src" "${CMAKE_CURRENT_SOURCE_DIR}/elements/tests")
 
     add_library(fuelsim_test_mesh_fixture
         tests/support/mesh_fixture.cpp
@@ -489,9 +481,6 @@ if(BUILD_TESTING)
     )
 
     add_executable(fuelsim_core_tests tests/core_tests.cpp)
-    add_executable(fuelsim_quad8_rz_tests tests/quad8_rz_tests.cpp)
-    target_link_libraries(fuelsim_quad8_rz_tests PRIVATE fuelsim::core)
-    fuelsim_enable_warnings(fuelsim_quad8_rz_tests)
     add_test(NAME fuelsim_quad8_rz_tests COMMAND fuelsim_quad8_rz_tests)
     target_link_libraries(fuelsim_core_tests
         PRIVATE fuelsim_test_mesh_fixture fuelsim::core
@@ -500,9 +489,6 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_core_tests COMMAND fuelsim_core_tests)
     set_tests_properties(fuelsim_core_tests PROPERTIES LABELS "unit")
 
-    add_executable(fuelsim_hex8_tests tests/hex8_tests.cpp)
-    target_link_libraries(fuelsim_hex8_tests PRIVATE fuelsim::core)
-    fuelsim_enable_warnings(fuelsim_hex8_tests)
     add_test(NAME fuelsim_hex8_tests COMMAND fuelsim_hex8_tests)
     set_tests_properties(fuelsim_hex8_tests PROPERTIES LABELS "unit;three-dimensional")
 
@@ -587,9 +573,6 @@ if(BUILD_TESTING)
             LABELS "three-dimensional;quadratic;abaqus;thermal;transient")
     endforeach()
 
-    add_executable(fuelsim_hex20_tests tests/hex20_tests.cpp)
-    target_link_libraries(fuelsim_hex20_tests PRIVATE fuelsim::core)
-    fuelsim_enable_warnings(fuelsim_hex20_tests)
     add_test(NAME fuelsim_hex20_tests COMMAND fuelsim_hex20_tests)
     set_tests_properties(fuelsim_hex20_tests
         PROPERTIES LABELS "unit;three-dimensional;quadratic;warped-geometry;contact;friction")
