@@ -1,0 +1,17 @@
+{
+  "git_revision": "da5ad756335108772c5a6fdabdcb53605b1c759f",
+  "adlite_version": "0.2.3",
+  "simd": "AVX2 dispatch verified for derivative widths 5, 6, 7, 10",
+  "fuelsim_external_mean_seconds": 22.45067032048246,
+  "abaqus_external_mean_seconds": 45.564844,
+  "fuelsim_internal_mean_seconds": 21.9485870375,
+  "abaqus_analysis_mean_seconds": 37.5,
+  "speedup": 2.0295538328951253,
+  "elapsed_time_reduction_percent": 50.72808694246279,
+  "fuelsim_iterations": 46,
+  "abaqus_iterations": 52,
+  "accuracy_passed": true,
+  "maximum_pointwise_relative_error": 4.711684377633834e-08,
+  "relative_error_limit": 0.0001,
+  "scope": "Medium CAX4T only; 7424 elements, 7670 nodes, 23010 DOFs, 20 fixed increments; one warmup and two measured runs; WSL CPU 0 Fuelsim MUMPS versus Windows CPU 0 Abaqus native direct solver; result output disabled for timing; existing Abaqus final-state references reused; only timing Abaqus jobs rerun"
+}

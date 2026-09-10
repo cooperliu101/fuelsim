@@ -1,0 +1,26 @@
+{
+  "git_revision": "da5ad756335108772c5a6fdabdcb53605b1c759f",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "sizes": [
+    "medium"
+  ],
+  "sha256": {
+    "build/fuelsim": "d4ae6f0665cef98017cf9f11c4c04bd85c051d1ce6ff9f21949dd4b5dd404c8d",
+    "benchmarks/run_rz_performance.py": "db63e1604cbb1355b4e7960e08fb2ab89e83d23d3dab55c29e9a156d69a9e4b8",
+    "verification/abaqus/rz_performance/run.ps1": "f649789cb7df9d057297601e617e88da26438d2258762cd1baa3a73fb1063d6d",
+    "verification/abaqus/rz_performance/compare.py": "bbd79bee878ae9be8db51e8b06002c09e032381aa79e7b44a303280bd1c9f995",
+    "verification/abaqus/rz_performance/material_contact.inc": "750d4945e330983e8d84d6cafceccf2a12b4b6291547fef0dd3ce946a3ab7efe",
+    "verification/fuelsim/steady_rz_performance_medium.fsi": "0db24a19ea81abd4cf1909f5c408ed9623c298b7d58168690205ae1415457be4",
+    "verification/fuelsim/steady_rz_performance_medium_timing.fsi": "29b3afabe1cc315438fcc29a9d3b3a414b7fecdd188de572d0e0555755a0a1b3",
+    "verification/abaqus/rz_performance/rz_performance_medium.inp": "4b4039de2242ad89cc94d7a65e08402f894041cbb5ac7857a1076f2baf766b0f",
+    "verification/abaqus/rz_performance/rz_performance_medium_timing.inp": "4695f2729e179a7beccbb40a763109ef4df488b0bae3fe8222b9ec1a92759ed6",
+    "verification/abaqus/rz_performance/rz_performance_medium_mesh.inc": "6f85d8fc0535c50b2c5ad5ce5cfc0c9bd5e9a479817ccf723817046141be1198",
+    "verification/meshes/rz_performance_medium.e": "2474721e4e17738601bc750f81dd678fde7be16aba621477b083f46af824b8c7"
+  },
+  "accuracy_sha256": {
+    "verification/abaqus/rz_performance/rz_performance_medium_nodes.csv.gz": "6df4383482103217168dc0ddaa9248882ec83e79f28ef1225d8d3800d0520251",
+    "verification/abaqus/rz_performance/rz_performance_medium_points.csv.gz": "5bbb48f16edb78e27e2fdceaa08d740a82685c16fb793bad0cab140c361b7414",
+    "verification/abaqus/rz_performance/rz_performance_medium_contact.csv.gz": "10a1166b8f5841050d8c0446cba68e05386e685d983e59e57b035de78f10cd28",
+    "/tmp/rz-medium-elements-accuracy/fuelsim/steady_rz_performance_medium_results.e": "893d2ddf47a97626f3e98da9a9ad9839473eebafe7b90484921a9efd9ca5140e"
+  }
+}
