@@ -1,8 +1,10 @@
 param([Parameter(Mandatory=$true)][string]$SourceDirectory,
       [ValidateSet('medium','large')][string]$Size='medium',
       [switch]$Timing, [int]$Runs=1,
+      [ValidateSet('cax4t','cax4rt')][string]$Element='cax4t',
       [string]$ResultsDirectory='')
 $ErrorActionPreference='Stop'
+if ($Element -eq 'cax4rt' -and $Size -ne 'medium') { throw 'CAX4RT has only a medium input' }
 if (!$ResultsDirectory) { $ResultsDirectory = $SourceDirectory }
 New-Item -ItemType Directory -Force -Path $ResultsDirectory | Out-Null
 [System.Diagnostics.Process]::GetCurrentProcess().ProcessorAffinity = [IntPtr]1
@@ -15,6 +17,7 @@ Copy-Item (Join-Path $SourceDirectory '*.inc') $Work
 Copy-Item (Join-Path $SourceDirectory '*.inp') $Work
 Copy-Item (Join-Path $SourceDirectory 'extract_results.py') $Work
 $Job='rz_performance_'+$Size
+if ($Element -eq 'cax4rt') { $Job += '_cax4rt' }
 if ($Timing) { $Job += '_timing' }
 Write-Output "work_directory=$Work"
 Push-Location $Work

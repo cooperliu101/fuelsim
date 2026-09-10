@@ -66,7 +66,8 @@ def metric(actual, reference, zero_tolerance):
     return result
 
 
-def compare(result_path, prefix):
+def compare(result_path, prefix, element="cax4t"):
+    point_count = 1 if element == "cax4rt" else 4
     def rows(kind):
         with gzip.open(str(prefix)+'_'+kind+'.csv.gz','rt') as f:return list(csv.DictReader(f))
     nodes,points,contacts=rows('nodes'),rows('points'),rows('contact')
@@ -75,13 +76,13 @@ def compare(result_path, prefix):
         nodal={name:np.array(f.variables['vals_nod_var%d'%i][-1]) for i,name in enumerate(names(f.variables['name_nod_var']),1)}
         elem={name:np.concatenate([np.array(f.variables['vals_elem_var%deb%d'%(i,b)][-1]) for b in range(1,f.dimensions['num_el_blk']+1)]) for i,name in enumerate(names(f.variables['name_elem_var']),1)}
         glob=dict(zip(names(f.variables['name_glo_var']),map(float,f.variables['vals_glo_var'][-1])))
-    if glob['load_factor'] != 1.0 or not np.all(elem['material_point_count']==4):
+    if glob['load_factor'] != 1.0 or not np.all(elem['material_point_count']==point_count):
         raise ValueError('Incomplete load path or wrong element integration')
     if not (np.all(nodal['temperature']>=500) and np.all(nodal['temperature']<=2500)
             and all(500<=float(r['temperature'])<=2500 for r in nodes)):
         raise ValueError('Temperature lies outside the sampled conductivity table')
     if [int(r['node']) for r in nodes] != list(range(1,len(nodal['temperature'])+1)):raise ValueError('Node labels/coverage differ')
-    if len(points)!=4*len(elem['material_point_count']):raise ValueError('Material point coverage differs')
+    if len(points)!=point_count*len(elem['material_point_count']):raise ValueError('Material point coverage differs')
     if any(float(r['time'])!=20 for r in nodes+points+contacts):raise ValueError('Reference is not the final 20-increment state')
     metrics={}
     metrics['temperature']=metric(nodal['temperature'],[float(r['temperature']) for r in nodes],1e-8)
@@ -95,9 +96,9 @@ def compare(result_path, prefix):
     a[constrained]=0;b[constrained]=0
     metrics['free_displacement']=metric(a,b,1e-12)
     actual,reference=[],[]
-    qmap=[0,1,3,2]
+    qmap=[0] if element == "cax4rt" else [0,1,3,2]
     for index,r in enumerate(points):
-        e,q=divmod(index,4)
+        e,q=divmod(index,point_count)
         if int(r['element'])!=e+1 or int(r['point'])!=q+1:raise ValueError('Material labels differ')
         actual.append([elem['stress_'+c+'_q'+str(qmap[q])][e]*w for c,w in [('rr',1),('zz',1),('hoop',1),('rz',2**.5)]])
         reference.append([float(r['stress_'+c])*w for c,w in [('rr',1),('zz',1),('hoop',1),('rz',2**.5)]])
@@ -112,7 +113,7 @@ def compare(result_path, prefix):
     return metrics
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('result');p.add_argument('prefix');p.add_argument('--report',required=True);args=p.parse_args()
-    m=compare(args.result,Path(args.prefix));Path(args.report).write_text(json.dumps(m,indent=2)+'\n')
+    p=argparse.ArgumentParser();p.add_argument('result');p.add_argument('prefix');p.add_argument('--report',required=True);p.add_argument('--element',choices=('cax4t','cax4rt'),default='cax4t');args=p.parse_args()
+    m=compare(args.result,Path(args.prefix),args.element);Path(args.report).write_text(json.dumps(m,indent=2)+'\n')
     for name,r in m.items():print(name,'PASS' if r['passed'] else 'FAIL', 'relative errors (%)',*[100*r.get(k,0) for k in ['relative_l2','relative_absolute_peak','maximum_pointwise_relative']])
     raise SystemExit(0 if all(r['passed'] for r in m.values()) else 1)

@@ -364,3 +364,47 @@ Abaqus/Fuelsim 耗时比为 **2.03**。Abaqus 两次分析时间分别为 37、3
 
 原始计时、压缩运行日志、精度报告及输入和程序散列位于
 [`medium_elements_refactor/`](medium_elements_refactor/summary.json)。未修改源码或物理输入。
+
+
+## 中等规模 CAX4RT 版本（2026-09-10）
+
+新增完整输入 `verification/fuelsim/steady_rz_performance_medium_cax4rt.fsi` 及
+对应 `_timing.fsi`。与 CAX4T 相比仅改变单元型号、注释和结果文件名，网格仍为
+7,424 个单元、7,670 个节点、23,010 个自由度；材料、边界、接触、20 个固定加载
+增量、MUMPS 和载荷预测设置不变。Abaqus 新增对应 CAX4RT 输入与同节点连接的网格。
+CAX4RT 使用一个活跃材料积分点及其固有沙漏控制，不能用 CAX4T 四点应力作参考。
+
+运行完整输入：
+
+```bash
+build/fuelsim -i verification/fuelsim/steady_rz_performance_medium_cax4rt.fsi
+python benchmarks/run_rz_performance.py --size medium --element cax4rt \
+  --results-directory verification/abaqus/rz_performance/medium_cax4rt \
+  --windows-source '\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\rz_performance' \
+  --windows-results '\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\rz_performance\medium_cax4rt'
+```
+
+重新测量时应指定新的结果目录以保留本次证据。`run.ps1 -Size medium -Element cax4rt`
+在不带 `-Timing` 时运行并提取 CAX4RT 最终场。`compare.py` 使用 `--element cax4rt`
+选择一个材料积分点，默认 CAX4T 仍检查四点；对 CAX4RT 输出错误选择 CAX4T 会被拒绝。
+本次另行核对了不活跃的 12 个应力字段全部为 NaN，原 CAX4T 精度检查仍通过。
+
+单进程单线程、绑定逻辑 CPU 0、ADlite 0.2.3 SIMD 开启、关闭结果输出，预热一次后
+正式测量两次，外部计时包括启动、输入读取和完整求解：
+
+| 程序 | 第一次外部耗时 | 第二次外部耗时 | 外部耗时均值 | 内部求解或分析均值 | 非线性迭代数 |
+|---|---:|---:|---:|---:|---:|
+| Fuelsim CAX4RT | 10.9232 s | 11.5372 s | **11.2302 s** | 10.4939 s | 46 |
+| Abaqus CAX4RT | 31.7888 s | 29.7110 s | **30.7499 s** | 26.5000 s | 53 |
+
+Fuelsim 比本批 Abaqus 耗时少 **63.48%**，耗时比为
+**2.74**；相较紧邻前一批 Fuelsim CAX4T 的 22.4507 秒，减少
+**49.98%**。该跨型号比较属于不同积分算法的
+同模型运行观察，并非同一离散算子的代码优化。两套程序分别运行于 WSL 和 Windows，
+逻辑 CPU 编号不保证同一物理核心，不将此比例推广到其他模型。
+
+本次重新运行 Abaqus CAX4RT 输出作业生成对应参考，同时单独运行 Fuelsim 验证输入。
+温度、位移、应力张量、接触压力、间隙和接触反力的全部比较指标通过原有 0.01% 门槛，
+最大逐点相对误差为 **4.53764245e-06%**。仅比较最终加载状态。
+结果、原始压缩日志和散列见 [`medium_cax4rt/summary.json`](medium_cax4rt/summary.json)。
+未修改单元数值实现；此算例为手动性能验证，没有新增重复的自动回归。

@@ -1,0 +1,19 @@
+{
+  "element": "cax4rt",
+  "adlite_version": "0.2.3",
+  "simd_enabled": true,
+  "fuelsim_external_mean_seconds": 11.230192035000073,
+  "abaqus_external_mean_seconds": 30.74989,
+  "fuelsim_internal_mean_seconds": 10.493925828,
+  "abaqus_analysis_mean_seconds": 26.5,
+  "speedup": 2.738144628708462,
+  "elapsed_time_reduction_percent": 63.47891964816761,
+  "fuelsim_cax4t_previous_mean_seconds": 22.45067032048246,
+  "fuelsim_cax4rt_vs_cax4t_elapsed_reduction_percent": 49.97836645993411,
+  "fuelsim_iterations": 46,
+  "abaqus_iterations": 53,
+  "accuracy_passed": true,
+  "maximum_pointwise_relative_error": 4.537642445550058e-08,
+  "relative_error_limit": 0.0001,
+  "scope": "7424 CAX4RT elements, 7670 nodes, 23010 DOFs; same geometry, material, contact and 20 load increments as CAX4T; one warmup and two measured runs; one process/thread and logical CPU 0; WSL Fuelsim MUMPS versus Windows Abaqus native direct solver; timing output disabled; separate new Abaqus CAX4RT reference and Fuelsim output runs"
+}

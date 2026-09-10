@@ -1,0 +1,28 @@
+{
+  "git_revision": "3114ae669ec388ccd76e9c80168b8927dfe55b11",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "sizes": [
+    "medium"
+  ],
+  "element": "cax4rt",
+  "sha256": {
+    "build/fuelsim": "d4ae6f0665cef98017cf9f11c4c04bd85c051d1ce6ff9f21949dd4b5dd404c8d",
+    "benchmarks/run_rz_performance.py": "87ee72906fd4718cf29543bdd6eced1d0deb717dc5713bca88ad872a15bc7ad9",
+    "verification/abaqus/rz_performance/run.ps1": "33c070de017200715392270b45be2bee64fc4dec5e5c57de704dfcbd4827b904",
+    "verification/abaqus/rz_performance/compare.py": "f076a036bcdabd6308a11b1d998508cbb92054518864627721ba451043dbc41d",
+    "verification/abaqus/rz_performance/material_contact.inc": "750d4945e330983e8d84d6cafceccf2a12b4b6291547fef0dd3ce946a3ab7efe",
+    "verification/fuelsim/steady_rz_performance_medium_cax4rt.fsi": "1e05dcf6c6e33bb5e272d15f723d89364f71893b983d5b7046887ff3bdc4e705",
+    "verification/fuelsim/steady_rz_performance_medium_cax4rt_timing.fsi": "025aa3ad16696d1e7ff1e02b63737c1e3942e0ba815ad8d91a2d6327600cca28",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax4rt.inp": "f75edf8b62b9330906c846ebd8195b104f315cee6cfc360c8c04b55c8176220b",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax4rt_timing.inp": "7f6144b4856596201a61f884aeee845525d605b1e3d4f826832c774af5b23264",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax4rt_mesh.inc": "ba6a7ca3a4e113da1406b1fbf4093598ee7281eace0a657081caf6b1c9260dea",
+    "verification/meshes/rz_performance_medium.e": "2474721e4e17738601bc750f81dd678fde7be16aba621477b083f46af824b8c7"
+  },
+  "accuracy_sha256": {
+    "verification/abaqus/rz_performance/medium_cax4rt/rz_performance_medium_cax4rt_nodes.csv.gz": "cce4545b003139eb20c1f81481923419bdaaf77a07a5a53eab8d23a8aa36553c",
+    "verification/abaqus/rz_performance/medium_cax4rt/rz_performance_medium_cax4rt_points.csv.gz": "960fb232a090cf359173dfa788e83275ae936065e7ad12c97bffa29af61d3411",
+    "verification/abaqus/rz_performance/medium_cax4rt/rz_performance_medium_cax4rt_contact.csv.gz": "3cc6eb5fd3ebed40669aeb5f37012082ad345e29fb4a2609d66c61b8ebd353e1",
+    "/tmp/rz-medium-cax4rt-accuracy/fuelsim/steady_rz_performance_medium_cax4rt_results.e": "0808e186a2ff34ac09b5c2b94fc05f6dd3337a555f14808fcc7712027c6ab897"
+  },
+  "source_state": "Existing executable unchanged; new explicit CAX4RT inputs and runner/checker extensions were in the worktree during measurement and are identified by sha256."
+}
