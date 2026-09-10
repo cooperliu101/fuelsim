@@ -1,6 +1,7 @@
 #include "io/results_io.hpp"
 #include "core/cax4_evaluation.hpp"
 #include "core/element_evaluation.hpp"
+#include "core/element_region_data.hpp"
 #include "core/problem_backend_access.hpp"
 #include "core/transient_problem.hpp"
 #include "fnv_hash.hpp"
@@ -1059,7 +1060,7 @@ std::vector<std::vector<double>> quad8_elements(const UnstructuredQuad8Mesh& sou
     const rz8::SpatialAssembly& spatial,
     const std::vector<double>& state,
     const std::vector<std::vector<Quad8MaterialHistory>>* histories,
-    const std::vector<AxisymmetricElementData>* data) {
+    const std::vector<AxisymmetricRegionData>* data) {
     std::vector<std::vector<double>> values(quad8_element_names(histories != nullptr).size(),
         std::vector<double>(source.elements().size(), std::numeric_limits<double>::quiet_NaN()));
     std::vector<std::size_t> dofs;
@@ -1144,8 +1145,8 @@ steady_elements(const UnstructuredQuad4Mesh& mesh, const SteadyProblem& problem,
         const RegionMesh& region_mesh = backend.spatial.region_mesh(region);
         const std::size_t contribution_offset = backend.spatial.region_element_offset(region);
         for (std::size_t element = 0; element < region_mesh.elements().size(); ++element) {
-            const LocalDofs dofs = backend.spatial.contribution_dofs(contribution_offset + element);
-            LocalValues local{};
+            const Cax4LocalDofs dofs = backend.spatial.contribution_dofs(contribution_offset + element);
+            Cax4LocalValues local{};
             for (std::size_t index = 0; index < dofs.size(); ++index)
                 local[index] = state.at(dofs[index]);
             const auto stresses = compute_cax4_thermoelastic_stress(backend.kernel_data[region],

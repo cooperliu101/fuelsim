@@ -4,6 +4,7 @@
 #include "quad8_face_boundary.hpp"
 #include "quad8_face_contact.hpp"
 #include "support/element_evaluation.hpp"
+#include "support/element_test_data.hpp"
 
 #include "support/material_factory.hpp"
 #include <algorithm>
@@ -58,7 +59,7 @@ fuelsim::ThermoelasticProperties material(bool inelastic = false) {
     return result;
 }
 
-double directional_jacobian_error(const fuelsim::CartesianThermoelasticData& data,
+double directional_jacobian_error(const fuelsim::CartesianTestData& data,
     const fuelsim::Hex20Geometry& geometry,
     const fuelsim::Hex20LocalValues& state,
     const fuelsim::Hex20LocalValues& old,
@@ -90,7 +91,7 @@ double directional_jacobian_error(const fuelsim::CartesianThermoelasticData& dat
     return error / scale;
 }
 
-double residual_path_error(const fuelsim::CartesianThermoelasticData& data,
+double residual_path_error(const fuelsim::CartesianTestData& data,
     const fuelsim::Hex20Geometry& geometry,
     const fuelsim::Hex20LocalValues& state,
     const fuelsim::Hex20LocalValues& old,
@@ -238,7 +239,7 @@ bool test_geometry_and_constant_strain() {
         state[28 + node] = 0.004 * point.x - 0.02 * point.y - 0.006 * point.z;
         state[48 + node] = 0.008 * point.x - 0.006 * point.y + 0.03 * point.z;
     }
-    const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(material()), 0.0, 0.0};
+    const fuelsim::CartesianTestData data{fuelsim::IsotropicThermoelasticMaterial(material()), 0.0, 0.0};
     const auto stresses = fuelsim::compute_c3d20_stress(data, geometry, state);
     const double lambda = 2.0e5 * 0.25 / (1.25 * 0.5), shear = 2.0e5 / 2.5, trace = 0.02;
     for (const auto& stress : stresses)
@@ -258,7 +259,7 @@ bool test_finite_thermal_operators() {
     const fuelsim::Hex20Geometry geometry = fuelsim::make_c3d20_geometry(coordinates);
     const fuelsim::ThermoelasticProperties properties =
         fuelsim::test::thermoelastic(0.0, 4.0, 2.0e5, 0.25, 0.0, 300.0, 0.0, 0.0, 0.0, 2.0, 3.0);
-    const fuelsim::CartesianThermoelasticData conduction_data{fuelsim::IsotropicThermoelasticMaterial(properties),
+    const fuelsim::CartesianTestData conduction_data{fuelsim::IsotropicThermoelasticMaterial(properties),
         0.0,
         1.0,
         fuelsim::StrainFormulation::finite};
@@ -287,7 +288,7 @@ bool test_finite_thermal_operators() {
     fuelsim::Hex20LocalValues uniform = state;
     for (std::size_t node = 0; node < 8; ++node)
         uniform[node] = 300.0;
-    const fuelsim::CartesianThermoelasticData source_data{fuelsim::IsotropicThermoelasticMaterial(properties),
+    const fuelsim::CartesianTestData source_data{fuelsim::IsotropicThermoelasticMaterial(properties),
         10.0,
         1.0,
         fuelsim::StrainFormulation::finite};
@@ -308,7 +309,7 @@ bool test_finite_thermal_operators() {
     passed = check(near(midside_source_sum, -10.0, 2.0e-13),
                  "finite-strain HEX20 body source excludes displacement midside nodes from its volume")
              && passed;
-    const fuelsim::CartesianThermoelasticData small_source_data{fuelsim::IsotropicThermoelasticMaterial(properties),
+    const fuelsim::CartesianTestData small_source_data{fuelsim::IsotropicThermoelasticMaterial(properties),
         10.0,
         1.0,
         fuelsim::StrainFormulation::small};
@@ -371,7 +372,7 @@ bool test_finite_thermal_operators() {
 bool test_jacobian_and_transient_history() {
     const auto coordinates = unit_cube();
     const fuelsim::Hex20Geometry geometry = fuelsim::make_c3d20_geometry(coordinates);
-    const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(material(true)),
+    const fuelsim::CartesianTestData data{fuelsim::IsotropicThermoelasticMaterial(material(true)),
         4.0e5,
         1.0,
         fuelsim::StrainFormulation::small};
@@ -392,7 +393,7 @@ bool test_jacobian_and_transient_history() {
     bool active = false;
     for (const auto& point : update)
         active = active || point.equivalent_plastic_strain > 0.0 || point.equivalent_creep_strain > 0.0;
-    const fuelsim::CartesianThermoelasticData finite_data{fuelsim::IsotropicThermoelasticMaterial(material(true)),
+    const fuelsim::CartesianTestData finite_data{fuelsim::IsotropicThermoelasticMaterial(material(true)),
         4.0e5,
         1.0,
         fuelsim::StrainFormulation::finite};
@@ -1055,7 +1056,7 @@ bool test_reduced_volume_kernel() {
                 properties = fuelsim::test::with_norton(std::move(properties), 1.0e-6, 10.0, 3.0, 300.0);
             if ((mechanism & 2U) != 0)
                 properties = fuelsim::test::with_plasticity(std::move(properties), 20.0, 10.0, 300.0);
-            const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties),
+            const fuelsim::CartesianTestData data{fuelsim::IsotropicThermoelasticMaterial(properties),
                 4.0,
                 1.0,
                 formulation};

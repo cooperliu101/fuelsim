@@ -19,7 +19,7 @@ AxisymmetricKinematics evaluate_axisymmetric_kinematics_from_point(const RzQuadr
     const adlite::Scalar& displacement_gradient_rz,
     const adlite::Scalar& displacement_gradient_zr,
     const adlite::Scalar& displacement_gradient_zz,
-    const LocalValues& committed_state,
+    const Cax4LocalValues& committed_state,
     StrainFormulation strain_formulation);
 
 } // namespace
@@ -29,10 +29,10 @@ namespace fuelsim::elements {
 namespace {
 // CAX4T uses point-local width-six kinematics and width-five constitutive AD.
 // Cross-point volume/pressure dependencies are assembled through explicit nodal chains.
-LocalValues cax4t_nodal_chain(const adlite::Scalar& value, const RzQuadraturePoint& point) {
+Cax4LocalValues cax4t_nodal_chain(const adlite::Scalar& value, const RzQuadraturePoint& point) {
     std::array<double, 6> d{};
     value.copy_derivatives(d.data(), d.size());
-    LocalValues result{};
+    Cax4LocalValues result{};
     for (std::size_t n = 0; n < 4; ++n) {
         result[n] = d[5] * point.shape[n];
         result[4 + n] = d[0] * point.gradient_r[n] + d[1] * point.gradient_z[n] + d[4] * point.shape[n];
@@ -45,7 +45,7 @@ struct Cax4tPointSystem final {
     AxisymmetricKinematics kinematics;
     adlite::Scalar temperature;
     AxisymmetricStress stress;
-    std::array<LocalValues, 4> stress_derivatives{};
+    std::array<Cax4LocalValues, 4> stress_derivatives{};
     MaterialPointState history;
 };
 
@@ -74,7 +74,7 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
     }
     std::array<Cax4tPointSystem, 4> systems;
     double numerator = 0.0, midpoint_volume = 0.0, current_volume = 0.0, reference_volume = 0.0;
-    LocalValues numerator_derivatives{}, midpoint_derivatives{}, volume_derivatives{}, hoop_shape{};
+    Cax4LocalValues numerator_derivatives{}, midpoint_derivatives{}, volume_derivatives{}, hoop_shape{};
     double hoop_new = 0.0, hoop_old = 0.0;
     for (std::size_t q = 0; q < 4; ++q) {
         const auto& point = geometry.points[q];
@@ -123,7 +123,7 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
         || !(midpoint_volume > 0.0) || !(current_volume > 0.0) || !(reference_volume > 0.0))
         throw std::domain_error("CAX4T requires positive reference, midpoint and current volumes");
     const double average_trace = numerator / midpoint_volume;
-    LocalValues average_derivatives{};
+    Cax4LocalValues average_derivatives{};
     for (std::size_t j = 0; j < 12; ++j)
         average_derivatives[j] = (numerator_derivatives[j] - average_trace * midpoint_derivatives[j]) / midpoint_volume;
     hoop_new /= reference_volume;
@@ -134,12 +134,12 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
     // Abaqus averages F_hoop over reference volume before forming its central increment.
     // The independently averaged full trace then supplies only the in-plane correction.
     const double average_hoop = finite_strain ? 2.0 * (hoop_new - hoop_old) / (hoop_new + hoop_old) : hoop_new - 1.0;
-    LocalValues hoop_derivatives{};
+    Cax4LocalValues hoop_derivatives{};
     for (std::size_t j = 0; j < 12; ++j)
         hoop_derivatives[j] =
             hoop_shape[j] * (finite_strain ? 4.0 * hoop_old / ((hoop_new + hoop_old) * (hoop_new + hoop_old)) : 1.0);
     double pressure = 0.0, hoop_stress = 0.0;
-    LocalValues pressure_derivatives{}, hoop_stress_derivatives{};
+    Cax4LocalValues pressure_derivatives{}, hoop_stress_derivatives{};
     Cax4Result result;
     for (std::size_t q = 0; q < 4; ++q) {
         const auto& point = geometry.points[q];
@@ -326,8 +326,8 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
             scale * deviator[1] + pressure,
             pressure,
             scale * deviator[3]};
-        const auto wd = jacobian ? cax4t_nodal_chain(k.weighted_measure, point) : LocalValues{};
-        std::array<LocalValues, 4> sd{};
+        const auto wd = jacobian ? cax4t_nodal_chain(k.weighted_measure, point) : Cax4LocalValues{};
+        std::array<Cax4LocalValues, 4> sd{};
         if (jacobian)
             for (std::size_t j = 0; j < 12; ++j) {
                 const double pd = (s.stress_derivatives[0][j] + s.stress_derivatives[1][j]) / 2.0;
@@ -475,7 +475,7 @@ AxisymmetricKinematics evaluate_axisymmetric_kinematics_from_point(const RzQuadr
     const adlite::Scalar& displacement_gradient_rz,
     const adlite::Scalar& displacement_gradient_zr,
     const adlite::Scalar& displacement_gradient_zz,
-    const LocalValues& committed_state,
+    const Cax4LocalValues& committed_state,
     StrainFormulation strain_formulation) {
     AxisymmetricKinematics result{};
     if (strain_formulation == StrainFormulation::small) {

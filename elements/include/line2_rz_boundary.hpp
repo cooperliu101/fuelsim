@@ -1,6 +1,6 @@
 #pragma once
-#include "axisymmetric_geometry.hpp"
 #include "boundary_types.hpp"
+#include "cax4_types.hpp"
 
 namespace fuelsim {
 struct Line2RzBoundaryGeometry final {
@@ -20,8 +20,8 @@ struct Line2RzBoundaryData final {
     bool use_displaced_geometry;
 };
 
-LocalResidual compute_line2_rz_boundary(const Line2RzBoundaryData& data,
+Cax4LocalResidual compute_line2_rz_boundary(const Line2RzBoundaryData& data,
     const Line2RzBoundaryGeometry& geometry,
-    const LocalValues& state,
-    LocalJacobian* jacobian = nullptr);
+    const Cax4LocalValues& state,
+    Cax4LocalJacobian* jacobian = nullptr);
 } // namespace fuelsim

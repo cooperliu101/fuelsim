@@ -1,3 +1,4 @@
+#include "c3d8_kinematics.hpp"
 #include "contact_types.hpp"
 #include "solver/solve_workflows.hpp"
 // Offline parameter studies only; registered acceptance paths run fuelsim -i.
@@ -1544,7 +1545,7 @@ int main(int argc, char** argv) {
             fuelsim::Hex8LocalAdValues passive{};
             for (std::size_t local = 0; local < local_state.size(); ++local)
                 passive[local] = local_state[local];
-            const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
+            const fuelsim::C3d8Kinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
                 passive,
                 fuelsim::Hex8LocalValues{},
                 fuelsim::StrainFormulation::finite);

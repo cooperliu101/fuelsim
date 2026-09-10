@@ -1,4 +1,4 @@
-#include "axisymmetric_geometry.hpp"
+#include "cax4_types.hpp"
 #include "detail/rz_point.hpp"
 #include <cmath>
 #include <stdexcept>

@@ -4,6 +4,7 @@
 #include "line3_rz_boundary.hpp"
 #include "line3_rz_contact.hpp"
 #include "support/element_evaluation.hpp"
+#include "support/element_test_data.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
 #include <cmath>
@@ -145,7 +146,7 @@ int run_cax8_tests(fuelsim::RzElementFormulation selected) {
             {{1, 0}, {2, 0}, {2, 1}, {1, 1}, {1.5, 0}, {2, .5}, {1.5, 1}, {1, .5}}};
         for (auto element : {selected}) {
             const auto geometry = fuelsim::make_cax8_geometry(annulus, element);
-            fuelsim::AxisymmetricElementData data{fuelsim::IsotropicThermoelasticMaterial(base)};
+            fuelsim::AxisymmetricTestData data{fuelsim::IsotropicThermoelasticMaterial(base)};
             data.volumetric_heat_source = 1e4;
             fuelsim::Quad8RzValues affine{};
             for (std::size_t n = 0; n < 4; ++n)
@@ -186,7 +187,7 @@ int run_cax8_tests(fuelsim::RzElementFormulation selected) {
                 if (mechanism & 2)
                     properties = fuelsim::test::with_plasticity(properties, 1e4, 1e5);
                 for (auto form : {fuelsim::StrainFormulation::small, fuelsim::StrainFormulation::finite}) {
-                    fuelsim::AxisymmetricElementData data{fuelsim::IsotropicThermoelasticMaterial(properties)};
+                    fuelsim::AxisymmetricTestData data{fuelsim::IsotropicThermoelasticMaterial(properties)};
                     data.strain_formulation = form;
                     data.volumetric_heat_source = 1e4;
                     const fuelsim::Quad8MaterialHistory history{};

@@ -126,7 +126,7 @@ bool check_projection(const std::string& input_path) {
         if (fuelsim::rz::ProblemAccess::contribution_type(problem, contribution)
             != fuelsim::SpatialContributionType::mechanical_contact)
             continue;
-        const fuelsim::LocalResidual local = fuelsim::rz::ProblemAccess::contribution_residual(problem,
+        const fuelsim::Cax4LocalResidual local = fuelsim::rz::ProblemAccess::contribution_residual(problem,
             contribution,
             fuelsim::rz::ProblemAccess::contribution_state(problem, contribution, large_sliding_state));
         for (std::size_t row = 4; row < 8; ++row) {

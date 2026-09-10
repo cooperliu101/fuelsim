@@ -1,6 +1,8 @@
 #pragma once
 #include "cartesian_types.hpp"
 #include "coordinates.hpp"
+#include "element_types.hpp"
+#include "material.hpp"
 #include <array>
 #include <vector>
 
@@ -48,23 +50,9 @@ struct Hex8Geometry final {
 
 Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates);
 
-struct CartesianKinematics final {
-    SymmetricTensor3 strain_increment;
-    CartesianRotation rotation;
-    std::array<std::array<adlite::Scalar, 3>, hex8_node_count> current_gradient;
-    adlite::Scalar current_weighted_measure{0.0};
-};
-
-CartesianKinematics evaluate_cartesian_incremental_kinematics(const Hex8QuadraturePoint& point,
-    const Hex8LocalAdValues& current_state,
-    const Hex8LocalValues& committed_state,
-    StrainFormulation strain_formulation);
-
 void validate_cartesian_deformation(const Hex8QuadraturePoint& point, const Hex8LocalValues& state);
 
 } // namespace fuelsim
-
-#include "element_types.hpp"
 
 namespace fuelsim::elements {
 struct C3d8Input final {

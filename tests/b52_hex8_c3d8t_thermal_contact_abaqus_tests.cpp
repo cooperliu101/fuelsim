@@ -1,6 +1,7 @@
 #include "c3d8_types.hpp"
 #include "contact_types.hpp"
 #include "core/element_evaluation.hpp"
+#include "core/element_region_data.hpp"
 #include "quad4_face_boundary.hpp"
 #include "quad4_face_contact.hpp"
 
@@ -111,7 +112,7 @@ int main(int argc, char** argv) {
 
         const fuelsim::ThermoelasticProperties properties =
             fuelsim::test::thermoelastic(0.0, conductivity, 2.0e11, 0.25, 0.0, 300.0, 0.0, 0.0, 0.0, 2000.0, 3000.0);
-        const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties), 0.0, 1.0};
+        const fuelsim::CartesianRegionData data{fuelsim::IsotropicThermoelasticMaterial(properties), 0.0, 1.0};
         std::array<fuelsim::Hex8LocalValues, 2> states{};
         for (std::size_t node = 0; node < 8; ++node) {
             states[0][node] = reference[node].temperature;

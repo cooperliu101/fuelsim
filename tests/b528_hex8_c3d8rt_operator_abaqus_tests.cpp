@@ -1,5 +1,6 @@
 #include "c3d8_types.hpp"
 #include "core/element_evaluation.hpp"
+#include "core/element_region_data.hpp"
 #include "support/material_factory.hpp"
 #include <array>
 #include <cmath>
@@ -128,7 +129,7 @@ bool check_case(const std::string& path,
     const Step& base = steps.at("BASE");
     const fuelsim::ThermoelasticProperties properties =
         fuelsim::test::thermoelastic(0.0, 4.0, 2.0e11, 0.25, 1.2e-5, 300.0, 0.0, 0.0, 0.0, 2000.0, 3000.0);
-    const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties),
+    const fuelsim::CartesianRegionData data{fuelsim::IsotropicThermoelasticMaterial(properties),
         0.0,
         0.0,
         strain_formulation,

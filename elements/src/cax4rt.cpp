@@ -6,22 +6,22 @@
 namespace fuelsim::elements {
 namespace {
 using Gradient = std::array<std::array<double, 2>, 4>;
-using GradientDerivative = std::array<std::array<LocalValues, 2>, 4>;
+using GradientDerivative = std::array<std::array<Cax4LocalValues, 2>, 4>;
 constexpr std::array<double, 4> mode = {1.0, -1.0, 1.0, -1.0};
 constexpr std::array<std::array<double, 2>, 4> signs = {{{-1, -1}, {1, -1}, {1, 1}, {-1, 1}}};
 
 struct ReducedGeometry final {
     double volume = 0.0;
-    LocalValues volume_derivative{};
+    Cax4LocalValues volume_derivative{};
     Gradient gradient{};
     GradientDerivative gradient_derivative{};
     std::array<double, 4> hoop{}, measures{}, gamma{};
-    std::array<LocalValues, 4> hoop_derivative{}, measure_derivative{}, gamma_derivative{};
+    std::array<Cax4LocalValues, 4> hoop_derivative{}, measure_derivative{}, gamma_derivative{};
     double thermal_coefficient = 0.0;
-    LocalValues thermal_derivative{};
+    Cax4LocalValues thermal_derivative{};
 };
 
-ReducedGeometry reduce_geometry(const Quad4RzGeometry& reference, const LocalValues& state, double chain_scale) {
+ReducedGeometry reduce_geometry(const Quad4RzGeometry& reference, const Cax4LocalValues& state, double chain_scale) {
     ReducedGeometry result;
     for (const auto& p : reference.points) {
         double frr = 1.0, frz = 0.0, fzr = 0.0, fzz = 1.0, radius = p.radius;
@@ -120,10 +120,10 @@ ReducedGeometry reduce_geometry(const Quad4RzGeometry& reference, const LocalVal
     return result;
 }
 
-LocalValues chain(const adlite::Scalar& x, const std::array<LocalValues, 6>& seeds) {
+Cax4LocalValues chain(const adlite::Scalar& x, const std::array<Cax4LocalValues, 6>& seeds) {
     std::array<double, 6> dx{};
     x.copy_derivatives(dx.data(), dx.size());
-    LocalValues result{};
+    Cax4LocalValues result{};
     for (std::size_t j = 0; j < 12; ++j)
         for (std::size_t k = 0; k < 6; ++k)
             result[j] += dx[k] * seeds[k][j];
@@ -136,10 +136,10 @@ struct HourglassState final {
     std::array<std::array<double, 2>, 2> deformation = {{{1, 0}, {0, 1}}};
 };
 
-HourglassState hourglass_state(const AxisymmetricElementData& data,
+HourglassState hourglass_state(const elements::Cax4Input& data,
     const Quad4RzGeometry& geometry,
     const ReducedGeometry& reference,
-    const LocalValues& state) {
+    const Cax4LocalValues& state) {
     HourglassState result;
     double norm = 0.0, normalization = 0.0, radius = 0.0, axial = 0.0;
     for (const auto& point : geometry.points) {
@@ -169,10 +169,10 @@ HourglassState hourglass_state(const AxisymmetricElementData& data,
 }
 } // namespace
 
-elements::Cax4Result compute_cax4rt(const AxisymmetricElementData& data,
+elements::Cax4Result compute_cax4rt(const elements::Cax4Input& data,
     const Quad4RzGeometry& geometry,
-    const LocalValues& state,
-    const LocalValues& committed,
+    const Cax4LocalValues& state,
+    const Cax4LocalValues& committed,
     const Quad4MaterialHistory* history,
     double time_step,
     bool jacobian,
@@ -181,12 +181,12 @@ elements::Cax4Result compute_cax4rt(const AxisymmetricElementData& data,
     const auto reference = reduce_geometry(geometry, {}, 0.0);
     const auto current = finite ? reduce_geometry(geometry, state, jacobian ? 1.0 : 0.0) : reference;
     const auto old = finite ? reduce_geometry(geometry, committed, 0.0) : reference;
-    LocalValues midpoint_state{};
+    Cax4LocalValues midpoint_state{};
     for (std::size_t j = 0; j < 12; ++j)
         midpoint_state[j] = (state[j] + committed[j]) / 2.0;
     const auto midpoint = finite ? reduce_geometry(geometry, midpoint_state, jacobian ? 0.5 : 0.0) : reference;
     std::array<double, 6> values{}, old_values{};
-    std::array<LocalValues, 6> seeds{};
+    std::array<Cax4LocalValues, 6> seeds{};
     for (std::size_t n = 0; n < 4; ++n) {
         for (std::size_t c = 0; c < 2; ++c)
             for (std::size_t d = 0; d < 2; ++d) {
@@ -207,7 +207,7 @@ elements::Cax4Result compute_cax4rt(const AxisymmetricElementData& data,
         seeds[5][j] -= values[5] * current.volume_derivative[j] / current.volume;
     }
     double trace = 0.0;
-    LocalValues trace_derivative{};
+    Cax4LocalValues trace_derivative{};
     for (std::size_t n = 0; n < 4; ++n) {
         const double ur = state[4 + n] - (finite ? committed[4 + n] : 0.0),
                      uz = state[8 + n] - (finite ? committed[8 + n] : 0.0);
@@ -306,7 +306,7 @@ elements::Cax4Result compute_cax4rt(const AxisymmetricElementData& data,
     }
     const std::array<adlite::Scalar, 4> stress = {sigma.rr, sigma.zz, sigma.hoop, sigma.rz};
     trace_response = {ds.rr.value(), ds.zz.value(), ds.hoop.value(), ds.rz.value()};
-    std::array<LocalValues, 4> stress_derivative{};
+    std::array<Cax4LocalValues, 4> stress_derivative{};
     for (std::size_t i = 0; i < 4; ++i) {
         stress_derivative[i] = chain(stress[i], seeds);
         for (std::size_t j = 0; j < 12; ++j)
@@ -335,7 +335,7 @@ elements::Cax4Result compute_cax4rt(const AxisymmetricElementData& data,
     }
     result.history[0].stress = {sigma.rr.value(), sigma.zz.value(), sigma.hoop.value(), sigma.rz.value()};
     const double p = (sigma.rr.value() + sigma.zz.value()) / 2.0;
-    LocalValues dp{};
+    Cax4LocalValues dp{};
     for (std::size_t j = 0; j < 12; ++j)
         dp[j] = (stress_derivative[0][j] + stress_derivative[1][j]) / 2.0;
     for (std::size_t n = 0; n < 4; ++n) {
@@ -450,14 +450,15 @@ elements::Cax4Result compute_cax4rt(const AxisymmetricElementData& data,
     return result;
 }
 
-std::array<double, 2> cax4rt_thermal_rates(const AxisymmetricElementData& data,
+std::array<double, 2> cax4rt_thermal_rates(const elements::Cax4Input& data,
     const Quad4RzGeometry& geometry,
-    const LocalValues& state,
-    const LocalValues& committed,
+    const Cax4LocalValues& state,
+    const Cax4LocalValues& committed,
     double time_step,
     bool thermal_time) {
-    const auto current =
-        reduce_geometry(geometry, data.strain_formulation == StrainFormulation::finite ? state : LocalValues{}, 0.0);
+    const auto current = reduce_geometry(geometry,
+        data.strain_formulation == StrainFormulation::finite ? state : Cax4LocalValues{},
+        0.0);
     std::array<double, 2> rates = {0.0, data.volumetric_heat_source * current.volume};
     if (thermal_time)
         for (std::size_t n = 0; n < 4; ++n)
@@ -470,9 +471,9 @@ std::array<double, 2> cax4rt_thermal_rates(const AxisymmetricElementData& data,
     return rates;
 }
 
-double cax4rt_hourglass_energy(const AxisymmetricElementData& data,
-    const Quad4RzGeometry& geometry,
-    const LocalValues& state) {
+double cax4rt_hourglass_energy(const Cax4Input& data) {
+    const auto& geometry = data.geometry;
+    const auto& state = data.state;
     const auto hourglass = hourglass_state(data, geometry, reduce_geometry(geometry, {}, 0.0), state);
     return 0.5 * hourglass.coefficient
            * (hourglass.transported[0] * hourglass.transported[0]
@@ -485,12 +486,7 @@ Cax4Result evaluate_cax4rt(const Cax4Input& input, ElementRequest request) {
     const bool jacobian = request.jacobian;
     if (input.committed_history && (!std::isfinite(input.time_step) || !(input.time_step > 0)))
         throw std::invalid_argument("CAX4RT history update requires a positive finite time step");
-    const AxisymmetricElementData data{input.material,
-        input.volumetric_heat_source,
-        input.time,
-        input.strain_formulation,
-        RzElementFormulation::cax4rt,
-        input.initial_temperature};
+    const auto& data = input;
     auto result = compute_cax4rt(data,
         input.geometry,
         input.state,

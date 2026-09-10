@@ -1,5 +1,8 @@
 #pragma once
 #include "axisymmetric_types.hpp"
+#include "coordinates.hpp"
+#include "element_types.hpp"
+#include "material.hpp"
 
 namespace fuelsim {
 using Quad8RzCoordinates = std::array<RzPoint, 8>;
@@ -24,8 +27,6 @@ struct Quad8RzGeometry final {
 Quad8RzPoint evaluate_quad8_rz_point(const Quad8RzCoordinates& coordinates, double xi, double eta, double weight);
 
 } // namespace fuelsim
-
-#include "element_types.hpp"
 
 namespace fuelsim::elements {
 struct Cax8Input final {

@@ -2,7 +2,7 @@
 #include "cax8_types.hpp"
 
 namespace fuelsim {
-elements::Cax8Result compute_quad8_rz(const AxisymmetricElementData& data,
+elements::Cax8Result compute_quad8_rz(const elements::Cax8Input& data,
     const Quad8RzGeometry& geometry,
     const Quad8RzValues& state,
     const Quad8RzValues& committed,

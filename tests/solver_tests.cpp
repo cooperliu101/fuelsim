@@ -81,7 +81,7 @@ fuelsim::SpatialDefinition single_region_definition(const fuelsim::Thermoelastic
 
 class TwelveDofProblem : public fuelsim::NonlinearProblem {
   public:
-    std::size_t dof_count() const noexcept override { return fuelsim::local_dof_count; }
+    std::size_t dof_count() const noexcept override { return fuelsim::cax4_local_dof_count; }
 
     std::size_t contribution_count() const noexcept override { return 1; }
 
@@ -89,7 +89,7 @@ class TwelveDofProblem : public fuelsim::NonlinearProblem {
 
     void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override {
         validate_contribution(index);
-        dofs.resize(fuelsim::local_dof_count);
+        dofs.resize(fuelsim::cax4_local_dof_count);
         for (std::size_t dof = 0; dof < dofs.size(); ++dof)
             dofs[dof] = dof;
     }
@@ -253,7 +253,7 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
 
     const std::vector<fuelsim::FieldDescriptor>& field_layout() const noexcept override { return _fields; }
 
-    std::size_t local_dof_count(std::size_t index) const {
+    std::size_t cax4_local_dof_count(std::size_t index) const {
         if (index == 0)
             return 32;
         if (index == 1)
@@ -280,7 +280,7 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
         const std::vector<double>& state,
         std::vector<double>& residual,
         std::vector<double>* jacobian) const override {
-        const std::size_t local_count = local_dof_count(index);
+        const std::size_t local_count = cax4_local_dof_count(index);
         if (state.size() != local_count)
             throw std::invalid_argument("RuntimeLayoutProblem contribution state size");
         if (jacobian == nullptr)
@@ -318,7 +318,7 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
     }
 
     double contribution_coefficient(std::size_t index, std::size_t row, std::size_t column) const {
-        const std::size_t local_count = local_dof_count(index);
+        const std::size_t local_count = cax4_local_dof_count(index);
         if (row >= local_count || column >= local_count)
             throw std::out_of_range("RuntimeLayoutProblem coefficient index");
         if (index == 0) {
@@ -338,7 +338,7 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
   private:
     void
     compute_residual_values(std::size_t index, const std::vector<double>& state, std::vector<double>& residual) const {
-        const std::size_t local_count = local_dof_count(index);
+        const std::size_t local_count = cax4_local_dof_count(index);
         if (state.size() != local_count)
             throw std::invalid_argument("RuntimeLayoutProblem contribution state size");
         residual.assign(local_count, 0.0);
@@ -371,7 +371,7 @@ bool test_runtime_contribution_layout() {
                             && fields[2].category == fuelsim::FieldCategory::mechanical
                             && fields[3].category == fuelsim::FieldCategory::mechanical,
         "runtime field metadata supports a non-leading thermal field and three mechanical fields");
-    passed = check(problem.local_dof_count(0) == 32 && problem.local_dof_count(1) == 7,
+    passed = check(problem.cax4_local_dof_count(0) == 32 && problem.cax4_local_dof_count(1) == 7,
                  "runtime contributions report a wide contribution followed by a narrow contribution")
              && passed;
     std::vector<double> state(problem.dof_count());
@@ -507,7 +507,7 @@ bool test_runtime_contribution_layout() {
              && passed;
     if (result.mpi_size == 2 && result.local_contribution_begin < result.local_contribution_end) {
         const std::size_t expected_local_width = result.mpi_rank == 0 ? 32 : 7;
-        passed = check(problem.local_dof_count(result.local_contribution_begin) == expected_local_width,
+        passed = check(problem.cax4_local_dof_count(result.local_contribution_begin) == expected_local_width,
                      "two-rank solve assigns the wide and narrow contributions to different ranks")
                  && passed;
     }
@@ -563,7 +563,7 @@ bool test_runtime_contribution_layout() {
 bool test_global_newton_safeguards() {
     LogDomainProblem domain_problem;
     fuelsim::PetscSolver failing_domain_solver;
-    const std::vector<double> initial(fuelsim::local_dof_count, 1.0);
+    const std::vector<double> initial(fuelsim::cax4_local_dof_count, 1.0);
     fuelsim::SolverOptions failing_domain_options;
     failing_domain_options.backtracking_fallback = false;
     const fuelsim::SolveResult domain_failure =
@@ -820,7 +820,7 @@ bool test_free_thermal_expansion() {
     }
     double maximum_stress = 0.0;
     for (std::size_t element = 0; element < fuelsim::rz::ProblemAccess::region_element_count(problem, 0); ++element) {
-        const fuelsim::LocalValues state =
+        const fuelsim::Cax4LocalValues state =
             fuelsim::rz::ProblemAccess::contribution_state(problem, element, result.state);
         const auto stresses =
             fuelsim::compute_cax4_thermoelastic_stress(fuelsim::rz::ProblemAccess::region_kernel_data(problem, 0),

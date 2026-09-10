@@ -1,9 +1,11 @@
 #include "boundary_types.hpp"
+#include "c3d8_kinematics.hpp"
 #include "c3d8_types.hpp"
 #include "contact_types.hpp"
 #include "quad4_face_boundary.hpp"
 #include "quad4_face_contact.hpp"
 #include "support/element_evaluation.hpp"
+#include "support/element_test_data.hpp"
 
 #include "support/material_factory.hpp"
 #include <algorithm>
@@ -80,7 +82,7 @@ fuelsim::ThermoelasticProperties capacity_properties() {
 bool test_element_average_thermal_expansion_temperature() {
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
     const fuelsim::IsotropicThermoelasticMaterial material(properties());
-    const fuelsim::CartesianThermoelasticData data{material, 0.0, 0.0};
+    const fuelsim::CartesianTestData data{material, 0.0, 0.0};
     fuelsim::Hex8LocalValues state{};
     const std::array<double, 8> nodal_temperatures{{360.0, 410.0, 445.0, 385.0, 470.0, 430.0, 515.0, 455.0}};
     double element_temperature = 0.0;
@@ -163,7 +165,7 @@ bool test_geometry_and_constant_strain() {
         state[16 + node] = exy * point.x + eyy * point.y + eyz * point.z;
         state[24 + node] = exz * point.x + eyz * point.y + ezz * point.z;
     }
-    const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 0.0, 0.0};
+    const fuelsim::CartesianTestData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 0.0, 0.0};
     const auto stresses = fuelsim::compute_c3d8_stress(data, geometry, state);
     const double lambda = 2.0e11 * 0.25 / (1.25 * 0.5);
     const double shear = 2.0e11 / 2.5;
@@ -188,7 +190,7 @@ bool test_distorted_selective_volumetric_integration() {
     coordinates[7] = {-0.08, 0.91, 1.06};
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
     constexpr double young_modulus = 2.0e11, poisson_ratio = 0.499;
-    const fuelsim::CartesianThermoelasticData data{
+    const fuelsim::CartesianTestData data{
         fuelsim::IsotropicThermoelasticMaterial(
             fuelsim::test::thermoelastic(0.0, 1.0, young_modulus, poisson_ratio, 0.0, 300.0)),
         0.0,
@@ -243,7 +245,7 @@ bool test_distorted_selective_volumetric_integration() {
 
 bool test_selective_integration_constrained_face_rank() {
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
-    const fuelsim::CartesianThermoelasticData data{
+    const fuelsim::CartesianTestData data{
         fuelsim::IsotropicThermoelasticMaterial(fuelsim::test::thermoelastic(0.0, 1.0, 1.0e9, 0.0, 0.0, 300.0)),
         0.0,
         0.0};
@@ -292,7 +294,7 @@ bool test_selective_integration_constrained_face_rank() {
 bool test_free_thermal_expansion_and_jacobian() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
-    const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 7.0e5, 0.0};
+    const fuelsim::CartesianTestData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 7.0e5, 0.0};
     fuelsim::Hex8LocalValues state{};
     const double temperature = 650.0;
     const double active_alpha = 1.2e-5 + 1.0e-8 * (temperature - 300.0);
@@ -345,7 +347,7 @@ bool test_free_thermal_expansion_and_jacobian() {
 
 bool test_transient_capacity_and_faces() {
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
-    const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 1.2e7, 0.0};
+    const fuelsim::CartesianTestData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 1.2e7, 0.0};
     fuelsim::Hex8LocalValues old_state{};
     fuelsim::Hex8LocalValues state{};
     for (std::size_t node = 0; node < 8; ++node) {
@@ -393,7 +395,7 @@ bool test_transient_capacity_and_faces() {
         || !check(capacity_jacobian_error < 1.0e-7,
             "HEX8 nodal heat-capacity Jacobian is diagonal with the Abaqus corner weights"))
         return false;
-    const fuelsim::CartesianThermoelasticData nonlinear_capacity_data{
+    const fuelsim::CartesianTestData nonlinear_capacity_data{
         fuelsim::IsotropicThermoelasticMaterial(capacity_properties()),
         0.0,
         0.0};
@@ -712,7 +714,7 @@ bool test_reduced_integration_inelastic_jacobian() {
     const fuelsim::CartesianMaterialHistory committed_material(1);
     bool passed = true;
     for (const std::array<bool, 2> branch : {std::array<bool, 2>{false, true}, {true, false}, {true, true}}) {
-        const fuelsim::CartesianThermoelasticData data{
+        const fuelsim::CartesianTestData data{
             fuelsim::IsotropicThermoelasticMaterial(inelastic_properties(branch[0], branch[1])),
             3.0,
             1.0,
@@ -787,7 +789,7 @@ bool test_reduced_integration_inelastic_jacobian() {
                 "C3D8RT residual, Jacobian, and trial update do not mutate committed history")
             && passed;
     }
-    const fuelsim::CartesianThermoelasticData finite_data{fuelsim::IsotropicThermoelasticMaterial(properties()),
+    const fuelsim::CartesianTestData finite_data{fuelsim::IsotropicThermoelasticMaterial(properties()),
         3.0,
         1.0,
         fuelsim::StrainFormulation::finite,
@@ -863,7 +865,7 @@ bool test_reduced_integration_thermoelastic_capacity_gate() {
         fuelsim::StrainFormulation::finite};
     bool passed = true;
     for (std::size_t formulation = 0; formulation < formulations.size(); ++formulation) {
-        const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(capacity_properties()),
+        const fuelsim::CartesianTestData data{fuelsim::IsotropicThermoelasticMaterial(capacity_properties()),
             0.0,
             1.0,
             formulations[formulation],
@@ -922,13 +924,13 @@ bool test_reduced_integration_hourglass_energy() {
     bool passed = true;
     for (const fuelsim::StrainFormulation formulation :
         {fuelsim::StrainFormulation::small, fuelsim::StrainFormulation::finite}) {
-        const fuelsim::CartesianThermoelasticData fixed_data{fuelsim::IsotropicThermoelasticMaterial(fixed),
+        const fuelsim::CartesianTestData fixed_data{fuelsim::IsotropicThermoelasticMaterial(fixed),
             0.0,
             0.0,
             formulation,
             fuelsim::Hex8ElementFormulation::c3d8rt,
             300.0};
-        const fuelsim::CartesianThermoelasticData varying_data{fuelsim::IsotropicThermoelasticMaterial(varying_initial),
+        const fuelsim::CartesianTestData varying_data{fuelsim::IsotropicThermoelasticMaterial(varying_initial),
             0.0,
             0.0,
             formulation,
@@ -944,12 +946,50 @@ bool test_reduced_integration_hourglass_energy() {
             fuelsim::Hex8LocalValues plus = state, minus = state;
             plus[column] += step;
             minus[column] -= step;
-            const double plus_energy =
-                fuelsim::compute_c3d8_mechanical_hourglass_energy(fixed_data, geometry, plus)
-                - fuelsim::compute_c3d8_mechanical_hourglass_energy(varying_data, geometry, plus);
-            const double minus_energy =
-                fuelsim::compute_c3d8_mechanical_hourglass_energy(fixed_data, geometry, minus)
-                - fuelsim::compute_c3d8_mechanical_hourglass_energy(varying_data, geometry, minus);
+            const double plus_energy = fuelsim::elements::c3d8rt_hourglass_energy({fixed_data.material,
+                                           geometry,
+                                           plus,
+                                           plus,
+                                           nullptr,
+                                           0.0,
+                                           fixed_data.time,
+                                           fixed_data.volumetric_heat_source,
+                                           fixed_data.strain_formulation,
+                                           false,
+                                           fixed_data.initial_temperature})
+                                       - fuelsim::elements::c3d8rt_hourglass_energy({varying_data.material,
+                                           geometry,
+                                           plus,
+                                           plus,
+                                           nullptr,
+                                           0.0,
+                                           varying_data.time,
+                                           varying_data.volumetric_heat_source,
+                                           varying_data.strain_formulation,
+                                           false,
+                                           varying_data.initial_temperature});
+            const double minus_energy = fuelsim::elements::c3d8rt_hourglass_energy({fixed_data.material,
+                                            geometry,
+                                            minus,
+                                            minus,
+                                            nullptr,
+                                            0.0,
+                                            fixed_data.time,
+                                            fixed_data.volumetric_heat_source,
+                                            fixed_data.strain_formulation,
+                                            false,
+                                            fixed_data.initial_temperature})
+                                        - fuelsim::elements::c3d8rt_hourglass_energy({varying_data.material,
+                                            geometry,
+                                            minus,
+                                            minus,
+                                            nullptr,
+                                            0.0,
+                                            varying_data.time,
+                                            varying_data.volumetric_heat_source,
+                                            varying_data.strain_formulation,
+                                            false,
+                                            varying_data.initial_temperature});
             const double numerical = (plus_energy - minus_energy) / (2.0 * step);
             const double analytic = fixed_residual[column] - varying_residual[column];
             maximum_error = std::max(maximum_error, std::abs(analytic - numerical));
@@ -978,11 +1018,10 @@ bool test_finite_strain_kinematics_and_coupled_jacobian() {
     fuelsim::Hex8LocalAdValues passive{};
     for (std::size_t dof = 0; dof < state.size(); ++dof)
         passive[dof] = state[dof];
-    const fuelsim::CartesianKinematics kinematics =
-        fuelsim::evaluate_cartesian_incremental_kinematics(geometry.points[0],
-            passive,
-            fuelsim::Hex8LocalValues{},
-            fuelsim::StrainFormulation::finite);
+    const fuelsim::C3d8Kinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(geometry.points[0],
+        passive,
+        fuelsim::Hex8LocalValues{},
+        fuelsim::StrainFormulation::finite);
     const auto hughes_winget = [](double stretch) {
         return 2.0 * (stretch - 1.0) / (stretch + 1.0);
     };
@@ -1000,8 +1039,7 @@ bool test_finite_strain_kinematics_and_coupled_jacobian() {
         state[16 + node] = -0.02 * point.x - 0.04 * point.y + 0.06 * point.z;
         state[24 + node] = 0.04 * point.x - 0.05 * point.y - 0.03 * point.z;
     }
-    const fuelsim::CartesianThermoelasticData data{
-        fuelsim::IsotropicThermoelasticMaterial(inelastic_properties(true, true)),
+    const fuelsim::CartesianTestData data{fuelsim::IsotropicThermoelasticMaterial(inelastic_properties(true, true)),
         8.0e4,
         1.0,
         fuelsim::StrainFormulation::finite};

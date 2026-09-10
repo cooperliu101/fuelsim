@@ -21,7 +21,7 @@ void validate_edge(const std::array<RzPoint, 2>& coordinates,
 
 void displaced_edge_coordinates(const std::array<RzPoint, 2>& coordinates,
     const std::array<std::size_t, 2>& local_nodes,
-    const LocalAdValues& state,
+    const Cax4LocalAdValues& state,
     bool use_displaced_geometry,
     std::array<adlite::Scalar, 2>& radius,
     std::array<adlite::Scalar, 2>& axial) {
@@ -46,8 +46,8 @@ Line2RzBoundaryGeometry make_line2_rz_boundary_geometry(const std::array<RzPoint
 namespace {
 void compute_line2_rz_mechanical_residual_ad(const Line2RzBoundaryData& data,
     const Line2RzBoundaryGeometry& geometry,
-    const LocalAdValues& state,
-    LocalAdValues& residual) {
+    const Cax4LocalAdValues& state,
+    Cax4LocalAdValues& residual) {
     residual.fill(adlite::Scalar(0.0));
     std::array<adlite::Scalar, 2> radius{};
     std::array<adlite::Scalar, 2> axial{};
@@ -82,8 +82,8 @@ void compute_line2_rz_mechanical_residual_ad(const Line2RzBoundaryData& data,
 
 void compute_line2_rz_convection_residual_ad(const Line2RzBoundaryData& data,
     const Line2RzBoundaryGeometry& geometry,
-    const LocalAdValues& state,
-    LocalAdValues& residual) {
+    const Cax4LocalAdValues& state,
+    Cax4LocalAdValues& residual) {
     residual.fill(adlite::Scalar(0.0));
     const double dr = geometry.coordinates[1].r - geometry.coordinates[0].r,
                  dz = geometry.coordinates[1].z - geometry.coordinates[0].z, line_jacobian = 0.5 * std::hypot(dr, dz);
@@ -102,12 +102,12 @@ void compute_line2_rz_convection_residual_ad(const Line2RzBoundaryData& data,
 }
 } // namespace
 
-LocalResidual compute_line2_rz_boundary(const Line2RzBoundaryData& data,
+Cax4LocalResidual compute_line2_rz_boundary(const Line2RzBoundaryData& data,
     const Line2RzBoundaryGeometry& geometry,
-    const LocalValues& state,
-    LocalJacobian* jacobian) {
-    const LocalAdValues ad_state = quad4_rz_detail::ad_state(state, jacobian != nullptr);
-    LocalAdValues ad_residual{};
+    const Cax4LocalValues& state,
+    Cax4LocalJacobian* jacobian) {
+    const Cax4LocalAdValues ad_state = quad4_rz_detail::ad_state(state, jacobian != nullptr);
+    Cax4LocalAdValues ad_residual{};
     if (data.kind == Line2RzBoundaryKind::convection)
         compute_line2_rz_convection_residual_ad(data, geometry, ad_state, ad_residual);
     else

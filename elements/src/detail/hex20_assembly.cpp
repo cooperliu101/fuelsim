@@ -819,7 +819,7 @@ void add_mechanical_point_system(const Hex20MechanicalQuadraturePoint& point,
         }
 }
 
-Hex20LocalResidual compute_local(const CartesianThermoelasticData& data,
+Hex20LocalResidual compute_local(const elements::C3d20Input& data,
     const Hex20Geometry& geometry,
     const Hex20LocalValues& state,
     const Hex20LocalValues* committed_state,
@@ -975,7 +975,7 @@ void validate_hex20_deformation(const Hex20MechanicalQuadraturePoint& point, con
         throw std::domain_error("Finite-strain HEX20 deformation must preserve a positive Jacobian");
 }
 
-Hex20LocalResidual compute_hex20_thermoelastic(const CartesianThermoelasticData& data,
+Hex20LocalResidual compute_hex20_thermoelastic(const elements::C3d20Input& data,
     const Hex20Geometry& geometry,
     const Hex20LocalValues& state,
     const Hex20LocalValues* committed_state,
@@ -992,7 +992,7 @@ Hex20LocalResidual compute_hex20_thermoelastic(const CartesianThermoelasticData&
         include_thermal_time_term);
 }
 
-Hex20LocalResidual compute_hex20_transient(const CartesianThermoelasticData& data,
+Hex20LocalResidual compute_hex20_transient(const elements::C3d20Input& data,
     const Hex20Geometry& geometry,
     const Hex20LocalValues& state,
     const Hex20LocalValues& committed_state,
@@ -1010,7 +1010,7 @@ Hex20LocalResidual compute_hex20_transient(const CartesianThermoelasticData& dat
         include_thermal_time_term);
 }
 
-CartesianMaterialHistory compute_hex20_transient_update(const CartesianThermoelasticData& data,
+CartesianMaterialHistory compute_hex20_transient_update(const elements::C3d20Input& data,
     const Hex20Geometry& geometry,
     const Hex20LocalValues& state,
     const Hex20LocalValues& committed_state,
@@ -1052,9 +1052,8 @@ CartesianMaterialHistory compute_hex20_transient_update(const CartesianThermoela
     return result;
 }
 
-std::vector<SymmetricTensor3Values> compute_hex20_stress(const CartesianThermoelasticData& data,
-    const Hex20Geometry& geometry,
-    const Hex20LocalValues& state) {
+std::vector<SymmetricTensor3Values>
+compute_hex20_stress(const elements::C3d20Input& data, const Hex20Geometry& geometry, const Hex20LocalValues& state) {
     Hex20LocalAdValues passive{};
     ad_local_system::make_passive(state.data(), state.size(), passive.data());
     std::vector<SymmetricTensor3Values> result(geometry.mechanical_points.size());

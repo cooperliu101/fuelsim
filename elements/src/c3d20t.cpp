@@ -6,12 +6,7 @@ namespace fuelsim::elements {
 C3d20Result evaluate_c3d20t(const C3d20Input& input, ElementRequest request) {
     if (input.geometry.mechanical_points.size() != 27)
         throw std::invalid_argument("C3D20T requires its model-specific material quadrature");
-    const CartesianThermoelasticData data{input.material,
-        input.volumetric_heat_source,
-        input.time,
-        input.strain_formulation,
-        Hex8ElementFormulation::c3d8t,
-        input.initial_temperature};
+    const auto& data = input;
     C3d20Result result;
     if (request.residual || request.jacobian) {
         auto* tangent = request.jacobian ? &result.jacobian : nullptr;

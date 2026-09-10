@@ -1,5 +1,7 @@
+#include "c3d8_kinematics.hpp"
 #include "c3d8_types.hpp"
 #include "core/element_evaluation.hpp"
+#include "core/element_region_data.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
 #include <array>
@@ -200,7 +202,7 @@ double block_error(const fuelsim::Hex8LocalJacobian& actual,
 fuelsim::Hex8LocalResidual abaqus_c3d8t_residual(const fuelsim::Hex8Geometry& geometry,
     const fuelsim::Hex8LocalValues& state,
     const fuelsim::IsotropicThermoelasticMaterial& material) {
-    const fuelsim::CartesianThermoelasticData data{material, 0.0, 0.0};
+    const fuelsim::CartesianRegionData data{material, 0.0, 0.0};
     fuelsim::Hex8LocalResidual result = fuelsim::compute_c3d8_thermoelastic(data, geometry, state);
     for (std::size_t row = 8; row < local_size; ++row)
         result[row] = 0.0;
@@ -214,7 +216,7 @@ fuelsim::Hex8LocalResidual abaqus_c3d8t_residual(const fuelsim::Hex8Geometry& ge
     double element_pressure = 0.0;
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const fuelsim::Hex8QuadraturePoint& point = geometry.points[q];
-        const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
+        const fuelsim::C3d8Kinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
             passive,
             fuelsim::Hex8LocalValues{},
             fuelsim::StrainFormulation::small);
@@ -226,7 +228,7 @@ fuelsim::Hex8LocalResidual abaqus_c3d8t_residual(const fuelsim::Hex8Geometry& ge
     average_trace /= volume;
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const fuelsim::Hex8QuadraturePoint& point = geometry.points[q];
-        const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
+        const fuelsim::C3d8Kinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
             passive,
             fuelsim::Hex8LocalValues{},
             fuelsim::StrainFormulation::small);
@@ -276,7 +278,7 @@ bool compare_operator(const std::map<std::string, NodalStep>& steps, bool temper
     const NodalStep& base = steps.at("BASE");
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
     const fuelsim::IsotropicThermoelasticMaterial material(properties(temperature_dependent));
-    const fuelsim::CartesianThermoelasticData data{material, 0.0, 0.0};
+    const fuelsim::CartesianRegionData data{material, 0.0, 0.0};
     fuelsim::Hex8LocalJacobian fuelsim_jacobian{};
     const fuelsim::Hex8LocalResidual fuelsim_residual =
         fuelsim::compute_c3d8_thermoelastic(data, geometry, base.state, nullptr, 0.0, &fuelsim_jacobian);
@@ -396,7 +398,7 @@ bool compare_integration_points(const NodalStep& base,
     bool temperature_dependent) {
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
     const fuelsim::IsotropicThermoelasticMaterial material(properties(temperature_dependent));
-    const fuelsim::CartesianThermoelasticData data{material, 0.0, 0.0};
+    const fuelsim::CartesianRegionData data{material, 0.0, 0.0};
     const std::array<fuelsim::SymmetricTensor3Values, 8> production_stresses =
         fuelsim::compute_c3d8_stress(data, geometry, base.state);
     fuelsim::Hex8LocalAdValues passive{};
@@ -407,7 +409,7 @@ bool compare_integration_points(const NodalStep& base,
         average_temperature += base.state[node] / 8.0;
     double volume = 0.0, average_trace = 0.0;
     for (const fuelsim::Hex8QuadraturePoint& point : geometry.points) {
-        const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
+        const fuelsim::C3d8Kinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
             passive,
             fuelsim::Hex8LocalValues{},
             fuelsim::StrainFormulation::small);
@@ -438,7 +440,7 @@ bool compare_integration_points(const NodalStep& base,
         used[closest] = true;
         maximum_coordinate_difference = std::max(maximum_coordinate_difference, std::sqrt(closest_squared));
         const fuelsim::Hex8QuadraturePoint& point = geometry.points[closest];
-        const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
+        const fuelsim::C3d8Kinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
             passive,
             fuelsim::Hex8LocalValues{},
             fuelsim::StrainFormulation::small);

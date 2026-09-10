@@ -438,7 +438,7 @@ void check_state_size(std::size_t state_size, std::size_t dof_count, const char*
         throw std::invalid_argument(message);
 }
 
-std::array<double, 3> thermal_search_point(const Line2RzHeatPointGeometry& geometry, const LocalValues& state) {
+std::array<double, 3> thermal_search_point(const Line2RzHeatPointGeometry& geometry, const Cax4LocalValues& state) {
     return {geometry.point.secondary_shape[0] * (geometry.secondary_coordinates[0].r + state[4])
                 + geometry.point.secondary_shape[1] * (geometry.secondary_coordinates[1].r + state[5]),
         geometry.point.secondary_shape[0] * (geometry.secondary_coordinates[0].z + state[8])
@@ -446,7 +446,8 @@ std::array<double, 3> thermal_search_point(const Line2RzHeatPointGeometry& geome
         0.0};
 }
 
-std::array<double, 3> mechanical_search_point(const NodeToLineRzContactGeometry& geometry, const LocalValues& state) {
+std::array<double, 3> mechanical_search_point(const NodeToLineRzContactGeometry& geometry,
+    const Cax4LocalValues& state) {
     const std::size_t node = geometry.secondary_local_node;
     return {geometry.secondary_edge_coordinates[node].r + state[4 + node],
         geometry.secondary_edge_coordinates[node].z + state[8 + node],
@@ -687,8 +688,8 @@ void SpatialAssembly::refresh_controlled_values() {
     }
 }
 
-LocalDofs SpatialAssembly::local_dofs(const std::array<std::size_t, 4>& nodes) const {
-    LocalDofs result{};
+Cax4LocalDofs SpatialAssembly::local_dofs(const std::array<std::size_t, 4>& nodes) const {
+    Cax4LocalDofs result{};
     for (std::size_t node = 0; node < nodes.size(); ++node) {
         result[node] = dof(Field::temperature, nodes[node]);
         result[4 + node] = dof(Field::radial_displacement, nodes[node]);
@@ -697,11 +698,11 @@ LocalDofs SpatialAssembly::local_dofs(const std::array<std::size_t, 4>& nodes) c
     return result;
 }
 
-LocalValues SpatialAssembly::contact_state(const std::array<std::size_t, 4>& nodes,
+Cax4LocalValues SpatialAssembly::contact_state(const std::array<std::size_t, 4>& nodes,
     const std::vector<double>& state) const {
     check_state_size(state.size(), dof_count(), "SpatialAssembly contact state has the wrong size");
-    const LocalDofs dofs = local_dofs(nodes);
-    LocalValues result{};
+    const Cax4LocalDofs dofs = local_dofs(nodes);
+    Cax4LocalValues result{};
     for (std::size_t local = 0; local < dofs.size(); ++local)
         result[local] = state.at(dofs[local]);
     return result;
@@ -768,8 +769,8 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
         if (entry == std::numeric_limits<std::size_t>::max())
             continue;
         const MechanicalContribution& candidate = _mechanical_contributions[entry];
-        const LocalValues local_state = contact_state(candidate.nodes, state);
-        const LocalValues committed_state = contact_state(candidate.nodes, _committed_contact_solution);
+        const Cax4LocalValues local_state = contact_state(candidate.nodes, state);
+        const Cax4LocalValues committed_state = contact_state(candidate.nodes, _committed_contact_solution);
         const ContactPointValue value = compute_node_to_line_rz_contact_value(_mechanical_properties[candidate.contact],
             candidate.geometry,
             local_state,
@@ -891,7 +892,7 @@ void SpatialAssembly::update_large_thermal_candidates(const std::vector<double>&
         if (cached_primary < end - begin)
             consider(begin + cached_primary);
         if (end - begin > spatial_detail::contact_search_tree_minimum_items) {
-            const LocalValues representative_state = contact_state(representative.nodes, state);
+            const Cax4LocalValues representative_state = contact_state(representative.nodes, state);
             _contact_search_trees[representative.contact].begin_query(
                 thermal_search_point(representative.geometry, representative_state),
                 _contact_search_query);
@@ -992,7 +993,7 @@ void SpatialAssembly::update_large_mechanical_candidates(const std::vector<doubl
         if (cached_primary < end - begin)
             consider(begin + cached_primary);
         if (end - begin > spatial_detail::contact_search_tree_minimum_items) {
-            const LocalValues representative_state = contact_state(representative.nodes, state);
+            const Cax4LocalValues representative_state = contact_state(representative.nodes, state);
             _contact_search_trees[metadata.contact].begin_query(
                 mechanical_search_point(representative.geometry, representative_state),
                 _contact_search_query);
@@ -1094,8 +1095,8 @@ std::vector<ContactNodeSummary> SpatialAssembly::summarize_contact_nodes(std::si
         const std::size_t node_index = mechanical_node_index(candidate.contact, candidate.secondary);
         if (candidate.primary != _mechanical_selected_primary[node_index])
             continue;
-        const LocalValues local_state = contact_state(candidate.nodes, state);
-        const LocalValues committed_state = contact_state(candidate.nodes, _committed_contact_solution);
+        const Cax4LocalValues local_state = contact_state(candidate.nodes, state);
+        const Cax4LocalValues committed_state = contact_state(candidate.nodes, _committed_contact_solution);
         const std::size_t secondary_index = candidate.secondary;
         const ContactPointValue value = compute_node_to_line_rz_contact_value(_mechanical_properties[contact_value],
             candidate.geometry,
@@ -1196,7 +1197,7 @@ InterfaceSummary SpatialAssembly::summarize_interface(std::size_t contact_value,
         const std::size_t point = thermal_point_index(candidate.contact, candidate.integration_point);
         if (_thermal_active_candidates[point] != entry)
             continue;
-        const LocalValues local_state = contact_state(candidate.nodes, state);
+        const Cax4LocalValues local_state = contact_state(candidate.nodes, state);
         const HeatQuadratureValue value =
             compute_line2_rz_gap_heat_value(_thermal_properties[contact_value], candidate.geometry, local_state);
         if (!value.projected)
@@ -1520,9 +1521,9 @@ std::vector<std::size_t> SpatialAssembly::required_state_dofs(std::size_t first,
     if (first > last || last > contribution_count())
         throw std::out_of_range("SpatialAssembly contribution range is out of bounds");
     std::vector<std::size_t> result;
-    result.reserve((last - first) * local_dof_count);
+    result.reserve((last - first) * cax4_local_dof_count);
     for (std::size_t entry = first; entry < last; ++entry) {
-        const LocalDofs dofs = contribution_dofs(entry);
+        const Cax4LocalDofs dofs = contribution_dofs(entry);
         for (const std::size_t dof : dofs) {
             if (dof >= dof_count())
                 throw std::out_of_range("SpatialAssembly contribution has an invalid DOF");
@@ -1534,7 +1535,7 @@ std::vector<std::size_t> SpatialAssembly::required_state_dofs(std::size_t first,
             const ThermalContribution& candidate = _thermal_contributions[entry];
             if (_touched_thermal_points[thermal_point_index(candidate.contact, candidate.integration_point)] == 0U)
                 continue;
-            const LocalDofs dofs = local_dofs(candidate.nodes);
+            const Cax4LocalDofs dofs = local_dofs(candidate.nodes);
             result.insert(result.end(), dofs.begin(), dofs.end());
         }
     }
@@ -1543,7 +1544,7 @@ std::vector<std::size_t> SpatialAssembly::required_state_dofs(std::size_t first,
             const MechanicalContribution& candidate = _mechanical_contributions[entry];
             if (_touched_mechanical_nodes[mechanical_node_index(candidate.contact, candidate.secondary)] == 0U)
                 continue;
-            const LocalDofs dofs = local_dofs(candidate.nodes);
+            const Cax4LocalDofs dofs = local_dofs(candidate.nodes);
             result.insert(result.end(), dofs.begin(), dofs.end());
         }
     }
@@ -1552,7 +1553,7 @@ std::vector<std::size_t> SpatialAssembly::required_state_dofs(std::size_t first,
     return result;
 }
 
-LocalDofs SpatialAssembly::contribution_dofs(std::size_t index) const {
+Cax4LocalDofs SpatialAssembly::contribution_dofs(std::size_t index) const {
     const ContributionLocation entry = locate_contribution(index);
     switch (entry.type) {
     case SpatialContributionType::volume: {
@@ -1576,7 +1577,7 @@ LocalDofs SpatialAssembly::contribution_dofs(std::size_t index) const {
     throw std::logic_error("SpatialAssembly contribution type is invalid");
 }
 
-LocalDofs SpatialAssembly::sparsity_contribution_dofs(std::size_t index) const {
+Cax4LocalDofs SpatialAssembly::sparsity_contribution_dofs(std::size_t index) const {
     if (index < volume_contribution_count())
         return contribution_dofs(index);
     index -= volume_contribution_count();
@@ -1591,17 +1592,18 @@ LocalDofs SpatialAssembly::sparsity_contribution_dofs(std::size_t index) const {
     throw std::out_of_range("SpatialAssembly sparsity contribution index is out of range");
 }
 
-LocalValues SpatialAssembly::contribution_state(std::size_t index, const std::vector<double>& global_state) const {
+Cax4LocalValues SpatialAssembly::contribution_state(std::size_t index, const std::vector<double>& global_state) const {
     check_state_size(global_state.size(), dof_count(), "SpatialAssembly global state has the wrong size");
-    const LocalDofs dofs = contribution_dofs(index);
-    LocalValues result{};
+    const Cax4LocalDofs dofs = contribution_dofs(index);
+    Cax4LocalValues result{};
     for (std::size_t local = 0; local < dofs.size(); ++local)
         result[local] = global_state.at(dofs[local]);
     return result;
 }
 
-LocalResidual
-SpatialAssembly::compute_contribution(std::size_t index, const LocalValues& state, LocalJacobian* jacobian) const {
+Cax4LocalResidual SpatialAssembly::compute_contribution(std::size_t index,
+    const Cax4LocalValues& state,
+    Cax4LocalJacobian* jacobian) const {
     const ContributionLocation location = locate_contribution(index);
     switch (location.type) {
     case SpatialContributionType::volume:

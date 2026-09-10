@@ -1,9 +1,10 @@
 #include "contact_types.hpp"
 #include "core/cax4_evaluation.hpp"
+#include "core/element_region_data.hpp"
 #ifndef FUELSIM_TEST_RZ_PROBLEM_ACCESS_HPP
 #define FUELSIM_TEST_RZ_PROBLEM_ACCESS_HPP
 #include "core/problem_backend_access.hpp"
-#include "support/rz_linearization.hpp"
+#include "rz_volume_linearization.hpp"
 #include <algorithm>
 #include <stdexcept>
 
@@ -49,7 +50,7 @@ class ProblemAccess final {
         return view(problem).spatial.region_mesh(index);
     }
 
-    static const AxisymmetricElementData& region_kernel_data(const SteadyProblem& problem, std::size_t index) {
+    static const AxisymmetricRegionData& region_kernel_data(const SteadyProblem& problem, std::size_t index) {
         return view(problem).kernel_data.at(index);
     }
 
@@ -105,23 +106,23 @@ class ProblemAccess final {
         return view(problem).spatial.summarize_interface(contact, state);
     }
 
-    static LocalDofs contribution_dofs(const SteadyProblem& problem, std::size_t contribution) {
+    static Cax4LocalDofs contribution_dofs(const SteadyProblem& problem, std::size_t contribution) {
         return view(problem).spatial.contribution_dofs(contribution);
     }
 
-    static LocalValues
+    static Cax4LocalValues
     contribution_state(const SteadyProblem& problem, std::size_t contribution, const std::vector<double>& state) {
         if (state.size() != problem.dof_count())
             throw std::invalid_argument("SteadyProblem contribution state has the wrong global size");
-        LocalValues result{};
-        const LocalDofs dofs = contribution_dofs(problem, contribution);
+        Cax4LocalValues result{};
+        const Cax4LocalDofs dofs = contribution_dofs(problem, contribution);
         for (std::size_t local = 0; local < dofs.size(); ++local)
             result[local] = state.at(dofs[local]);
         return result;
     }
 
-    static LocalResidual
-    contribution_residual(const SteadyProblem& problem, std::size_t contribution, const LocalValues& state) {
+    static Cax4LocalResidual
+    contribution_residual(const SteadyProblem& problem, std::size_t contribution, const Cax4LocalValues& state) {
         const SteadyBackendView backend = view(problem);
         if (contribution >= backend.spatial.volume_contribution_count())
             return backend.spatial.compute_contribution(contribution, state);
@@ -132,7 +133,7 @@ class ProblemAccess final {
     }
 
     static LocalLinearization
-    linearize_contribution(const SteadyProblem& problem, std::size_t contribution, const LocalValues& state) {
+    linearize_contribution(const SteadyProblem& problem, std::size_t contribution, const Cax4LocalValues& state) {
         const SteadyBackendView backend = view(problem);
         LocalLinearization result{};
         if (contribution >= backend.spatial.volume_contribution_count())
@@ -175,7 +176,7 @@ class ProblemAccess final {
         return view(problem).spatial.region_mesh(index);
     }
 
-    static const AxisymmetricElementData& region_kernel_data(const TransientProblem& problem, std::size_t index) {
+    static const AxisymmetricRegionData& region_kernel_data(const TransientProblem& problem, std::size_t index) {
         return view(problem).kernel_data.at(index);
     }
 
@@ -225,23 +226,23 @@ class ProblemAccess final {
         return view(problem).spatial.contact_secondary_source_nodes(contact);
     }
 
-    static LocalDofs contribution_dofs(const TransientProblem& problem, std::size_t contribution) {
+    static Cax4LocalDofs contribution_dofs(const TransientProblem& problem, std::size_t contribution) {
         return view(problem).spatial.contribution_dofs(contribution);
     }
 
-    static LocalValues
+    static Cax4LocalValues
     contribution_state(const TransientProblem& problem, std::size_t contribution, const std::vector<double>& state) {
         if (state.size() != problem.dof_count())
             throw std::invalid_argument("TransientProblem contribution state has the wrong global size");
-        LocalValues result{};
-        const LocalDofs dofs = contribution_dofs(problem, contribution);
+        Cax4LocalValues result{};
+        const Cax4LocalDofs dofs = contribution_dofs(problem, contribution);
         for (std::size_t local = 0; local < dofs.size(); ++local)
             result[local] = state.at(dofs[local]);
         return result;
     }
 
-    static LocalResidual
-    contribution_residual(const TransientProblem& problem, std::size_t contribution, const LocalValues& state) {
+    static Cax4LocalResidual
+    contribution_residual(const TransientProblem& problem, std::size_t contribution, const Cax4LocalValues& state) {
         const TransientBackendView backend = view(problem);
         if (!backend.time_step_active)
             throw std::logic_error("TransientProblem residual evaluation requires an active time step");
@@ -257,7 +258,7 @@ class ProblemAccess final {
     }
 
     static LocalLinearization
-    linearize_contribution(const TransientProblem& problem, std::size_t contribution, const LocalValues& state) {
+    linearize_contribution(const TransientProblem& problem, std::size_t contribution, const Cax4LocalValues& state) {
         const TransientBackendView backend = view(problem);
         if (!backend.time_step_active)
             throw std::logic_error("TransientProblem residual evaluation requires an active time step");

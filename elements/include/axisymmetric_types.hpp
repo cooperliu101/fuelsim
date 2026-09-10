@@ -1,14 +1,33 @@
 #pragma once
-#include "axisymmetric_geometry.hpp"
+#include "material_functions.hpp"
+#include <array>
 
 namespace fuelsim {
-using LocalDofs = std::array<std::size_t, local_dof_count>;
+struct AxisymmetricStress final {
+    adlite::Scalar rr, zz, hoop, rz;
+};
 
-struct AxisymmetricElementData final {
-    IsotropicThermoelasticMaterial material;
-    double volumetric_heat_source = 0.0, time = 0.0;
-    StrainFormulation strain_formulation = StrainFormulation::small;
-    RzElementFormulation element_formulation = RzElementFormulation::cax4t;
-    double initial_temperature = 600.0;
+struct AxisymmetricStressValues final {
+    double rr, zz, hoop, rz;
+};
+
+struct AxisymmetricRotation final {
+    adlite::Scalar rr{1.0}, rz{0.0}, zr{0.0}, zz{1.0}, hoop{1.0};
+};
+
+struct MaterialPointState final {
+    std::array<double, 4> elastic_strain{}, plastic_strain{}, creep_strain{};
+    double equivalent_plastic_strain = 0.0, equivalent_creep_strain = 0.0;
+    AxisymmetricStressValues stress{};
+};
+
+struct MaterialPointTrialState final {
+    std::array<adlite::Scalar, 4> elastic_strain{}, plastic_strain{}, creep_strain{};
+    adlite::Scalar equivalent_plastic_strain{0.0}, equivalent_creep_strain{0.0};
+};
+
+struct InelasticStressResponse final {
+    AxisymmetricStress stress;
+    MaterialPointTrialState trial_state;
 };
 } // namespace fuelsim

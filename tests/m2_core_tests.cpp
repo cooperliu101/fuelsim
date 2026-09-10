@@ -894,7 +894,8 @@ bool test_problem_history_transaction() {
         trial_solution[dofs.dof(fuelsim::Field::radial_displacement, global_node)] = -0.05 * point.r;
         trial_solution[dofs.dof(fuelsim::Field::axial_displacement, global_node)] = 0.10 * point.z;
     }
-    const fuelsim::LocalValues local_trial = fuelsim::rz::ProblemAccess::contribution_state(problem, 0, trial_solution);
+    const fuelsim::Cax4LocalValues local_trial =
+        fuelsim::rz::ProblemAccess::contribution_state(problem, 0, trial_solution);
     (void)fuelsim::rz::ProblemAccess::contribution_residual(problem, 0, local_trial);
     (void)fuelsim::rz::ProblemAccess::linearize_contribution(problem, 0, local_trial);
     bool passed = check(same_state(fuelsim::rz::ProblemAccess::material_history(problem, 0, 0)[0], initial_history),

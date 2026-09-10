@@ -1,4 +1,5 @@
 #pragma once
+#include "c3d8_kinematics.hpp"
 #include "c3d8_types.hpp"
 #include "detail/ad_local_system.hpp"
 #include "detail/cartesian_kinematics.hpp"
@@ -23,7 +24,7 @@ constexpr std::array<std::size_t, hex8_node_count> hex8_node_to_gauss = {0, 1, 3
 cartesian_detail::ActiveMatrix3 displacement_gradient(const Hex8QuadraturePoint& point, const Hex8LocalAdValues& state);
 cartesian_detail::Matrix3 deformation_gradient(const Hex8QuadraturePoint& point, const Hex8LocalValues& state);
 
-CartesianKinematics evaluate_cartesian_kinematics_from_gradient(const Hex8QuadraturePoint& point,
+C3d8Kinematics evaluate_cartesian_kinematics_from_gradient(const Hex8QuadraturePoint& point,
     const cartesian_detail::ActiveMatrix3& gradient,
     const Hex8LocalValues& committed_state,
     StrainFormulation strain_formulation);

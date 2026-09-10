@@ -1,5 +1,7 @@
+#include "c3d8_kinematics.hpp"
 #include "c3d8_types.hpp"
 #include "core/element_evaluation.hpp"
+#include "core/element_region_data.hpp"
 #include "support/field_error_metrics.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
@@ -198,7 +200,7 @@ int main(int argc, char** argv) {
         const fuelsim::Hex8LocalValues state = prescribed_state();
         const fuelsim::ThermoelasticProperties properties =
             fuelsim::test::thermoelastic(0.0, 1.0, 2.0e11, 0.25, 0.0, 600.0, 0.0, 0.0, 0.0, 1.0, 1.0);
-        const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties),
+        const fuelsim::CartesianRegionData data{fuelsim::IsotropicThermoelasticMaterial(properties),
             0.0,
             1.0,
             fuelsim::StrainFormulation::finite};

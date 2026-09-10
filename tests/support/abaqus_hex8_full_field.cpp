@@ -1,4 +1,5 @@
 #include "support/abaqus_hex8_full_field.hpp"
+#include "c3d8_kinematics.hpp"
 #include "quad4_face_boundary.hpp"
 #include "support/cartesian3d_problem_access.hpp"
 #include "support/field_error_metrics.hpp"
@@ -751,7 +752,7 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem,
         for (std::size_t local = 0; local < local_state.size(); ++local)
             passive[local] = local_state[local];
         const StrainFormulation formulation = definition.regions.at(region).strain_formulation;
-        const CartesianKinematics kinematics =
+        const C3d8Kinematics kinematics =
             evaluate_cartesian_incremental_kinematics(point, passive, Hex8LocalValues{}, formulation);
         double current_volume = geometry.reference_volume;
         if (formulation == StrainFormulation::finite) {
@@ -766,7 +767,7 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem,
         if (options.reduced_integration) {
             material_temperature = 0.0;
             for (const Hex8QuadraturePoint& volume_point : geometry.points) {
-                const CartesianKinematics volume_kinematics =
+                const C3d8Kinematics volume_kinematics =
                     evaluate_cartesian_incremental_kinematics(volume_point, passive, Hex8LocalValues{}, formulation);
                 const double measure = formulation == StrainFormulation::finite
                                            ? volume_kinematics.current_weighted_measure.value()

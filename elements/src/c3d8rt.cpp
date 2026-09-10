@@ -1,4 +1,5 @@
 #include "c3d8rt.hpp"
+#include "c3d8_kinematics.hpp"
 #include "detail/hex8_geometry.hpp"
 
 namespace fuelsim {
@@ -104,7 +105,7 @@ SymmetricTensor3Values reduced_finite_stress_values(const IsotropicThermoelastic
     double time_step,
     const CartesianMaterialPointState* committed_material,
     MaterialFunctionContext context);
-Hex8LocalResidual reduced_hex8_finite_residual_values(const CartesianThermoelasticData& data,
+Hex8LocalResidual reduced_hex8_finite_residual_values(const elements::C3d8Input& data,
     const Hex8Geometry& reference,
     const Hex8LocalValues& state,
     const Hex8LocalValues& committed_state,
@@ -113,7 +114,7 @@ Hex8LocalResidual reduced_hex8_finite_residual_values(const CartesianThermoelast
     double initial_shear_modulus,
     const ReducedHex8GeometryValues& current,
     const SymmetricTensor3Values& stress);
-void add_reduced_hex8_finite_jacobian(const CartesianThermoelasticData& data,
+void add_reduced_hex8_finite_jacobian(const elements::C3d8Input& data,
     const Hex8Geometry& reference,
     const Hex8LocalValues& state,
     const Hex8LocalValues& committed_state,
@@ -126,7 +127,7 @@ void add_reduced_hex8_finite_jacobian(const CartesianThermoelasticData& data,
     const ReducedHex8GeometryDerivatives& midpoint_derivatives,
     const ReducedFiniteStressLinearization& stress_linearization,
     Hex8LocalJacobian& jacobian);
-void assemble_c3d8rt_finite_strain_system(const CartesianThermoelasticData& data,
+void assemble_c3d8rt_finite_strain_system(const elements::C3d8Input& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues* committed_state,
@@ -135,7 +136,7 @@ void assemble_c3d8rt_finite_strain_system(const CartesianThermoelasticData& data
     bool include_thermal_time_term,
     Hex8LocalAdValues& residual,
     Hex8LocalJacobian* jacobian);
-void assemble_c3d8rt_small_strain_system(const CartesianThermoelasticData& data,
+void assemble_c3d8rt_small_strain_system(const elements::C3d8Input& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues* committed_state,
@@ -144,7 +145,7 @@ void assemble_c3d8rt_small_strain_system(const CartesianThermoelasticData& data,
     bool include_thermal_time_term,
     Hex8LocalAdValues& residual,
     Hex8LocalJacobian* jacobian);
-Hex8LocalResidual compute_hex8_local(const CartesianThermoelasticData& data,
+Hex8LocalResidual compute_hex8_local(const elements::C3d8Input& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues* committed_state,
@@ -152,14 +153,14 @@ Hex8LocalResidual compute_hex8_local(const CartesianThermoelasticData& data,
     double time_step,
     Hex8LocalJacobian* jacobian,
     bool include_thermal_time_term);
-Hex8LocalResidual compute_hex8_thermoelastic(const CartesianThermoelasticData& data,
+Hex8LocalResidual compute_hex8_thermoelastic(const elements::C3d8Input& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues* committed_state,
     double time_step,
     Hex8LocalJacobian* jacobian,
     bool include_thermal_time_term);
-Hex8LocalResidual compute_hex8_transient(const CartesianThermoelasticData& data,
+Hex8LocalResidual compute_hex8_transient(const elements::C3d8Input& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues& committed_state,
@@ -167,14 +168,14 @@ Hex8LocalResidual compute_hex8_transient(const CartesianThermoelasticData& data,
     double time_step,
     Hex8LocalJacobian* jacobian,
     bool include_thermal_time_term);
-CartesianMaterialHistory compute_hex8_transient_update(const CartesianThermoelasticData& data,
+CartesianMaterialHistory compute_hex8_transient_update(const elements::C3d8Input& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues& committed_state,
     const CartesianMaterialHistory& committed_material,
     double time_step);
 std::array<SymmetricTensor3Values, 8>
-compute_hex8_stress(const CartesianThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state);
+compute_hex8_stress(const elements::C3d8Input& data, const Hex8Geometry& geometry, const Hex8LocalValues& state);
 
 adlite::Scalar reduced_hex8_temperature(const Hex8Geometry& geometry, const Hex8LocalAdValues& state) {
     adlite::Scalar result = 0.0;
@@ -838,7 +839,7 @@ SymmetricTensor3Values reduced_finite_stress_values(const IsotropicThermoelastic
         kinematics.rotation);
 }
 
-Hex8LocalResidual reduced_hex8_finite_residual_values(const CartesianThermoelasticData& data,
+Hex8LocalResidual reduced_hex8_finite_residual_values(const elements::C3d8Input& data,
     const Hex8Geometry& reference,
     const Hex8LocalValues& state,
     const Hex8LocalValues& committed_state,
@@ -933,7 +934,7 @@ Hex8LocalResidual reduced_hex8_finite_residual_values(const CartesianThermoelast
     return residual;
 }
 
-void add_reduced_hex8_finite_jacobian(const CartesianThermoelasticData& data,
+void add_reduced_hex8_finite_jacobian(const elements::C3d8Input& data,
     const Hex8Geometry& reference,
     const Hex8LocalValues& state,
     const Hex8LocalValues& committed_state,
@@ -1184,7 +1185,7 @@ void add_reduced_hex8_finite_jacobian(const CartesianThermoelasticData& data,
         }
 }
 
-void assemble_c3d8rt_finite_strain_system(const CartesianThermoelasticData& data,
+void assemble_c3d8rt_finite_strain_system(const elements::C3d8Input& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues* committed_state,
@@ -1271,7 +1272,7 @@ void assemble_c3d8rt_finite_strain_system(const CartesianThermoelasticData& data
         *jacobian);
 }
 
-void assemble_c3d8rt_small_strain_system(const CartesianThermoelasticData& data,
+void assemble_c3d8rt_small_strain_system(const elements::C3d8Input& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues* committed_state,
@@ -1458,7 +1459,7 @@ void assemble_c3d8rt_small_strain_system(const CartesianThermoelasticData& data,
         }
 }
 
-Hex8LocalResidual compute_hex8_local(const CartesianThermoelasticData& data,
+Hex8LocalResidual compute_hex8_local(const elements::C3d8Input& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues* committed_state,
@@ -1497,7 +1498,7 @@ Hex8LocalResidual compute_hex8_local(const CartesianThermoelasticData& data,
     return result;
 }
 
-Hex8LocalResidual compute_hex8_thermoelastic(const CartesianThermoelasticData& data,
+Hex8LocalResidual compute_hex8_thermoelastic(const elements::C3d8Input& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues* committed_state,
@@ -1514,7 +1515,7 @@ Hex8LocalResidual compute_hex8_thermoelastic(const CartesianThermoelasticData& d
         include_thermal_time_term);
 }
 
-Hex8LocalResidual compute_hex8_transient(const CartesianThermoelasticData& data,
+Hex8LocalResidual compute_hex8_transient(const elements::C3d8Input& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues& committed_state,
@@ -1532,7 +1533,7 @@ Hex8LocalResidual compute_hex8_transient(const CartesianThermoelasticData& data,
         include_thermal_time_term);
 }
 
-CartesianMaterialHistory compute_hex8_transient_update(const CartesianThermoelasticData& data,
+CartesianMaterialHistory compute_hex8_transient_update(const elements::C3d8Input& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues& committed_state,
@@ -1571,7 +1572,7 @@ CartesianMaterialHistory compute_hex8_transient_update(const CartesianThermoelas
                 context);
         } else {
             const adlite::Scalar temperature = reduced_hex8_temperature(geometry, passive);
-            const CartesianKinematics kinematics =
+            const C3d8Kinematics kinematics =
                 evaluate_cartesian_incremental_kinematics(point, passive, committed_state, StrainFormulation::small);
             response = data.material.response(kinematics.strain_increment,
                 temperature,
@@ -1583,9 +1584,8 @@ CartesianMaterialHistory compute_hex8_transient_update(const CartesianThermoelas
     }
 }
 
-std::array<SymmetricTensor3Values, 8> compute_hex8_stress(const CartesianThermoelasticData& data,
-    const Hex8Geometry& geometry,
-    const Hex8LocalValues& state) {
+std::array<SymmetricTensor3Values, 8>
+compute_hex8_stress(const elements::C3d8Input& data, const Hex8Geometry& geometry, const Hex8LocalValues& state) {
     {
         Hex8LocalAdValues passive{};
         ad_local_system::make_passive(state.data(), state.size(), passive.data());
@@ -1606,7 +1606,7 @@ std::array<SymmetricTensor3Values, 8> compute_hex8_stress(const CartesianThermoe
                 kinematics.rotation);
         } else {
             const adlite::Scalar temperature = reduced_hex8_temperature(geometry, passive);
-            const CartesianKinematics kinematics = evaluate_cartesian_incremental_kinematics(geometry.reduced_point,
+            const C3d8Kinematics kinematics = evaluate_cartesian_incremental_kinematics(geometry.reduced_point,
                 passive,
                 Hex8LocalValues{},
                 StrainFormulation::small);
@@ -1627,11 +1627,9 @@ std::array<SymmetricTensor3Values, 8> compute_hex8_stress(const CartesianThermoe
 }
 } // namespace
 
-double compute_c3d8_mechanical_hourglass_energy(const CartesianThermoelasticData& data,
-    const Hex8Geometry& geometry,
-    const Hex8LocalValues& state) {
-    if (data.hex8_element_formulation != Hex8ElementFormulation::c3d8rt)
-        return 0.0;
+double elements::c3d8rt_hourglass_energy(const C3d8Input& data) {
+    const auto& geometry = data.geometry;
+    const auto& state = data.state;
     if (!std::isfinite(data.initial_temperature) || !(data.initial_temperature > 0.0))
         throw std::invalid_argument("C3D8RT requires a finite positive initial temperature");
     const ActiveThermoelasticProperties initial_properties =
@@ -1691,12 +1689,7 @@ double compute_c3d8_mechanical_hourglass_energy(const CartesianThermoelasticData
 
 namespace fuelsim::elements {
 C3d8Result evaluate_c3d8rt(const C3d8Input& input, ElementRequest request) {
-    const CartesianThermoelasticData data{input.material,
-        input.volumetric_heat_source,
-        input.time,
-        input.strain_formulation,
-        Hex8ElementFormulation::c3d8rt,
-        input.initial_temperature};
+    const auto& data = input;
     C3d8Result result;
     if (request.residual || request.jacobian) {
         auto* tangent = request.jacobian ? &result.jacobian : nullptr;

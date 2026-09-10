@@ -1,6 +1,8 @@
 #pragma once
 #include "cartesian_types.hpp"
 #include "coordinates.hpp"
+#include "element_types.hpp"
+#include "material.hpp"
 #include <array>
 #include <vector>
 
@@ -53,8 +55,6 @@ struct Hex20Geometry final {
 void validate_hex20_deformation(const Hex20MechanicalQuadraturePoint& point, const Hex20LocalValues& state);
 
 } // namespace fuelsim
-
-#include "element_types.hpp"
 
 namespace fuelsim::elements {
 struct C3d20Input final {

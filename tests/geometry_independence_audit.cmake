@@ -13,10 +13,10 @@ set(common_files
 foreach(path IN LISTS common_files)
     file(READ "${path}" contents)
     foreach(forbidden
-            "local_dof_count"
-            "LocalDofs"
-            "LocalValues"
-            "LocalResidual"
+            "cax4_local_dof_count"
+            "Cax4LocalDofs"
+            "Cax4LocalValues"
+            "Cax4LocalResidual"
             "LocalSystem"
             "std::array<double, 3>"
             "dof_count() / 3"
@@ -44,9 +44,9 @@ foreach(path IN LISTS common_problem_headers)
             "DofMap"
             "RegionMesh"
             "Quad4Rz"
-            "LocalDofs"
-            "LocalValues"
-            "LocalResidual"
+            "Cax4LocalDofs"
+            "Cax4LocalValues"
+            "Cax4LocalResidual"
             "LocalSystem"
             "SpatialAssembly"
             "ContactPointHistory"

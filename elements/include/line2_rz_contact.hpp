@@ -1,5 +1,5 @@
 #pragma once
-#include "axisymmetric_geometry.hpp"
+#include "cax4_types.hpp"
 #include "contact_types.hpp"
 #include "coordinates.hpp"
 #include <adlite/adlite.hpp>
@@ -44,17 +44,17 @@ Line2RzHeatPointGeometry make_line2_rz_heat_point_geometry(const Line2InterfaceS
     bool primary_segment_includes_second_endpoint,
     double zero_gap_orientation_hint);
 
-LocalResidual compute_line2_rz_gap_heat(const GapHeatProperties& properties,
+Cax4LocalResidual compute_line2_rz_gap_heat(const GapHeatProperties& properties,
     const Line2RzHeatPointGeometry& geometry,
-    const LocalValues& state,
-    LocalJacobian* jacobian = nullptr);
+    const Cax4LocalValues& state,
+    Cax4LocalJacobian* jacobian = nullptr);
 
 HeatQuadratureValue compute_line2_rz_gap_heat_value(const GapHeatProperties& properties,
     const Line2RzHeatPointGeometry& geometry,
-    const LocalValues& state);
+    const Cax4LocalValues& state);
 
 ContactProjectionValue compute_line2_rz_heat_projection(const Line2RzHeatPointGeometry& geometry,
-    const LocalValues& state);
+    const Cax4LocalValues& state);
 
 struct NodeToLineRzContactGeometry final {
     Line2InterfaceSideCoordinates secondary_edge_coordinates, primary_segment_coordinates;
@@ -71,19 +71,19 @@ NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
     bool primary_segment_includes_upper_endpoint,
     double zero_gap_orientation_hint);
 
-LocalResidual compute_node_to_line_rz_contact(const NormalContactProperties& properties,
+Cax4LocalResidual compute_node_to_line_rz_contact(const NormalContactProperties& properties,
     const NodeToLineRzContactGeometry& geometry,
-    const LocalValues& state,
-    const LocalValues& committed_state,
+    const Cax4LocalValues& state,
+    const Cax4LocalValues& committed_state,
     const ContactPointHistory& history,
-    LocalJacobian* jacobian = nullptr);
+    Cax4LocalJacobian* jacobian = nullptr);
 
 ContactPointValue compute_node_to_line_rz_contact_value(const NormalContactProperties& properties,
     const NodeToLineRzContactGeometry& geometry,
-    const LocalValues& state,
-    const LocalValues& committed_state,
+    const Cax4LocalValues& state,
+    const Cax4LocalValues& committed_state,
     const ContactPointHistory& history);
 
 ContactProjectionValue compute_node_to_line_rz_contact_projection(const NodeToLineRzContactGeometry& geometry,
-    const LocalValues& state);
+    const Cax4LocalValues& state);
 } // namespace fuelsim

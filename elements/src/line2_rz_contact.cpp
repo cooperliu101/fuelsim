@@ -64,7 +64,7 @@ double reference_normal_orientation(const RzPoint& secondary,
 }
 
 adlite::Scalar interpolate(const std::array<double, line2_interface_side_node_count>& shape,
-    const LocalAdValues& state,
+    const Cax4LocalAdValues& state,
     std::size_t offset) {
     adlite::Scalar value = 0.0;
     for (std::size_t node = 0; node < line2_interface_side_node_count; ++node)
@@ -107,7 +107,7 @@ ContactProjectionValue project_to_current_line(double secondary_r,
 HeatAdQuadratureValue evaluate_heat_quadrature(const Line2InterfaceSideCoordinates& secondary_coordinates,
     const Line2InterfaceSideCoordinates& primary_coordinates,
     const Line2RzHeatQuadraturePoint& point,
-    const LocalAdValues& state,
+    const Cax4LocalAdValues& state,
     const GapHeatProperties& properties,
     bool includes_second_endpoint,
     bool first) {
@@ -166,8 +166,8 @@ HeatAdQuadratureValue evaluate_heat_quadrature(const Line2InterfaceSideCoordinat
 
 void evaluate_friction(ContactAdValue& value,
     const NodeToLineRzContactGeometry& geometry,
-    const LocalAdValues& state,
-    const LocalValues& committed_state,
+    const Cax4LocalAdValues& state,
+    const Cax4LocalValues& committed_state,
     const ContactPointHistory& history,
     const NormalContactProperties& properties) {
     value.total_tangential_slip = history.total_tangential_slip;
@@ -206,8 +206,8 @@ void evaluate_friction(ContactAdValue& value,
 }
 
 ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
-    const LocalAdValues& state,
-    const LocalValues& committed_state,
+    const Cax4LocalAdValues& state,
+    const Cax4LocalValues& committed_state,
     const ContactPointHistory& history,
     const NormalContactProperties& properties) {
     const std::size_t secondary = geometry.secondary_local_node, other = secondary == 0 ? 1 : 0;
@@ -323,12 +323,12 @@ Line2RzHeatPointGeometry make_line2_rz_heat_point_geometry(const Line2InterfaceS
     };
 }
 
-LocalResidual compute_line2_rz_gap_heat(const GapHeatProperties& properties,
+Cax4LocalResidual compute_line2_rz_gap_heat(const GapHeatProperties& properties,
     const Line2RzHeatPointGeometry& geometry,
-    const LocalValues& state,
-    LocalJacobian* jacobian) {
-    const LocalAdValues ad_state = quad4_rz_detail::ad_state(state, jacobian != nullptr);
-    LocalAdValues ad_residual{};
+    const Cax4LocalValues& state,
+    Cax4LocalJacobian* jacobian) {
+    const Cax4LocalAdValues ad_state = quad4_rz_detail::ad_state(state, jacobian != nullptr);
+    Cax4LocalAdValues ad_residual{};
     ad_residual.fill(adlite::Scalar(0.0));
     const HeatAdQuadratureValue value = evaluate_heat_quadrature(geometry.secondary_coordinates,
         geometry.primary_coordinates,
@@ -349,8 +349,8 @@ LocalResidual compute_line2_rz_gap_heat(const GapHeatProperties& properties,
 
 HeatQuadratureValue compute_line2_rz_gap_heat_value(const GapHeatProperties& properties,
     const Line2RzHeatPointGeometry& geometry,
-    const LocalValues& state) {
-    const LocalAdValues ad_state = quad4_rz_detail::ad_state(state);
+    const Cax4LocalValues& state) {
+    const Cax4LocalAdValues ad_state = quad4_rz_detail::ad_state(state);
     const HeatAdQuadratureValue value = evaluate_heat_quadrature(geometry.secondary_coordinates,
         geometry.primary_coordinates,
         geometry.point,
@@ -362,7 +362,7 @@ HeatQuadratureValue compute_line2_rz_gap_heat_value(const GapHeatProperties& pro
 }
 
 ContactProjectionValue compute_line2_rz_heat_projection(const Line2RzHeatPointGeometry& geometry,
-    const LocalValues& state) {
+    const Cax4LocalValues& state) {
     const double secondary_r_0 = geometry.secondary_coordinates[0].r + state[4],
                  secondary_r_1 = geometry.secondary_coordinates[1].r + state[5],
                  secondary_z_0 = geometry.secondary_coordinates[0].z + state[8],
@@ -411,14 +411,14 @@ NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
     };
 }
 
-LocalResidual compute_node_to_line_rz_contact(const NormalContactProperties& properties,
+Cax4LocalResidual compute_node_to_line_rz_contact(const NormalContactProperties& properties,
     const NodeToLineRzContactGeometry& geometry,
-    const LocalValues& state,
-    const LocalValues& committed_state,
+    const Cax4LocalValues& state,
+    const Cax4LocalValues& committed_state,
     const ContactPointHistory& history,
-    LocalJacobian* jacobian) {
-    const LocalAdValues ad_state = quad4_rz_detail::ad_state(state, jacobian != nullptr);
-    LocalAdValues ad_residual{};
+    Cax4LocalJacobian* jacobian) {
+    const Cax4LocalAdValues ad_state = quad4_rz_detail::ad_state(state, jacobian != nullptr);
+    Cax4LocalAdValues ad_residual{};
     ad_residual.fill(adlite::Scalar(0.0));
     const ContactAdValue value = evaluate_contact(geometry, ad_state, committed_state, history, properties);
     if (value.projected) {
@@ -443,10 +443,10 @@ LocalResidual compute_node_to_line_rz_contact(const NormalContactProperties& pro
 
 ContactPointValue compute_node_to_line_rz_contact_value(const NormalContactProperties& properties,
     const NodeToLineRzContactGeometry& geometry,
-    const LocalValues& state,
-    const LocalValues& committed_state,
+    const Cax4LocalValues& state,
+    const Cax4LocalValues& committed_state,
     const ContactPointHistory& history) {
-    const LocalAdValues ad_state = quad4_rz_detail::ad_state(state);
+    const Cax4LocalAdValues ad_state = quad4_rz_detail::ad_state(state);
     const ContactAdValue result = evaluate_contact(geometry, ad_state, committed_state, history, properties);
     return {
         result.projected,
@@ -464,7 +464,7 @@ ContactPointValue compute_node_to_line_rz_contact_value(const NormalContactPrope
 }
 
 ContactProjectionValue compute_node_to_line_rz_contact_projection(const NodeToLineRzContactGeometry& geometry,
-    const LocalValues& state) {
+    const Cax4LocalValues& state) {
     const std::size_t secondary = geometry.secondary_local_node;
     return project_to_current_line(geometry.secondary_edge_coordinates[secondary].r + state[4 + secondary],
         geometry.secondary_edge_coordinates[secondary].z + state[8 + secondary],

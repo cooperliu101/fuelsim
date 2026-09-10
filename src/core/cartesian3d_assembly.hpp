@@ -4,6 +4,7 @@
 #include "c3d8_types.hpp"
 #include "contact_types.hpp"
 #include "core/element_evaluation.hpp"
+#include "core/element_region_data.hpp"
 #include "quad4_face_boundary.hpp"
 #include "quad4_face_contact.hpp"
 #include "quad8_face_boundary.hpp"
@@ -357,7 +358,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::vector<Hex20RegionMesh> _hex20_meshes;
     std::vector<std::vector<Hex8Geometry>> _geometries;
     std::vector<std::vector<Hex20Geometry>> _hex20_geometries;
-    std::vector<CartesianThermoelasticData> _kernel_data;
+    std::vector<CartesianRegionData> _kernel_data;
     std::vector<std::size_t> _boundary_definition_indices;
     std::vector<Quad4FaceBoundaryData> _boundary_data;
     std::vector<BoundaryContribution> _boundary_contributions;

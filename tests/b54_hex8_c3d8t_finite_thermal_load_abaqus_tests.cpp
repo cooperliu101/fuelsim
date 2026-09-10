@@ -1,6 +1,7 @@
 #include "boundary_types.hpp"
 #include "c3d8_types.hpp"
 #include "core/element_evaluation.hpp"
+#include "core/element_region_data.hpp"
 #include "quad4_face_boundary.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
@@ -172,14 +173,8 @@ int main(int argc, char** argv) {
             NodalValues temperature = uniform;
             temperature[input] = 301.0;
             const fuelsim::Hex8LocalValues state = volume_state(coordinates, temperature);
-            const fuelsim::CartesianThermoelasticData current_data{material,
-                0.0,
-                1.0,
-                fuelsim::StrainFormulation::finite};
-            const fuelsim::CartesianThermoelasticData reference_data{material,
-                0.0,
-                1.0,
-                fuelsim::StrainFormulation::small};
+            const fuelsim::CartesianRegionData current_data{material, 0.0, 1.0, fuelsim::StrainFormulation::finite};
+            const fuelsim::CartesianRegionData reference_data{material, 0.0, 1.0, fuelsim::StrainFormulation::small};
             const fuelsim::Hex8LocalResidual current_residual =
                 fuelsim::compute_c3d8_transient(current_data, geometry, state, committed, history, 1.0);
             const fuelsim::Hex8LocalResidual reference_residual =
@@ -188,14 +183,8 @@ int main(int argc, char** argv) {
             std::copy(reference_residual.begin(), reference_residual.begin() + 8, reference_capacity[input].begin());
         }
 
-        const fuelsim::CartesianThermoelasticData current_body_data{material,
-            80.0,
-            1.0,
-            fuelsim::StrainFormulation::finite};
-        const fuelsim::CartesianThermoelasticData reference_body_data{material,
-            80.0,
-            1.0,
-            fuelsim::StrainFormulation::small};
+        const fuelsim::CartesianRegionData current_body_data{material, 80.0, 1.0, fuelsim::StrainFormulation::finite};
+        const fuelsim::CartesianRegionData reference_body_data{material, 80.0, 1.0, fuelsim::StrainFormulation::small};
         const fuelsim::Hex8LocalValues uniform_state = volume_state(coordinates, uniform);
         const fuelsim::Hex8LocalResidual current_body_residual =
             fuelsim::compute_c3d8_thermoelastic(current_body_data, geometry, uniform_state);

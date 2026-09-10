@@ -4,6 +4,7 @@
 #include "line2_rz_boundary.hpp"
 #include "line2_rz_contact.hpp"
 #include "support/cax4_evaluation.hpp"
+#include "support/element_test_data.hpp"
 
 #include "axisymmetric_types.hpp"
 #include "support/material_factory.hpp"
@@ -44,16 +45,16 @@ bool test_cax_kinematics_and_jacobian(bool reduced) {
     const std::size_t points = reduced ? 1 : 4;
     const fuelsim::Quad4Coordinates coordinates = {{{1.0, 0.0}, {2.1, 0.1}, {2.0, 1.2}, {0.9, 1.0}}};
     const auto geometry = fuelsim::make_quad4_rz_geometry(coordinates);
-    fuelsim::AxisymmetricElementData data{fuelsim::IsotropicThermoelasticMaterial(properties())};
+    fuelsim::AxisymmetricTestData data{fuelsim::IsotropicThermoelasticMaterial(properties())};
     data.element_formulation = reduced ? fuelsim::RzElementFormulation::cax4rt : fuelsim::RzElementFormulation::cax4t;
-    const fuelsim::LocalValues direction = {0.2, -0.3, 0.4, -0.1, 0.3, -0.5, 0.2, 0.4, -0.2, 0.35, -0.45, 0.25};
+    const fuelsim::Cax4LocalValues direction = {0.2, -0.3, 0.4, -0.1, 0.3, -0.5, 0.2, 0.4, -0.2, 0.35, -0.45, 0.25};
     bool passed = true;
     if (!reduced) {
         // Fully restrained heating has the same hydrostatic stress at every
         // point, even on a distorted element with nonuniform corner temperatures.
         for (const auto formulation : {fuelsim::StrainFormulation::small, fuelsim::StrainFormulation::finite}) {
             data.strain_formulation = formulation;
-            fuelsim::LocalValues initial{}, old{}, heated{};
+            fuelsim::Cax4LocalValues initial{}, old{}, heated{};
             for (std::size_t n = 0; n < 4; ++n)
                 initial[n] = 600.0;
             old[0] = 610.0;
@@ -83,7 +84,7 @@ bool test_cax_kinematics_and_jacobian(bool reduced) {
     for (const auto formulation : {fuelsim::StrainFormulation::small, fuelsim::StrainFormulation::finite}) {
         data.strain_formulation = formulation;
         data.volumetric_heat_source = formulation == fuelsim::StrainFormulation::finite ? 2e6 : 0.0;
-        fuelsim::LocalValues initial{}, old{}, state{};
+        fuelsim::Cax4LocalValues initial{}, old{}, state{};
         for (std::size_t n = 0; n < 4; ++n) {
             initial[n] = old[n] = state[n] = 600.0;
             old[4 + n] = 0.03 * coordinates[n].r;
@@ -108,7 +109,18 @@ bool test_cax_kinematics_and_jacobian(bool reduced) {
         passed = check(affine_error < 2e-14, name + " homogeneous stretch follows the analytical incremental strain")
                  && passed;
         if (reduced)
-            passed = check(fuelsim::elements::cax4rt_hourglass_energy(data, geometry, state) < 1e-20,
+            passed = check(fuelsim::elements::cax4rt_hourglass_energy({data.material,
+                               geometry,
+                               state,
+                               state,
+                               nullptr,
+                               0.0,
+                               data.time,
+                               data.volumetric_heat_source,
+                               data.strain_formulation,
+                               false,
+                               data.initial_temperature})
+                               < 1e-20,
                          "CAX4RT affine deformation has no artificial hourglass energy")
                      && passed;
         state[5] += 0.025;
@@ -133,7 +145,7 @@ bool test_cax_kinematics_and_jacobian(bool reduced) {
         }
         state[0] += 3.0;
         state[2] -= 2.0;
-        fuelsim::LocalJacobian jacobian{};
+        fuelsim::Cax4LocalJacobian jacobian{};
         const auto active = fuelsim::compute_cax4_transient(data, geometry, state, old, old_history, 0.1, &jacobian);
         const auto passive = fuelsim::compute_cax4_transient(data, geometry, state, old, old_history, 0.1);
         if (!reduced) {
@@ -190,8 +202,28 @@ bool test_cax_kinematics_and_jacobian(bool reduced) {
         passed = check(translation_error < 1e-12, name + " internal forces are invariant under axial rigid translation")
                  && passed;
         if (reduced) {
-            const double energy = fuelsim::elements::cax4rt_hourglass_energy(data, geometry, state);
-            const double shifted_energy = fuelsim::elements::cax4rt_hourglass_energy(data, geometry, translated);
+            const double energy = fuelsim::elements::cax4rt_hourglass_energy({data.material,
+                geometry,
+                state,
+                state,
+                nullptr,
+                0.0,
+                data.time,
+                data.volumetric_heat_source,
+                data.strain_formulation,
+                false,
+                data.initial_temperature});
+            const double shifted_energy = fuelsim::elements::cax4rt_hourglass_energy({data.material,
+                geometry,
+                translated,
+                translated,
+                nullptr,
+                0.0,
+                data.time,
+                data.volumetric_heat_source,
+                data.strain_formulation,
+                false,
+                data.initial_temperature});
             passed = check(energy > 0.0 && std::abs(energy - shifted_energy) < 1e-12 * energy,
                          "CAX4RT hourglass energy is positive and invariant under axial translation")
                      && passed;
@@ -223,7 +255,7 @@ bool test_cax_kinematics_and_jacobian(bool reduced) {
             if (mechanism != 1)
                 material = fuelsim::test::with_plasticity(material, 1e8, 2e10);
             data.material = fuelsim::IsotropicThermoelasticMaterial(material);
-            fuelsim::LocalValues initial{}, old{}, state{};
+            fuelsim::Cax4LocalValues initial{}, old{}, state{};
             for (std::size_t n = 0; n < 4; ++n) {
                 initial[n] = old[n] = state[n] = 600.0;
                 old[4 + n] = 0.001 * coordinates[n].r;
@@ -234,7 +266,7 @@ bool test_cax_kinematics_and_jacobian(bool reduced) {
             state[5] += 0.0003;
             state[10] -= 0.0002;
             const auto history = fuelsim::compute_cax4_transient_update(data, geometry, old, initial, {}, 0.1);
-            fuelsim::LocalJacobian jacobian{};
+            fuelsim::Cax4LocalJacobian jacobian{};
             const auto residual = fuelsim::compute_cax4_transient(data, geometry, state, old, history, 0.1, &jacobian);
             passed = check(residual == fuelsim::compute_cax4_transient(data, geometry, state, old, history, 0.1),
                          name + " inelastic material residual agrees exactly between passive and Jacobian paths")
@@ -291,12 +323,12 @@ HeatPointGeometries make_heat_point_geometries(const fuelsim::Line2InterfaceSide
     return result;
 }
 
-fuelsim::LocalResidual summed_heat_residual(const fuelsim::GapHeatProperties& properties,
+fuelsim::Cax4LocalResidual summed_heat_residual(const fuelsim::GapHeatProperties& properties,
     const HeatPointGeometries& geometries,
-    const fuelsim::LocalValues& state) {
-    fuelsim::LocalResidual result{};
+    const fuelsim::Cax4LocalValues& state) {
+    fuelsim::Cax4LocalResidual result{};
     for (const fuelsim::Line2RzHeatPointGeometry& geometry : geometries) {
-        const fuelsim::LocalResidual point = fuelsim::compute_line2_rz_gap_heat(properties, geometry, state);
+        const fuelsim::Cax4LocalResidual point = fuelsim::compute_line2_rz_gap_heat(properties, geometry, state);
         for (std::size_t row = 0; row < result.size(); ++row)
             result[row] += point[row];
     }
@@ -306,8 +338,8 @@ fuelsim::LocalResidual summed_heat_residual(const fuelsim::GapHeatProperties& pr
 bool test_heat_interface_case(const std::string& name,
     const fuelsim::GapHeatProperties& properties,
     const HeatPointGeometries& geometries,
-    const fuelsim::LocalValues& state) {
-    const fuelsim::LocalValues direction = {
+    const fuelsim::Cax4LocalValues& state) {
+    const fuelsim::Cax4LocalValues direction = {
         0.7,
         -0.4,
         0.3,
@@ -331,14 +363,14 @@ bool test_heat_interface_case(const std::string& name,
             system.jacobian[entry] += point.jacobian[entry];
     }
     constexpr double step = 1.0e-4;
-    fuelsim::LocalValues plus = state;
-    fuelsim::LocalValues minus = state;
+    fuelsim::Cax4LocalValues plus = state;
+    fuelsim::Cax4LocalValues minus = state;
     for (std::size_t dof = 0; dof < state.size(); ++dof) {
         plus[dof] += step * direction[dof];
         minus[dof] -= step * direction[dof];
     }
-    const fuelsim::LocalResidual plus_residual = summed_heat_residual(properties, geometries, plus);
-    const fuelsim::LocalResidual minus_residual = summed_heat_residual(properties, geometries, minus);
+    const fuelsim::Cax4LocalResidual plus_residual = summed_heat_residual(properties, geometries, plus);
+    const fuelsim::Cax4LocalResidual minus_residual = summed_heat_residual(properties, geometries, minus);
     bool passed = true;
     for (const fuelsim::Line2RzHeatPointGeometry& geometry : geometries) {
         passed = check(fuelsim::compute_line2_rz_gap_heat_value(properties, geometry, state).projected,
@@ -349,7 +381,7 @@ bool test_heat_interface_case(const std::string& name,
     for (std::size_t row = 0; row < system.residual.size(); ++row) {
         double ad_direction = 0.0;
         for (std::size_t column = 0; column < direction.size(); ++column)
-            ad_direction += system.jacobian[row * fuelsim::local_dof_count + column] * direction[column];
+            ad_direction += system.jacobian[row * fuelsim::cax4_local_dof_count + column] * direction[column];
         const double finite_difference = (plus_residual[row] - minus_residual[row]) / (2.0 * step);
         const double error = scaled_error(ad_direction, finite_difference);
         maximum_jacobian_error = std::max(maximum_jacobian_error, error);
@@ -357,7 +389,7 @@ bool test_heat_interface_case(const std::string& name,
                      name + " interface AD Jacobian row " + std::to_string(row) + " matches centered finite difference")
                  && passed;
     }
-    const fuelsim::LocalResidual residual = summed_heat_residual(properties, geometries, state);
+    const fuelsim::Cax4LocalResidual residual = summed_heat_residual(properties, geometries, state);
     double thermal_sum = 0.0;
     double thermal_scale = 0.0;
     for (std::size_t row = 0; row < 4; ++row) {
@@ -366,7 +398,7 @@ bool test_heat_interface_case(const std::string& name,
     }
     passed =
         check(std::abs(thermal_sum) < 1.0e-13 * (1.0 + thermal_scale), name + " interface conserves heat") && passed;
-    for (std::size_t row = 4; row < fuelsim::local_dof_count; ++row)
+    for (std::size_t row = 4; row < fuelsim::cax4_local_dof_count; ++row)
         passed = check(residual[row] == 0.0, name + " gap heat kernel has no mechanical residual") && passed;
     std::cout << name << "_heat_jacobian_maximum_scaled_error=" << maximum_jacobian_error << '\n';
     return passed;
@@ -375,8 +407,8 @@ bool test_heat_interface_case(const std::string& name,
 bool test_heat_point_interface_case(const std::string& name,
     const fuelsim::GapHeatProperties& properties,
     const fuelsim::Line2RzHeatPointGeometry& geometry,
-    const fuelsim::LocalValues& state) {
-    const fuelsim::LocalValues direction = {
+    const fuelsim::Cax4LocalValues& state) {
+    const fuelsim::Cax4LocalValues direction = {
         0.7,
         -0.4,
         0.3,
@@ -393,20 +425,20 @@ bool test_heat_point_interface_case(const std::string& name,
     const fuelsim::rz::LocalLinearization system =
         fuelsim::rz::linearize_line2_rz_gap_heat(properties, geometry, state);
     constexpr double step = 1.0e-4;
-    fuelsim::LocalValues plus = state;
-    fuelsim::LocalValues minus = state;
+    fuelsim::Cax4LocalValues plus = state;
+    fuelsim::Cax4LocalValues minus = state;
     for (std::size_t dof = 0; dof < state.size(); ++dof) {
         plus[dof] += step * direction[dof];
         minus[dof] -= step * direction[dof];
     }
-    const fuelsim::LocalResidual plus_residual = fuelsim::compute_line2_rz_gap_heat(properties, geometry, plus);
-    const fuelsim::LocalResidual minus_residual = fuelsim::compute_line2_rz_gap_heat(properties, geometry, minus);
+    const fuelsim::Cax4LocalResidual plus_residual = fuelsim::compute_line2_rz_gap_heat(properties, geometry, plus);
+    const fuelsim::Cax4LocalResidual minus_residual = fuelsim::compute_line2_rz_gap_heat(properties, geometry, minus);
     bool passed = true;
     double maximum_jacobian_error = 0.0;
     for (std::size_t row = 0; row < system.residual.size(); ++row) {
         double ad_direction = 0.0;
         for (std::size_t column = 0; column < direction.size(); ++column)
-            ad_direction += system.jacobian[row * fuelsim::local_dof_count + column] * direction[column];
+            ad_direction += system.jacobian[row * fuelsim::cax4_local_dof_count + column] * direction[column];
         const double finite_difference = (plus_residual[row] - minus_residual[row]) / (2.0 * step);
         const double error = scaled_error(ad_direction, finite_difference);
         maximum_jacobian_error = std::max(maximum_jacobian_error, error);
@@ -414,7 +446,7 @@ bool test_heat_point_interface_case(const std::string& name,
                      name + " point AD Jacobian row " + std::to_string(row) + " matches centered finite difference")
                  && passed;
     }
-    const fuelsim::LocalResidual residual = fuelsim::compute_line2_rz_gap_heat(properties, geometry, state);
+    const fuelsim::Cax4LocalResidual residual = fuelsim::compute_line2_rz_gap_heat(properties, geometry, state);
     double thermal_sum = 0.0;
     double thermal_scale = 0.0;
     for (std::size_t row = 0; row < 4; ++row) {
@@ -430,9 +462,9 @@ bool test_heat_point_interface_case(const std::string& name,
 bool test_contact_interface_case(const std::string& name,
     const fuelsim::NormalContactProperties& properties,
     const fuelsim::NodeToLineRzContactGeometry& geometry,
-    const fuelsim::LocalValues& state,
+    const fuelsim::Cax4LocalValues& state,
     const fuelsim::ContactPointHistory& history = {}) {
-    const fuelsim::LocalValues direction = {
+    const fuelsim::Cax4LocalValues direction = {
         0.7,
         -0.4,
         0.3,
@@ -449,22 +481,22 @@ bool test_contact_interface_case(const std::string& name,
     const fuelsim::rz::LocalLinearization system =
         fuelsim::rz::linearize_node_to_line_rz_contact(properties, geometry, state, state, history);
     constexpr double step = 1.0e-4;
-    fuelsim::LocalValues plus = state;
-    fuelsim::LocalValues minus = state;
+    fuelsim::Cax4LocalValues plus = state;
+    fuelsim::Cax4LocalValues minus = state;
     for (std::size_t dof = 0; dof < state.size(); ++dof) {
         plus[dof] += step * direction[dof];
         minus[dof] -= step * direction[dof];
     }
-    const fuelsim::LocalResidual plus_residual =
+    const fuelsim::Cax4LocalResidual plus_residual =
         fuelsim::compute_node_to_line_rz_contact(properties, geometry, plus, state, history);
-    const fuelsim::LocalResidual minus_residual =
+    const fuelsim::Cax4LocalResidual minus_residual =
         fuelsim::compute_node_to_line_rz_contact(properties, geometry, minus, state, history);
     bool passed = true;
     double maximum_jacobian_error = 0.0;
     for (std::size_t row = 0; row < system.residual.size(); ++row) {
         double ad_direction = 0.0;
         for (std::size_t column = 0; column < direction.size(); ++column)
-            ad_direction += system.jacobian[row * fuelsim::local_dof_count + column] * direction[column];
+            ad_direction += system.jacobian[row * fuelsim::cax4_local_dof_count + column] * direction[column];
         const double finite_difference = (plus_residual[row] - minus_residual[row]) / (2.0 * step);
         const double error = scaled_error(ad_direction, finite_difference);
         maximum_jacobian_error = std::max(maximum_jacobian_error, error);
@@ -472,7 +504,7 @@ bool test_contact_interface_case(const std::string& name,
                      name + " contact AD Jacobian row " + std::to_string(row) + " matches centered finite difference")
                  && passed;
     }
-    const fuelsim::LocalResidual residual =
+    const fuelsim::Cax4LocalResidual residual =
         fuelsim::compute_node_to_line_rz_contact(properties, geometry, state, state, history);
     double radial_sum = 0.0;
     double radial_scale = 0.0;
@@ -499,10 +531,10 @@ bool test_contact_interface_case(const std::string& name,
 bool test_friction_contact_case(const std::string& name,
     const fuelsim::NormalContactProperties& properties,
     const fuelsim::NodeToLineRzContactGeometry& geometry,
-    const fuelsim::LocalValues& state,
-    const fuelsim::LocalValues& committed_state,
+    const fuelsim::Cax4LocalValues& state,
+    const fuelsim::Cax4LocalValues& committed_state,
     const fuelsim::ContactPointHistory& history) {
-    const fuelsim::LocalValues direction = {
+    const fuelsim::Cax4LocalValues direction = {
         0.0,
         0.0,
         0.0,
@@ -519,22 +551,22 @@ bool test_friction_contact_case(const std::string& name,
     const fuelsim::rz::LocalLinearization system =
         fuelsim::rz::linearize_node_to_line_rz_contact(properties, geometry, state, committed_state, history);
     constexpr double step = 1.0e-4;
-    fuelsim::LocalValues plus = state;
-    fuelsim::LocalValues minus = state;
+    fuelsim::Cax4LocalValues plus = state;
+    fuelsim::Cax4LocalValues minus = state;
     for (std::size_t dof = 0; dof < state.size(); ++dof) {
         plus[dof] += step * direction[dof];
         minus[dof] -= step * direction[dof];
     }
-    const fuelsim::LocalResidual plus_residual =
+    const fuelsim::Cax4LocalResidual plus_residual =
         fuelsim::compute_node_to_line_rz_contact(properties, geometry, plus, committed_state, history);
-    const fuelsim::LocalResidual minus_residual =
+    const fuelsim::Cax4LocalResidual minus_residual =
         fuelsim::compute_node_to_line_rz_contact(properties, geometry, minus, committed_state, history);
     bool passed = true;
     double maximum_jacobian_error = 0.0;
     for (std::size_t row = 0; row < system.residual.size(); ++row) {
         double ad_direction = 0.0;
         for (std::size_t column = 0; column < direction.size(); ++column)
-            ad_direction += system.jacobian[row * fuelsim::local_dof_count + column] * direction[column];
+            ad_direction += system.jacobian[row * fuelsim::cax4_local_dof_count + column] * direction[column];
         const double finite_difference = (plus_residual[row] - minus_residual[row]) / (2.0 * step);
         const double error = scaled_error(ad_direction, finite_difference);
         maximum_jacobian_error = std::max(maximum_jacobian_error, error);
@@ -542,7 +574,7 @@ bool test_friction_contact_case(const std::string& name,
                      name + " friction AD Jacobian row " + std::to_string(row) + " matches centered finite difference")
                  && passed;
     }
-    const fuelsim::LocalResidual residual =
+    const fuelsim::Cax4LocalResidual residual =
         fuelsim::compute_node_to_line_rz_contact(properties, geometry, state, committed_state, history);
     double radial_sum = 0.0;
     double axial_sum = 0.0;
@@ -577,7 +609,7 @@ bool test_gap_heat_and_normal_contact() {
     const fuelsim::NodeToLineRzContactGeometry contact_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(fuel, cladding, 1, true, false, 0.0);
     const fuelsim::NormalContactProperties contact_properties{1.0e14};
-    const fuelsim::LocalValues open_state = {
+    const fuelsim::Cax4LocalValues open_state = {
         750.0,
         740.0,
         610.0,
@@ -591,7 +623,7 @@ bool test_gap_heat_and_normal_contact() {
         0.0,
         0.0,
     };
-    const fuelsim::LocalValues minimum_gap_state = {
+    const fuelsim::Cax4LocalValues minimum_gap_state = {
         750.0,
         740.0,
         610.0,
@@ -605,7 +637,7 @@ bool test_gap_heat_and_normal_contact() {
         0.0,
         0.0,
     };
-    const fuelsim::LocalValues closed_state = {
+    const fuelsim::Cax4LocalValues closed_state = {
         750.0,
         740.0,
         610.0,
@@ -652,7 +684,7 @@ bool test_gap_heat_and_normal_contact() {
                        && scaled_error(closed_projection.gap, closed_contact.gap) < 1.0e-14,
                  "double-only mechanical search projection matches the full contact value")
              && passed;
-    fuelsim::LocalValues outside_state = closed_state;
+    fuelsim::Cax4LocalValues outside_state = closed_state;
     outside_state[9] = 5.0e-6;
     const fuelsim::ContactPointValue outside_contact =
         fuelsim::compute_node_to_line_rz_contact_value(contact_properties,
@@ -665,7 +697,7 @@ bool test_gap_heat_and_normal_contact() {
              && passed;
     const fuelsim::NodeToLineRzContactGeometry radial_endpoint_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(fuel, cladding, 0, true, true, 0.0);
-    fuelsim::LocalValues radial_endpoint_state = closed_state;
+    fuelsim::Cax4LocalValues radial_endpoint_state = closed_state;
     radial_endpoint_state[8] = -5.0e-16;
     const fuelsim::ContactPointValue radial_endpoint =
         fuelsim::compute_node_to_line_rz_contact_value(contact_properties,
@@ -680,7 +712,7 @@ bool test_gap_heat_and_normal_contact() {
     // A side that is vertical in the reference mesh need not remain vertical.
     // Unequal radial displacement of its primary endpoints must therefore use
     // the current inclined normal instead of a reference-geometry shortcut.
-    fuelsim::LocalValues current_sloped_state = closed_state;
+    fuelsim::Cax4LocalValues current_sloped_state = closed_state;
     current_sloped_state[4] = 20.0e-6;
     current_sloped_state[5] = 20.0e-6;
     current_sloped_state[6] = 0.0;
@@ -694,7 +726,7 @@ bool test_gap_heat_and_normal_contact() {
                  contact_geometry,
                  current_sloped_state)
              && passed;
-    const fuelsim::LocalResidual current_sloped_heat_residual =
+    const fuelsim::Cax4LocalResidual current_sloped_heat_residual =
         summed_heat_residual(heat_properties, heat_geometries, current_sloped_state);
     double expected_current_primary_node_1 = 0.0;
     double fixed_reference_primary_node_1 = 0.0;
@@ -725,13 +757,13 @@ bool test_gap_heat_and_normal_contact() {
                  "thermal contact uses current primary projection rather than "
                  "the reference interpolation fraction")
              && passed;
-    fuelsim::LocalValues thermal_projection_lost_state = open_state;
+    fuelsim::Cax4LocalValues thermal_projection_lost_state = open_state;
     thermal_projection_lost_state[10] = 0.45e-3;
     thermal_projection_lost_state[11] = -0.45e-3;
     for (const fuelsim::Line2RzHeatPointGeometry& geometry : heat_geometries) {
         const fuelsim::HeatQuadratureValue value =
             fuelsim::compute_line2_rz_gap_heat_value(heat_properties, geometry, thermal_projection_lost_state);
-        const fuelsim::LocalResidual residual =
+        const fuelsim::Cax4LocalResidual residual =
             fuelsim::compute_line2_rz_gap_heat(heat_properties, geometry, thermal_projection_lost_state);
         const fuelsim::rz::LocalLinearization system =
             fuelsim::rz::linearize_line2_rz_gap_heat(heat_properties, geometry, thermal_projection_lost_state);
@@ -749,11 +781,12 @@ bool test_gap_heat_and_normal_contact() {
             current_sloped_state,
             current_sloped_state,
             {});
-    const fuelsim::LocalResidual current_sloped_residual = fuelsim::compute_node_to_line_rz_contact(contact_properties,
-        contact_geometry,
-        current_sloped_state,
-        current_sloped_state,
-        {});
+    const fuelsim::Cax4LocalResidual current_sloped_residual =
+        fuelsim::compute_node_to_line_rz_contact(contact_properties,
+            contact_geometry,
+            current_sloped_state,
+            current_sloped_state,
+            {});
     passed = check(current_sloped_contact.projected && current_sloped_contact.pressure > 0.0
                        && std::abs(current_sloped_residual[9]) > 0.0,
                  "reference-vertical contact follows the inclined current "
@@ -775,7 +808,7 @@ bool test_gap_heat_and_normal_contact() {
         fuelsim::make_node_to_line_rz_contact_geometry(vertex_secondary, vertex_primary_lower, 1, true, false, 0.0);
     const fuelsim::NodeToLineRzContactGeometry vertex_upper_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(vertex_secondary, vertex_primary_upper, 1, false, false, 0.0);
-    fuelsim::LocalValues vertex_state{};
+    fuelsim::Cax4LocalValues vertex_state{};
     vertex_state[5] = 3.0e-6;
     const fuelsim::ContactPointValue vertex_lower_reference =
         fuelsim::compute_node_to_line_rz_contact_value(contact_properties,
@@ -833,7 +866,7 @@ bool test_gap_heat_and_normal_contact() {
         fuelsim::make_node_to_line_rz_contact_geometry(general_secondary, general_primary_lower, 1, true, false, 0.0);
     const fuelsim::NodeToLineRzContactGeometry general_upper_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(general_secondary, general_primary_upper, 1, false, true, 0.0);
-    fuelsim::LocalValues general_vertex_state{};
+    fuelsim::Cax4LocalValues general_vertex_state{};
     const fuelsim::ContactPointValue general_lower_reference =
         fuelsim::compute_node_to_line_rz_contact_value(contact_properties,
             general_lower_geometry,
@@ -877,7 +910,7 @@ bool test_gap_heat_and_normal_contact() {
     const HeatPointGeometries axial_heat_geometries = make_heat_point_geometries(lower_pellet, upper_pellet);
     const fuelsim::NodeToLineRzContactGeometry axial_contact_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(lower_pellet, upper_pellet, 1, true, true, 0.0);
-    const fuelsim::LocalValues axial_open_state = {
+    const fuelsim::Cax4LocalValues axial_open_state = {
         750.0,
         740.0,
         610.0,
@@ -891,7 +924,7 @@ bool test_gap_heat_and_normal_contact() {
         0.0,
         0.0,
     };
-    const fuelsim::LocalValues axial_closed_state = {
+    const fuelsim::Cax4LocalValues axial_closed_state = {
         750.0,
         740.0,
         610.0,
@@ -927,7 +960,7 @@ bool test_gap_heat_and_normal_contact() {
     const HeatPointGeometries sloped_heat_geometries = make_heat_point_geometries(sloped_secondary, sloped_primary);
     const fuelsim::NodeToLineRzContactGeometry sloped_contact_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(sloped_secondary, sloped_primary, 1, true, true, 0.0);
-    const fuelsim::LocalValues sloped_closed_state = {
+    const fuelsim::Cax4LocalValues sloped_closed_state = {
         750.0,
         740.0,
         610.0,
@@ -945,7 +978,7 @@ bool test_gap_heat_and_normal_contact() {
     passed =
         test_contact_interface_case("sloped_closed", contact_properties, sloped_contact_geometry, sloped_closed_state)
         && passed;
-    const fuelsim::LocalResidual sloped_residual = fuelsim::compute_node_to_line_rz_contact(contact_properties,
+    const fuelsim::Cax4LocalResidual sloped_residual = fuelsim::compute_node_to_line_rz_contact(contact_properties,
         sloped_contact_geometry,
         sloped_closed_state,
         sloped_closed_state,
@@ -978,7 +1011,7 @@ bool test_gap_heat_and_normal_contact() {
                  augmented_history)
              && passed;
     const fuelsim::NormalContactProperties friction_properties{1.0e14, 0.3};
-    fuelsim::LocalValues sticking_state = closed_state;
+    fuelsim::Cax4LocalValues sticking_state = closed_state;
     sticking_state[9] = 1.0e-7;
     const fuelsim::ContactPointValue sticking = fuelsim::compute_node_to_line_rz_contact_value(friction_properties,
         contact_geometry,
@@ -992,7 +1025,7 @@ bool test_gap_heat_and_normal_contact() {
     passed =
         test_friction_contact_case("sticking", friction_properties, contact_geometry, sticking_state, closed_state, {})
         && passed;
-    fuelsim::LocalValues sliding_state = closed_state;
+    fuelsim::Cax4LocalValues sliding_state = closed_state;
     sliding_state[9] = 6.0e-7;
     const fuelsim::ContactPointValue sliding = fuelsim::compute_node_to_line_rz_contact_value(friction_properties,
         contact_geometry,
@@ -1008,7 +1041,7 @@ bool test_gap_heat_and_normal_contact() {
     passed =
         test_friction_contact_case("sliding", friction_properties, contact_geometry, sliding_state, closed_state, {})
         && passed;
-    fuelsim::LocalValues resticking_state = closed_state;
+    fuelsim::Cax4LocalValues resticking_state = closed_state;
     resticking_state[9] = -1.0e-7;
     const fuelsim::ContactPointHistory sliding_history = {sliding.elastic_tangential_slip, sliding.sliding, 0.0};
     const fuelsim::ContactPointValue resticking = fuelsim::compute_node_to_line_rz_contact_value(friction_properties,
@@ -1089,7 +1122,7 @@ bool test_gap_heat_and_normal_contact() {
             "RZ accumulated slip is frozen while contact is open")
         && passed;
     const double sloped_tangent_component = 1.0 / std::sqrt(2.0);
-    fuelsim::LocalValues sloped_sticking_state = sloped_closed_state;
+    fuelsim::Cax4LocalValues sloped_sticking_state = sloped_closed_state;
     sloped_sticking_state[5] += 1.0e-7 * sloped_tangent_component;
     sloped_sticking_state[9] += 1.0e-7 * sloped_tangent_component;
     const fuelsim::ContactPointValue sloped_sticking =
@@ -1110,7 +1143,7 @@ bool test_gap_heat_and_normal_contact() {
                  sloped_closed_state,
                  {})
              && passed;
-    fuelsim::LocalValues sloped_sliding_state = sloped_closed_state;
+    fuelsim::Cax4LocalValues sloped_sliding_state = sloped_closed_state;
     sloped_sliding_state[5] += 6.0e-7 * sloped_tangent_component;
     sloped_sliding_state[9] += 6.0e-7 * sloped_tangent_component;
     const fuelsim::ContactPointValue sloped_sliding =
@@ -1134,7 +1167,7 @@ bool test_gap_heat_and_normal_contact() {
                  sloped_closed_state,
                  {})
              && passed;
-    fuelsim::LocalValues sloped_resticking_state = sloped_closed_state;
+    fuelsim::Cax4LocalValues sloped_resticking_state = sloped_closed_state;
     sloped_resticking_state[5] -= 1.0e-7 * sloped_tangent_component;
     sloped_resticking_state[9] -= 1.0e-7 * sloped_tangent_component;
     const fuelsim::ContactPointHistory sloped_sliding_history = {sloped_sliding.elastic_tangential_slip,
@@ -1159,9 +1192,9 @@ bool test_gap_heat_and_normal_contact() {
                  sloped_sliding_history)
              && passed;
     const fuelsim::NormalContactProperties explicit_zero_friction{1.0e14, 0.0};
-    const fuelsim::LocalResidual legacy_normal =
+    const fuelsim::Cax4LocalResidual legacy_normal =
         fuelsim::compute_node_to_line_rz_contact(contact_properties, contact_geometry, closed_state, closed_state, {});
-    const fuelsim::LocalResidual zero_friction = fuelsim::compute_node_to_line_rz_contact(explicit_zero_friction,
+    const fuelsim::Cax4LocalResidual zero_friction = fuelsim::compute_node_to_line_rz_contact(explicit_zero_friction,
         contact_geometry,
         closed_state,
         closed_state,
@@ -1176,7 +1209,7 @@ bool test_gap_heat_and_normal_contact() {
 bool test_heat_point_primary_owner() {
     const fuelsim::Line2InterfaceSideCoordinates sloped_secondary = {{{1.0, .2}, {1.2, 1.2}}};
     const fuelsim::Line2InterfaceSideCoordinates sloped_primary = {{{1.4, 0.0}, {1.8, 2.0}}};
-    const fuelsim::LocalValues nodal_state = {500, 650, 300, 350, .01, .02, .03, -.01, .01, .02, -.02, .01};
+    const fuelsim::Cax4LocalValues nodal_state = {500, 650, 300, 350, .01, .02, .03, -.01, .01, .02, -.02, .01};
     bool nodal_passed = true;
     for (std::size_t node = 0; node < 2; ++node) {
         const std::array<double, 2> shape = {node == 0 ? 1.0 : 0.0, node == 1 ? 1.0 : 0.0};
@@ -1204,7 +1237,7 @@ bool test_heat_point_primary_owner() {
     const fuelsim::Line2RzHeatPointGeometry upper =
         fuelsim::make_line2_rz_heat_point_geometry(secondary, primary_upper, secondary_shape, 1.0, true, 0.0);
     const fuelsim::GapHeatProperties properties{0.2, 1.0e-5};
-    fuelsim::LocalValues state = {
+    fuelsim::Cax4LocalValues state = {
         500.0,
         500.0,
         300.0,
@@ -1330,7 +1363,7 @@ bool test_zero_gap_contact_orientation() {
     // 3e-6 m, while the 1e-4 scaled finite-difference direction moves the
     // gap by at most 6e-11 m and cannot cross the kink.
     const fuelsim::NormalContactProperties contact_properties{1.0e14};
-    const fuelsim::LocalValues zero_gap_open_state = {
+    const fuelsim::Cax4LocalValues zero_gap_open_state = {
         750.0,
         740.0,
         610.0,
@@ -1344,7 +1377,7 @@ bool test_zero_gap_contact_orientation() {
         0.0,
         0.0,
     };
-    const fuelsim::LocalValues zero_gap_closed_state = {
+    const fuelsim::Cax4LocalValues zero_gap_closed_state = {
         750.0,
         740.0,
         610.0,
@@ -1398,7 +1431,7 @@ bool test_zero_gap_contact_orientation() {
                  "sloped zero-gap hint orientation matches the 1e-9 m "
                  "opened geometry")
              && passed;
-    const fuelsim::LocalValues oracle_closed_state = {
+    const fuelsim::Cax4LocalValues oracle_closed_state = {
         750.0,
         740.0,
         610.0,
@@ -1446,7 +1479,7 @@ bool test_zero_gap_contact_orientation() {
     // branches on the coincident geometry: +2e-6 m gap above the 1e-6 m
     // minimum gap and a -3e-6 m penetration on the minimum-gap branch.
     const fuelsim::GapHeatProperties heat_properties{0.4, 1.0e-6};
-    const fuelsim::LocalValues zero_gap_heat_open_state = {
+    const fuelsim::Cax4LocalValues zero_gap_heat_open_state = {
         750.0,
         740.0,
         610.0,
@@ -1483,7 +1516,7 @@ bool test_follower_pressure() {
         pressure,
         0.0,
         true};
-    const fuelsim::LocalValues state = {
+    const fuelsim::Cax4LocalValues state = {
         600.0,
         600.0,
         600.0,
@@ -1497,7 +1530,7 @@ bool test_follower_pressure() {
         -0.0002,
         0.0,
     };
-    const fuelsim::LocalValues direction = {
+    const fuelsim::Cax4LocalValues direction = {
         0.0,
         0.0,
         0.0,
@@ -1522,14 +1555,14 @@ bool test_follower_pressure() {
                             && scaled_error(system.residual[9] + system.residual[10], expected_axial) < 1.0e-13,
         "follower pressure uses current RZ radius and outward normal");
     constexpr double step = 1.0e-7;
-    fuelsim::LocalValues plus = state;
-    fuelsim::LocalValues minus = state;
+    fuelsim::Cax4LocalValues plus = state;
+    fuelsim::Cax4LocalValues minus = state;
     for (std::size_t dof = 0; dof < state.size(); ++dof) {
         plus[dof] += step * direction[dof];
         minus[dof] -= step * direction[dof];
     }
-    const fuelsim::LocalResidual plus_residual = fuelsim::compute_line2_rz_boundary(follower, geometry, plus);
-    const fuelsim::LocalResidual minus_residual = fuelsim::compute_line2_rz_boundary(follower, geometry, minus);
+    const fuelsim::Cax4LocalResidual plus_residual = fuelsim::compute_line2_rz_boundary(follower, geometry, plus);
+    const fuelsim::Cax4LocalResidual minus_residual = fuelsim::compute_line2_rz_boundary(follower, geometry, minus);
     double maximum_error = 0.0;
     for (std::size_t row = 0; row < state.size(); ++row) {
         double tangent = 0.0;
@@ -1568,7 +1601,7 @@ bool test_current_configuration_traction() {
         traction,
         0.0,
         true};
-    const fuelsim::LocalValues state = {
+    const fuelsim::Cax4LocalValues state = {
         600.0,
         600.0,
         600.0,
@@ -1582,7 +1615,7 @@ bool test_current_configuration_traction() {
         -0.0002,
         0.0,
     };
-    const fuelsim::LocalValues direction = {
+    const fuelsim::Cax4LocalValues direction = {
         0.0,
         0.0,
         0.0,
@@ -1603,14 +1636,14 @@ bool test_current_configuration_traction() {
         "current-configuration component traction uses current RZ "
         "surface measure");
     constexpr double step = 1.0e-7;
-    fuelsim::LocalValues plus = state;
-    fuelsim::LocalValues minus = state;
+    fuelsim::Cax4LocalValues plus = state;
+    fuelsim::Cax4LocalValues minus = state;
     for (std::size_t dof = 0; dof < state.size(); ++dof) {
         plus[dof] += step * direction[dof];
         minus[dof] -= step * direction[dof];
     }
-    const fuelsim::LocalResidual plus_residual = fuelsim::compute_line2_rz_boundary(current, geometry, plus);
-    const fuelsim::LocalResidual minus_residual = fuelsim::compute_line2_rz_boundary(current, geometry, minus);
+    const fuelsim::Cax4LocalResidual plus_residual = fuelsim::compute_line2_rz_boundary(current, geometry, plus);
+    const fuelsim::Cax4LocalResidual minus_residual = fuelsim::compute_line2_rz_boundary(current, geometry, minus);
     double maximum_error = 0.0;
     for (std::size_t row = 0; row < state.size(); ++row) {
         double tangent = 0.0;
@@ -1676,7 +1709,7 @@ bool test_line2_convection() {
         1000.0,
         500.0,
         false};
-    const fuelsim::LocalValues state = {
+    const fuelsim::Cax4LocalValues state = {
         590.0,
         600.0,
         600.0,
@@ -1690,7 +1723,7 @@ bool test_line2_convection() {
         0.0,
         0.0,
     };
-    const fuelsim::LocalValues direction = {
+    const fuelsim::Cax4LocalValues direction = {
         0.2,
         -0.7,
         0.4,
@@ -1710,14 +1743,14 @@ bool test_line2_convection() {
                  "convection integrates the RZ surface heat loss")
              && passed;
     constexpr double step = 1.0e-4;
-    fuelsim::LocalValues plus = state;
-    fuelsim::LocalValues minus = state;
+    fuelsim::Cax4LocalValues plus = state;
+    fuelsim::Cax4LocalValues minus = state;
     for (std::size_t dof = 0; dof < state.size(); ++dof) {
         plus[dof] += step * direction[dof];
         minus[dof] -= step * direction[dof];
     }
-    const fuelsim::LocalResidual plus_residual = fuelsim::compute_line2_rz_boundary(data, geometry, plus);
-    const fuelsim::LocalResidual minus_residual = fuelsim::compute_line2_rz_boundary(data, geometry, minus);
+    const fuelsim::Cax4LocalResidual plus_residual = fuelsim::compute_line2_rz_boundary(data, geometry, plus);
+    const fuelsim::Cax4LocalResidual minus_residual = fuelsim::compute_line2_rz_boundary(data, geometry, minus);
     double maximum_error = 0.0;
     for (std::size_t row = 0; row < state.size(); ++row) {
         double tangent = 0.0;

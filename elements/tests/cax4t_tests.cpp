@@ -69,7 +69,7 @@ bool same_history(const Quad4MaterialHistory& a, const Quad4MaterialHistory& b) 
 void check_analytic_and_contract(StrainFormulation form) {
     const auto m = material(false);
     const auto g = make_quad4_rz_geometry({{{1.0, 0.0}, {2.0, 0.0}, {2.0, 1.0}, {1.0, 1.0}}});
-    LocalValues old{}, heated{};
+    Cax4LocalValues old{}, heated{};
     for (std::size_t n = 0; n < 4; ++n) {
         old[n] = 600.0;
         heated[n] = 620.0;
@@ -106,7 +106,7 @@ void check_analytic_and_contract(StrainFormulation form) {
 void check_nonlinear_transaction(StrainFormulation form) {
     const auto m = material(true);
     const auto g = make_quad4_rz_geometry({{{1.0, 0.0}, {2.1, 0.1}, {2.0, 1.2}, {0.9, 1.0}}});
-    LocalValues initial{}, old{}, state{};
+    Cax4LocalValues initial{}, old{}, state{};
     for (std::size_t n = 0; n < 4; ++n) {
         initial[n] = 600.0;
         old[n] = 610.0 + 10.0 * static_cast<double>(n);
@@ -140,7 +140,7 @@ void check_nonlinear_transaction(StrainFormulation form) {
     require(std::abs(heat_sum - active.stored_heat_rate + active.generated_heat_rate)
                 < 1e-12 * std::abs(active.stored_heat_rate),
         "Thermal diagnostics must match summed residual");
-    const LocalValues direction = {0.2, -0.3, 0.4, -0.1, 0.3, -0.5, 0.2, 0.4, -0.2, 0.35, -0.45, 0.25};
+    const Cax4LocalValues direction = {0.2, -0.3, 0.4, -0.1, 0.3, -0.5, 0.2, 0.4, -0.2, 0.35, -0.45, 0.25};
     // Two resolved step sizes avoid cancellation in the large thermal residual.
     double error = 0.0;
     for (const double step : {1e-5, 3e-6}) {

@@ -1,4 +1,5 @@
 #include "hex8_geometry.hpp"
+#include "c3d8_kinematics.hpp"
 
 namespace fuelsim::element_detail {
 cartesian_detail::ActiveMatrix3 displacement_gradient(const Hex8QuadraturePoint& point,
@@ -22,11 +23,11 @@ cartesian_detail::Matrix3 deformation_gradient(const Hex8QuadraturePoint& point,
     return result;
 }
 
-CartesianKinematics evaluate_cartesian_kinematics_from_gradient(const Hex8QuadraturePoint& point,
+C3d8Kinematics evaluate_cartesian_kinematics_from_gradient(const Hex8QuadraturePoint& point,
     const cartesian_detail::ActiveMatrix3& gradient,
     const Hex8LocalValues& committed_state,
     StrainFormulation strain_formulation) {
-    CartesianKinematics result{};
+    C3d8Kinematics result{};
     const cartesian_detail::Matrix3 old = deformation_gradient(point, committed_state);
     const cartesian_detail::KinematicsCore core =
         cartesian_detail::evaluate_kinematics(gradient, old, strain_formulation);
@@ -61,7 +62,7 @@ void validate_cartesian_deformation(const Hex8QuadraturePoint& point, const Hex8
         throw std::domain_error("Finite-strain HEX8 deformation must preserve a positive Jacobian");
 }
 
-CartesianKinematics evaluate_cartesian_incremental_kinematics(const Hex8QuadraturePoint& point,
+C3d8Kinematics evaluate_cartesian_incremental_kinematics(const Hex8QuadraturePoint& point,
     const Hex8LocalAdValues& current_state,
     const Hex8LocalValues& committed_state,
     StrainFormulation strain_formulation) {

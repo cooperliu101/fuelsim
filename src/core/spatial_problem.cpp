@@ -1,3 +1,4 @@
+#include "c3d8_kinematics.hpp"
 #include "c3d8_types.hpp"
 #include "cartesian3d_assembly.hpp"
 #include "cax4rt.hpp"
@@ -5,6 +6,7 @@
 #include "contact_types.hpp"
 #include "core/cax4_evaluation.hpp"
 #include "core/element_evaluation.hpp"
+#include "core/element_region_data.hpp"
 #include "core/nonlinear_problem.hpp"
 #include "core/problem_backend_access.hpp"
 #include "core/spatial_definition.hpp"
@@ -96,18 +98,18 @@ void add_trapezoidal_external_work(const NonlinearProblem& problem,
 } // namespace
 
 namespace {
-LocalValues rz_local_values(const std::vector<double>& values) {
-    if (values.size() != local_dof_count)
+Cax4LocalValues rz_local_values(const std::vector<double>& values) {
+    if (values.size() != cax4_local_dof_count)
         throw std::invalid_argument("RZ contribution state must contain 12 DOFs");
-    LocalValues result{};
+    Cax4LocalValues result{};
     std::copy(values.begin(), values.end(), result.begin());
     return result;
 }
 
-LocalValues
+Cax4LocalValues
 gather_rz_state(const rz::SpatialAssembly& spatial, std::size_t index, const std::vector<double>& global_state) {
-    const LocalDofs dofs = spatial.contribution_dofs(index);
-    LocalValues result{};
+    const Cax4LocalDofs dofs = spatial.contribution_dofs(index);
+    Cax4LocalValues result{};
     for (std::size_t local = 0; local < dofs.size(); ++local)
         result[local] = global_state.at(dofs[local]);
     return result;
@@ -339,7 +341,7 @@ class SpatialProblemStorage {
             cartesian->contribution_dofs(index, dofs);
             return;
         }
-        const LocalDofs fixed = rz->contribution_dofs(index);
+        const Cax4LocalDofs fixed = rz->contribution_dofs(index);
         dofs.assign(fixed.begin(), fixed.end());
     }
 
@@ -358,7 +360,7 @@ class SpatialProblemStorage {
             cartesian->sparsity_contribution_dofs(index, dofs);
             return;
         }
-        const LocalDofs fixed = rz->sparsity_contribution_dofs(index);
+        const Cax4LocalDofs fixed = rz->sparsity_contribution_dofs(index);
         dofs.assign(fixed.begin(), fixed.end());
     }
 
@@ -378,7 +380,7 @@ class SpatialProblemStorage {
     std::unique_ptr<rz8::SpatialAssembly> rz8;
     std::vector<std::vector<Quad8MaterialHistory>> quad8_material_histories;
     std::unique_ptr<cartesian::SpatialAssembly> cartesian;
-    std::vector<AxisymmetricElementData> kernel_data;
+    std::vector<AxisymmetricRegionData> kernel_data;
     std::vector<std::vector<Quad4MaterialHistory>> material_histories;
     std::vector<std::vector<Quad4MaterialHistory>> _staged_material_histories;
     std::vector<std::vector<CartesianMaterialHistory>> cartesian_material_histories;
@@ -432,7 +434,7 @@ bool BackendAccess::uses_quad8(const SteadyProblem& problem) noexcept {
     return problem._impl->rz8 != nullptr;
 }
 
-const std::vector<AxisymmetricElementData>& BackendAccess::quad8_kernel_data(const SteadyProblem& problem) noexcept {
+const std::vector<AxisymmetricRegionData>& BackendAccess::quad8_kernel_data(const SteadyProblem& problem) noexcept {
     return problem._impl->kernel_data;
 }
 
@@ -481,7 +483,7 @@ void SteadyProblem::set_time(double value) {
         return;
     }
     _impl->set_time(value);
-    for (AxisymmetricElementData& data : _impl->kernel_data)
+    for (AxisymmetricRegionData& data : _impl->kernel_data)
         data.time = value;
     for (std::size_t region = 0; region < _impl->layout().region_count(); ++region)
         _impl->kernel_data[region].volumetric_heat_source = _impl->layout().region_heat_source(region);
@@ -606,9 +608,9 @@ void SteadyProblem::compute_contribution(std::size_t index,
         _impl->cartesian->compute_contribution(index, state, nullptr, nullptr, 0.0, residual, jacobian);
         return;
     }
-    const LocalValues local_state = rz_local_values(state);
-    LocalJacobian local_jacobian{};
-    LocalResidual local_residual{};
+    const Cax4LocalValues local_state = rz_local_values(state);
+    Cax4LocalJacobian local_jacobian{};
+    Cax4LocalResidual local_residual{};
     if (index >= _impl->rz->volume_contribution_count())
         local_residual =
             _impl->rz->compute_contribution(index, local_state, jacobian == nullptr ? nullptr : &local_jacobian);
@@ -1661,7 +1663,7 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                         Hex8LocalAdValues active_current{};
                         for (std::size_t local = 0; local < current.size(); ++local)
                             active_current[local] = current[local];
-                        const CartesianKinematics kinematics = evaluate_cartesian_incremental_kinematics(point,
+                        const C3d8Kinematics kinematics = evaluate_cartesian_incremental_kinematics(point,
                             active_current,
                             old,
                             StrainFormulation::finite);
@@ -1727,8 +1729,8 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
         for (std::size_t region = 0; region < regions; ++region) {
             const std::size_t offset = _impl->rz->region_element_offset(region);
             for (std::size_t element = 0; element < staged[region].size(); ++element) {
-                const LocalValues state = gather_rz_state(*_impl->rz, offset + element, converged_solution);
-                const LocalValues committed_state =
+                const Cax4LocalValues state = gather_rz_state(*_impl->rz, offset + element, converged_solution);
+                const Cax4LocalValues committed_state =
                     gather_rz_state(*_impl->rz, offset + element, _impl->committed_solution);
                 const Quad4RzGeometry& geometry = _impl->rz->region_element_geometry(region, element);
                 const auto& element_data = _impl->kernel_data[region];
@@ -1746,9 +1748,29 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                 conservation.generated_heat_rate += result.generated_heat_rate;
                 if (reduced) {
                     const double current_hourglass =
-                        elements::cax4rt_hourglass_energy(_impl->kernel_data[region], geometry, state);
+                        fuelsim::elements::cax4rt_hourglass_energy({_impl->kernel_data[region].material,
+                            geometry,
+                            state,
+                            state,
+                            nullptr,
+                            0.0,
+                            _impl->kernel_data[region].time,
+                            _impl->kernel_data[region].volumetric_heat_source,
+                            _impl->kernel_data[region].strain_formulation,
+                            false,
+                            _impl->kernel_data[region].initial_temperature});
                     const double old_hourglass =
-                        elements::cax4rt_hourglass_energy(_impl->kernel_data[region], geometry, committed_state);
+                        fuelsim::elements::cax4rt_hourglass_energy({_impl->kernel_data[region].material,
+                            geometry,
+                            committed_state,
+                            committed_state,
+                            nullptr,
+                            0.0,
+                            _impl->kernel_data[region].time,
+                            _impl->kernel_data[region].volumetric_heat_source,
+                            _impl->kernel_data[region].strain_formulation,
+                            false,
+                            _impl->kernel_data[region].initial_temperature});
                     conservation.mechanical_hourglass_energy += current_hourglass;
                     conservation.mechanical_hourglass_energy_change += current_hourglass - old_hourglass;
                 }
@@ -1814,7 +1836,7 @@ void TransientProblem::apply_spatial_controls(double time, double load_factor) {
     _impl->set_load_factor(load_factor);
     if (_impl->is_cartesian())
         return;
-    for (AxisymmetricElementData& kernel_data : _impl->kernel_data)
+    for (AxisymmetricRegionData& kernel_data : _impl->kernel_data)
         kernel_data.time = time;
     for (std::size_t region = 0; region < _impl->layout().region_count(); ++region)
         _impl->kernel_data[region].volumetric_heat_source = _impl->layout().region_heat_source(region);
@@ -1961,9 +1983,9 @@ void TransientProblem::compute_contribution(std::size_t index,
         return;
     }
     const rz::TransientBackendView backend = BackendAccess::transient(*this);
-    const LocalValues local_state = rz_local_values(state);
-    LocalJacobian local_jacobian{};
-    LocalResidual local_residual{};
+    const Cax4LocalValues local_state = rz_local_values(state);
+    Cax4LocalJacobian local_jacobian{};
+    Cax4LocalResidual local_residual{};
     if (index >= backend.spatial.volume_contribution_count())
         local_residual =
             backend.spatial.compute_contribution(index, local_state, jacobian == nullptr ? nullptr : &local_jacobian);

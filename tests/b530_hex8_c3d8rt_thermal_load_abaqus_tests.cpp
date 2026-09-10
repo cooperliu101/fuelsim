@@ -1,6 +1,7 @@
 #include "boundary_types.hpp"
 #include "c3d8_types.hpp"
 #include "core/element_evaluation.hpp"
+#include "core/element_region_data.hpp"
 #include "quad4_face_boundary.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
@@ -194,7 +195,7 @@ int main(int argc, char** argv) {
         const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
         const fuelsim::ThermoelasticProperties properties =
             fuelsim::test::thermoelastic(0.0, 4.0, 2.0e11, 0.25, 0.0, 300.0, 0.0, 0.0, 0.0, 2000.0, 3000.0);
-        const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties),
+        const fuelsim::CartesianRegionData data{fuelsim::IsotropicThermoelasticMaterial(properties),
             80.0,
             1.0,
             fuelsim::StrainFormulation::small,

@@ -1,4 +1,5 @@
 #pragma once
+#include "cax4_types.hpp"
 #include "contact_types.hpp"
 #include "line2_rz_boundary.hpp"
 #include "line2_rz_contact.hpp"
@@ -53,10 +54,10 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     void validate_state(const std::vector<double>& state) const;
     std::vector<std::size_t> required_state_dofs(std::size_t first, std::size_t last) const;
     void validate_local_state(std::size_t first, std::size_t last, const std::vector<double>& state) const;
-    LocalDofs contribution_dofs(std::size_t index) const;
-    LocalDofs sparsity_contribution_dofs(std::size_t index) const;
-    LocalResidual
-    compute_contribution(std::size_t index, const LocalValues& state, LocalJacobian* jacobian = nullptr) const;
+    Cax4LocalDofs contribution_dofs(std::size_t index) const;
+    Cax4LocalDofs sparsity_contribution_dofs(std::size_t index) const;
+    Cax4LocalResidual
+    compute_contribution(std::size_t index, const Cax4LocalValues& state, Cax4LocalJacobian* jacobian = nullptr) const;
     std::pair<std::size_t, std::array<std::size_t, 2>> edge_parent(std::size_t region,
         const Line2BoundaryElement& edge) const;
 
@@ -99,8 +100,8 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     ResolvedBoundary resolve_boundary(const UnstructuredQuad4Mesh& source_mesh, const std::string& name) const;
     void build_boundaries(const UnstructuredQuad4Mesh& source_mesh);
     void refresh_controlled_values();
-    LocalDofs local_dofs(const std::array<std::size_t, 4>& nodes) const;
-    LocalValues contact_state(const std::array<std::size_t, 4>& nodes, const std::vector<double>& state) const;
+    Cax4LocalDofs local_dofs(const std::array<std::size_t, 4>& nodes) const;
+    Cax4LocalValues contact_state(const std::array<std::size_t, 4>& nodes, const std::vector<double>& state) const;
     void build_contacts(const UnstructuredQuad4Mesh& source_mesh);
     void initialize_contact_search_workspace();
     void update_contact_search_trees(const std::vector<double>& state) const;
@@ -114,7 +115,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::size_t mechanical_node_index(std::size_t contact, std::size_t node) const noexcept;
     ContributionRanges contribution_ranges() const noexcept;
     ContributionLocation locate_contribution(std::size_t index) const;
-    LocalValues contribution_state(std::size_t index, const std::vector<double>& global_state) const;
+    Cax4LocalValues contribution_state(std::size_t index, const std::vector<double>& global_state) const;
     std::vector<RegionMesh> _meshes;
     std::vector<std::vector<Quad4RzGeometry>> _region_geometries;
     std::vector<Line2RzBoundaryData> _boundary_data;

@@ -1,5 +1,6 @@
 #include "c3d8_types.hpp"
 #include "core/element_evaluation.hpp"
+#include "core/element_region_data.hpp"
 #include "support/material_factory.hpp"
 #include <array>
 #include <cmath>
@@ -52,7 +53,7 @@ bool check_case(const std::string& path, const fuelsim::Hex8Coordinates& coordin
     const Matrix8 abaqus_total = read_matrix(path);
     const fuelsim::ThermoelasticProperties properties =
         fuelsim::test::thermoelastic(0.0, 4.0, 2.0e11, 0.25, 0.0, 300.0, 0.0, 0.0, 0.0, 2000.0, 3000.0);
-    const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties),
+    const fuelsim::CartesianRegionData data{fuelsim::IsotropicThermoelasticMaterial(properties),
         0.0,
         1.0,
         fuelsim::StrainFormulation::small,

@@ -2,6 +2,7 @@
 #include "boundary_types.hpp"
 #include "contact_types.hpp"
 #include "core/element_evaluation.hpp"
+#include "core/element_region_data.hpp"
 #include "quad4_face_boundary.hpp"
 #include "quad4_face_contact.hpp"
 #include "quad8_face_boundary.hpp"
@@ -1022,7 +1023,7 @@ void SpatialAssembly::set_load_factor(double value) {
 
 void SpatialAssembly::set_time(double value) {
     set_time_value(value);
-    for (CartesianThermoelasticData& kernel_data : _kernel_data)
+    for (CartesianRegionData& kernel_data : _kernel_data)
         kernel_data.time = value;
     refresh_controls();
 }
@@ -1634,16 +1635,27 @@ SpatialAssembly::hex20_stress(std::size_t region, std::size_t element, const std
 }
 
 double SpatialAssembly::heat_capacity(std::size_t region, double temperature, const CartesianPoint3& position) const {
-    const CartesianThermoelasticData& data = _kernel_data.at(region);
+    const CartesianRegionData& data = _kernel_data.at(region);
     return data.material.heat_capacity(temperature, {data.time, position.x, position.y, position.z}).value();
 }
 
 double SpatialAssembly::mechanical_hourglass_energy(std::size_t region,
     std::size_t element,
     const Hex8LocalValues& state) const {
-    return compute_c3d8_mechanical_hourglass_energy(_kernel_data.at(region),
+    const auto& data = _kernel_data.at(region);
+    if (data.hex8_element_formulation != Hex8ElementFormulation::c3d8rt)
+        return 0.0;
+    return elements::c3d8rt_hourglass_energy({data.material,
         region_element_geometry(region, element),
-        state);
+        state,
+        state,
+        nullptr,
+        0.0,
+        data.time,
+        data.volumetric_heat_source,
+        data.strain_formulation,
+        false,
+        data.initial_temperature});
 }
 
 SpatialAssembly::ContributionRanges SpatialAssembly::contribution_ranges() const noexcept {

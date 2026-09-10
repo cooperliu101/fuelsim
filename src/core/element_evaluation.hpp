@@ -5,9 +5,10 @@
 #include "c3d8t.hpp"
 #include "cax8rt.hpp"
 #include "cax8t.hpp"
+#include "core/element_region_data.hpp"
 
 namespace fuelsim {
-inline elements::Cax8Result compute_cax8(const AxisymmetricElementData& data,
+inline elements::Cax8Result compute_cax8(const AxisymmetricRegionData& data,
     const Quad8RzGeometry& geometry,
     const Quad8RzValues& state,
     const Quad8RzValues& committed,
@@ -30,7 +31,7 @@ inline elements::Cax8Result compute_cax8(const AxisymmetricElementData& data,
                                      : elements::evaluate_cax8t(input, {true, jacobian, true, false});
 }
 
-inline elements::C3d8Result evaluate_c3d8(const CartesianThermoelasticData& data,
+inline elements::C3d8Result evaluate_c3d8(const CartesianRegionData& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues& committed,
@@ -53,7 +54,7 @@ inline elements::C3d8Result evaluate_c3d8(const CartesianThermoelasticData& data
                                                                            : elements::evaluate_c3d8t(input, request);
 }
 
-inline Hex8LocalValues compute_c3d8_thermoelastic(const CartesianThermoelasticData& data,
+inline Hex8LocalValues compute_c3d8_thermoelastic(const CartesianRegionData& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues* committed = nullptr,
@@ -72,7 +73,7 @@ inline Hex8LocalValues compute_c3d8_thermoelastic(const CartesianThermoelasticDa
     return result.residual;
 }
 
-inline Hex8LocalValues compute_c3d8_transient(const CartesianThermoelasticData& data,
+inline Hex8LocalValues compute_c3d8_transient(const CartesianRegionData& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues& committed,
@@ -93,7 +94,7 @@ inline Hex8LocalValues compute_c3d8_transient(const CartesianThermoelasticData& 
     return result.residual;
 }
 
-inline CartesianMaterialHistory compute_c3d8_transient_update(const CartesianThermoelasticData& data,
+inline CartesianMaterialHistory compute_c3d8_transient_update(const CartesianRegionData& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     const Hex8LocalValues& committed,
@@ -103,13 +104,12 @@ inline CartesianMaterialHistory compute_c3d8_transient_update(const CartesianThe
         .history;
 }
 
-inline std::array<SymmetricTensor3Values, 8> compute_c3d8_stress(const CartesianThermoelasticData& data,
-    const Hex8Geometry& geometry,
-    const Hex8LocalValues& state) {
+inline std::array<SymmetricTensor3Values, 8>
+compute_c3d8_stress(const CartesianRegionData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state) {
     return evaluate_c3d8(data, geometry, state, {}, nullptr, 0, false, {false, false, false, true}).stress;
 }
 
-inline elements::C3d20Result evaluate_c3d20(const CartesianThermoelasticData& data,
+inline elements::C3d20Result evaluate_c3d20(const CartesianRegionData& data,
     const Hex20Geometry& geometry,
     const Hex20LocalValues& state,
     const Hex20LocalValues& committed,
@@ -132,7 +132,7 @@ inline elements::C3d20Result evaluate_c3d20(const CartesianThermoelasticData& da
                                                   : elements::evaluate_c3d20t(input, request);
 }
 
-inline Hex20LocalValues compute_c3d20_thermoelastic(const CartesianThermoelasticData& data,
+inline Hex20LocalValues compute_c3d20_thermoelastic(const CartesianRegionData& data,
     const Hex20Geometry& geometry,
     const Hex20LocalValues& state,
     const Hex20LocalValues* committed = nullptr,
@@ -151,7 +151,7 @@ inline Hex20LocalValues compute_c3d20_thermoelastic(const CartesianThermoelastic
     return result.residual;
 }
 
-inline Hex20LocalValues compute_c3d20_transient(const CartesianThermoelasticData& data,
+inline Hex20LocalValues compute_c3d20_transient(const CartesianRegionData& data,
     const Hex20Geometry& geometry,
     const Hex20LocalValues& state,
     const Hex20LocalValues& committed,
@@ -172,7 +172,7 @@ inline Hex20LocalValues compute_c3d20_transient(const CartesianThermoelasticData
     return result.residual;
 }
 
-inline CartesianMaterialHistory compute_c3d20_transient_update(const CartesianThermoelasticData& data,
+inline CartesianMaterialHistory compute_c3d20_transient_update(const CartesianRegionData& data,
     const Hex20Geometry& geometry,
     const Hex20LocalValues& state,
     const Hex20LocalValues& committed,
@@ -182,9 +182,8 @@ inline CartesianMaterialHistory compute_c3d20_transient_update(const CartesianTh
         .history;
 }
 
-inline std::vector<SymmetricTensor3Values> compute_c3d20_stress(const CartesianThermoelasticData& data,
-    const Hex20Geometry& geometry,
-    const Hex20LocalValues& state) {
+inline std::vector<SymmetricTensor3Values>
+compute_c3d20_stress(const CartesianRegionData& data, const Hex20Geometry& geometry, const Hex20LocalValues& state) {
     return evaluate_c3d20(data, geometry, state, {}, nullptr, 0, false, {false, false, false, true}).stress;
 }
 } // namespace fuelsim

@@ -31,6 +31,30 @@
 专用测试。每个生产输入区域必须显式设置 `element`；不接受 `quad4`，也不将它
 作为 CAX4T 的别名。四节点形函数、坐标映射及四节点三维表面仍属于共用几何。
 
+## 类型文件的分层
+
+| 文件 | 职责 |
+| --- | --- |
+| `element_types.hpp` | 应变形式、型号选择枚举和公共计算请求，不包含固定拓扑的数组或几何 |
+| `axisymmetric_types.hpp` | 轴对称应力、材料点历史、试探状态和转动类型，不依赖四节点或八节点几何 |
+| `cartesian_types.hpp` | 三维应力、材料点历史、历史容器和转动类型，不包含 HEX8 专用型号字段 |
+| `cax4_types.hpp`、`cax8_types.hpp` | 对应轴对称拓扑的几何、积分点、局部数组、历史容器及输入输出 |
+| `c3d8_types.hpp`、`c3d20_types.hpp` | 对应三维拓扑的几何、积分点、局部数组及输入输出 |
+
+`material.hpp` 使用轴对称和三维公共类型提供材料计算接口。四节点轴对称类型
+已从 `axisymmetric_geometry.hpp` 并入 `cax4_types.hpp`，旧头文件删除；
+固定为 12 个自由度的数组使用 `Cax4LocalDofs/Values/Residual/Jacobian/AdValues`
+名称，不再使用容易误认为通用类型的 `Local*` 名称。
+
+内部体单元计算直接使用对应型号族的 `Input`，不再复制一份材料和载荷数据。
+主体持有的区域材料、载荷及型号选择放在 `src/core/element_region_data.hpp`，
+不属于单元库公共接口。独立测试的数据准备结构位于
+`elements/tests/support/element_test_data.hpp`，不进入生产库。
+
+`c3d8_kinematics.hpp` 单独声明八节点三维运动学诊断接口，主体用它计算当前体积
+和能量诊断中的客观转动，因此它是公共接口；内部矩阵运算和运动学辅助结构仍在
+`src/detail/`。CAX4RT 与 C3D8RT 的沙漏能量接口同样直接接受对应型号族的 `Input`。
+
 ## 调用边界与状态所有权
 
 接口参考 UEL 的局部计算职责边界，不实现 Abaqus 的二进制调用约定。

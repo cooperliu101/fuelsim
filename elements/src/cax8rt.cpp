@@ -6,12 +6,7 @@ namespace fuelsim::elements {
 Cax8Result evaluate_cax8rt(const Cax8Input& input, ElementRequest request) {
     if (input.geometry.point_count != 4)
         throw std::invalid_argument("CAX8RT requires its model-specific material quadrature");
-    const AxisymmetricElementData data{input.material,
-        input.volumetric_heat_source,
-        input.time,
-        input.strain_formulation,
-        RzElementFormulation::cax8rt,
-        input.initial_temperature};
+    const auto& data = input;
     auto result = compute_quad8_rz(data,
         input.geometry,
         input.state,

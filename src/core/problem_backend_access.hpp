@@ -1,7 +1,9 @@
 #pragma once
 #include "axisymmetric_types.hpp"
 #include "cartesian3d_assembly.hpp"
+#include "cax4_types.hpp"
 #include "contact_types.hpp"
+#include "core/element_region_data.hpp"
 #include "core/steady_problem.hpp"
 #include "core/transient_problem.hpp"
 #include "rz8_assembly.hpp"
@@ -24,12 +26,12 @@ struct TransientCommittedState final {
 namespace rz {
 struct SteadyBackendView final {
     const SpatialAssembly& spatial;
-    const std::vector<AxisymmetricElementData>& kernel_data;
+    const std::vector<AxisymmetricRegionData>& kernel_data;
 };
 
 struct TransientBackendView final {
     const SpatialAssembly& spatial;
-    const std::vector<AxisymmetricElementData>& kernel_data;
+    const std::vector<AxisymmetricRegionData>& kernel_data;
     const std::vector<std::vector<Quad4MaterialHistory>>& histories;
     const std::vector<double>& committed_solution;
     double active_time_step;
@@ -42,7 +44,7 @@ class BackendAccess final {
     static const rz8::SpatialAssembly& quad8_spatial(const SteadyProblem& problem) noexcept;
     static const rz8::SpatialAssembly& quad8_spatial(const TransientProblem& problem) noexcept;
     static bool uses_quad8(const SteadyProblem& problem) noexcept;
-    static const std::vector<AxisymmetricElementData>& quad8_kernel_data(const SteadyProblem& problem) noexcept;
+    static const std::vector<AxisymmetricRegionData>& quad8_kernel_data(const SteadyProblem& problem) noexcept;
     static const std::vector<std::vector<Quad8MaterialHistory>>& quad8_material_histories(
         const TransientProblem& problem) noexcept;
     static rz::SteadyBackendView steady(const SteadyProblem& problem) noexcept;

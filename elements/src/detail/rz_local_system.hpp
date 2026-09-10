@@ -1,13 +1,13 @@
 #pragma once
 #include "ad_local_system.hpp"
-#include "axisymmetric_geometry.hpp"
+#include "cax4_types.hpp"
 #include <cmath>
 #include <stdexcept>
 #include <string>
 
 namespace fuelsim::quad4_rz_detail {
-inline LocalAdValues ad_state(const LocalValues& state, bool active = false) {
-    LocalAdValues result{};
+inline Cax4LocalAdValues ad_state(const Cax4LocalValues& state, bool active = false) {
+    Cax4LocalAdValues result{};
     if (active)
         ad_local_system::make_active(state.data(), state.size(), result.data());
     else
@@ -15,9 +15,9 @@ inline LocalAdValues ad_state(const LocalValues& state, bool active = false) {
     return result;
 }
 
-inline LocalResidual
-values(const LocalAdValues& state, const LocalAdValues& residual, LocalJacobian* jacobian = nullptr) {
-    LocalResidual result{};
+inline Cax4LocalResidual
+values(const Cax4LocalAdValues& state, const Cax4LocalAdValues& residual, Cax4LocalJacobian* jacobian = nullptr) {
+    Cax4LocalResidual result{};
     if (jacobian == nullptr)
         ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
     else
