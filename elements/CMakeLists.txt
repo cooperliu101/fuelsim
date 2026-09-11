@@ -19,6 +19,7 @@ add_library(fuelsim_elements
     src/cax4t.cpp
     src/cax8rt.cpp
     src/cax8t.cpp
+    src/contact_common.cpp
     src/cax_common.cpp
     src/line2_rz.cpp
     src/line3_rz.cpp
@@ -60,6 +61,12 @@ if(BUILD_TESTING)
             add_test(NAME ${name} COMMAND ${name})
         endif()
     endfunction()
+    # This internal contract test deliberately exercises private failure branches.
+    add_executable(fuelsim_contact_common_tests tests/contact_common_tests.cpp)
+    target_link_libraries(fuelsim_contact_common_tests PRIVATE fuelsim::elements)
+    target_include_directories(fuelsim_contact_common_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    fuelsim_element_warnings(fuelsim_contact_common_tests)
+    add_test(NAME fuelsim_contact_common_tests COMMAND fuelsim_contact_common_tests)
     add_library(fuelsim_elements_test_support STATIC tests/support/cax8_common_tests.cpp)
     target_link_libraries(fuelsim_elements_test_support PUBLIC fuelsim::elements)
     target_include_directories(fuelsim_elements_test_support PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")

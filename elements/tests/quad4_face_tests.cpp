@@ -27,6 +27,27 @@ bool test_cartesian_surface_contact_kernels() {
     fuelsim::Quad4SurfaceContactLocalJacobian heat_jacobian{};
     const fuelsim::Quad4SurfaceContactLocalResidual heat =
         fuelsim::compute_quad4_to_quad4_gap_heat({0.2, 0.001}, heat_geometry, state, &heat_jacobian);
+    auto translated_geometry = heat_geometry;
+    for (auto* coordinates : {&translated_geometry.primary_coordinates, &translated_geometry.secondary_coordinates})
+        for (auto& coordinate : *coordinates) {
+            coordinate.x += 128.0;
+            coordinate.y -= 64.0;
+            coordinate.z += 32.0;
+        }
+    fuelsim::Quad4SurfaceContactLocalJacobian translated_jacobian{};
+    const auto translated_heat =
+        fuelsim::compute_quad4_to_quad4_gap_heat({0.2, 0.001}, translated_geometry, state, &translated_jacobian);
+    for (std::size_t row = 0; row < heat.size(); ++row) {
+        if (!check(std::abs(translated_heat[row] - heat[row]) < 1e-9 * std::max(1.0, std::abs(heat[row])),
+                "Global translation preserves Q4 contact heat residuals"))
+            return false;
+        for (std::size_t column = 0; column < heat.size(); ++column)
+            if (!check(std::abs(
+                           translated_jacobian[row * heat.size() + column] - heat_jacobian[row * heat.size() + column])
+                           < 1e-9 * std::max(1.0, std::abs(heat_jacobian[row * heat.size() + column])),
+                    "Global translation preserves Q4 contact heat Jacobians"))
+                return false;
+    }
     double secondary_heat = 0.0, primary_heat = 0.0;
     for (std::size_t node = 0; node < 4; ++node) {
         secondary_heat += heat[node];

@@ -1,4 +1,5 @@
 #include "line3_rz.hpp"
+#include "contact_common.hpp"
 #include "contact_types.hpp"
 #include <algorithm>
 #include <cmath>
@@ -222,16 +223,7 @@ Line3ContactResult compute_line3_contact(const Line3ContactGeometry& geometry,
     if (!geometry.mechanical) {
         const adlite::Scalar ts = (1 - xs) / 2 * v[0] + (1 + xs) / 2 * v[1],
                              tp = (1 - x) / 2 * v[2] + (1 + x) / 2 * v[3];
-        adlite::Scalar h;
-        if (heat.law == GapHeatConductanceLaw::gas_gap)
-            h = heat.gap_conductivity / (gap.value() > heat.minimum_gap ? gap : adlite::Scalar(heat.minimum_gap));
-        else {
-            const auto pressure = gap.value() < 0 ? -heat.contact_penalty * gap : adlite::Scalar(0);
-            h = heat.conductance + heat.clearance_derivative * gap + heat.pressure_derivative * pressure
-                + heat.temperature_derivative * ((ts + tp) / 2 - heat.reference_temperature);
-            if (!(h.value() >= 0))
-                throw std::domain_error("Quadratic RZ contact conductance must be nonnegative");
-        }
+        const adlite::Scalar h = contact_common::gap_conductance(heat, gap, ts, tp);
         // Native NTS heat transfer uses only temperature corner nodes. Its area
         // integrates linear shape functions on the current corner chord, even
         // when mechanical projection uses the full quadratic primary geometry.

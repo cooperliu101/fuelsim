@@ -1,5 +1,6 @@
 #include "quad8_face.hpp"
 #include "ad_local_system.hpp"
+#include "contact_common.hpp"
 #include "contact_types.hpp"
 #include "quad4_face.hpp"
 #include <algorithm>
@@ -369,54 +370,28 @@ ActivePoint3 interpolate_primary(const std::array<ActivePoint3, 16>& nodes,
     return interpolate_point(nodes, 8, coefficients);
 }
 
-bool projection_increment_converged(const adlite::Scalar& delta_xi,
-    const adlite::Scalar& delta_eta,
-    const adlite::Scalar& xi,
-    const adlite::Scalar& eta) {
-    constexpr double value_tolerance = 64.0 * std::numeric_limits<double>::epsilon();
-    const double coordinate_scale = std::max({1.0, std::abs(xi.value()), std::abs(eta.value())});
-    if (!std::isfinite(delta_xi.value()) || !std::isfinite(delta_eta.value())
-        || std::max(std::abs(delta_xi.value()), std::abs(delta_eta.value())) > value_tolerance * coordinate_scale)
-        return false;
-    const std::size_t width = delta_xi.derivative_size();
-    if (width == 0)
-        return delta_eta.derivative_size() == 0;
-    if (width != delta_eta.derivative_size() || width != xi.derivative_size() || width != eta.derivative_size()
-        || width > quad8_surface_contact_local_dof_count)
-        throw std::logic_error("HEX20 contact projection derivative widths are inconsistent");
-    std::array<double, quad8_surface_contact_local_dof_count> delta_xi_derivatives{}, delta_eta_derivatives{},
-        xi_derivatives{}, eta_derivatives{};
-    delta_xi.copy_derivatives(delta_xi_derivatives.data(), width);
-    delta_eta.copy_derivatives(delta_eta_derivatives.data(), width);
-    xi.copy_derivatives(xi_derivatives.data(), width);
-    eta.copy_derivatives(eta_derivatives.data(), width);
-    constexpr double derivative_tolerance = 1e-12;
-    for (std::size_t derivative = 0; derivative < width; ++derivative) {
-        const double scale =
-            std::max({1.0, std::abs(xi_derivatives[derivative]), std::abs(eta_derivatives[derivative])});
-        if (!std::isfinite(delta_xi_derivatives[derivative]) || !std::isfinite(delta_eta_derivatives[derivative])
-            || std::max(std::abs(delta_xi_derivatives[derivative]), std::abs(delta_eta_derivatives[derivative]))
-                   > derivative_tolerance * scale)
-            return false;
-    }
-    return true;
-}
-
 SurfaceProjection8 project_to_primary(const ActivePoint3& secondary_point,
     const std::array<ActivePoint3, 16>& nodes,
     double normal_orientation,
     bool allow_extrapolation = false) {
     adlite::Scalar xi = 0.0, eta = 0.0;
+    bool converged = false;
+    // Translate the Newton geometry to one primary node so global translations
+    // do not set the attainable projection increment through cancellation.
+    std::array<ActivePoint3, 16> local_nodes{};
+    for (std::size_t node = 8; node < 16; ++node)
+        local_nodes[node] = subtract(nodes[node], nodes[8]);
+    const ActivePoint3 local_secondary = subtract(secondary_point, nodes[8]);
     for (std::size_t iteration = 0; iteration < 16; ++iteration) {
         Quad8ShapeValues values;
         quad8_shape(xi, eta, values);
-        const ActivePoint3 point = interpolate_primary(nodes, values.shape);
-        const ActivePoint3 tangent_xi = interpolate_primary(nodes, values.derivative_xi);
-        const ActivePoint3 tangent_eta = interpolate_primary(nodes, values.derivative_eta);
-        const ActivePoint3 tangent_xi_xi = interpolate_primary(nodes, values.second_xi);
-        const ActivePoint3 tangent_xi_eta = interpolate_primary(nodes, values.second_xi_eta);
-        const ActivePoint3 tangent_eta_eta = interpolate_primary(nodes, values.second_eta);
-        const ActivePoint3 difference = subtract(secondary_point, point);
+        const ActivePoint3 point = interpolate_primary(local_nodes, values.shape);
+        const ActivePoint3 tangent_xi = interpolate_primary(local_nodes, values.derivative_xi);
+        const ActivePoint3 tangent_eta = interpolate_primary(local_nodes, values.derivative_eta);
+        const ActivePoint3 tangent_xi_xi = interpolate_primary(local_nodes, values.second_xi);
+        const ActivePoint3 tangent_xi_eta = interpolate_primary(local_nodes, values.second_xi_eta);
+        const ActivePoint3 tangent_eta_eta = interpolate_primary(local_nodes, values.second_eta);
+        const ActivePoint3 difference = subtract(local_secondary, point);
         const adlite::Scalar residual_xi = dot(difference, tangent_xi), residual_eta = dot(difference, tangent_eta);
         const adlite::Scalar jacobian_xi_xi = -dot(tangent_xi, tangent_xi) + dot(difference, tangent_xi_xi);
         const adlite::Scalar jacobian_xi_eta = -dot(tangent_eta, tangent_xi) + dot(difference, tangent_xi_eta);
@@ -430,9 +405,17 @@ SurfaceProjection8 project_to_primary(const ActivePoint3& secondary_point,
                              delta_eta = (-jacobian_xi_xi * residual_eta + jacobian_eta_xi * residual_xi) / determinant;
         xi += delta_xi;
         eta += delta_eta;
-        if (projection_increment_converged(delta_xi, delta_eta, xi, eta))
+        if (contact_common::projection_increment_converged(delta_xi,
+                delta_eta,
+                xi,
+                eta,
+                quad8_surface_contact_local_dof_count)) {
+            converged = true;
             break;
+        }
     }
+    if (!converged)
+        throw std::domain_error("Contact projection Newton iteration did not converge");
     constexpr double tolerance = 1.0e-10;
     if (!std::isfinite(xi.value()) || !std::isfinite(eta.value())
         || (!allow_extrapolation
@@ -504,24 +487,6 @@ std::array<adlite::Scalar, 4> active_temperature_values(const std::array<double,
     return result;
 }
 
-adlite::Scalar gap_conductance(const GapHeatProperties& properties,
-    const adlite::Scalar& gap,
-    const adlite::Scalar& secondary_temperature,
-    const adlite::Scalar& primary_temperature) {
-    if (properties.law == GapHeatConductanceLaw::gas_gap) {
-        const adlite::Scalar thermal_gap = adlite::max(gap, adlite::Scalar(properties.minimum_gap));
-        return properties.gap_conductivity / thermal_gap;
-    }
-    const adlite::Scalar pressure = adlite::max(-properties.contact_penalty * gap, adlite::Scalar(0.0));
-    const adlite::Scalar average_temperature = 0.5 * (secondary_temperature + primary_temperature);
-    const adlite::Scalar result =
-        properties.conductance + properties.clearance_derivative * gap + properties.pressure_derivative * pressure
-        + properties.temperature_derivative * (average_temperature - properties.reference_temperature);
-    if (!std::isfinite(result.value()) || result.value() < 0.0)
-        throw std::domain_error("HEX20 affine gap conductance must be finite and nonnegative");
-    return result;
-}
-
 struct HeatAdValue8 final {
     bool projected = false;
     std::array<adlite::Scalar, 4> primary_temperature_shape{};
@@ -577,9 +542,11 @@ HeatAdValue8 evaluate_heat(const GapHeatProperties& properties,
     const Quad8SurfaceContactLocalAdValues& state) {
     HeatAdValue8 result = evaluate_heat_geometry(geometry, state);
     if (result.projected)
-        result.heat_flux =
-            gap_conductance(properties, result.gap, result.secondary_temperature, result.primary_temperature)
-            * (result.secondary_temperature - result.primary_temperature);
+        result.heat_flux = contact_common::gap_conductance(properties,
+                               result.gap,
+                               result.secondary_temperature,
+                               result.primary_temperature)
+                           * (result.secondary_temperature - result.primary_temperature);
     return result;
 }
 
@@ -595,53 +562,21 @@ void apply_friction(const NormalContactProperties& properties,
     const ActivePoint3& transported_total_history,
     const ActivePoint3& relative_increment,
     CartesianContactAdValue8& result) {
-    if (properties.friction_coefficient == 0.0)
-        return;
-    result.tangential_slip = transported_total_history;
-    if (!(result.pressure.value() > 0.0))
-        return;
-    const adlite::Scalar normal_increment = dot(relative_increment, result.normal);
-    for (std::size_t component = 0; component < 3; ++component) {
-        result.tangential_slip[component] = transported_total_history[component] + relative_increment[component]
-                                            - normal_increment * result.normal[component];
-        result.elastic_tangential_slip[component] = transported_history[component] + relative_increment[component]
-                                                    - normal_increment * result.normal[component];
-    }
-    const adlite::Scalar total_history_normal = dot(result.tangential_slip, result.normal);
-    for (std::size_t component = 0; component < 3; ++component)
-        result.tangential_slip[component] -= total_history_normal * result.normal[component];
-    const adlite::Scalar history_normal = dot(result.elastic_tangential_slip, result.normal);
-    for (std::size_t component = 0; component < 3; ++component)
-        result.elastic_tangential_slip[component] -= history_normal * result.normal[component];
-    const ActivePoint3 trial_elastic_tangential_slip = result.elastic_tangential_slip;
-    const adlite::Scalar sliding_limit = properties.friction_coefficient * result.pressure,
-                         stick_stiffness = properties.maximum_elastic_slip > 0.0
-                                               ? sliding_limit / properties.maximum_elastic_slip
-                                               : adlite::Scalar(properties.penalty);
-    ActivePoint3 trial_traction{};
-    for (std::size_t component = 0; component < 3; ++component)
-        trial_traction[component] = stick_stiffness * result.elastic_tangential_slip[component];
-    const adlite::Scalar trial_magnitude = norm(trial_traction);
-    if (trial_magnitude.value() < sliding_limit.value()
-        || (trial_magnitude.value() == sliding_limit.value() && !history.sliding)) {
-        result.tangential_traction_vector = trial_traction;
-        result.tangential_traction = trial_magnitude;
-    } else {
-        if (!(trial_magnitude.value() > 0.0))
-            throw std::domain_error("HEX20 sliding contact has an undefined tangential direction");
-        for (std::size_t component = 0; component < 3; ++component) {
-            result.tangential_traction_vector[component] = sliding_limit * trial_traction[component] / trial_magnitude;
-            result.elastic_tangential_slip[component] = result.tangential_traction_vector[component] / stick_stiffness;
-        }
-        result.tangential_traction = sliding_limit;
-        result.sliding = true;
-        for (std::size_t component = 0; component < 3; ++component)
-            result.friction_dissipation +=
-                result.tangential_traction_vector[component]
-                * (trial_elastic_tangential_slip[component] - result.elastic_tangential_slip[component]);
-        result.friction_dissipation *= result.tributary_area;
-    }
-    result.tangential_force = result.tangential_traction * result.tributary_area;
+    const auto friction = contact_common::friction_return(properties,
+        history,
+        transported_history,
+        transported_total_history,
+        relative_increment,
+        result.normal,
+        result.pressure,
+        result.tributary_area);
+    result.sliding = friction.sliding;
+    result.tangential_slip = friction.tangential_slip;
+    result.elastic_tangential_slip = friction.elastic_tangential_slip;
+    result.tangential_traction_vector = friction.tangential_traction_vector;
+    result.tangential_traction = friction.tangential_traction;
+    result.tangential_force = friction.tangential_force;
+    result.friction_dissipation = friction.friction_dissipation;
 }
 
 ActivePoint3 stored_history(const ContactPointHistory& history) {
@@ -1239,7 +1174,8 @@ std::vector<double> compute_quad8_gap_heat_patch(const GapHeatProperties& proper
         ad_local_system::make_passive(averages.data(), averages.size(), active.data());
     else
         ad_local_system::make_active(averages.data(), averages.size(), active.data());
-    const adlite::Scalar flux = gap_conductance(properties, active[0], active[1], active[2]) * (active[1] - active[2]);
+    const adlite::Scalar flux =
+        contact_common::gap_conductance(properties, active[0], active[1], active[2]) * (active[1] - active[2]);
     std::vector<double> result(size, 0.0);
     for (std::size_t row = 0; row < size; ++row)
         result[row] = moments[4 + row] * flux.value();

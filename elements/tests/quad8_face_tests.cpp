@@ -623,6 +623,24 @@ bool test_primary_projection_shape_derivatives() {
             direction[i] = 0.1 * std::cos(0.37 * static_cast<double>(i + 1));
         }
         const auto analytic = fuelsim::compute_quad8_primary_shape_derivatives(geometry, state);
+        auto translated = geometry;
+        for (auto* coordinates : {&translated.primary_coordinates, &translated.secondary_coordinates})
+            for (auto& point : *coordinates) {
+                point.x += 128.0;
+                point.y -= 64.0;
+                point.z += 32.0;
+            }
+        const auto translated_shape = fuelsim::compute_quad8_primary_shape_derivatives(translated, state);
+        for (std::size_t node = 0; node < 8; ++node) {
+            if (!check(std::abs(translated_shape[node].value() - analytic[node].value()) < 1e-12,
+                    "Global translation preserves converged Q8 projection shape values"))
+                return false;
+            for (std::size_t i = 0; i < state.size(); ++i)
+                if (!check(std::abs(translated_shape[node].derivative(i) - analytic[node].derivative(i)) < 1e-11,
+                        "Global translation preserves Q8 projection derivatives"))
+                    return false;
+        }
+
         const auto projected = [&](double step) {
             auto secondary = geometry.secondary_coordinates, primary = geometry.primary_coordinates;
             for (std::size_t node = 0; node < 16; ++node) {

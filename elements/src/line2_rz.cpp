@@ -1,5 +1,6 @@
 #include "line2_rz.hpp"
 #include "ad_local_system.hpp"
+#include "contact_common.hpp"
 #include "contact_types.hpp"
 #include <algorithm>
 #include <cmath>
@@ -291,19 +292,8 @@ HeatAdQuadratureValue evaluate_heat_quadrature(const Line2InterfaceSideCoordinat
         (primary_radius - secondary_radius) * normal_r + (primary_axial - secondary_axial) * normal_z;
     const adlite::Scalar secondary_temperature = interpolate(point.secondary_shape, state, 0),
                          primary_temperature = primary_shape_0 * state[2] + primary_shape_1 * state[3];
-    adlite::Scalar conductance;
-    if (properties.law == GapHeatConductanceLaw::gas_gap) {
-        const adlite::Scalar thermal_gap = adlite::max(gap, adlite::Scalar(properties.minimum_gap));
-        conductance = properties.gap_conductivity / thermal_gap;
-    } else {
-        const adlite::Scalar pressure = adlite::max(-properties.contact_penalty * gap, adlite::Scalar(0.0));
-        const adlite::Scalar average_temperature = 0.5 * (secondary_temperature + primary_temperature);
-        conductance = properties.conductance + properties.clearance_derivative * gap
-                      + properties.pressure_derivative * pressure
-                      + properties.temperature_derivative * (average_temperature - properties.reference_temperature);
-        if (!std::isfinite(conductance.value()) || conductance.value() < 0.0)
-            throw std::domain_error("Axisymmetric affine gap conductance must be finite and nonnegative");
-    }
+    const adlite::Scalar conductance =
+        contact_common::gap_conductance(properties, gap, secondary_temperature, primary_temperature);
     const adlite::Scalar heat_flux = conductance * (secondary_temperature - primary_temperature),
                          dr_dxi = 0.5 * (secondary_radius_1 - secondary_radius_0),
                          dz_dxi = 0.5 * (secondary_axial_1 - secondary_axial_0),
