@@ -1,6 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$SourceDirectory,
       [ValidateSet('medium','large')][string]$Size='medium',
-      [switch]$Timing, [int]$Runs=1,
+      [switch]$Timing, [switch]$Friction, [int]$Runs=1,
       [ValidateSet('cax4t','cax4rt','cax8t','cax8rt')][string]$Element='cax4t',
       [ValidateSet('small','finite')][string]$Strain='small',
       [string]$ResultsDirectory='')
@@ -23,6 +23,10 @@ if ($Element -ne 'cax4t') { $Job += '_'+$Element }
 if ($Strain -eq 'finite') {
   if ($Element -eq 'cax4t') { $Job += '_cax4t' }
   $Job += '_finite'
+}
+if ($Friction) {
+  if ($Size -ne 'medium' -or $Element -ne 'cax4t' -or $Strain -ne 'finite') { throw 'Friction benchmark currently supports medium finite CAX4T only' }
+  $Job += '_friction'
 }
 if ($Timing) { $Job += '_timing' }
 Write-Output "work_directory=$Work"

@@ -826,3 +826,14 @@ python benchmarks/run_rz_performance.py --size medium --element cax8rt --strain 
 完全一致，已有 Abaqus 指标全部通过，完整回归 281/281 通过。
 本次没有重新计时 Abaqus，没有将中等规模算例加入 CTest。
 详细结果与复现方法见[其他 CAX 型号优化报告](medium_cax_other_finite_optimized/README.md)。
+
+## CAX4T 中等规模有限应变摩擦对比（2026-09-11）
+
+在原模型上加入 `mu=0.2`、`slip_tolerance=0.001`，关闭摩擦生热，保持网格、
+材料和 20 个加载增量不变。末态全场及新增摩擦牵引、切向力和累计滑移全部通过
+0.01% 门槛，最大逐点误差为 0.0000455%。Fuelsim 末态有 61 个滑动接触节点、
+4 个粘着接触节点。单处理器两次正式外部均值为 Fuelsim 36.46 秒、Abaqus
+44.63 秒，Fuelsim 本次用时少 18.30%。
+
+详细输入、精度范围、计时限制和复现命令见
+[CAX4T 摩擦对比报告](medium_cax4t_finite_friction/README.md)。本例未加入 CTest。

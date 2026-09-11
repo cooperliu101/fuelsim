@@ -1,0 +1,59 @@
+{
+  "fuelsim_external_mean_seconds": 36.46034469048027,
+  "abaqus_external_mean_seconds": 44.62662,
+  "fuelsim_elapsed_reduction_percent": 18.299112300057075,
+  "fuelsim_runs": [
+    {
+      "run": 0,
+      "warmup": true,
+      "external_seconds": 37.229628767992835,
+      "internal_seconds": 36.437314561,
+      "nonlinear_iterations": 47
+    },
+    {
+      "run": 1,
+      "warmup": false,
+      "external_seconds": 36.35223393299384,
+      "internal_seconds": 35.797838611,
+      "nonlinear_iterations": 47
+    },
+    {
+      "run": 2,
+      "warmup": false,
+      "external_seconds": 36.5684554479667,
+      "internal_seconds": 35.84323238,
+      "nonlinear_iterations": 47
+    }
+  ],
+  "abaqus_runs": [
+    {
+      "run": 0,
+      "warmup": true,
+      "external_seconds": 45.859001,
+      "analysis_wallclock_seconds": 41.0,
+      "nonlinear_iterations": 54,
+      "increments": 20
+    },
+    {
+      "run": 1,
+      "warmup": false,
+      "external_seconds": 45.610473,
+      "analysis_wallclock_seconds": 41.0,
+      "nonlinear_iterations": 54,
+      "increments": 20
+    },
+    {
+      "run": 2,
+      "warmup": false,
+      "external_seconds": 43.642767,
+      "analysis_wallclock_seconds": 40.0,
+      "nonlinear_iterations": 54,
+      "increments": 20
+    }
+  ],
+  "all_accuracy_metrics_passed": true,
+  "maximum_pointwise_relative_error_percent": 4.548122400509565e-05,
+  "accuracy_scope": "Final full nodal, material-point and contact fields; Fuelsim additionally outputs 21 frames. Abaqus output contains final frame only.",
+  "friction_diagnostics": "friction_diagnostics.json",
+  "timing_scope": "Same host; Fuelsim under WSL2 and Abaqus under Windows; one logical CPU, one thread, sequential solves, one warmup and two measured runs. Across VM boundary CPU affinity does not guarantee identical physical core."
+}

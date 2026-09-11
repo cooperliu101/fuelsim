@@ -66,7 +66,7 @@ def metric(actual, reference, zero_tolerance):
     return result
 
 
-def compare(result_path, prefix, element="cax4t", incremental=False):
+def compare(result_path, prefix, element="cax4t", incremental=False, friction=False):
     point_count = {"cax4rt": 1, "cax4t": 4, "cax8t": 9, "cax8rt": 4}[element]
     def rows(kind):
         with gzip.open(str(prefix)+'_'+kind+'.csv.gz','rt') as f:return list(csv.DictReader(f))
@@ -131,10 +131,27 @@ def compare(result_path, prefix, element="cax4t", incremental=False):
         actual_field = 'recovered_pressure' if element in ('cax8t','cax8rt') and field == 'pressure' else field
         metrics[name]=metric(nodal['contact_'+actual_field+'_fuel_cladding'][indices],[(float(r['normal_r'])**2+float(r['normal_z'])**2)**.5 if column=='normal_r' else float(r[column]) for r in contacts],tol)
     metrics['contact_total_force']=metric([glob['contact_force_fuel_cladding']],[sum((float(r['normal_r'])**2+float(r['normal_z'])**2)**.5 for r in contacts)],1e-8)
+    if friction:
+        if element != 'cax4t':
+            raise ValueError('Signed friction comparison currently covers CAX4T only')
+        shear=np.array([float(r['shear']) for r in contacts])
+        slip=np.array([float(r['slip']) for r in contacts])
+        tangent=np.array([np.copysign(np.hypot(float(r['tangential_r']),float(r['tangential_z'])),float(r['shear'])) for r in contacts])
+        for name,field,reference,tolerance in [
+            ('contact_shear','tangential_traction',shear,1e-3),
+            ('contact_slip','total_tangential_slip',slip,1e-12),
+            ('contact_tangential_force','tangential_force',tangent,1e-8)]:
+            metrics[name]=metric(nodal['contact_'+field+'_fuel_cladding'][indices],reference,tolerance)
+        metrics['contact_total_tangential_force']=metric(
+            [glob['contact_tangential_force_fuel_cladding']],[tangent.sum()],1e-8)
+        if not np.any(np.abs(shear)>1) or not np.any(np.abs(tangent)>1e-8):
+            raise ValueError('Reference does not activate friction')
+        if not np.any(np.abs(nodal['contact_tangential_traction_fuel_cladding'][indices])>1):
+            raise ValueError('Fuelsim does not activate friction')
     return metrics
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('result');p.add_argument('prefix');p.add_argument('--report',required=True);p.add_argument('--element',choices=('cax4t','cax4rt','cax8t','cax8rt'),default='cax4t');p.add_argument('--incremental',action='store_true',help='Require initial state and 20 unit equilibrium increments; compare the final state');args=p.parse_args()
-    m=compare(args.result,Path(args.prefix),args.element,args.incremental);Path(args.report).write_text(json.dumps(m,indent=2)+'\n')
+    p=argparse.ArgumentParser();p.add_argument('result');p.add_argument('prefix');p.add_argument('--report',required=True);p.add_argument('--element',choices=('cax4t','cax4rt','cax8t','cax8rt'),default='cax4t');p.add_argument('--incremental',action='store_true',help='Require initial state and 20 unit equilibrium increments; compare the final state');p.add_argument('--friction',action='store_true');args=p.parse_args()
+    m=compare(args.result,Path(args.prefix),args.element,args.incremental,args.friction);Path(args.report).write_text(json.dumps(m,indent=2)+'\n')
     for name,r in m.items():print(name,'PASS' if r['passed'] else 'FAIL', 'relative errors (%)',*[100*r.get(k,0) for k in ['relative_l2','relative_absolute_peak','maximum_pointwise_relative']])
     raise SystemExit(0 if all(r['passed'] for r in m.values()) else 1)

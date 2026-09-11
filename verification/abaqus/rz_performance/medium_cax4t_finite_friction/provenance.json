@@ -1,0 +1,22 @@
+{
+  "production_revision": "22df6638c8d5ea338ada9a57e4eed9191e6d437a",
+  "note": "Production executable unchanged; new inputs and checker/runner extension tested before commit.",
+  "sha256": {
+    "/home/cooper/ai_project/fuelsim/verification/abaqus/rz_performance/compare.py": "d2e84c2d8eff9e2099b81a91f2b31e7428b46d278cbe149c21cc1d66c844f3f9",
+    "/home/cooper/ai_project/fuelsim/verification/abaqus/rz_performance/run.ps1": "8d46aa10c9938ed1784c40595e300adfbdcf5546a916c0df8db242f50574aca2",
+    "/home/cooper/ai_project/fuelsim/verification/abaqus/rz_performance/extract_results.py": "4a95c614092cf6c427ba9174c5c18a9e538d5ec4c7c3678eddf09371933d5c24",
+    "/home/cooper/ai_project/fuelsim/verification/abaqus/rz_performance/material_contact_friction.inc": "2d7e6c4f84b785318c64efcb9c68be41875402f1521e8ffa3f3b5b80431280b9",
+    "/home/cooper/ai_project/fuelsim/verification/abaqus/rz_performance/rz_performance_medium_mesh.inc": "6f85d8fc0535c50b2c5ad5ce5cfc0c9bd5e9a479817ccf723817046141be1198",
+    "/home/cooper/ai_project/fuelsim/verification/meshes/rz_performance_medium.e": "2474721e4e17738601bc750f81dd678fde7be16aba621477b083f46af824b8c7",
+    "/home/cooper/ai_project/fuelsim/build/fuelsim": "972a437111a13b36f904c977d98d3765540c2b854ea57cf4ba868ad25a48e954",
+    "/home/cooper/ai_project/fuelsim/verification/abaqus/rz_performance/medium_cax4t_finite_friction/run_timing.py": "05531c38d4a2b5bf8243a3e3c4035df51ffa4a916ce0d483d2e8efeb609c6a2f",
+    "/home/cooper/ai_project/fuelsim/verification/abaqus/rz_performance/rz_performance_medium_cax4t_finite_friction.inp": "f728be31904163745a1c83633bcbdf66a7d9108bbcd652d48073d0af4f069fd6",
+    "/home/cooper/ai_project/fuelsim/verification/fuelsim/quasistatic_rz_performance_medium_cax4t_finite_friction.fsi": "6e813d76bb0c76ce1e82763ec39a51a71245146827d83abbb4e83927716c943b",
+    "/home/cooper/ai_project/fuelsim/verification/abaqus/rz_performance/rz_performance_medium_cax4t_finite_friction_timing.inp": "c62dae9ee71e5258ee2582431c1954a4cc3ee07dc22e4f2fc33c007d7fc45696",
+    "/home/cooper/ai_project/fuelsim/verification/fuelsim/quasistatic_rz_performance_medium_cax4t_finite_friction_timing.fsi": "6318cd59248221cb75e51ea35796372390ed92d41115532572faf0a727379d0c",
+    "/tmp/cax4t-friction/abaqus/rz_performance_medium_cax4t_finite_friction_contact.csv.gz": "6f79f27654a5d6fb7d9303615e66cc52c25d442e5c99cfb0b57d566f022cf895",
+    "/tmp/cax4t-friction/abaqus/rz_performance_medium_cax4t_finite_friction_nodes.csv.gz": "572b9d123004c7a98481f62727f13040826a3754abba7c9e8ac4b191964788b0",
+    "/tmp/cax4t-friction/abaqus/rz_performance_medium_cax4t_finite_friction_points.csv.gz": "fbf23b96a9e4c4d1c1fd66a647fe892d21f1fb219439ed5525126ded896ab0b5",
+    "/tmp/cax4t-friction/accuracy/fuelsim/quasistatic_rz_performance_medium_cax4t_finite_friction_results.e": "d1a76d64b14ba12d569cb3d272c10f9f8d58f4e5f3dec2d1f61edfeb90ec30b8"
+  }
+}
