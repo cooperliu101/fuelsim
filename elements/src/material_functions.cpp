@@ -33,17 +33,17 @@ double MaterialParameters::value(const std::string& name) const {
 
 namespace {
 void material_hash_string(std::uint64_t& hash, const std::string& value) noexcept {
-    detail::fnv1a_bytes(hash, value.data(), value.size());
+    hashing::fnv1a_bytes(hash, value.data(), value.size());
     const unsigned char terminator = 0;
-    detail::fnv1a_bytes(hash, &terminator, 1);
+    hashing::fnv1a_bytes(hash, &terminator, 1);
 }
 
 void material_hash_u32(std::uint64_t& hash, std::uint32_t value) noexcept {
-    detail::fnv1a_bytes(hash, &value, sizeof(value));
+    hashing::fnv1a_bytes(hash, &value, sizeof(value));
 }
 
 void material_hash_double(std::uint64_t& hash, double value) noexcept {
-    detail::fnv1a_bytes(hash, &value, sizeof(value));
+    hashing::fnv1a_bytes(hash, &value, sizeof(value));
 }
 
 void hash_instance(std::uint64_t& hash,
@@ -286,7 +286,7 @@ PlasticFlowStressEvaluator linear_temperature_isotropic_flow_stress(const Materi
 } // namespace
 
 std::uint64_t MaterialFunctionSet::signature() const noexcept {
-    std::uint64_t hash = detail::fnv1a_offset;
+    std::uint64_t hash = hashing::fnv1a_offset;
     material_hash_string(hash, name);
     hash_instance(hash, thermal.name, thermal.version, thermal.parameters);
     hash_instance(hash, elasticity.name, elasticity.version, elasticity.parameters);

@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace fuelsim::detail {
+namespace fuelsim::hashing {
 inline constexpr std::uint64_t fnv1a_offset = 14695981039346656037ULL;
 inline constexpr std::uint64_t fnv1a_prime = 1099511628211ULL;
 
@@ -28,4 +28,4 @@ inline double decode_double_bits(std::uint64_t encoded) noexcept {
     std::memcpy(&result, &encoded, sizeof(result));
     return result;
 }
-} // namespace fuelsim::detail
+} // namespace fuelsim::hashing

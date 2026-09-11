@@ -26,8 +26,8 @@ constexpr std::uint32_t endian_marker = 0x01020304U;
 constexpr std::uint64_t maximum_checkpoint_bytes = 16ULL * 1024ULL * 1024ULL * 1024ULL;
 
 std::uint64_t checksum(const std::vector<unsigned char>& bytes) {
-    std::uint64_t value = detail::fnv1a_offset;
-    detail::fnv1a_bytes(value, bytes.data(), bytes.size());
+    std::uint64_t value = hashing::fnv1a_offset;
+    hashing::fnv1a_bytes(value, bytes.data(), bytes.size());
     return value;
 }
 
@@ -43,7 +43,7 @@ class BinaryBuffer final {
             _bytes.push_back(static_cast<unsigned char>(value >> (8U * byte)));
     }
 
-    void append_double(double value) { append_u64(detail::encode_double_bits(value)); }
+    void append_double(double value) { append_u64(hashing::encode_double_bits(value)); }
 
     void append_bytes(const unsigned char* data, std::size_t size) { _bytes.insert(_bytes.end(), data, data + size); }
 
@@ -73,7 +73,7 @@ class BinaryCursor final {
         return result;
     }
 
-    double read_double() { return detail::decode_double_bits(read_u64()); }
+    double read_double() { return hashing::decode_double_bits(read_u64()); }
 
     void read_bytes(unsigned char* destination, std::size_t size) {
         require(size);

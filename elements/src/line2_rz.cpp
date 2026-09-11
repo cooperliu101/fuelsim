@@ -164,8 +164,6 @@ Cax4LocalResidual compute_line2_rz_boundary(const Line2RzBoundaryData& data,
 } // namespace fuelsim
 
 namespace fuelsim {
-namespace {} // namespace
-
 namespace {
 struct HeatAdQuadratureValue final {
     bool projected = false;

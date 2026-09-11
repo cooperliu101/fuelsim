@@ -9,8 +9,6 @@
 #include <iostream>
 #include <stdexcept>
 
-namespace {} // namespace
-
 int run_cax8_tests(fuelsim::RzElementFormulation selected) {
     try {
         // Nonuniform temperature and genuinely curved geometry distinguish NTS

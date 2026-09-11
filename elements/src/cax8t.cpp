@@ -42,7 +42,7 @@ Quad8RzPoint evaluate_quad8_rz_point(const Quad8RzCoordinates& coordinates, doub
     }
     const double det = a * d - b * c;
     if (!std::isfinite(det) || !(det > 0) || !std::isfinite(p.radius) || !(p.radius > 0))
-        throw std::domain_error("CAX8T requires positive reference Jacobian and integration-point radius");
+        throw std::domain_error("CAX8 requires positive reference Jacobian and integration-point radius");
     p.weighted_measure = 2 * std::acos(-1.0) * p.radius * det * weight;
     for (std::size_t n = 0; n < 8; ++n) {
         p.gradient_r[n] = (dx[n] * d - dy[n] * c) / det;
@@ -65,7 +65,7 @@ Quad8RzPoint evaluate_quad8_rz_point(const Quad8RzCoordinates& coordinates, doub
     }
     const double source_det = a * d - b * c;
     if (!(source_det > 0) || !(p.source_radius > 0))
-        throw std::domain_error("CAX8T linear source geometry must be positive");
+        throw std::domain_error("CAX8 linear source geometry must be positive");
     p.source_measure = 2 * std::acos(-1.0) * p.source_radius * source_det * weight;
     for (std::size_t n = 0; n < 4; ++n) {
         p.source_gradient_r[n] = (tx[n] * d - ty[n] * c) / source_det;
@@ -181,11 +181,11 @@ PointKinematics evaluate_kinematics(const Quad8RzPoint& p,
         return k;
     const double old_det = (1 + k.old[0]) * (1 + k.old[3]) - k.old[1] * k.old[2];
     if (!(k.det.value() > 0) || !(old_det > 0) || !(k.radius.value() > 0) || !(p.radius + k.old[4] > 0))
-        throw std::domain_error("CAX8T committed and current deformation and radius must remain positive");
+        throw std::domain_error("CAX8 committed and current deformation and radius must remain positive");
     const adlite::Scalar a = 2 + v[0] + k.old[0], b = v[1] + k.old[1], c = v[2] + k.old[2], d = 2 + v[3] + k.old[3],
                          det = a * d - b * c;
     if (!(det.value() > 0))
-        throw std::domain_error("CAX8T midpoint deformation must remain positive");
+        throw std::domain_error("CAX8 midpoint deformation must remain positive");
     const adlite::Scalar hrr = 2 * ((v[0] - k.old[0]) * d - (v[1] - k.old[1]) * c) / det,
                          hrz = 2 * (-(v[0] - k.old[0]) * b + (v[1] - k.old[1]) * a) / det,
                          hzr = 2 * ((v[2] - k.old[2]) * d - (v[3] - k.old[3]) * c) / det,
@@ -232,7 +232,7 @@ SourceGeometry source_geometry(const Quad8RzPoint& p, const Quad8RzValues& state
         }
         const double determinant = fa * fd - fb * fc;
         if (!(determinant > 0) || !(radius > 0))
-            throw std::domain_error("CAX8T current linear source geometry must be positive");
+            throw std::domain_error("CAX8 current linear source geometry must be positive");
         source_measure = p.source_measure * determinant * radius / p.source_radius;
         for (std::size_t n = 0; n < 4; ++n) {
             source_derivative[4 + n] = source_measure
@@ -284,7 +284,7 @@ Cax8Result evaluate_cax8t(const Cax8Input& data, ElementRequest request, Cax8Qua
     const bool jacobian = request.jacobian;
     const bool thermal_time = data.include_thermal_time_term;
     if (history && (!(dt > 0) || !std::isfinite(dt)))
-        throw std::invalid_argument("CAX8T material update requires positive finite time step");
+        throw std::invalid_argument("CAX8 material update requires positive finite time step");
     const bool finite = data.strain_formulation == StrainFormulation::finite;
     elements::Cax8Result result;
     for (std::size_t q = 0; q < geometry.point_count; ++q) {

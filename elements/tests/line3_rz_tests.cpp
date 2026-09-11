@@ -1,7 +1,6 @@
 #include "cax8_types.hpp"
 #include "contact_types.hpp"
 #include "line3_rz.hpp"
-#include "quad4_face.hpp"
 #include "support/test_support.hpp"
 #include <algorithm>
 #include <cmath>

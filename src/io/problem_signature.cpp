@@ -10,27 +10,27 @@ namespace fuelsim {
 namespace {
 void hash_size(std::uint64_t& hash, std::size_t value) {
     const std::uint64_t encoded = static_cast<std::uint64_t>(value);
-    detail::fnv1a_bytes(hash, &encoded, sizeof(encoded));
+    hashing::fnv1a_bytes(hash, &encoded, sizeof(encoded));
 }
 
 void hash_integer(std::uint64_t& hash, std::int64_t value) {
-    detail::fnv1a_bytes(hash, &value, sizeof(value));
+    hashing::fnv1a_bytes(hash, &value, sizeof(value));
 }
 
 void hash_double(std::uint64_t& hash, double value) {
-    const std::uint64_t encoded = detail::encode_double_bits(value);
-    detail::fnv1a_bytes(hash, &encoded, sizeof(encoded));
+    const std::uint64_t encoded = hashing::encode_double_bits(value);
+    hashing::fnv1a_bytes(hash, &encoded, sizeof(encoded));
 }
 
 void hash_string(std::uint64_t& hash, const std::string& value) {
     hash_size(hash, value.size());
-    detail::fnv1a_bytes(hash, value.data(), value.size());
+    hashing::fnv1a_bytes(hash, value.data(), value.size());
 }
 
 void hash_thermoelastic(std::uint64_t& hash, const ThermoelasticProperties& material) {
     hash_double(hash, material.reference_young_modulus);
     const std::uint64_t signature = material.functions->signature();
-    detail::fnv1a_bytes(hash, &signature, sizeof(signature));
+    hashing::fnv1a_bytes(hash, &signature, sizeof(signature));
 }
 
 void hash_region_definition(std::uint64_t& hash, const RegionDefinition& spatial) {
@@ -102,7 +102,7 @@ void hash_contacts(std::uint64_t& hash, const SpatialDefinition& definition) {
 } // namespace
 
 std::uint64_t transient_problem_signature(const TransientProblem& problem) {
-    std::uint64_t hash = detail::fnv1a_offset;
+    std::uint64_t hash = hashing::fnv1a_offset;
     const bool cartesian = problem.is_cartesian_3d();
     if (problem.uses_quad8()) {
         hash_string(hash, "axisymmetric_rz_quad8_u2_t1_nine_points");
