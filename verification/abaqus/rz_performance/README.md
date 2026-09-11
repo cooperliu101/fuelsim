@@ -636,7 +636,8 @@ env NETCDF_LIBRARY=/home/cooper/miniforge/envs/moose/lib/libnetcdf.so \
 新输入的生产日志、可执行文件和输入摘要、单增量 Abaqus 原始日志及参考保存在
 [`medium_cax4t_finite_incremental/`](medium_cax4t_finite_incremental/summary.json)。
 原四种小应变中等规模算例的全部比较指标复查保持不变。
-**新执行路径尚未做关闭输出后的重复计时，原 1.57 倍耗时比不能用于此处。**
+该精度验证阶段未做关闭输出后的重复计时，原 1.57 倍耗时比不能用于此处。
+新执行路径的正式计时结果见本文末尾的“四种 CAX 有限应变正式性能比较”。
 
 ## 其他 CAX 单元的中等规模有限应变对比（2026-09-11）
 
@@ -720,4 +721,73 @@ env NETCDF_LIBRARY=/home/cooper/miniforge/envs/moose/lib/libnetcdf.so \
 -R 'cax4rt|cax8t|cax8rt'` 运行并全部通过；原四种小应变中等规模算例的比较指标
 复查完全不变。没有修改生产单元或求解器代码，没有新增重复的自动回归算例。
 这些计算保留结果输出，并可能与其他验证任务同时运行，**不用于程序速度比较**。
-三种型号的有限应变输入尚未提供关闭输出后的计时版本。
+该批精度验证运行不作为计时结果；后续新增的关闭输出计时版本及正式数据见下一节。
+
+## 四种 CAX 有限应变正式性能比较（2026-09-11）
+
+**本批 CAX4RT、CAX8RT 的 Fuelsim 外部总耗时较少；CAX4T、CAX8T 略多。**
+每个型号、每个程序预热一次，再正式测量两次；总计 24 次运行严格依次执行，
+期间没有启动其他编译或回归任务。均为前述中等规模网格、有限应变、20 个固定
+增量、单进程单线程、逻辑 CPU 0 亲和性和直接求解器，Fuelsim 使用 MUMPS。
+关闭热容项，每个增量提交节点状态和材料历史。关闭场结果、历史结果和重启动输出，
+保留程序控制台及求解日志。四个型号均已通过完整最终场 0.01% 精度门槛。
+
+| 型号 | Fuelsim 正式两次外部耗时 | Fuelsim 均值 | Abaqus 正式两次外部耗时 | Abaqus 均值 | Fuelsim 相对 Abaqus 的耗时变化 |
+|---|---:|---:|---:|---:|---:|
+| CAX4T | 46.8752 / 46.7105 s | **46.7929 s** | 43.6907 / 43.6991 s | **43.6949 s** | 多 7.09% |
+| CAX4RT | 17.0938 / 17.2475 s | **17.1706 s** | 33.7049 / 31.7082 s | **32.7066 s** | 少 47.50% |
+| CAX8T | 113.5856 / 115.4996 s | **114.5426 s** | 112.0690 / 111.8990 s | **111.9840 s** | 多 2.28% |
+| CAX8RT | 69.8595 / 70.4632 s | **70.1613 s** | 87.9415 / 85.8813 s | **86.9114 s** | 少 19.27% |
+
+外部时间由 Python `perf_counter` 和 PowerShell `Stopwatch` 测量，从启动程序
+到正常退出。Abaqus/Fuelsim 外部耗时比依次为 0.934、1.905、0.978、1.239。
+上述百分比按 `(Fuelsim均值 / Abaqus均值 - 1) * 100%` 计算。
+内部时间单独记录，不与外部时间混用：
+
+| 型号 | Fuelsim 内部总时间均值 | Abaqus 分析时间均值 | Fuelsim 非线性迭代数 | Abaqus 总迭代数 |
+|---|---:|---:|---:|---:|
+| CAX4T | 46.2891 s | 39.5 s | 46 | 53 |
+| CAX4RT | 16.6650 s | 28.5 s | 47 | 55 |
+| CAX8T | 113.8127 s | 106.5 s | 47 | 53 |
+| CAX8RT | 69.5496 s | 83.5 s | 47 | 53 |
+
+Fuelsim 内部时间为 `solve_transient` 的 `total_seconds`，包含增量求解、
+接受历史及诊断等工作；Abaqus 为 `.dat` 的 `JOB TIME SUMMARY` 中
+`WALLCLOCK TIME (SEC)`，该输出以整秒记录。Abaqus 迭代数包含接触不连续迭代。
+各型号三次运行的迭代数一致，全部运行完成 20 个增量且没有缩小增量重试。
+
+四份新增 Fuelsim 完整输入为
+`verification/fuelsim/quasistatic_rz_performance_medium_<型号>_finite_timing.fsi`，
+与各自精度输入仅差去除 Exodus 和 CSV 输出；Abaqus 对应
+`rz_performance_medium_<型号>_finite_timing.inp`。物理输入部分逐字一致，
+可执行文件 SHA256 与已通过精度验证的运行一致。另核对了每次 Fuelsim 的
+12 个最终区域及接触工程输出，均与对应精度运行的打印值完全相同。
+本次没有重新写出全部场结果；完整精度依据是相同可执行文件和物理输入的既有
+全场比较，工程输出核对是补充检查。
+
+当前 `benchmarks/run_rz_performance.py --strain finite` 已统一调用上述
+`quasistatic` 计时输入，不再调用原来的 `steady` 有限应变路径。
+因此本文早期 CAX4T 未通过记录中的原始命令不能作为当前运行器的行为说明；
+重放旧执行方式需要当时提交的运行器。重测应指定全新的结果目录，不覆盖历史证据：
+
+```bash
+python benchmarks/run_rz_performance.py --size medium --element cax8rt --strain finite \
+  --results-directory verification/abaqus/rz_performance/medium_cax8rt_finite_timing_rerun \
+  --windows-source '\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\rz_performance' \
+  --windows-results '\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\rz_performance\medium_cax8rt_finite_timing_rerun'
+```
+
+运行器只选择完整输入，不生成或替换物理定义。`--resume` 只用于尚未压缩归档的
+中断测量，必须通过输入、程序和运行器摘要检查；完成归档后应使用新目录重测。
+
+硬件为 Intel Core i9-13980HX，Fuelsim 在 WSL2 Linux、Abaqus 在同一主机
+的 Windows 运行。双方均限制逻辑 CPU 0，但虚拟机内外相同编号不能证明物理核
+映射相同。数据仅代表本机、本批次、这四个工作负载，不推广为通用性能结论；
+尤其 CAX8T 的 2.28% 差异较小，没有做统计显著性判定。
+
+汇总数据见 [finite_timing_summary.json](finite_timing_summary.json)，
+检查记录见 [finite_timing_validation.json](finite_timing_validation.json)，
+原始逐次计时、预热记录、压缩日志及输入摘要分别位于
+`medium_cax4t_finite_timing/`、`medium_cax4rt_finite_timing/`、
+`medium_cax8t_finite_timing/` 和 `medium_cax8rt_finite_timing/`。
+这些仍是手动性能验证资料，没有加入 CTest 测试套件。

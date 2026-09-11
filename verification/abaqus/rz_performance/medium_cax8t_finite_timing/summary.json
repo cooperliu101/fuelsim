@@ -1,0 +1,36 @@
+{
+  "accuracy_report": "medium_cax8t_finite_incremental/accuracy.json",
+  "accuracy_sha256": "60955162d655cb80d563921825dd91344e43ef7fe4d6f92248bd0ace736cb1a1",
+  "accuracy_passed": true,
+  "max_pointwise_relative_error": 4.8603439386107005e-08,
+  "fuelsim": {
+    "warmup_external_seconds": 114.13038261898328,
+    "external_seconds": [
+      113.58562026300933,
+      115.49960252596065
+    ],
+    "external_mean_seconds": 114.542611394485,
+    "internal_seconds": [
+      112.893104161,
+      114.732367997
+    ],
+    "internal_mean_seconds": 113.81273607899999,
+    "nonlinear_iterations": 47
+  },
+  "abaqus": {
+    "warmup_external_seconds": 110.136925,
+    "external_seconds": [
+      112.068995,
+      111.898999
+    ],
+    "external_mean_seconds": 111.983997,
+    "internal_seconds": [
+      106.0,
+      107.0
+    ],
+    "internal_mean_seconds": 106.5,
+    "nonlinear_iterations": 53
+  },
+  "abaqus_over_fuelsim_external": 0.9776623357601555,
+  "fuelsim_elapsed_difference_percent": 2.284803599647356
+}

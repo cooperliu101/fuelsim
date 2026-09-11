@@ -22,10 +22,11 @@ def run(fuelsim, powershell, windows_source, cpu, resume=False, sizes=('medium',
         results=REFERENCE, windows_results=None, element="cax4t", strain="small"):
     if element != "cax4t" and tuple(sizes) != ("medium",):
         raise ValueError("This element model has only a medium input")
-    if strain == "finite" and (element != "cax4t" or tuple(sizes) != ("medium",)):
-        raise ValueError("Finite strain has only a medium CAX4T input")
+    if strain == "finite" and tuple(sizes) != ("medium",):
+        raise ValueError("Finite strain has only medium inputs")
     mesh_variant = "_"+element if element != "cax4t" else ""
-    variant = "_cax4t_finite" if strain == "finite" else mesh_variant
+    variant = "_"+element+"_finite" if strain == "finite" else mesh_variant
+    execution = "quasistatic" if strain == "finite" else "steady"
     results.mkdir(parents=True,exist_ok=True)
     if results.resolve()!=REFERENCE.resolve() and not windows_results:
         raise ValueError('--windows-results is required for a separate results directory')
@@ -53,7 +54,7 @@ def run(fuelsim, powershell, windows_source, cpu, resume=False, sizes=('medium',
         paths=[fuelsim,Path(__file__).resolve(),REFERENCE/'run.ps1',REFERENCE/'compare.py',
                REFERENCE/'material_contact.inc']
         for size in sizes:
-            paths.extend([ROOT/'verification/fuelsim'/('steady_rz_performance_'+size+variant+suffix+'.fsi')
+            paths.extend([ROOT/'verification/fuelsim'/(execution+'_rz_performance_'+size+variant+suffix+'.fsi')
                           for suffix in ('','_timing')])
             paths.extend([REFERENCE/('rz_performance_'+size+variant+suffix) for suffix in
                           ('.inp','_timing.inp')])
@@ -67,7 +68,7 @@ def run(fuelsim, powershell, windows_source, cpu, resume=False, sizes=('medium',
     def recorded(solver,size,repeat):
         return any(r['solver']==solver and r['size']==size and r['run']==repeat for r in records)
     for size in sizes:
-        card=ROOT/'verification/fuelsim'/('steady_rz_performance_'+size+variant+'_timing.fsi')
+        card=ROOT/'verification/fuelsim'/(execution+'_rz_performance_'+size+variant+'_timing.fsi')
         for repeat in range(3):
             if recorded('fuelsim',size,repeat):continue
             log=results/('fuelsim_'+size+'_run%d.log'%repeat)
@@ -77,7 +78,8 @@ def run(fuelsim, powershell, windows_source, cpu, resume=False, sizes=('medium',
                 subprocess.run(['taskset','-c',str(cpu),str(fuelsim),'-i',str(card)],env=env,stdout=output,stderr=subprocess.STDOUT,check=True)
             seconds=time.perf_counter()-start
             text=log.read_text()
-            for marker in ('completed=true','load_steps_completed=20','mpi_ranks=1'):
+            step_markers = ('accepted_steps=20','rejected_steps=0') if strain == 'finite' else ('load_steps_completed=20',)
+            for marker in ('completed=true','mpi_ranks=1') + step_markers:
                 if not re.search('^'+marker+'$',text,re.M):raise RuntimeError('Missing '+marker)
             values=dict(re.findall(r'^([^=\n]+)=([^\n]+)$',text,re.M))
             records.append(dict(solver='fuelsim',size=size,run=repeat,warmup=repeat==0,

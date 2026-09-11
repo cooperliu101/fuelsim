@@ -7,7 +7,6 @@ param([Parameter(Mandatory=$true)][string]$SourceDirectory,
 $ErrorActionPreference='Stop'
 if ($Element -ne 'cax4t' -and $Size -ne 'medium') { throw 'This element model has only a medium input' }
 if ($Strain -eq 'finite' -and $Size -ne 'medium') { throw 'Finite strain has only medium inputs' }
-if ($Strain -eq 'finite' -and $Element -ne 'cax4t' -and $Timing) { throw 'Reduced and quadratic finite-strain inputs are accuracy cases only' }
 if (!$ResultsDirectory) { $ResultsDirectory = $SourceDirectory }
 New-Item -ItemType Directory -Force -Path $ResultsDirectory | Out-Null
 [System.Diagnostics.Process]::GetCurrentProcess().ProcessorAffinity = [IntPtr]1

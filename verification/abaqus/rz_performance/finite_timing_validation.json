@@ -1,0 +1,82 @@
+{
+  "cax4t": {
+    "fuelsim_runs": 3,
+    "abaqus_runs": 3,
+    "all_completed_20_increments_without_cutbacks": true,
+    "final_region_and_contact_fields_identical_to_accuracy_run": [
+      "region.fuel.maximum_equivalent_plastic_strain",
+      "region.fuel.maximum_equivalent_creep_strain",
+      "region.cladding.maximum_equivalent_plastic_strain",
+      "region.cladding.maximum_equivalent_creep_strain",
+      "contact.fuel_cladding.minimum_gap",
+      "contact.fuel_cladding.maximum_contact_pressure",
+      "contact.fuel_cladding.total_heat_rate",
+      "contact.fuel_cladding.total_contact_force",
+      "contact.fuel_cladding.total_tangential_force",
+      "contact.fuel_cladding.projected_contact_nodes",
+      "contact.fuel_cladding.unprojected_contact_nodes",
+      "contact.fuel_cladding.active_contact_nodes"
+    ],
+    "provenance_hashes_verified": true
+  },
+  "cax4rt": {
+    "fuelsim_runs": 3,
+    "abaqus_runs": 3,
+    "all_completed_20_increments_without_cutbacks": true,
+    "final_region_and_contact_fields_identical_to_accuracy_run": [
+      "region.fuel.maximum_equivalent_plastic_strain",
+      "region.fuel.maximum_equivalent_creep_strain",
+      "region.cladding.maximum_equivalent_plastic_strain",
+      "region.cladding.maximum_equivalent_creep_strain",
+      "contact.fuel_cladding.minimum_gap",
+      "contact.fuel_cladding.maximum_contact_pressure",
+      "contact.fuel_cladding.total_heat_rate",
+      "contact.fuel_cladding.total_contact_force",
+      "contact.fuel_cladding.total_tangential_force",
+      "contact.fuel_cladding.projected_contact_nodes",
+      "contact.fuel_cladding.unprojected_contact_nodes",
+      "contact.fuel_cladding.active_contact_nodes"
+    ],
+    "provenance_hashes_verified": true
+  },
+  "cax8t": {
+    "fuelsim_runs": 3,
+    "abaqus_runs": 3,
+    "all_completed_20_increments_without_cutbacks": true,
+    "final_region_and_contact_fields_identical_to_accuracy_run": [
+      "region.fuel.maximum_equivalent_plastic_strain",
+      "region.fuel.maximum_equivalent_creep_strain",
+      "region.cladding.maximum_equivalent_plastic_strain",
+      "region.cladding.maximum_equivalent_creep_strain",
+      "contact.fuel_cladding.minimum_gap",
+      "contact.fuel_cladding.maximum_contact_pressure",
+      "contact.fuel_cladding.total_heat_rate",
+      "contact.fuel_cladding.total_contact_force",
+      "contact.fuel_cladding.total_tangential_force",
+      "contact.fuel_cladding.projected_contact_nodes",
+      "contact.fuel_cladding.unprojected_contact_nodes",
+      "contact.fuel_cladding.active_contact_nodes"
+    ],
+    "provenance_hashes_verified": true
+  },
+  "cax8rt": {
+    "fuelsim_runs": 3,
+    "abaqus_runs": 3,
+    "all_completed_20_increments_without_cutbacks": true,
+    "final_region_and_contact_fields_identical_to_accuracy_run": [
+      "region.fuel.maximum_equivalent_plastic_strain",
+      "region.fuel.maximum_equivalent_creep_strain",
+      "region.cladding.maximum_equivalent_plastic_strain",
+      "region.cladding.maximum_equivalent_creep_strain",
+      "contact.fuel_cladding.minimum_gap",
+      "contact.fuel_cladding.maximum_contact_pressure",
+      "contact.fuel_cladding.total_heat_rate",
+      "contact.fuel_cladding.total_contact_force",
+      "contact.fuel_cladding.total_tangential_force",
+      "contact.fuel_cladding.projected_contact_nodes",
+      "contact.fuel_cladding.unprojected_contact_nodes",
+      "contact.fuel_cladding.active_contact_nodes"
+    ],
+    "provenance_hashes_verified": true
+  }
+}

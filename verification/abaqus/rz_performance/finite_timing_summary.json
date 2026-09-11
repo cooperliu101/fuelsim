@@ -1,0 +1,164 @@
+{
+  "date": "2026-09-11",
+  "protocol": {
+    "load_increments": 20,
+    "warmup_runs_per_solver_case": 1,
+    "measured_runs_per_solver_case": 2,
+    "cpu_affinity": 0,
+    "threads": 1,
+    "fuelsim_mpi_ranks": 1,
+    "fuelsim_direct_solver": "MUMPS",
+    "thermal_storage": false,
+    "field_history_restart_output": false,
+    "scheduling": "All 24 runs sequential; no concurrent builds or regression tests",
+    "external_timing": "Python perf_counter for Fuelsim, PowerShell Stopwatch for Abaqus",
+    "internal_timing": "Fuelsim solve_transient total_seconds; Abaqus JOB TIME SUMMARY wallclock",
+    "environment": "Intel Core i9-13980HX; Fuelsim WSL2 Linux and Abaqus Windows on the same host. Logical CPU 0 affinity does not prove identical physical-core placement across the VM boundary."
+  },
+  "cases": {
+    "cax4t": {
+      "accuracy_report": "medium_cax4t_finite_incremental/accuracy.json",
+      "accuracy_sha256": "3c4d943534c194224c3c13fff2209d62cb7ea172a5fbde02e138b6375ca1fba4",
+      "accuracy_passed": true,
+      "max_pointwise_relative_error": 4.3021368371258726e-08,
+      "fuelsim": {
+        "warmup_external_seconds": 46.751849801978096,
+        "external_seconds": [
+          46.87517630204093,
+          46.71052734699333
+        ],
+        "external_mean_seconds": 46.79285182451713,
+        "internal_seconds": [
+          46.366841512,
+          46.211270928
+        ],
+        "internal_mean_seconds": 46.28905622,
+        "nonlinear_iterations": 46
+      },
+      "abaqus": {
+        "warmup_external_seconds": 50.451037,
+        "external_seconds": [
+          43.690723,
+          43.699073
+        ],
+        "external_mean_seconds": 43.694897999999995,
+        "internal_seconds": [
+          39.0,
+          40.0
+        ],
+        "internal_mean_seconds": 39.5,
+        "nonlinear_iterations": 53
+      },
+      "abaqus_over_fuelsim_external": 0.9337942932793432,
+      "fuelsim_elapsed_difference_percent": 7.089966944234849
+    },
+    "cax4rt": {
+      "accuracy_report": "medium_cax4rt_finite_incremental/accuracy.json",
+      "accuracy_sha256": "f1a5add009a74f72ea18edbafa5e434af8d04061abe57cf8a35ce0c83d568399",
+      "accuracy_passed": true,
+      "max_pointwise_relative_error": 1.5232300079751416e-07,
+      "fuelsim": {
+        "warmup_external_seconds": 17.157935395953245,
+        "external_seconds": [
+          17.093798684014473,
+          17.247470942966174
+        ],
+        "external_mean_seconds": 17.170634813490324,
+        "internal_seconds": [
+          16.579740097,
+          16.750318912
+        ],
+        "internal_mean_seconds": 16.665029504499998,
+        "nonlinear_iterations": 47
+      },
+      "abaqus": {
+        "warmup_external_seconds": 33.706038,
+        "external_seconds": [
+          33.704942,
+          31.708237
+        ],
+        "external_mean_seconds": 32.7065895,
+        "internal_seconds": [
+          29.0,
+          28.0
+        ],
+        "internal_mean_seconds": 28.5,
+        "nonlinear_iterations": 55
+      },
+      "abaqus_over_fuelsim_external": 1.9047979212919757,
+      "fuelsim_elapsed_difference_percent": -47.50099268683968
+    },
+    "cax8t": {
+      "accuracy_report": "medium_cax8t_finite_incremental/accuracy.json",
+      "accuracy_sha256": "60955162d655cb80d563921825dd91344e43ef7fe4d6f92248bd0ace736cb1a1",
+      "accuracy_passed": true,
+      "max_pointwise_relative_error": 4.8603439386107005e-08,
+      "fuelsim": {
+        "warmup_external_seconds": 114.13038261898328,
+        "external_seconds": [
+          113.58562026300933,
+          115.49960252596065
+        ],
+        "external_mean_seconds": 114.542611394485,
+        "internal_seconds": [
+          112.893104161,
+          114.732367997
+        ],
+        "internal_mean_seconds": 113.81273607899999,
+        "nonlinear_iterations": 47
+      },
+      "abaqus": {
+        "warmup_external_seconds": 110.136925,
+        "external_seconds": [
+          112.068995,
+          111.898999
+        ],
+        "external_mean_seconds": 111.983997,
+        "internal_seconds": [
+          106.0,
+          107.0
+        ],
+        "internal_mean_seconds": 106.5,
+        "nonlinear_iterations": 53
+      },
+      "abaqus_over_fuelsim_external": 0.9776623357601555,
+      "fuelsim_elapsed_difference_percent": 2.284803599647356
+    },
+    "cax8rt": {
+      "accuracy_report": "medium_cax8rt_finite_incremental/accuracy.json",
+      "accuracy_sha256": "b060b6ec25884194e6bd5d2872e175f83b2cc88117695fed506a0c8bbceb5a76",
+      "accuracy_passed": true,
+      "max_pointwise_relative_error": 5.1651509488463516e-08,
+      "fuelsim": {
+        "warmup_external_seconds": 71.22676470305305,
+        "external_seconds": [
+          69.8594612290035,
+          70.4631569609628
+        ],
+        "external_mean_seconds": 70.16130909498315,
+        "internal_seconds": [
+          69.25647322,
+          69.842659072
+        ],
+        "internal_mean_seconds": 69.549566146,
+        "nonlinear_iterations": 47
+      },
+      "abaqus": {
+        "warmup_external_seconds": 88.144427,
+        "external_seconds": [
+          87.941526,
+          85.881348
+        ],
+        "external_mean_seconds": 86.911437,
+        "internal_seconds": [
+          84.0,
+          83.0
+        ],
+        "internal_mean_seconds": 83.5,
+        "nonlinear_iterations": 53
+      },
+      "abaqus_over_fuelsim_external": 1.2387373913212028,
+      "fuelsim_elapsed_difference_percent": -19.272639462878573
+    }
+  }
+}

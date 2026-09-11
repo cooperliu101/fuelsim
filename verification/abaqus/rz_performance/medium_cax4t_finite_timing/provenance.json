@@ -1,0 +1,22 @@
+{
+  "git_revision": "d17ce50402d36913a4913091682fc15f9c15fcfb",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "sizes": [
+    "medium"
+  ],
+  "element": "cax4t",
+  "strain": "finite",
+  "sha256": {
+    "build/fuelsim": "d4ae6f0665cef98017cf9f11c4c04bd85c051d1ce6ff9f21949dd4b5dd404c8d",
+    "benchmarks/run_rz_performance.py": "bd5732a7132b9682c90d420359d4ae5c53d81e52ad28295f84d6419e18522e9a",
+    "verification/abaqus/rz_performance/run.ps1": "785eadcc38e1fb2f2a530b3590fd8fed3b62b722da6dc8d0255e289ed102b920",
+    "verification/abaqus/rz_performance/compare.py": "f3ad34160d1203b0a9e842e77e3788f7fa0d72bb522e657a8b07bbe869a2bffb",
+    "verification/abaqus/rz_performance/material_contact.inc": "750d4945e330983e8d84d6cafceccf2a12b4b6291547fef0dd3ce946a3ab7efe",
+    "verification/fuelsim/quasistatic_rz_performance_medium_cax4t_finite.fsi": "1ee6063aa1643ebf0e7aea5502cc81b4ac8d9d849d75642fdb7c46ecd80301c7",
+    "verification/fuelsim/quasistatic_rz_performance_medium_cax4t_finite_timing.fsi": "a5f6a730aa320315936d8dbafc98f48f2d9c05aaa3d49fd8165731cb831f0692",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax4t_finite.inp": "a92f014047e575eb6109c47b2b79d21d93fe28644c7ac778387d651589cfd626",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax4t_finite_timing.inp": "c4f6bfae37899e08033f07cd02ead34fd5d7cd02ad2daaac412157471254eb6e",
+    "verification/abaqus/rz_performance/rz_performance_medium_mesh.inc": "6f85d8fc0535c50b2c5ad5ce5cfc0c9bd5e9a479817ccf723817046141be1198",
+    "verification/meshes/rz_performance_medium.e": "2474721e4e17738601bc750f81dd678fde7be16aba621477b083f46af824b8c7"
+  }
+}
