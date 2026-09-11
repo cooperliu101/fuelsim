@@ -77,3 +77,17 @@ Quad4RzGeometry cax4_detail::make_quad4_rz_geometry(const Quad4Coordinates& coor
 }
 
 } // namespace fuelsim
+
+namespace fuelsim {
+AxisymmetricHughesWinget evaluate_axisymmetric_hughes_winget(const adlite::Scalar& hrr,
+    const adlite::Scalar& hrz,
+    const adlite::Scalar& hzr,
+    const adlite::Scalar& hzz) {
+    const adlite::Scalar shear = 0.5 * (hrz + hzr), spin = 0.25 * (hrz - hzr), denominator = 1.0 + spin * spin,
+                         cosine = (1.0 - spin * spin) / denominator, sine = 2.0 * spin / denominator;
+    return {{cosine, sine, -sine, cosine, adlite::Scalar(1.0)},
+        cosine * cosine * hrr - 2.0 * cosine * sine * shear + sine * sine * hzz,
+        sine * sine * hrr + 2.0 * cosine * sine * shear + cosine * cosine * hzz,
+        cosine * sine * (hrr - hzz) + (cosine * cosine - sine * sine) * shear};
+}
+} // namespace fuelsim

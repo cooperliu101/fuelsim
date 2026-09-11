@@ -239,13 +239,12 @@ elements::Cax4Result compute_cax4rt(const elements::Cax4Input& data,
         const adlite::Scalar hrr = 2.0 * ((active[0] - old_values[0]) * d - (active[1] - old_values[1]) * c) / det,
                              hrz = 2.0 * (-(active[0] - old_values[0]) * b + (active[1] - old_values[1]) * a) / det,
                              hzr = 2.0 * ((active[2] - old_values[2]) * d - (active[3] - old_values[3]) * c) / det,
-                             hzz = 2.0 * (-(active[2] - old_values[2]) * b + (active[3] - old_values[3]) * a) / det,
-                             spin = (hrz - hzr) / 4.0, den = 1.0 + spin * spin, cs = (1.0 - spin * spin) / den,
-                             sn = 2.0 * spin / den, shear = (hrz + hzr) / 2.0;
-        rotation = {cs, sn, -sn, cs, 1.0};
-        rr = cs * cs * hrr - 2.0 * cs * sn * shear + sn * sn * hzz;
-        zz = sn * sn * hrr + 2.0 * cs * sn * shear + cs * cs * hzz;
-        rz = cs * sn * (hrr - hzz) + (cs * cs - sn * sn) * shear;
+                             hzz = 2.0 * (-(active[2] - old_values[2]) * b + (active[3] - old_values[3]) * a) / det;
+        const auto increment = evaluate_axisymmetric_hughes_winget(hrr, hrz, hzr, hzz);
+        rotation = increment.rotation;
+        rr = increment.rr;
+        zz = increment.zz;
+        rz = increment.rz;
         hoop = 2.0 * (active[4] - old_values[4]) / (2.0 + active[4] + old_values[4]);
     }
     const adlite::Scalar correction = (trace - hoop - rr - zz) / 2.0;

@@ -72,44 +72,10 @@ ActiveMatrix3 identity_active_matrix() {
 KinematicsCore evaluate_hughes_winget_increment(const ActiveMatrix3& central_displacement_gradient) {
     KinematicsCore result{};
     const ActiveMatrix3& hughes_winget = central_displacement_gradient;
-    ActiveMatrix3 spatial_strain{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j)
-            spatial_strain[i][j] = 0.5 * (hughes_winget[i][j] + hughes_winget[j][i]);
-
-    ActiveMatrix3 rotation_numerator = identity_active_matrix();
-    ActiveMatrix3 rotation_denominator = identity_active_matrix();
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j) {
-            const adlite::Scalar half_spin = 0.25 * (hughes_winget[i][j] - hughes_winget[j][i]);
-            rotation_numerator[i][j] += half_spin;
-            rotation_denominator[i][j] -= half_spin;
-        }
-    const adlite::Scalar rotation_denominator_determinant = determinant(rotation_denominator);
-    if (!std::isfinite(rotation_denominator_determinant.value()) || rotation_denominator_determinant.value() == 0.0)
-        throw std::domain_error("Abaqus Hughes-Winget Cartesian rotation denominator is singular");
-    const ActiveMatrix3 rotation_denominator_inverse = inverse(rotation_denominator, rotation_denominator_determinant);
     ActiveMatrix3 rotation{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k)
-                rotation[i][j] += rotation_numerator[i][k] * rotation_denominator_inverse[k][j];
-    ActiveMatrix3 spatial_times_rotation{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k)
-                spatial_times_rotation[i][j] += spatial_strain[i][k] * rotation[k][j];
-    ActiveMatrix3 corotational_strain{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = i; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k)
-                corotational_strain[i][j] += rotation[k][i] * spatial_times_rotation[k][j];
-    result.strain_increment = {corotational_strain[0][0],
-        corotational_strain[1][1],
-        corotational_strain[2][2],
-        corotational_strain[0][1],
-        corotational_strain[1][2],
-        corotational_strain[0][2]};
+    std::array<adlite::Scalar, 6> strain{};
+    hughes_winget_rotation(hughes_winget, rotation, strain);
+    result.strain_increment = {strain[0], strain[1], strain[2], strain[3], strain[4], strain[5]};
     result.rotation = {rotation[0][0],
         rotation[0][1],
         rotation[0][2],
@@ -170,44 +136,10 @@ KinematicsCore evaluate_kinematics(const ActiveMatrix3& gradient,
         for (std::size_t j = 0; j < 3; ++j)
             for (std::size_t k = 0; k < 3; ++k)
                 hughes_winget[i][j] += 2.0 * deformation_difference[i][k] * plus_inverse[k][j];
-    ActiveMatrix3 spatial_strain{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j)
-            spatial_strain[i][j] = 0.5 * (hughes_winget[i][j] + hughes_winget[j][i]);
-
-    ActiveMatrix3 rotation_numerator = identity_active_matrix();
-    ActiveMatrix3 rotation_denominator = identity_active_matrix();
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j) {
-            const adlite::Scalar half_spin = 0.25 * (hughes_winget[i][j] - hughes_winget[j][i]);
-            rotation_numerator[i][j] += half_spin;
-            rotation_denominator[i][j] -= half_spin;
-        }
-    const adlite::Scalar rotation_denominator_determinant = determinant(rotation_denominator);
-    if (!std::isfinite(rotation_denominator_determinant.value()) || rotation_denominator_determinant.value() == 0.0)
-        throw std::domain_error("Abaqus Hughes-Winget Cartesian rotation denominator is singular");
-    const ActiveMatrix3 rotation_denominator_inverse = inverse(rotation_denominator, rotation_denominator_determinant);
     ActiveMatrix3 rotation{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k)
-                rotation[i][j] += rotation_numerator[i][k] * rotation_denominator_inverse[k][j];
-    ActiveMatrix3 spatial_times_rotation{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k)
-                spatial_times_rotation[i][j] += spatial_strain[i][k] * rotation[k][j];
-    ActiveMatrix3 corotational_strain{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = i; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k)
-                corotational_strain[i][j] += rotation[k][i] * spatial_times_rotation[k][j];
-    result.strain_increment = {corotational_strain[0][0],
-        corotational_strain[1][1],
-        corotational_strain[2][2],
-        corotational_strain[0][1],
-        corotational_strain[1][2],
-        corotational_strain[0][2]};
+    std::array<adlite::Scalar, 6> strain{};
+    hughes_winget_rotation(hughes_winget, rotation, strain);
+    result.strain_increment = {strain[0], strain[1], strain[2], strain[3], strain[4], strain[5]};
     result.rotation = {rotation[0][0],
         rotation[0][1],
         rotation[0][2],

@@ -561,13 +561,12 @@ AxisymmetricKinematics evaluate_axisymmetric_kinematics_from_point(const RzQuadr
                   / determinant_sum,
             hzz = 2.0
                   * (-(deformation_zr - old_deformation_zr) * sum_rz + (deformation_zz - old_deformation_zz) * sum_rr)
-                  / determinant_sum,
-            shear = 0.5 * (hrz + hzr), spin = 0.25 * (hrz - hzr), denom = 1.0 + spin * spin,
-            cosine = (1.0 - spin * spin) / denom, sine = 2.0 * spin / denom;
-        result.rotation = {cosine, sine, -sine, cosine, adlite::Scalar(1.0)};
-        result.strain_rr = cosine * cosine * hrr - 2.0 * cosine * sine * shear + sine * sine * hzz;
-        result.strain_zz = sine * sine * hrr + 2.0 * cosine * sine * shear + cosine * cosine * hzz;
-        result.strain_rz = cosine * sine * (hrr - hzz) + (cosine * cosine - sine * sine) * shear;
+                  / determinant_sum;
+        const auto increment = evaluate_axisymmetric_hughes_winget(hrr, hrz, hzr, hzz);
+        result.rotation = increment.rotation;
+        result.strain_rr = increment.rr;
+        result.strain_zz = increment.zz;
+        result.strain_rz = increment.rz;
         result.strain_hoop = 2.0 * (deformation_hoop - old_deformation_hoop) / sum_hoop;
         return result;
     }

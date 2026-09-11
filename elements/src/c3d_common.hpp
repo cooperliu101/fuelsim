@@ -2,6 +2,9 @@
 #include "c3d8_types.hpp"
 #include <adlite/adlite.hpp>
 #include <array>
+#include <cmath>
+#include <stdexcept>
+#include <type_traits>
 
 namespace fuelsim::cartesian_detail {
 using Matrix3 = std::array<std::array<double, 3>, 3>;
@@ -14,6 +17,52 @@ ActiveMatrix3 inverse(const ActiveMatrix3& matrix, const adlite::Scalar& determi
 ActiveMatrix3 multiply(const ActiveMatrix3& first, const Matrix3& second);
 
 Matrix3 multiply(const Matrix3& first, const Matrix3& second);
+
+// The only project template exception: one Hughes-Winget map for primal and AD paths.
+// Inputs are the central displacement gradient; geometry validation belongs to the caller.
+template <typename Scalar>
+void hughes_winget_rotation(const std::array<std::array<Scalar, 3>, 3>& gradient,
+    std::array<std::array<Scalar, 3>, 3>& rotation,
+    std::array<Scalar, 6>& strain) {
+    static_assert(std::is_same_v<Scalar, double> || std::is_same_v<Scalar, adlite::Scalar>,
+        "Hughes-Winget only supports double and adlite::Scalar");
+    std::array<std::array<Scalar, 3>, 3> spatial_strain{}, numerator{}, denominator{};
+    for (std::size_t i = 0; i < 3; ++i) {
+        numerator[i][i] = 1.0;
+        denominator[i][i] = 1.0;
+        for (std::size_t j = 0; j < 3; ++j) {
+            spatial_strain[i][j] = 0.5 * (gradient[i][j] + gradient[j][i]);
+            const Scalar half_spin = 0.25 * (gradient[i][j] - gradient[j][i]);
+            numerator[i][j] += half_spin;
+            denominator[i][j] -= half_spin;
+        }
+    }
+    const Scalar denominator_determinant = determinant(denominator);
+    using std::isfinite;
+    if (!isfinite(denominator_determinant) || denominator_determinant == 0.0)
+        throw std::domain_error("Abaqus Hughes-Winget Cartesian rotation denominator is singular");
+    const auto denominator_inverse = inverse(denominator, denominator_determinant);
+    rotation = {};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = 0; j < 3; ++j)
+            for (std::size_t k = 0; k < 3; ++k)
+                rotation[i][j] += numerator[i][k] * denominator_inverse[k][j];
+    std::array<std::array<Scalar, 3>, 3> spatial_times_rotation{}, corotational_strain{};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = 0; j < 3; ++j)
+            for (std::size_t k = 0; k < 3; ++k)
+                spatial_times_rotation[i][j] += spatial_strain[i][k] * rotation[k][j];
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = i; j < 3; ++j)
+            for (std::size_t k = 0; k < 3; ++k)
+                corotational_strain[i][j] += rotation[k][i] * spatial_times_rotation[k][j];
+    strain = {corotational_strain[0][0],
+        corotational_strain[1][1],
+        corotational_strain[2][2],
+        corotational_strain[0][1],
+        corotational_strain[1][2],
+        corotational_strain[0][2]};
+}
 } // namespace fuelsim::cartesian_detail
 
 namespace fuelsim::cartesian_detail {

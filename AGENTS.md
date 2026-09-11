@@ -30,7 +30,13 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
 ## 依赖与 C++ 约束
 
 - 仅使用 C++17。
-- 不定义项目自己的 C++ 类模板、函数模板、表达式模板或标量泛型层。
+- 不定义项目自己的 C++ 类模板、函数模板、表达式模板或标量泛型层，唯一例外是
+  `elements/src/c3d_common.hpp` 中的 `hughes_winget_rotation` 私有函数模板；
+  它仅允许 `double` 和 `adlite::Scalar`，用于共用三维 Hughes-Winget 转动和
+  随转应变计算，不得扩展到材料、单元接口或自动微分播种。
+  模板内的标量数学函数采用 `using std::函数名` 加非限定调用，通过参数相关查找
+  让 `adlite::Scalar` 使用 ADlite 重载、`double` 使用标准库，不得剥离导数来调用数学函数。
+  轴对称 Hughes-Winget 计算使用 `cax_common` 中的普通具体类型函数。
 - 允许使用 `std::vector`、`std::array` 等标准库模板。
 - 自动微分只能使用用户的 ADlite 软件包和具体类型
   `adlite::Scalar`。

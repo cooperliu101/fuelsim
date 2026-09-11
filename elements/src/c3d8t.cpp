@@ -494,42 +494,9 @@ FinitePointResidualCache finite_point_residual_kinematics(const Hex8QuadraturePo
         for (std::size_t j = 0; j < 3; ++j)
             for (std::size_t k = 0; k < 3; ++k)
                 hughes_winget[i][j] += 2.0 * deformation_difference[i][k] * plus_inverse[k][j];
-    cartesian_detail::Matrix3 spatial_strain{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j)
-            spatial_strain[i][j] = 0.5 * (hughes_winget[i][j] + hughes_winget[j][i]);
-
-    cartesian_detail::Matrix3 rotation_numerator{}, rotation_denominator{};
-    for (std::size_t i = 0; i < 3; ++i) {
-        rotation_numerator[i][i] = 1.0;
-        rotation_denominator[i][i] = 1.0;
-        for (std::size_t j = 0; j < 3; ++j) {
-            const double half_spin = 0.25 * (hughes_winget[i][j] - hughes_winget[j][i]);
-            rotation_numerator[i][j] += half_spin;
-            rotation_denominator[i][j] -= half_spin;
-        }
-    }
-    const double rotation_denominator_determinant = cartesian_detail::determinant(rotation_denominator);
-    if (!std::isfinite(rotation_denominator_determinant) || rotation_denominator_determinant == 0.0)
-        throw std::domain_error("Abaqus Hughes-Winget Cartesian rotation denominator is singular");
-    result.rotation = cartesian_detail::multiply(rotation_numerator,
-        cartesian_detail::inverse(rotation_denominator, rotation_denominator_determinant));
-    cartesian_detail::Matrix3 spatial_times_rotation{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k)
-                spatial_times_rotation[i][j] += spatial_strain[i][k] * result.rotation[k][j];
-    cartesian_detail::Matrix3 corotational_strain{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = i; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k)
-                corotational_strain[i][j] += result.rotation[k][i] * spatial_times_rotation[k][j];
-    result.strain_increment = {corotational_strain[0][0],
-        corotational_strain[1][1],
-        corotational_strain[2][2],
-        corotational_strain[0][1],
-        corotational_strain[1][2],
-        corotational_strain[0][2]};
+    std::array<double, 6> strain{};
+    cartesian_detail::hughes_winget_rotation(hughes_winget, result.rotation, strain);
+    result.strain_increment = {strain[0], strain[1], strain[2], strain[3], strain[4], strain[5]};
     result.current_weighted_measure = point.weighted_measure * current_determinant;
     for (std::size_t node = 0; node < hex8_node_count; ++node)
         for (std::size_t direction = 0; direction < 3; ++direction)

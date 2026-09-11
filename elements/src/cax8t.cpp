@@ -1,4 +1,5 @@
 #include "cax8t.hpp"
+#include "cax_common.hpp"
 #include <cmath>
 #include <stdexcept>
 
@@ -188,14 +189,10 @@ PointKinematics evaluate_kinematics(const Quad8RzPoint& p,
     const adlite::Scalar hrr = 2 * ((v[0] - k.old[0]) * d - (v[1] - k.old[1]) * c) / det,
                          hrz = 2 * (-(v[0] - k.old[0]) * b + (v[1] - k.old[1]) * a) / det,
                          hzr = 2 * ((v[2] - k.old[2]) * d - (v[3] - k.old[3]) * c) / det,
-                         hzz = 2 * (-(v[2] - k.old[2]) * b + (v[3] - k.old[3]) * a) / det, spin = (hrz - hzr) / 4,
-                         den = 1 + spin * spin, cs = (1 - spin * spin) / den, sn = 2 * spin / den,
-                         shear = (hrz + hzr) / 2;
-    k.rotation = {cs, sn, -sn, cs, 1.0};
-    k.strain = {cs * cs * hrr - 2 * cs * sn * shear + sn * sn * hzz,
-        sn * sn * hrr + 2 * cs * sn * shear + cs * cs * hzz,
-        2 * (v[4] - k.old[4]) / (2 * p.radius + v[4] + k.old[4]),
-        cs * sn * (hrr - hzz) + (cs * cs - sn * sn) * shear};
+                         hzz = 2 * (-(v[2] - k.old[2]) * b + (v[3] - k.old[3]) * a) / det;
+    const auto increment = evaluate_axisymmetric_hughes_winget(hrr, hrz, hzr, hzz);
+    k.rotation = increment.rotation;
+    k.strain = {increment.rr, increment.zz, 2 * (v[4] - k.old[4]) / (2 * p.radius + v[4] + k.old[4]), increment.rz};
     return k;
 }
 
