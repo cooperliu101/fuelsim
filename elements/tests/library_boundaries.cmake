@@ -41,7 +41,13 @@ foreach(path IN LISTS source_files public_headers)
     endif()
     if(stem IN_LIST models)
         foreach(other IN LISTS models)
-            if(NOT other STREQUAL stem AND content MATCHES "evaluate_${other}[ \t\n]*[(]")
+            if((stem STREQUAL "cax8rt" AND other STREQUAL "cax8t") OR
+               (stem STREQUAL "c3d20rt" AND other STREQUAL "c3d20t"))
+                continue()
+            endif()
+            if(NOT other STREQUAL stem AND
+               (content MATCHES "(evaluate_${other}|make_${other}_geometry|validate_${other}_deformation)[ \t\n]*[(]" OR
+                content MATCHES "#[ \t]*include[ \t]*[<\"]${other}[.]hpp"))
                 message(FATAL_ERROR "One element model calls another: ${stem} -> ${other}")
             endif()
         endforeach()

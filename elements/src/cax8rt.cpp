@@ -1,17 +1,12 @@
 #include "cax8rt.hpp"
-#include "cax_common.hpp"
-#include <stdexcept>
+#include "cax8t.hpp"
 
 namespace fuelsim::elements {
 Cax8Result evaluate_cax8rt(const Cax8Input& input, ElementRequest request) {
-    if (input.geometry.point_count != 4)
-        throw std::invalid_argument("CAX8RT requires its model-specific material quadrature");
-    return cax8_detail::evaluate(input, request);
+    return evaluate_cax8t(input, request, Cax8Quadrature::reduced);
 }
-} // namespace fuelsim::elements
 
-namespace fuelsim::elements {
 Quad8RzGeometry make_cax8rt_geometry(const Quad8RzCoordinates& coordinates) {
-    return cax8_detail::make_quad8_rz_geometry(coordinates, 2);
+    return make_cax8t_geometry(coordinates, Cax8Quadrature::reduced);
 }
 } // namespace fuelsim::elements

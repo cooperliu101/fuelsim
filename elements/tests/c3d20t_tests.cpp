@@ -354,5 +354,23 @@ int run_c3d20t_tests() {
 } // namespace
 
 int main() {
+    using namespace fuelsim::elements;
+    const fuelsim::IsotropicThermoelasticMaterial test_material(material());
+    const fuelsim::Hex20LocalValues state{};
+    for (const auto selected : {C3d20Quadrature::full, C3d20Quadrature::reduced}) {
+        const auto geometry = make_c3d20t_geometry(unit_cube(), selected);
+        const C3d20Input input{test_material, geometry, state, state};
+        for (const auto requested :
+            {C3d20Quadrature::full, C3d20Quadrature::reduced, static_cast<C3d20Quadrature>(-1)}) {
+            bool rejected = false;
+            try {
+                evaluate_c3d20t(input, {false, false, false, false}, requested);
+            } catch (const std::invalid_argument&) {
+                rejected = true;
+            }
+            if (!check(rejected == (requested != selected), "C3D20 quadrature validation"))
+                return 1;
+        }
+    }
     return run_c3d20t_tests();
 }

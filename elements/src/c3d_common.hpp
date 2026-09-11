@@ -1,5 +1,4 @@
 #pragma once
-#include "c3d20_types.hpp"
 #include "c3d8_types.hpp"
 #include <adlite/adlite.hpp>
 #include <array>
@@ -70,14 +69,6 @@ C3d8Kinematics evaluate_cartesian_kinematics_from_gradient(const Hex8QuadratureP
     StrainFormulation strain_formulation);
 } // namespace fuelsim::c3d8_detail
 
-namespace fuelsim::c3d20_detail {
-Hex20Geometry make_hex20_geometry(const Hex20Coordinates& coordinates, std::size_t order);
-} // namespace fuelsim::c3d20_detail
-
-namespace fuelsim::c3d20_detail {
-elements::C3d20Result evaluate(const elements::C3d20Input& input, elements::ElementRequest request);
-} // namespace fuelsim::c3d20_detail
-
 namespace fuelsim::c3d8_detail {
 void set_history_geometry(const elements::C3d8Input& input, bool reduced, elements::C3d8Result& result);
 }
@@ -87,7 +78,3 @@ Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates);
 
 void validate_cartesian_deformation(const Hex8QuadraturePoint& point, const Hex8LocalValues& state);
 } // namespace fuelsim::c3d8_detail
-
-namespace fuelsim::c3d20_detail {
-void validate_hex20_deformation(const Hex20MechanicalQuadraturePoint& point, const Hex20LocalValues& state);
-} // namespace fuelsim::c3d20_detail

@@ -151,8 +151,27 @@ int run_cax8_tests(fuelsim::RzElementFormulation selected) {
                             data.volumetric_heat_source,
                             form,
                             true};
-                        const auto evaluate = geometry.point_count == 4 ? fuelsim::elements::evaluate_cax8rt
-                                                                        : fuelsim::elements::evaluate_cax8t;
+                        const auto evaluate = [&](const fuelsim::elements::Cax8Input& value,
+                                                  fuelsim::elements::ElementRequest request) {
+                            return geometry.point_count == 4 ? fuelsim::elements::evaluate_cax8rt(value, request)
+                                                             : fuelsim::elements::evaluate_cax8t(value, request);
+                        };
+                        for (const auto quadrature : {fuelsim::elements::Cax8Quadrature::full,
+                                 fuelsim::elements::Cax8Quadrature::reduced,
+                                 static_cast<fuelsim::elements::Cax8Quadrature>(-1)}) {
+                            const bool matches =
+                                quadrature
+                                == (geometry.point_count == 4 ? fuelsim::elements::Cax8Quadrature::reduced
+                                                              : fuelsim::elements::Cax8Quadrature::full);
+                            bool rejected = false;
+                            try {
+                                fuelsim::elements::evaluate_cax8t(input, {false, false, false, false}, quadrature);
+                            } catch (const std::invalid_argument&) {
+                                rejected = true;
+                            }
+                            if (rejected == matches)
+                                throw std::runtime_error("CAX8 quadrature validation failed");
+                        }
                         const auto full = evaluate(input, {true, true, true, true});
                         const auto tangent = evaluate(input, {true, true, false, false});
                         const auto residual_request = evaluate(input, {true, false, false, false});
