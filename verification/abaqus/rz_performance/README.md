@@ -837,3 +837,20 @@ python benchmarks/run_rz_performance.py --size medium --element cax8rt --strain 
 
 详细输入、精度范围、计时限制和复现命令见
 [CAX4T 摩擦对比报告](medium_cax4t_finite_friction/README.md)。本例未加入 CTest。
+
+## 其他三个 CAX 型号的有限应变摩擦对比（2026-09-11）
+
+CAX4RT、CAX8T、CAX8RT 均在原中等规模模型中加入与 CAX4T 相同的摩擦参数，
+保持原网格、材料、20 个加载增量，关闭摩擦生热。末态全场及带符号摩擦量
+全部通过 0.01% 门槛。单处理器两次正式外部耗时均值如下：
+
+| 型号 | Fuelsim | Abaqus | Fuelsim 用时减少 | Fuelsim 单侧切向力合计 |
+|---|---:|---:|---:|---:|
+| CAX4RT | 14.71 s | 31.68 s | 53.58% | 138.136894 N |
+| CAX8T | 97.36 s | 112.10 s | 13.15% | 138.221859 N |
+| CAX8RT | 61.69 s | 85.88 s | 28.17% | 138.213356 N |
+
+力合计统一采用 Abaqus 符号；CAX8T/CAX8RT 原始局部切向方向相反，详细转换
+说明、精度指标、节点状态数量和复现命令见
+[其他 CAX 摩擦对比报告](medium_cax_other_finite_friction/README.md)。本次未修改
+生产代码，相关 8 项测试通过，中等规模算例仍未加入 CTest。

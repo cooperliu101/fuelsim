@@ -132,18 +132,21 @@ def compare(result_path, prefix, element="cax4t", incremental=False, friction=Fa
         metrics[name]=metric(nodal['contact_'+actual_field+'_fuel_cladding'][indices],[(float(r['normal_r'])**2+float(r['normal_z'])**2)**.5 if column=='normal_r' else float(r[column]) for r in contacts],tol)
     metrics['contact_total_force']=metric([glob['contact_force_fuel_cladding']],[sum((float(r['normal_r'])**2+float(r['normal_z'])**2)**.5 for r in contacts)],1e-8)
     if friction:
-        if element != 'cax4t':
-            raise ValueError('Signed friction comparison currently covers CAX4T only')
+        quadratic = element in ('cax8t', 'cax8rt')
+        # LINE3 raw force/slip use the primary tangent; Abaqus and recovered shear
+        # use its opposite for this interface. Preserve signs after conversion.
+        tangent_sign = -1 if quadratic else 1
         shear=np.array([float(r['shear']) for r in contacts])
         slip=np.array([float(r['slip']) for r in contacts])
         tangent=np.array([np.copysign(np.hypot(float(r['tangential_r']),float(r['tangential_z'])),float(r['shear'])) for r in contacts])
         for name,field,reference,tolerance in [
-            ('contact_shear','tangential_traction',shear,1e-3),
+            ('contact_shear','recovered_shear' if quadratic else 'tangential_traction',shear,1e-3),
             ('contact_slip','total_tangential_slip',slip,1e-12),
             ('contact_tangential_force','tangential_force',tangent,1e-8)]:
-            metrics[name]=metric(nodal['contact_'+field+'_fuel_cladding'][indices],reference,tolerance)
+            sign = tangent_sign if field in ('total_tangential_slip', 'tangential_force') else 1
+            metrics[name]=metric(sign*nodal['contact_'+field+'_fuel_cladding'][indices],reference,tolerance)
         metrics['contact_total_tangential_force']=metric(
-            [glob['contact_tangential_force_fuel_cladding']],[tangent.sum()],1e-8)
+            [tangent_sign*glob['contact_tangential_force_fuel_cladding']],[tangent.sum()],1e-8)
         if not np.any(np.abs(shear)>1) or not np.any(np.abs(tangent)>1e-8):
             raise ValueError('Reference does not activate friction')
         if not np.any(np.abs(nodal['contact_tangential_traction_fuel_cladding'][indices])>1):

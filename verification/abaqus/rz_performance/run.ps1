@@ -25,7 +25,7 @@ if ($Strain -eq 'finite') {
   $Job += '_finite'
 }
 if ($Friction) {
-  if ($Size -ne 'medium' -or $Element -ne 'cax4t' -or $Strain -ne 'finite') { throw 'Friction benchmark currently supports medium finite CAX4T only' }
+  if ($Size -ne 'medium' -or $Strain -ne 'finite') { throw 'Friction benchmark supports medium finite CAX elements only' }
   $Job += '_friction'
 }
 if ($Timing) { $Job += '_timing' }

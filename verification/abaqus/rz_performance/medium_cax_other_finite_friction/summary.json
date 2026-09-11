@@ -1,0 +1,188 @@
+{
+  "cax4rt": {
+    "fuelsim_runs": [
+      {
+        "run": 0,
+        "warmup": true,
+        "external_seconds": 14.807206024997868,
+        "internal_seconds": 13.919445652,
+        "nonlinear_iterations": 46
+      },
+      {
+        "run": 1,
+        "warmup": false,
+        "external_seconds": 14.890280838008039,
+        "internal_seconds": 14.158760694,
+        "nonlinear_iterations": 46
+      },
+      {
+        "run": 2,
+        "warmup": false,
+        "external_seconds": 14.520005443016998,
+        "internal_seconds": 13.943534365,
+        "nonlinear_iterations": 46
+      }
+    ],
+    "abaqus_runs": [
+      {
+        "run": 0,
+        "warmup": true,
+        "external_seconds": 31.649502,
+        "analysis_wallclock_seconds": 28.0,
+        "nonlinear_iterations": 54,
+        "increments": 20
+      },
+      {
+        "run": 1,
+        "warmup": false,
+        "external_seconds": 31.74315,
+        "analysis_wallclock_seconds": 27.0,
+        "nonlinear_iterations": 54,
+        "increments": 20
+      },
+      {
+        "run": 2,
+        "warmup": false,
+        "external_seconds": 31.611363,
+        "analysis_wallclock_seconds": 28.0,
+        "nonlinear_iterations": 54,
+        "increments": 20
+      }
+    ],
+    "fuelsim_external_mean_seconds": 14.705143140512519,
+    "abaqus_external_mean_seconds": 31.6772565,
+    "fuelsim_elapsed_reduction_percent": 53.57823004491402,
+    "all_accuracy_metrics_passed": true,
+    "maximum_pointwise_relative_error_percent": 0.0006070245059951276,
+    "tangential_force_fuelsim_abaqus_sign_N": 138.13689431286102,
+    "tangential_force_abaqus_N": 138.13688545471925,
+    "tangential_force_relative_error_percent": 6.4125825804221e-06,
+    "active_contact_nodes": 65,
+    "sliding_contact_nodes": 61,
+    "sticking_contact_nodes": 4
+  },
+  "cax8t": {
+    "fuelsim_runs": [
+      {
+        "run": 0,
+        "warmup": true,
+        "external_seconds": 95.38496430998202,
+        "internal_seconds": 94.634228002,
+        "nonlinear_iterations": 47
+      },
+      {
+        "run": 1,
+        "warmup": false,
+        "external_seconds": 99.32972734497162,
+        "internal_seconds": 98.72876129,
+        "nonlinear_iterations": 47
+      },
+      {
+        "run": 2,
+        "warmup": false,
+        "external_seconds": 95.39041533699492,
+        "internal_seconds": 94.549581296,
+        "nonlinear_iterations": 47
+      }
+    ],
+    "abaqus_runs": [
+      {
+        "run": 0,
+        "warmup": true,
+        "external_seconds": 110.096774,
+        "analysis_wallclock_seconds": 106.0,
+        "nonlinear_iterations": 53,
+        "increments": 20
+      },
+      {
+        "run": 1,
+        "warmup": false,
+        "external_seconds": 112.160351,
+        "analysis_wallclock_seconds": 109.0,
+        "nonlinear_iterations": 53,
+        "increments": 20
+      },
+      {
+        "run": 2,
+        "warmup": false,
+        "external_seconds": 112.03795,
+        "analysis_wallclock_seconds": 107.0,
+        "nonlinear_iterations": 53,
+        "increments": 20
+      }
+    ],
+    "fuelsim_external_mean_seconds": 97.36007134098327,
+    "abaqus_external_mean_seconds": 112.09915050000001,
+    "fuelsim_elapsed_reduction_percent": 13.14825232240876,
+    "all_accuracy_metrics_passed": true,
+    "maximum_pointwise_relative_error_percent": 1.245916411066774e-05,
+    "tangential_force_fuelsim_abaqus_sign_N": 138.22185856688102,
+    "tangential_force_abaqus_N": 138.2218536759589,
+    "tangential_force_relative_error_percent": 3.538457960527825e-06,
+    "active_contact_nodes": 129,
+    "sliding_contact_nodes": 115,
+    "sticking_contact_nodes": 14
+  },
+  "cax8rt": {
+    "fuelsim_runs": [
+      {
+        "run": 0,
+        "warmup": true,
+        "external_seconds": 61.613363446027506,
+        "internal_seconds": 60.822085502,
+        "nonlinear_iterations": 47
+      },
+      {
+        "run": 1,
+        "warmup": false,
+        "external_seconds": 61.83097330102464,
+        "internal_seconds": 61.108857704,
+        "nonlinear_iterations": 47
+      },
+      {
+        "run": 2,
+        "warmup": false,
+        "external_seconds": 61.54518914601067,
+        "internal_seconds": 60.741719045,
+        "nonlinear_iterations": 47
+      }
+    ],
+    "abaqus_runs": [
+      {
+        "run": 0,
+        "warmup": true,
+        "external_seconds": 87.973154,
+        "analysis_wallclock_seconds": 83.0,
+        "nonlinear_iterations": 52,
+        "increments": 20
+      },
+      {
+        "run": 1,
+        "warmup": false,
+        "external_seconds": 85.838103,
+        "analysis_wallclock_seconds": 82.0,
+        "nonlinear_iterations": 52,
+        "increments": 20
+      },
+      {
+        "run": 2,
+        "warmup": false,
+        "external_seconds": 85.914739,
+        "analysis_wallclock_seconds": 82.0,
+        "nonlinear_iterations": 52,
+        "increments": 20
+      }
+    ],
+    "fuelsim_external_mean_seconds": 61.688081223517656,
+    "abaqus_external_mean_seconds": 85.876421,
+    "fuelsim_elapsed_reduction_percent": 28.16645069137469,
+    "all_accuracy_metrics_passed": true,
+    "maximum_pointwise_relative_error_percent": 1.8232137752253866e-05,
+    "tangential_force_fuelsim_abaqus_sign_N": 138.21335636903302,
+    "tangential_force_abaqus_N": 138.21335113665066,
+    "tangential_force_relative_error_percent": 3.7857286417280655e-06,
+    "active_contact_nodes": 129,
+    "sliding_contact_nodes": 112,
+    "sticking_contact_nodes": 17
+  }
+}

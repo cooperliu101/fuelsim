@@ -1,0 +1,141 @@
+{
+  "frames": 21,
+  "contact_nodes": 65,
+  "active_nodes": 65,
+  "sliding_nodes": 61,
+  "sticking_nodes": 4,
+  "native_signed_tangential_force_N": 138.13689431286102,
+  "tangential_force_abaqus_sign_N": 138.13689431286102,
+  "maximum_absolute_total_slip_m": 2.9393375929166967e-06,
+  "maximum_raw_pressure_Pa": 8855002.983921073,
+  "maximum_raw_shear_Pa": 1771000.5967842147,
+  "maximum_coulomb_excess_Pa": 2.3283064365386963e-10,
+  "history": [
+    {
+      "time": 0.0,
+      "active_nodes": 0,
+      "sliding_nodes": 0,
+      "tangential_force_abaqus_sign_N": 0.0
+    },
+    {
+      "time": 1.0,
+      "active_nodes": 0,
+      "sliding_nodes": 0,
+      "tangential_force_abaqus_sign_N": 0.0
+    },
+    {
+      "time": 2.0,
+      "active_nodes": 0,
+      "sliding_nodes": 0,
+      "tangential_force_abaqus_sign_N": 0.0
+    },
+    {
+      "time": 3.0,
+      "active_nodes": 0,
+      "sliding_nodes": 0,
+      "tangential_force_abaqus_sign_N": 0.0
+    },
+    {
+      "time": 4.0,
+      "active_nodes": 0,
+      "sliding_nodes": 0,
+      "tangential_force_abaqus_sign_N": 0.0
+    },
+    {
+      "time": 5.0,
+      "active_nodes": 0,
+      "sliding_nodes": 0,
+      "tangential_force_abaqus_sign_N": 0.0
+    },
+    {
+      "time": 6.0,
+      "active_nodes": 0,
+      "sliding_nodes": 0,
+      "tangential_force_abaqus_sign_N": 0.0
+    },
+    {
+      "time": 7.0,
+      "active_nodes": 0,
+      "sliding_nodes": 0,
+      "tangential_force_abaqus_sign_N": 0.0
+    },
+    {
+      "time": 8.0,
+      "active_nodes": 0,
+      "sliding_nodes": 0,
+      "tangential_force_abaqus_sign_N": 0.0
+    },
+    {
+      "time": 9.0,
+      "active_nodes": 0,
+      "sliding_nodes": 0,
+      "tangential_force_abaqus_sign_N": 0.0
+    },
+    {
+      "time": 10.0,
+      "active_nodes": 0,
+      "sliding_nodes": 0,
+      "tangential_force_abaqus_sign_N": 0.0
+    },
+    {
+      "time": 11.0,
+      "active_nodes": 1,
+      "sliding_nodes": 1,
+      "tangential_force_abaqus_sign_N": 1.0177077287426406
+    },
+    {
+      "time": 12.0,
+      "active_nodes": 2,
+      "sliding_nodes": 2,
+      "tangential_force_abaqus_sign_N": 2.528182088633904
+    },
+    {
+      "time": 13.0,
+      "active_nodes": 26,
+      "sliding_nodes": 3,
+      "tangential_force_abaqus_sign_N": 4.593884523405622
+    },
+    {
+      "time": 14.0,
+      "active_nodes": 64,
+      "sliding_nodes": 48,
+      "tangential_force_abaqus_sign_N": 20.563948685324934
+    },
+    {
+      "time": 15.0,
+      "active_nodes": 65,
+      "sliding_nodes": 55,
+      "tangential_force_abaqus_sign_N": 39.44454580342337
+    },
+    {
+      "time": 16.0,
+      "active_nodes": 65,
+      "sliding_nodes": 58,
+      "tangential_force_abaqus_sign_N": 58.716944574610935
+    },
+    {
+      "time": 17.0,
+      "active_nodes": 65,
+      "sliding_nodes": 59,
+      "tangential_force_abaqus_sign_N": 78.25864453053262
+    },
+    {
+      "time": 18.0,
+      "active_nodes": 65,
+      "sliding_nodes": 60,
+      "tangential_force_abaqus_sign_N": 98.04189896931939
+    },
+    {
+      "time": 19.0,
+      "active_nodes": 65,
+      "sliding_nodes": 60,
+      "tangential_force_abaqus_sign_N": 118.02463852074868
+    },
+    {
+      "time": 20.0,
+      "active_nodes": 65,
+      "sliding_nodes": 61,
+      "tangential_force_abaqus_sign_N": 138.13689431286102
+    }
+  ]
+}

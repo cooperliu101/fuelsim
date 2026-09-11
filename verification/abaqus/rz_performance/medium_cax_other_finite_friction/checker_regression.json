@@ -1,0 +1,4 @@
+{
+  "cax4t_friction_metrics_identical": true,
+  "reference": "../medium_cax4t_finite_friction/accuracy.json"
+}
