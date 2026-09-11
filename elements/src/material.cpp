@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <limits>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 
 namespace fuelsim {
@@ -1367,22 +1368,35 @@ AxisymmetricStressTangent evaluate_axisymmetric_stress_tangent(const IsotropicTh
     return result;
 }
 
-SymmetricTensor3Values rotate_cartesian_tensor_values(const SymmetricTensor3Values& tensor,
-    const std::array<std::array<double, 3>, 3>& rotation) {
-    const std::array<std::array<double, 3>, 3> value = {{{{tensor.xx, tensor.xy, tensor.xz}},
-        {{tensor.xy, tensor.yy, tensor.yz}},
-        {{tensor.xz, tensor.yz, tensor.zz}}}};
-    std::array<std::array<double, 3>, 3> left{};
+namespace {
+template <typename Scalar>
+std::array<Scalar, 6> rotate_cartesian_tensor_impl(const std::array<Scalar, 6>& tensor,
+    const std::array<std::array<Scalar, 3>, 3>& rotation) {
+    static_assert(std::is_same_v<Scalar, double> || std::is_same_v<Scalar, adlite::Scalar>,
+        "Material tensor rotation only supports double and adlite::Scalar");
+    const std::array<std::array<Scalar, 3>, 3> value = {{{{tensor[0], tensor[3], tensor[5]}},
+        {{tensor[3], tensor[1], tensor[4]}},
+        {{tensor[5], tensor[4], tensor[2]}}}};
+    std::array<std::array<Scalar, 3>, 3> left{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = 0; j < 3; ++j)
             for (std::size_t k = 0; k < 3; ++k)
                 left[i][j] += rotation[i][k] * value[k][j];
-    std::array<std::array<double, 3>, 3> rotated{};
+    std::array<std::array<Scalar, 3>, 3> rotated{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = i; j < 3; ++j)
             for (std::size_t k = 0; k < 3; ++k)
                 rotated[i][j] += left[i][k] * rotation[j][k];
     return {rotated[0][0], rotated[1][1], rotated[2][2], rotated[0][1], rotated[1][2], rotated[0][2]};
+}
+} // namespace
+
+SymmetricTensor3Values rotate_cartesian_tensor_values(const SymmetricTensor3Values& tensor,
+    const std::array<std::array<double, 3>, 3>& rotation) {
+    const auto rotated =
+        rotate_cartesian_tensor_impl<double>({tensor.xx, tensor.yy, tensor.zz, tensor.xy, tensor.yz, tensor.xz},
+            rotation);
+    return {rotated[0], rotated[1], rotated[2], rotated[3], rotated[4], rotated[5]};
 }
 
 CartesianInelasticStressResponse evaluate_incremental_cartesian_response(const IsotropicThermoelasticMaterial& material,
@@ -1416,19 +1430,10 @@ SymmetricTensor3 rotate_cartesian_tensor(const SymmetricTensor3& tensor, const C
     const std::array<std::array<adlite::Scalar, 3>, 3> r = {{{rotation.xx, rotation.xy, rotation.xz},
         {rotation.yx, rotation.yy, rotation.yz},
         {rotation.zx, rotation.zy, rotation.zz}}};
-    const std::array<std::array<adlite::Scalar, 3>, 3> value = {
-        {{tensor.xx, tensor.xy, tensor.xz}, {tensor.xy, tensor.yy, tensor.yz}, {tensor.xz, tensor.yz, tensor.zz}}};
-    std::array<std::array<adlite::Scalar, 3>, 3> left{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t k = 0; k < 3; ++k)
-            for (std::size_t l = 0; l < 3; ++l)
-                left[i][k] += r[i][l] * value[l][k];
-    std::array<std::array<adlite::Scalar, 3>, 3> rotated{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = i; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k)
-                rotated[i][j] += left[i][k] * r[j][k];
-    return {rotated[0][0], rotated[1][1], rotated[2][2], rotated[0][1], rotated[1][2], rotated[0][2]};
+    const auto rotated =
+        rotate_cartesian_tensor_impl<adlite::Scalar>({tensor.xx, tensor.yy, tensor.zz, tensor.xy, tensor.yz, tensor.xz},
+            r);
+    return {rotated[0], rotated[1], rotated[2], rotated[3], rotated[4], rotated[5]};
 }
 
 CartesianInelasticStressResponse IsotropicThermoelasticMaterial::incremental_response(

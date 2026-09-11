@@ -30,11 +30,14 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
 ## 依赖与 C++ 约束
 
 - 仅使用 C++17。
-- 不定义项目自己的 C++ 类模板、表达式模板或标量泛型层。函数模板仅允许两处私有例外：
-  `elements/src/c3d_common.hpp` 中的 `hughes_winget_rotation`，以及
-  `elements/src/c3d_common.cpp` 中的 `reduced_hex8_thermal_hourglass_coefficients_impl`。
-  两者仅允许 `double` 和 `adlite::Scalar`，分别用于共用三维 Hughes-Winget 转动及
-  随转应变计算、减缩热沙漏系数计算，不得扩展到材料、单元接口或自动微分播种。
+- 不定义项目自己的 C++ 类模板、表达式模板或标量泛型层。函数模板仅允许以下私有数学实现：
+  `elements/src/c3d_common.hpp` 中的 `hughes_winget_rotation`；
+  `elements/src/c3d_common.cpp` 中的 `determinant_impl`、`inverse_impl`、`multiply_impl`、
+  `reduced_hex8_thermal_hourglass_coefficients_impl`；
+  `elements/src/material.cpp` 中的 `rotate_cartesian_tensor_impl`。
+  标量类型仅允许 `double` 和 `adlite::Scalar`；矩阵运算固定为 3×3，
+  张量旋转固定为六分量三维对称张量，不得扩展为通用矩阵库、材料模型模板、
+  单元泛型接口或自动微分播种层。材料张量旋转实现不得依赖型号共用头文件。
   模板内的标量数学函数采用 `using std::函数名` 加非限定调用，通过参数相关查找
   让 `adlite::Scalar` 使用 ADlite 重载、`double` 使用标准库，不得剥离导数来调用数学函数。
   轴对称 Hughes-Winget 计算使用 `cax_common` 中的普通具体类型函数。
