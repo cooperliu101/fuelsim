@@ -1,0 +1,32 @@
+{
+  "baseline_commit": "011636f",
+  "candidate_note": "Source changes were uncommitted during validation and measurement; these SHA256 digests identify tested source and executable.",
+  "sha256": {
+    "elements/src/cax4t.cpp": "56dc696cb09ff4924a4c5a5971d9fd61700ce38ff856ba7a4d61baff960ea170",
+    "elements/tests/cax4t_tests.cpp": "3d3611ba45c0fca0ccff625db983f2d9a1784099b925650be19c52669a29b072",
+    "src/core/cax4_evaluation.hpp": "f7272d4ad2a53e25af42e75b9487f92ed8b250f95cc6c46f2c946c6e41a77f1e",
+    "src/core/spatial_problem.cpp": "7ccc91e20b55b661b4c54b9d6c606cbd9ecba8c8c8a61763ba58aed6bd39a50a",
+    "CMakeLists.txt": "583ac0ef7d031a19f99f3682bc25f314284adfcf73e98a13096ac6edc8b86c15",
+    "verification/fuelsim/quasistatic_rz_performance_medium_cax4t_finite.fsi": "1ee6063aa1643ebf0e7aea5502cc81b4ac8d9d849d75642fdb7c46ecd80301c7",
+    "verification/fuelsim/quasistatic_rz_performance_medium_cax4t_finite_timing.fsi": "a5f6a730aa320315936d8dbafc98f48f2d9c05aaa3d49fd8165731cb831f0692",
+    "verification/fuelsim/steady_rz_performance_medium.fsi": "0db24a19ea81abd4cf1909f5c408ed9623c298b7d58168690205ae1415457be4",
+    "verification/fuelsim/steady_rz_performance_medium_timing.fsi": "29b3afabe1cc315438fcc29a9d3b3a414b7fecdd188de572d0e0555755a0a1b3",
+    "verification/meshes/rz_performance_medium.e": "2474721e4e17738601bc750f81dd678fde7be16aba621477b083f46af824b8c7",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax4t_finite_timing.inp": "c4f6bfae37899e08033f07cd02ead34fd5d7cd02ad2daaac412157471254eb6e",
+    "verification/abaqus/rz_performance/rz_performance_medium_mesh.inc": "6f85d8fc0535c50b2c5ad5ce5cfc0c9bd5e9a479817ccf723817046141be1198",
+    "verification/abaqus/rz_performance/material_contact.inc": "750d4945e330983e8d84d6cafceccf2a12b4b6291547fef0dd3ce946a3ab7efe",
+    "verification/abaqus/rz_performance/run.ps1": "785eadcc38e1fb2f2a530b3590fd8fed3b62b722da6dc8d0255e289ed102b920",
+    "build/fuelsim": "afb023206e67f5a8a13c8b5b1afb8bda01ada1972a737daff28a38204d1222d1",
+    "verification/abaqus/rz_performance/medium_cax4t_finite/rz_performance_medium_cax4t_finite_points.csv.gz": "b704cec8414bc0c43ca81a7d09a1733dc39c33075e2e7b657ef79fc2edc6a538",
+    "verification/abaqus/rz_performance/medium_cax4t_finite/rz_performance_medium_cax4t_finite_contact.csv.gz": "c13be13782940d16ed2e8ff3ae1637814a75aa813e2a4b5a53ef4d099da0913c",
+    "verification/abaqus/rz_performance/medium_cax4t_finite/rz_performance_medium_cax4t_finite_nodes.csv.gz": "16ed33d61b7a71fb2b994c8243ae018c8c17de836b730040079eba528e5b6a6d"
+  },
+  "baseline_executable_sha256": "d4ae6f0665cef98017cf9f11c4c04bd85c051d1ce6ff9f21949dd4b5dd404c8d",
+  "equivalence_result_sha256": {
+    "/tmp/cax4t-speed/accuracy/fuelsim/quasistatic_rz_performance_medium_cax4t_finite_results.e": "c73d51a44ed6913a65b4c20f46639c49914cafa2c7532c6b22300b36dc530962",
+    "/tmp/cax4t-incremental/fuelsim/quasistatic_rz_performance_medium_cax4t_finite_results.e": "c73d51a44ed6913a65b4c20f46639c49914cafa2c7532c6b22300b36dc530962",
+    "/tmp/cax4t-speed/accuracy/fuelsim/steady_rz_performance_medium_results.e": "893d2ddf47a97626f3e98da9a9ad9839473eebafe7b90484921a9efd9ca5140e",
+    "/tmp/rz-medium-elements-accuracy/fuelsim/steady_rz_performance_medium_results.e": "893d2ddf47a97626f3e98da9a9ad9839473eebafe7b90484921a9efd9ca5140e"
+  },
+  "build": "Release, GCC 14.3.0, -O3 -DNDEBUG, Release LTO, ADlite 0.2.3 SIMD, moose PETSc 3.25.2. Compiler/dependencies/options unchanged from retained baseline executable."
+}

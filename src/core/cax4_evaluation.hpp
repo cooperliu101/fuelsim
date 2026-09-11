@@ -13,8 +13,8 @@ inline elements::Cax4Result evaluate_cax4(const AxisymmetricRegionData& data,
     const Cax4LocalValues& committed,
     const Quad4MaterialHistory* history,
     double time_step,
-    bool jacobian,
-    bool thermal_time) {
+    bool thermal_time,
+    elements::ElementRequest request) {
     const elements::Cax4Input input{data.material,
         geometry,
         state,
@@ -28,9 +28,9 @@ inline elements::Cax4Result evaluate_cax4(const AxisymmetricRegionData& data,
         data.initial_temperature};
     switch (data.element_formulation) {
     case RzElementFormulation::cax4t:
-        return elements::evaluate_cax4t(input, {true, jacobian, true, false});
+        return elements::evaluate_cax4t(input, request);
     case RzElementFormulation::cax4rt:
-        return elements::evaluate_cax4rt(input, {true, jacobian, true, false});
+        return elements::evaluate_cax4rt(input, request);
     default:
         throw std::invalid_argument("Four-node axisymmetric region requires CAX4T or CAX4RT");
     }
@@ -40,7 +40,8 @@ inline Cax4LocalResidual compute_cax4_thermoelastic(const AxisymmetricRegionData
     const Quad4RzGeometry& geometry,
     const Cax4LocalValues& state,
     Cax4LocalJacobian* jacobian = nullptr) {
-    const auto result = evaluate_cax4(data, geometry, state, {}, nullptr, 0, jacobian != nullptr, false);
+    const auto result =
+        evaluate_cax4(data, geometry, state, {}, nullptr, 0, false, {true, jacobian != nullptr, false, false});
     if (jacobian)
         *jacobian = result.jacobian;
     return result.residual;
@@ -49,11 +50,7 @@ inline Cax4LocalResidual compute_cax4_thermoelastic(const AxisymmetricRegionData
 inline std::array<AxisymmetricStressValues, 4> compute_cax4_thermoelastic_stress(const AxisymmetricRegionData& data,
     const Quad4RzGeometry& geometry,
     const Cax4LocalValues& state) {
-    const auto result = evaluate_cax4(data, geometry, state, {}, nullptr, 0, false, false);
-    std::array<AxisymmetricStressValues, 4> stress{};
-    for (std::size_t q = 0; q < stress.size(); ++q)
-        stress[q] = result.history[q].stress;
-    return stress;
+    return evaluate_cax4(data, geometry, state, {}, nullptr, 0, false, {false, false, false, true}).stress;
 }
 
 inline Cax4LocalResidual compute_cax4_transient(const AxisymmetricRegionData& data,
@@ -64,8 +61,14 @@ inline Cax4LocalResidual compute_cax4_transient(const AxisymmetricRegionData& da
     double time_step,
     Cax4LocalJacobian* jacobian = nullptr,
     bool thermal_time = true) {
-    const auto result =
-        evaluate_cax4(data, geometry, state, committed, &history, time_step, jacobian != nullptr, thermal_time);
+    const auto result = evaluate_cax4(data,
+        geometry,
+        state,
+        committed,
+        &history,
+        time_step,
+        thermal_time,
+        {true, jacobian != nullptr, false, false});
     if (jacobian)
         *jacobian = result.jacobian;
     return result.residual;
@@ -77,6 +80,7 @@ inline Quad4MaterialHistory compute_cax4_transient_update(const AxisymmetricRegi
     const Cax4LocalValues& committed,
     const Quad4MaterialHistory& history,
     double time_step) {
-    return evaluate_cax4(data, geometry, state, committed, &history, time_step, false, false).history;
+    return evaluate_cax4(data, geometry, state, committed, &history, time_step, false, {false, false, true, false})
+        .history;
 }
 } // namespace fuelsim

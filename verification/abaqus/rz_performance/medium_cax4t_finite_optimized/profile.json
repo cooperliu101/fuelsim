@@ -1,0 +1,19 @@
+{
+  "baseline_commit": "011636f",
+  "baseline_executable_sha256": "d4ae6f0665cef98017cf9f11c4c04bd85c051d1ce6ff9f21949dd4b5dd404c8d",
+  "method": "Temporary steady_clock phase instrumentation inside evaluate_cax4t, removed before production validation and timing. Not a formal external timing measurement.",
+  "without_jacobian": {
+    "calls": 786944,
+    "geometry_seconds": 3.071742,
+    "material_seconds": 6.186632,
+    "history_seconds": 5.258105,
+    "assembly_seconds": 2.065911
+  },
+  "with_jacobian": {
+    "calls": 341504,
+    "geometry_seconds": 4.788471,
+    "material_seconds": 10.192402,
+    "history_seconds": 2.501833,
+    "assembly_seconds": 4.899891
+  }
+}

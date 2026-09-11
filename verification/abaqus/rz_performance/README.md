@@ -791,3 +791,22 @@ python benchmarks/run_rz_performance.py --size medium --element cax8rt --strain 
 `medium_cax4t_finite_timing/`、`medium_cax4rt_finite_timing/`、
 `medium_cax8t_finite_timing/` 和 `medium_cax8rt_finite_timing/`。
 这些仍是手动性能验证资料，没有加入 CTest 测试套件。
+
+## CAX4T 代码优化后的正式结果（2026-09-11）
+
+上述四型号计时保留为优化前记录。本次针对 CAX4T 减少未使用的材料历史输出、
+切线修正系数的导数传播和重复热应变函数调用，没有修改物理或求解参数。
+同一环境下保留原版可执行文件，与优化版预热后交替测量两次：
+
+| CAX4T 算例 | 原版外部耗时均值 | 优化版外部耗时均值 | 耗时减少 |
+|---|---:|---:|---:|
+| 有限应变中等规模 | 45.2303 s | **35.9838 s** | **20.44%** |
+| 小应变中等规模 | 21.8196 s | 21.6774 s | 0.65%，基本持平 |
+
+同批重测 Abaqus 有限应变平均 **43.7243 s**，优化版 Fuelsim 用时少 **17.70%**。
+全部运行保持 20 个增量或载荷步，Fuelsim 均为 46 次非线性迭代。
+有限应变全部 21 个输出时刻的 228 个数值数组、小应变的 89 个数值数组均与
+原版逐项相同，对 Abaqus 的既有 0.01% 门槛继续通过，完整回归 281/281 通过。
+
+详细代码边界、逐次时间、环境限制、全场等价性及可复现命令见
+[CAX4T 优化报告](medium_cax4t_finite_optimized/README.md)。

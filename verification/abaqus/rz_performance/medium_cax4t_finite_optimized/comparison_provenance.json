@@ -1,0 +1,12 @@
+{
+  "git_revision": "011636fbc91044b1d70deca290532cdcaa2e2109",
+  "sha256": {
+    "/tmp/cax4t-speed/fuelsim-baseline": "d4ae6f0665cef98017cf9f11c4c04bd85c051d1ce6ff9f21949dd4b5dd404c8d",
+    "/home/cooper/ai_project/fuelsim/build/fuelsim": "afb023206e67f5a8a13c8b5b1afb8bda01ada1972a737daff28a38204d1222d1",
+    "/home/cooper/ai_project/fuelsim/verification/fuelsim/quasistatic_rz_performance_medium_cax4t_finite_timing.fsi": "a5f6a730aa320315936d8dbafc98f48f2d9c05aaa3d49fd8165731cb831f0692",
+    "/home/cooper/ai_project/fuelsim/verification/fuelsim/steady_rz_performance_medium_timing.fsi": "29b3afabe1cc315438fcc29a9d3b3a414b7fecdd188de572d0e0555755a0a1b3"
+  },
+  "order": "warm baseline, warm candidate, baseline, candidate, candidate, baseline",
+  "cpu": 0,
+  "threads": 1
+}

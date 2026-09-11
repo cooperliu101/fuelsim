@@ -1,0 +1,299 @@
+{
+  "baseline_commit": "011636f",
+  "protocol": "One warmup per binary/strain, then baseline/candidate/candidate/baseline. CPU 0, one MPI rank and one thread, MUMPS, output disabled. All solver runs sequential with builds and CTest completed first.",
+  "physics_and_solver_options_changed": false,
+  "accuracy_relative_gate": 0.0001,
+  "full_ctest": {
+    "passed": 281,
+    "failed": 0,
+    "seconds": 172.48,
+    "parallel_jobs": 4
+  },
+  "cases": {
+    "finite": {
+      "baseline": {
+        "external_seconds": [
+          45.3799677460338,
+          45.08064860699233
+        ],
+        "external_mean_seconds": 45.23030817651306,
+        "internal_mean_seconds": 44.6214883205,
+        "iterations": [
+          46,
+          46
+        ]
+      },
+      "candidate": {
+        "external_seconds": [
+          35.87034201796632,
+          36.097160281962715
+        ],
+        "external_mean_seconds": 35.98375114996452,
+        "internal_mean_seconds": 35.304046407,
+        "iterations": [
+          46,
+          46
+        ]
+      },
+      "elapsed_reduction_percent": 20.44327664198857,
+      "equivalence": {
+        "frames": 21,
+        "numeric_arrays": 228,
+        "text_arrays": 7,
+        "different_arrays": [],
+        "all_identical": true
+      },
+      "accuracy": {
+        "temperature": {
+          "samples": 7670,
+          "maximum_absolute_error": 1.996898504330602e-06,
+          "zero_reference_samples": 0,
+          "zero_reference_absolute_error": 0.0,
+          "zero_absolute_tolerance": 1e-08,
+          "relative_l2": 1.8433679962957845e-09,
+          "relative_absolute_peak": 2.657832424560523e-09,
+          "relative_maximum_absolute_error": 2.657832424560523e-09,
+          "maximum_pointwise_relative": 2.657832424560523e-09,
+          "passed": true
+        },
+        "prescribed_displacement": {
+          "samples": 366,
+          "maximum_absolute_error": 1.0101010546581124e-34,
+          "zero_reference_samples": 366,
+          "zero_reference_absolute_error": 1.0101010546581124e-34,
+          "zero_absolute_tolerance": 1e-12,
+          "passed": true
+        },
+        "free_displacement": {
+          "samples": 7670,
+          "maximum_absolute_error": 1.3165353478076548e-13,
+          "zero_reference_samples": 1,
+          "zero_reference_absolute_error": 0.0,
+          "zero_absolute_tolerance": 1e-12,
+          "relative_l2": 1.2063376170112417e-08,
+          "relative_absolute_peak": 1.23650077264154e-08,
+          "relative_maximum_absolute_error": 1.23650077264154e-08,
+          "maximum_pointwise_relative": 3.3671849480815566e-08,
+          "passed": true
+        },
+        "stress_tensor": {
+          "samples": 29696,
+          "maximum_absolute_error": 3.561043708020111,
+          "zero_reference_samples": 0,
+          "zero_reference_absolute_error": 0.0,
+          "zero_absolute_tolerance": 0.001,
+          "relative_l2": 1.3853445812946104e-08,
+          "relative_absolute_peak": 1.327991139025162e-08,
+          "relative_maximum_absolute_error": 1.3283177462806716e-08,
+          "maximum_pointwise_relative": 4.3021368371258726e-08,
+          "passed": true
+        },
+        "contact_pressure": {
+          "samples": 65,
+          "maximum_absolute_error": 0.21646629087626934,
+          "zero_reference_samples": 0,
+          "zero_reference_absolute_error": 0.0,
+          "zero_absolute_tolerance": 0.001,
+          "relative_l2": 2.9255152730927135e-08,
+          "relative_absolute_peak": 2.1651988878848402e-08,
+          "relative_maximum_absolute_error": 2.1651988878848402e-08,
+          "maximum_pointwise_relative": 3.9302033598085706e-08,
+          "passed": true
+        },
+        "contact_gap": {
+          "samples": 65,
+          "maximum_absolute_error": 2.1640698920914514e-15,
+          "zero_reference_samples": 0,
+          "zero_reference_absolute_error": 0.0,
+          "zero_absolute_tolerance": 1e-12,
+          "relative_l2": 2.9246818190016617e-08,
+          "relative_absolute_peak": 2.1646057243674785e-08,
+          "relative_maximum_absolute_error": 2.1646057243674785e-08,
+          "maximum_pointwise_relative": 3.92508403560323e-08,
+          "passed": true
+        },
+        "contact_normal_force": {
+          "samples": 65,
+          "maximum_absolute_error": 6.383538426746327e-07,
+          "zero_reference_samples": 0,
+          "zero_reference_absolute_error": 0.0,
+          "zero_absolute_tolerance": 1e-08,
+          "relative_l2": 3.035003165930106e-08,
+          "relative_absolute_peak": 2.3481342698094247e-08,
+          "relative_maximum_absolute_error": 2.3481342698094247e-08,
+          "maximum_pointwise_relative": 3.9312163959592585e-08,
+          "passed": true
+        },
+        "contact_total_force": {
+          "samples": 1,
+          "maximum_absolute_error": 2.07229990110136e-05,
+          "zero_reference_samples": 0,
+          "zero_reference_absolute_error": 0.0,
+          "zero_absolute_tolerance": 1e-08,
+          "relative_l2": 3.1032442047301494e-08,
+          "relative_absolute_peak": 3.1032442047301494e-08,
+          "relative_maximum_absolute_error": 3.1032442047301494e-08,
+          "maximum_pointwise_relative": 3.1032442047301494e-08,
+          "passed": true
+        }
+      }
+    },
+    "small": {
+      "baseline": {
+        "external_seconds": [
+          21.970518579997588,
+          21.668715677049477
+        ],
+        "external_mean_seconds": 21.819617128523532,
+        "internal_mean_seconds": 21.144441399999998,
+        "iterations": [
+          46,
+          46
+        ]
+      },
+      "candidate": {
+        "external_seconds": [
+          21.73199229600141,
+          21.622805004008114
+        ],
+        "external_mean_seconds": 21.67739865000476,
+        "internal_mean_seconds": 21.115653690000002,
+        "iterations": [
+          46,
+          46
+        ]
+      },
+      "elapsed_reduction_percent": 0.6517918150491187,
+      "equivalence": {
+        "frames": 1,
+        "numeric_arrays": 89,
+        "text_arrays": 7,
+        "different_arrays": [],
+        "all_identical": true
+      },
+      "accuracy": {
+        "temperature": {
+          "samples": 7670,
+          "maximum_absolute_error": 2.022538751589309e-06,
+          "zero_reference_samples": 0,
+          "zero_reference_absolute_error": 0.0,
+          "zero_absolute_tolerance": 1e-08,
+          "relative_l2": 1.9276259534120433e-09,
+          "relative_absolute_peak": 2.558443359019796e-09,
+          "relative_maximum_absolute_error": 2.692992638179199e-09,
+          "maximum_pointwise_relative": 2.6931930650565214e-09,
+          "passed": true
+        },
+        "prescribed_displacement": {
+          "samples": 366,
+          "maximum_absolute_error": 1.0080293511445712e-34,
+          "zero_reference_samples": 366,
+          "zero_reference_absolute_error": 1.0080293511445712e-34,
+          "zero_absolute_tolerance": 1e-12,
+          "passed": true
+        },
+        "free_displacement": {
+          "samples": 7670,
+          "maximum_absolute_error": 1.3883570162932183e-13,
+          "zero_reference_samples": 1,
+          "zero_reference_absolute_error": 0.0,
+          "zero_absolute_tolerance": 1e-12,
+          "relative_l2": 1.301238002462751e-08,
+          "relative_absolute_peak": 1.307230774480078e-08,
+          "relative_maximum_absolute_error": 1.307230774480078e-08,
+          "maximum_pointwise_relative": 3.6556135975385597e-08,
+          "passed": true
+        },
+        "stress_tensor": {
+          "samples": 29696,
+          "maximum_absolute_error": 3.9865257320790652,
+          "zero_reference_samples": 0,
+          "zero_reference_absolute_error": 0.0,
+          "zero_absolute_tolerance": 0.001,
+          "relative_l2": 1.3935985757318098e-08,
+          "relative_absolute_peak": 1.4865680645761868e-08,
+          "relative_maximum_absolute_error": 1.4894539454036593e-08,
+          "maximum_pointwise_relative": 4.711684377633834e-08,
+          "passed": true
+        },
+        "contact_pressure": {
+          "samples": 65,
+          "maximum_absolute_error": 0.22068492323160172,
+          "zero_reference_samples": 0,
+          "zero_reference_absolute_error": 0.0,
+          "zero_absolute_tolerance": 0.001,
+          "relative_l2": 3.236688452664075e-08,
+          "relative_absolute_peak": 2.2136153687641235e-08,
+          "relative_maximum_absolute_error": 2.2136153687641235e-08,
+          "maximum_pointwise_relative": 4.061281216580823e-08,
+          "passed": true
+        },
+        "contact_gap": {
+          "samples": 65,
+          "maximum_absolute_error": 2.207437939286202e-15,
+          "zero_reference_samples": 0,
+          "zero_reference_absolute_error": 0.0,
+          "zero_absolute_tolerance": 1e-12,
+          "relative_l2": 3.2369831440082546e-08,
+          "relative_absolute_peak": 2.2142058807060684e-08,
+          "relative_maximum_absolute_error": 2.2142058807060684e-08,
+          "maximum_pointwise_relative": 4.063667565453886e-08,
+          "passed": true
+        },
+        "contact_normal_force": {
+          "samples": 65,
+          "maximum_absolute_error": 6.531350393856883e-07,
+          "zero_reference_samples": 0,
+          "zero_reference_absolute_error": 0.0,
+          "zero_absolute_tolerance": 1e-08,
+          "relative_l2": 3.378195727574112e-08,
+          "relative_absolute_peak": 2.410826400298065e-08,
+          "relative_maximum_absolute_error": 2.410826400298065e-08,
+          "maximum_pointwise_relative": 4.0623246660885676e-08,
+          "passed": true
+        },
+        "contact_total_force": {
+          "samples": 1,
+          "maximum_absolute_error": 2.3014541511656716e-05,
+          "zero_reference_samples": 0,
+          "zero_reference_absolute_error": 0.0,
+          "zero_absolute_tolerance": 1e-08,
+          "relative_l2": 3.4657499368460895e-08,
+          "relative_absolute_peak": 3.4657499368460895e-08,
+          "relative_maximum_absolute_error": 3.4657499368460895e-08,
+          "maximum_pointwise_relative": 3.4657499368460895e-08,
+          "passed": true
+        }
+      }
+    }
+  },
+  "abaqus_finite": {
+    "runs": [
+      {
+        "run": 0,
+        "warmup": true,
+        "external_seconds": 43.767393,
+        "analysis_seconds": 40.0,
+        "iterations": 53
+      },
+      {
+        "run": 1,
+        "warmup": false,
+        "external_seconds": 43.755328,
+        "analysis_seconds": 40.0,
+        "iterations": 53
+      },
+      {
+        "run": 2,
+        "warmup": false,
+        "external_seconds": 43.693241,
+        "analysis_seconds": 40.0,
+        "iterations": 53
+      }
+    ],
+    "external_mean_seconds": 43.724284499999996,
+    "analysis_mean_seconds": 40.0
+  },
+  "finite_candidate_vs_abaqus_elapsed_reduction_percent": 17.70305320841895,
+  "environment_limit": "Same host, Fuelsim in WSL2 Linux and Abaqus in Windows. CPU 0 pinning across the VM boundary does not prove identical physical-core placement; two measured repetitions do not establish a universal speed ratio."
+}

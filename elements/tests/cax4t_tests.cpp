@@ -165,6 +165,31 @@ void check_nonlinear_transaction(StrainFormulation form) {
     const auto passive = evaluate_cax4t(input);
     require(active.residual == passive.residual, "Residual-only and tangent calls must match exactly");
     require(same_history(active.history, passive.history), "Trial history must not depend on requesting tangent");
+    const auto tangent_only = evaluate_cax4t(input, {false, true, false, true});
+    const auto residual_only = evaluate_cax4t(input, {true, false, false, false});
+    const auto history_only = evaluate_cax4t(input, {false, false, true, false});
+    const auto stress_only = evaluate_cax4t(input, {false, false, false, true});
+    require(tangent_only.residual == active.residual && tangent_only.jacobian == active.jacobian
+                && residual_only.residual == active.residual,
+        "Omitting trial history must preserve the exact residual and tangent");
+    require(same_history(tangent_only.history, {}) && same_history(residual_only.history, {})
+                && same_history(stress_only.history, {}),
+        "Unrequested trial history must be empty");
+    require(same_history(history_only.history, active.history) && history_only.residual == Cax4LocalResidual{}
+                && stress_only.residual == Cax4LocalResidual{},
+        "History and stress requests must not require residual output");
+    for (std::size_t q = 0; q < 4; ++q) {
+        const auto& expected = active.history[q].stress;
+        for (const auto& actual : {tangent_only.stress[q], stress_only.stress[q]})
+            require(actual.rr == expected.rr && actual.zz == expected.zz && actual.hoop == expected.hoop
+                        && actual.rz == expected.rz,
+                "Stress output must not require trial history output");
+    }
+    require(residual_only.stored_heat_rate == active.stored_heat_rate
+                && residual_only.generated_heat_rate == active.generated_heat_rate
+                && history_only.stored_heat_rate == active.stored_heat_rate
+                && history_only.generated_heat_rate == active.generated_heat_rate,
+        "Request flags must preserve thermal conservation diagnostics");
     require(same_history(history, saved_history) && state == saved_state && old == saved_old, "Inputs are immutable");
     bool plastic = false, creep = false;
     for (std::size_t q = 0; q < 4; ++q) {

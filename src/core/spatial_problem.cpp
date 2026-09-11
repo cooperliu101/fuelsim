@@ -1721,8 +1721,8 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     committed_state,
                     &_impl->material_histories[region][element],
                     _impl->active_time_step,
-                    false,
-                    _impl->include_thermal_time_term);
+                    _impl->include_thermal_time_term,
+                    {true, false, true, false});
                 auto update = std::move(result.history);
                 conservation.stored_heat_rate += result.stored_heat_rate;
                 conservation.generated_heat_rate += result.generated_heat_rate;

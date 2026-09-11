@@ -173,6 +173,7 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
             if (jacobian)
                 ce[i].copy_derivatives(&center_derivative[i], 1);
         }
+        std::array<double, 4> old_imposed{};
         if (old_history && finite_strain) {
             auto old_context = context;
             old_context.time -= time_step;
@@ -181,6 +182,7 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
             const auto oc = data.material.eigenstrain_rz(
                 adlite::Scalar((old_state[0] + old_state[1] + old_state[2] + old_state[3]) / 4.0),
                 old_context);
+            old_imposed = {op.rr.value(), op.zz.value(), op.hoop.value(), op.rz.value()};
             const std::array<double, 4> difference = {op.rr.value() - oc.rr.value(),
                 op.zz.value() - oc.zz.value(),
                 op.hoop.value() - oc.hoop.value(),
@@ -190,16 +192,8 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
         }
         std::array<double, 4> fed = {inputs[0].value(), inputs[1].value(), inputs[2].value(), inputs[3].value()};
         if (old_history && data.strain_formulation == StrainFormulation::finite) {
-            auto old_context = context;
-            old_context.time -= time_step;
-            const auto eigen =
-                data.material.eigenstrain_rz(adlite::Scalar(interpolate(point.shape, old_state, 0)), old_context);
-            const std::array<double, 4> imposed = {eigen.rr.value(),
-                eigen.zz.value(),
-                eigen.hoop.value(),
-                eigen.rz.value()};
             for (std::size_t i = 0; i < 4; ++i)
-                fed[i] = (*old_history)[q].elastic_strain[i] + inputs[i].value() + imposed[i]
+                fed[i] = (*old_history)[q].elastic_strain[i] + inputs[i].value() + old_imposed[i]
                          + (*old_history)[q].plastic_strain[i] + (*old_history)[q].creep_strain[i];
         }
         AxisymmetricStressTangent tangent;
@@ -252,9 +246,18 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
             center_response[3]};
         if (data.strain_formulation == StrainFormulation::finite) {
             s.stress = rotate_axisymmetric_tensor(s.stress, k.rotation);
-            trace_stress = rotate_axisymmetric_tensor(trace_stress, k.rotation);
-            hoop_tangent = rotate_axisymmetric_tensor(hoop_tangent, k.rotation);
-            center_tangent = rotate_axisymmetric_tensor(center_tangent, k.rotation);
+            if (jacobian) {
+                // These are coefficients of the explicit cross-point chain.
+                // Only their values are used; rotation derivatives already enter s.stress.
+                const AxisymmetricRotation rotation = {k.rotation.rr.value(),
+                    k.rotation.rz.value(),
+                    k.rotation.zr.value(),
+                    k.rotation.zz.value(),
+                    k.rotation.hoop.value()};
+                trace_stress = rotate_axisymmetric_tensor(trace_stress, rotation);
+                hoop_tangent = rotate_axisymmetric_tensor(hoop_tangent, rotation);
+                center_tangent = rotate_axisymmetric_tensor(center_tangent, rotation);
+            }
         }
         const std::array<adlite::Scalar, 4> final_sigma = {s.stress.rr, s.stress.zz, s.stress.hoop, s.stress.rz};
         trace_response = {trace_stress.rr.value(),
@@ -281,11 +284,12 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
         const double weight = point.weighted_measure / reference_volume;
         pressure += weight * (s.stress.rr.value() + s.stress.zz.value()) / 2.0;
         hoop_stress += weight * s.stress.hoop.value();
-        for (std::size_t j = 0; j < 12; ++j) {
-            pressure_derivatives[j] += weight * (s.stress_derivatives[0][j] + s.stress_derivatives[1][j]) / 2.0;
-            hoop_stress_derivatives[j] += weight * s.stress_derivatives[2][j];
-        }
-        if (old_history) {
+        if (jacobian)
+            for (std::size_t j = 0; j < 12; ++j) {
+                pressure_derivatives[j] += weight * (s.stress_derivatives[0][j] + s.stress_derivatives[1][j]) / 2.0;
+                hoop_stress_derivatives[j] += weight * s.stress_derivatives[2][j];
+            }
+        if (old_history && request.history) {
             const AxisymmetricRotation rotation = {k.rotation.rr.value(),
                 k.rotation.rz.value(),
                 k.rotation.zr.value(),
