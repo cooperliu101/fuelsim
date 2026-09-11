@@ -13,12 +13,16 @@ parser.add_argument('--root', type=Path, required=True)
 parser.add_argument('--executable', type=Path, required=True)
 parser.add_argument('--results', type=Path, required=True)
 parser.add_argument('--element', choices=('cax4t', 'cax4rt', 'cax8t', 'cax8rt'), default='cax4t')
+parser.add_argument('--coupled', action='store_true')
 args = parser.parse_args()
 root = args.root.resolve()
 executable = args.executable.resolve()
 results = args.results.resolve()
 results.mkdir(parents=True, exist_ok=True)
-card = root / f'verification/fuelsim/quasistatic_rz_performance_medium_{args.element}_finite_friction_timing.fsi'
+if args.coupled and args.element != 'cax4t':
+    parser.error('The coupled benchmark currently supports CAX4T only')
+material_suffix = '_coupled' if args.coupled else ''
+card = root / f'verification/fuelsim/quasistatic_rz_performance_medium_{args.element}_finite_friction{material_suffix}_timing.fsi'
 env = os.environ.copy()
 env.pop('PETSC_OPTIONS', None)
 env.update(OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1', MKL_NUM_THREADS='1', NUMEXPR_NUM_THREADS='1')

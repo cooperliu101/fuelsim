@@ -1,0 +1,986 @@
+{
+  "all_final_metrics_passed": false,
+  "simultaneous_activation_verified": false,
+  "activation_increment_threshold": 1e-14,
+  "metrics": {
+    "temperature": {
+      "samples": 7670,
+      "maximum_absolute_error": 15.987279450744381,
+      "zero_reference_samples": 0,
+      "zero_reference_absolute_error": 0.0,
+      "zero_absolute_tolerance": 1e-08,
+      "relative_l2": 0.014911030205925779,
+      "relative_absolute_peak": 0.02127220272626485,
+      "relative_maximum_absolute_error": 0.021279367570962722,
+      "maximum_pointwise_relative": 0.021279367570962722,
+      "passed": false
+    },
+    "prescribed_displacement": {
+      "samples": 366,
+      "maximum_absolute_error": 1.0068016895214574e-34,
+      "zero_reference_samples": 366,
+      "zero_reference_absolute_error": 1.0068016895214574e-34,
+      "zero_absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    "free_displacement": {
+      "samples": 7670,
+      "maximum_absolute_error": 1.0242118273330018e-06,
+      "zero_reference_samples": 1,
+      "zero_reference_absolute_error": 0.0,
+      "zero_absolute_tolerance": 1e-12,
+      "relative_l2": 0.09587241129870205,
+      "relative_absolute_peak": 0.09685248672179357,
+      "relative_maximum_absolute_error": 0.09685248672179357,
+      "maximum_pointwise_relative": 0.27736000624089735,
+      "passed": false
+    },
+    "stress_tensor": {
+      "samples": 29696,
+      "maximum_absolute_error": 30299120.455509897,
+      "zero_reference_samples": 0,
+      "zero_reference_absolute_error": 0.0,
+      "zero_absolute_tolerance": 0.001,
+      "relative_l2": 0.11368689497604824,
+      "relative_absolute_peak": 0.0985756603208163,
+      "relative_maximum_absolute_error": 0.11254929709015568,
+      "maximum_pointwise_relative": 0.9754874298327535,
+      "passed": false
+    },
+    "contact_pressure": {
+      "samples": 65,
+      "maximum_absolute_error": 711582.9681552472,
+      "zero_reference_samples": 0,
+      "zero_reference_absolute_error": 0.0,
+      "zero_absolute_tolerance": 0.001,
+      "relative_l2": 0.8446943741593002,
+      "relative_absolute_peak": 0.6748867608468065,
+      "relative_maximum_absolute_error": 0.6748867608468065,
+      "maximum_pointwise_relative": 2.274871864668579,
+      "passed": false
+    },
+    "contact_gap": {
+      "samples": 65,
+      "maximum_absolute_error": 7.115829680405424e-09,
+      "zero_reference_samples": 0,
+      "zero_reference_absolute_error": 0.0,
+      "zero_absolute_tolerance": 1e-12,
+      "relative_l2": 0.8446943741850601,
+      "relative_absolute_peak": 0.6748867606645966,
+      "relative_maximum_absolute_error": 0.6748867606645966,
+      "maximum_pointwise_relative": 2.274871863308599,
+      "passed": false
+    },
+    "contact_normal_force": {
+      "samples": 65,
+      "maximum_absolute_error": 2.2078407005138465,
+      "zero_reference_samples": 0,
+      "zero_reference_absolute_error": 0.0,
+      "zero_absolute_tolerance": 1e-08,
+      "relative_l2": 0.8571563754485425,
+      "relative_absolute_peak": 0.7455692860948772,
+      "relative_maximum_absolute_error": 0.7455692860948772,
+      "maximum_pointwise_relative": 2.2746256137365877,
+      "passed": false
+    },
+    "contact_total_force": {
+      "samples": 1,
+      "maximum_absolute_error": 88.8478226341462,
+      "zero_reference_samples": 0,
+      "zero_reference_absolute_error": 0.0,
+      "zero_absolute_tolerance": 1e-08,
+      "relative_l2": 0.8660253156674617,
+      "relative_absolute_peak": 0.8660253156674617,
+      "relative_maximum_absolute_error": 0.8660253156674617,
+      "maximum_pointwise_relative": 0.8660253156674617,
+      "passed": false
+    },
+    "contact_shear": {
+      "samples": 65,
+      "maximum_absolute_error": 142316.59363104936,
+      "zero_reference_samples": 0,
+      "zero_reference_absolute_error": 0.0,
+      "zero_absolute_tolerance": 0.001,
+      "relative_l2": 0.8359663910144388,
+      "relative_absolute_peak": 0.6748867608468061,
+      "relative_maximum_absolute_error": 0.6748867608468061,
+      "maximum_pointwise_relative": 2.2748718646685786,
+      "passed": false
+    },
+    "contact_slip": {
+      "samples": 65,
+      "maximum_absolute_error": 1.6169345401000135e-06,
+      "zero_reference_samples": 0,
+      "zero_reference_absolute_error": 0.0,
+      "zero_absolute_tolerance": 1e-12,
+      "relative_l2": 0.29837776758308604,
+      "relative_absolute_peak": 0.2816843421763367,
+      "relative_maximum_absolute_error": 0.4132098812076042,
+      "maximum_pointwise_relative": 0.4132098812076042,
+      "passed": false
+    },
+    "contact_tangential_force": {
+      "samples": 65,
+      "maximum_absolute_error": 0.44156814010276935,
+      "zero_reference_samples": 0,
+      "zero_reference_absolute_error": 0.0,
+      "zero_absolute_tolerance": 1e-08,
+      "relative_l2": 0.8478738840800686,
+      "relative_absolute_peak": 0.7455692860948772,
+      "relative_maximum_absolute_error": 0.7455692860948772,
+      "maximum_pointwise_relative": 2.2746256137365872,
+      "passed": false
+    },
+    "contact_total_tangential_force": {
+      "samples": 1,
+      "maximum_absolute_error": 16.929928278272577,
+      "zero_reference_samples": 0,
+      "zero_reference_absolute_error": 0.0,
+      "zero_absolute_tolerance": 1e-08,
+      "relative_l2": 0.8500617419836127,
+      "relative_absolute_peak": 0.8500617419836127,
+      "relative_maximum_absolute_error": 0.8500617419836127,
+      "maximum_pointwise_relative": 0.8500617419836127,
+      "passed": false
+    },
+    "elastic_strain_tensor": {
+      "samples": 29696,
+      "maximum_absolute_error": 0.00010770120870503401,
+      "zero_reference_samples": 0,
+      "zero_reference_absolute_error": 0.0,
+      "zero_absolute_tolerance": 1e-12,
+      "relative_l2": 0.11587491561798935,
+      "relative_absolute_peak": 0.09694014662321972,
+      "relative_maximum_absolute_error": 0.0973659964515818,
+      "maximum_pointwise_relative": 0.9418809986180149,
+      "passed": false
+    },
+    "plastic_strain_tensor": {
+      "samples": 29696,
+      "maximum_absolute_error": 7.620275201610035e-05,
+      "zero_reference_samples": 25600,
+      "zero_reference_absolute_error": 0.0,
+      "zero_absolute_tolerance": 1e-12,
+      "relative_l2": 0.2356557682874459,
+      "relative_absolute_peak": 0.1660867290294796,
+      "relative_maximum_absolute_error": 0.17532531659645248,
+      "maximum_pointwise_relative": 0.29286870656776615,
+      "passed": false
+    },
+    "creep_strain_tensor": {
+      "samples": 29696,
+      "maximum_absolute_error": 9.929387643344933e-05,
+      "zero_reference_samples": 25600,
+      "zero_reference_absolute_error": 0.0,
+      "zero_absolute_tolerance": 1e-12,
+      "relative_l2": 0.6091340466773417,
+      "relative_absolute_peak": 0.42507251243259253,
+      "relative_maximum_absolute_error": 0.4912055982278285,
+      "maximum_pointwise_relative": 0.7170064215481735,
+      "passed": false
+    },
+    "equivalent_plastic": {
+      "samples": 29696,
+      "maximum_absolute_error": 6.157033577682138e-05,
+      "zero_reference_samples": 25600,
+      "zero_reference_absolute_error": 0.0,
+      "zero_absolute_tolerance": 1e-12,
+      "relative_l2": 0.23531997405012156,
+      "relative_absolute_peak": 0.1501658404762764,
+      "relative_maximum_absolute_error": 0.16951521708325532,
+      "maximum_pointwise_relative": 0.2930183333770431,
+      "passed": false
+    },
+    "equivalent_creep": {
+      "samples": 29696,
+      "maximum_absolute_error": 7.896509301651924e-05,
+      "zero_reference_samples": 25600,
+      "zero_reference_absolute_error": 0.0,
+      "zero_absolute_tolerance": 1e-12,
+      "relative_l2": 0.6010875528122789,
+      "relative_absolute_peak": 0.4102330949477343,
+      "relative_maximum_absolute_error": 0.4730155932047909,
+      "maximum_pointwise_relative": 0.6748342337103822,
+      "passed": false
+    }
+  },
+  "material_history": [
+    {
+      "time": 1.0,
+      "fuelsim_simultaneous_points": 0,
+      "abaqus_simultaneous_points": 0,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.0,
+        "zero_reference_samples": 4096,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "passed": true
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 5.035096305074514e-07,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.99987080549133,
+        "relative_absolute_peak": 0.999868026142707,
+        "relative_maximum_absolute_error": 0.999868026142707,
+        "maximum_pointwise_relative": 0.999883407473828,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 3920,
+        "backward_euler_relative_l2": 3.0248625123389698e-15,
+        "forward_euler_relative_l2": 1.0
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 1.385147299795314e-09,
+        "forward_euler_relative_l2": 1.0
+      }
+    },
+    {
+      "time": 2.0,
+      "fuelsim_simultaneous_points": 0,
+      "abaqus_simultaneous_points": 144,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 7.426542593198256e-05,
+        "zero_reference_samples": 3952,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 1.0,
+        "relative_absolute_peak": 1.0,
+        "relative_maximum_absolute_error": 1.0,
+        "maximum_pointwise_relative": 1.0,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 1.0918956170941477e-05,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.999947811202916,
+        "relative_absolute_peak": 0.9999048188529434,
+        "relative_maximum_absolute_error": 0.9999998279895446,
+        "maximum_pointwise_relative": 0.9999999974390182,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 9.202886172344394e-14,
+        "forward_euler_relative_l2": 0.9315060199919074
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 6.752752295359804e-10,
+        "forward_euler_relative_l2": 0.9793569896157234
+      }
+    },
+    {
+      "time": 3.0,
+      "fuelsim_simultaneous_points": 0,
+      "abaqus_simultaneous_points": 2166,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.0002002965198565555,
+        "zero_reference_samples": 1930,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 1.0,
+        "relative_absolute_peak": 1.0,
+        "relative_maximum_absolute_error": 1.0,
+        "maximum_pointwise_relative": 1.0,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 2.3520218377980885e-05,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.9999004174788026,
+        "relative_absolute_peak": 0.9997558743403836,
+        "relative_maximum_absolute_error": 0.9999995554431583,
+        "maximum_pointwise_relative": 0.9999999951343064,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 5.7779929749527956e-12,
+        "forward_euler_relative_l2": 0.7929546948654074
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 7.740981267310343e-10,
+        "forward_euler_relative_l2": 0.9127425319691832
+      }
+    },
+    {
+      "time": 4.0,
+      "fuelsim_simultaneous_points": 0,
+      "abaqus_simultaneous_points": 4096,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.0002811535232985883,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 1.0,
+        "relative_absolute_peak": 1.0,
+        "relative_maximum_absolute_error": 1.0,
+        "maximum_pointwise_relative": 1.0,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 3.728768516668953e-05,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.9998200362599754,
+        "relative_absolute_peak": 0.9994677743078844,
+        "relative_maximum_absolute_error": 0.9999990174134721,
+        "maximum_pointwise_relative": 0.9999999900153257,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 3.1194069326388564e-12,
+        "forward_euler_relative_l2": 0.6667267096465602
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 1.7078522273453193e-11,
+        "forward_euler_relative_l2": 0.2716547346447689
+      }
+    },
+    {
+      "time": 5.0,
+      "fuelsim_simultaneous_points": 0,
+      "abaqus_simultaneous_points": 4096,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.0003272679393360784,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 1.0,
+        "relative_absolute_peak": 1.0,
+        "relative_maximum_absolute_error": 1.0,
+        "maximum_pointwise_relative": 1.0,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 5.175137279392995e-05,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.999686700018807,
+        "relative_absolute_peak": 0.9989910247324022,
+        "relative_maximum_absolute_error": 0.9999981044509916,
+        "maximum_pointwise_relative": 0.9999999813830683,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 7.385024092193712e-13,
+        "forward_euler_relative_l2": 0.5651841505478995
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 1.0407154304378852e-11,
+        "forward_euler_relative_l2": 0.034411315618449775
+      }
+    },
+    {
+      "time": 6.0,
+      "fuelsim_simultaneous_points": 0,
+      "abaqus_simultaneous_points": 4096,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.00035147548192233994,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 1.0,
+        "relative_absolute_peak": 1.0,
+        "relative_maximum_absolute_error": 1.0,
+        "maximum_pointwise_relative": 1.0,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 6.658971311867614e-05,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.9994874928110123,
+        "relative_absolute_peak": 0.9982756711879031,
+        "relative_maximum_absolute_error": 0.9999966943474405,
+        "maximum_pointwise_relative": 0.9999999682230667,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 4.991982682138594e-13,
+        "forward_euler_relative_l2": 0.48495229616594665
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 7.496264098996797e-13,
+        "forward_euler_relative_l2": 0.017511834007104134
+      }
+    },
+    {
+      "time": 7.0,
+      "fuelsim_simultaneous_points": 0,
+      "abaqus_simultaneous_points": 4096,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.0003617729603383172,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 1.0,
+        "relative_absolute_peak": 1.0,
+        "relative_maximum_absolute_error": 1.0,
+        "maximum_pointwise_relative": 1.0,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 8.158930320809204e-05,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.9992093777492248,
+        "relative_absolute_peak": 0.9972756569429402,
+        "relative_maximum_absolute_error": 0.9999947152351236,
+        "maximum_pointwise_relative": 0.999999949417302,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 2.377909930137544e-13,
+        "forward_euler_relative_l2": 0.42102939029959824
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 1.9078759461963028e-14,
+        "forward_euler_relative_l2": 0.006749092647196236
+      }
+    },
+    {
+      "time": 8.0,
+      "fuelsim_simultaneous_points": 0,
+      "abaqus_simultaneous_points": 1342,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.0003632142107134952,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 1.0,
+        "relative_absolute_peak": 1.0,
+        "relative_maximum_absolute_error": 1.0,
+        "maximum_pointwise_relative": 1.0,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 9.661145427374616e-05,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.9988378020900094,
+        "relative_absolute_peak": 0.9959561974067652,
+        "relative_maximum_absolute_error": 0.9999921816523464,
+        "maximum_pointwise_relative": 0.9999999258996382,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 1.4336034308762748e-13,
+        "forward_euler_relative_l2": 0.3692970063457123
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 2.217371944055584e-09,
+        "forward_euler_relative_l2": 0.016203746304777812
+      }
+    },
+    {
+      "time": 9.0,
+      "fuelsim_simultaneous_points": 0,
+      "abaqus_simultaneous_points": 0,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.0003632142107134952,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 1.0,
+        "relative_absolute_peak": 1.0,
+        "relative_maximum_absolute_error": 1.0,
+        "maximum_pointwise_relative": 1.0,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.0001101028264723106,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.9983385547892957,
+        "relative_absolute_peak": 0.9942143703602164,
+        "relative_maximum_absolute_error": 0.9999887311900735,
+        "maximum_pointwise_relative": 0.9999998941653883,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 5.602938621900884e-14,
+        "forward_euler_relative_l2": 0.32472010801926854
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 5.749825768748363e-09,
+        "forward_euler_relative_l2": 0.12417823119529639
+      }
+    },
+    {
+      "time": 10.0,
+      "fuelsim_simultaneous_points": 0,
+      "abaqus_simultaneous_points": 0,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.0003632142107134952,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 1.0,
+        "relative_absolute_peak": 1.0,
+        "relative_maximum_absolute_error": 1.0,
+        "maximum_pointwise_relative": 1.0,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.00012142971913208655,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.9976777325557245,
+        "relative_absolute_peak": 0.9919399150689489,
+        "relative_maximum_absolute_error": 0.9999840921150546,
+        "maximum_pointwise_relative": 0.9999998515936198,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 6.615060445566713e-14,
+        "forward_euler_relative_l2": 0.28913325573373877
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 2.6742203218662562e-15,
+        "forward_euler_relative_l2": 0.1811942568613765
+      }
+    },
+    {
+      "time": 11.0,
+      "fuelsim_simultaneous_points": 0,
+      "abaqus_simultaneous_points": 0,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.0003632142107134952,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 1.0,
+        "relative_absolute_peak": 1.0,
+        "relative_maximum_absolute_error": 1.0,
+        "maximum_pointwise_relative": 1.0,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.00013069353939524354,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.9968225798786664,
+        "relative_absolute_peak": 0.9890410617847532,
+        "relative_maximum_absolute_error": 0.9999780018671613,
+        "maximum_pointwise_relative": 0.9999997957745754,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 3.774158042577119e-14,
+        "forward_euler_relative_l2": 0.25911184040699864
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 2.8519160860403505e-15,
+        "forward_euler_relative_l2": 0.20452451552889164
+      }
+    },
+    {
+      "time": 12.0,
+      "fuelsim_simultaneous_points": 0,
+      "abaqus_simultaneous_points": 0,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.0003632142107134952,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 1.0,
+        "relative_absolute_peak": 1.0,
+        "relative_maximum_absolute_error": 1.0,
+        "maximum_pointwise_relative": 1.0,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.00013798838634981284,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.9955945747772631,
+        "relative_absolute_peak": 0.9799133394348528,
+        "relative_maximum_absolute_error": 0.998282766557502,
+        "maximum_pointwise_relative": 0.9999991647850385,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 5.5899803000935145e-14,
+        "forward_euler_relative_l2": 0.4282585255418607
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 3.3340163010314356e-15,
+        "forward_euler_relative_l2": 0.20972078751701537
+      }
+    },
+    {
+      "time": 13.0,
+      "fuelsim_simultaneous_points": 4,
+      "abaqus_simultaneous_points": 0,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.0003375589614872964,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.9995337865287017,
+        "relative_absolute_peak": 0.8827116131373969,
+        "relative_maximum_absolute_error": 0.9293660642412591,
+        "maximum_pointwise_relative": 1.0,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.00013452732780282246,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.9915930598285244,
+        "relative_absolute_peak": 0.9254857200329885,
+        "relative_maximum_absolute_error": 0.931848436661478,
+        "maximum_pointwise_relative": 0.9999991986845607,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 2.0037920247545632e-14,
+        "forward_euler_relative_l2": 0.8863127011851994
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 3.5522180369620863e-15,
+        "forward_euler_relative_l2": 0.2053772507064129
+      }
+    },
+    {
+      "time": 14.0,
+      "fuelsim_simultaneous_points": 142,
+      "abaqus_simultaneous_points": 0,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.0002979013212453621,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.9893498001616428,
+        "relative_absolute_peak": 0.7749092012035977,
+        "relative_maximum_absolute_error": 0.8201807981581091,
+        "maximum_pointwise_relative": 1.0,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.00012912961275438642,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.9830339813760218,
+        "relative_absolute_peak": 0.8542937126923577,
+        "relative_maximum_absolute_error": 0.8642290924808046,
+        "maximum_pointwise_relative": 0.9999990336005209,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 2.3347499248850904e-14,
+        "forward_euler_relative_l2": 0.6180910199561331
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 8.744922459516006e-09,
+        "forward_euler_relative_l2": 0.1962338843585382
+      }
+    },
+    {
+      "time": 15.0,
+      "fuelsim_simultaneous_points": 272,
+      "abaqus_simultaneous_points": 0,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.0002576745867008211,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.9645388626697327,
+        "relative_absolute_peak": 0.6894960474189094,
+        "relative_maximum_absolute_error": 0.7094287037796433,
+        "maximum_pointwise_relative": 1.0,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.00012236242478355842,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.9705570211195542,
+        "relative_absolute_peak": 0.7839633065858715,
+        "relative_maximum_absolute_error": 0.7965600074768135,
+        "maximum_pointwise_relative": 0.9999755542355994,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 2.1750465751749948e-14,
+        "forward_euler_relative_l2": 0.3977089470971589
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 7.622150293750102e-09,
+        "forward_euler_relative_l2": 0.1849360201647123
+      }
+    },
+    {
+      "time": 16.0,
+      "fuelsim_simultaneous_points": 449,
+      "abaqus_simultaneous_points": 0,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.0002170469488647821,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.9281812249496757,
+        "relative_absolute_peak": 0.579623778193687,
+        "relative_maximum_absolute_error": 0.5975728439655947,
+        "maximum_pointwise_relative": 1.0,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.00011440936157801642,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.9356001445290725,
+        "relative_absolute_peak": 0.7127931561999518,
+        "relative_maximum_absolute_error": 0.7280582156659425,
+        "maximum_pointwise_relative": 0.9941929791991863,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 1.1462193692469357e-14,
+        "forward_euler_relative_l2": 0.6400213555343762
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 3.3505145590830503e-09,
+        "forward_euler_relative_l2": 0.172967691370466
+      }
+    },
+    {
+      "time": 17.0,
+      "fuelsim_simultaneous_points": 2211,
+      "abaqus_simultaneous_points": 0,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.00017710967201469037,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.8485636503799086,
+        "relative_absolute_peak": 0.4701800251744267,
+        "relative_maximum_absolute_error": 0.4876176834237226,
+        "maximum_pointwise_relative": 1.0,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.00010540220459133865,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.860136324704684,
+        "relative_absolute_peak": 0.6401758871815026,
+        "relative_maximum_absolute_error": 0.6581658294167575,
+        "maximum_pointwise_relative": 0.9556870042026515,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 2.081064334666864e-14,
+        "forward_euler_relative_l2": 0.5844305806130482
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 1.4286030610590662e-09,
+        "forward_euler_relative_l2": 0.16115137993343098
+      }
+    },
+    {
+      "time": 18.0,
+      "fuelsim_simultaneous_points": 4096,
+      "abaqus_simultaneous_points": 0,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 0.00013780945058348079,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.6595497271962133,
+        "relative_absolute_peak": 0.36241994616481077,
+        "relative_maximum_absolute_error": 0.3794164614671022,
+        "maximum_pointwise_relative": 0.9939796148105838,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 9.696292033916796e-05,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.7741632134214003,
+        "relative_absolute_peak": 0.5657248069991676,
+        "relative_maximum_absolute_error": 0.5958611237647073,
+        "maximum_pointwise_relative": 0.8619254841171183,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 2.227564467476659e-15,
+        "forward_euler_relative_l2": 0.23103678772212502
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 6.274136905778393e-10,
+        "forward_euler_relative_l2": 0.14992435221825745
+      }
+    },
+    {
+      "time": 19.0,
+      "fuelsim_simultaneous_points": 4096,
+      "abaqus_simultaneous_points": 0,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 9.953891444304457e-05,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.4467009219085465,
+        "relative_absolute_peak": 0.2558292672491738,
+        "relative_maximum_absolute_error": 0.2740501651835458,
+        "maximum_pointwise_relative": 0.6445683425180753,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 8.826586251247141e-05,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.6879608808100363,
+        "relative_absolute_peak": 0.48915126178794266,
+        "relative_maximum_absolute_error": 0.5350381664441517,
+        "maximum_pointwise_relative": 0.76850721486283,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 2.2340750166698646e-15,
+        "forward_euler_relative_l2": 0.030351297035340872
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 2.850813129692532e-10,
+        "forward_euler_relative_l2": 0.13949693491641296
+      }
+    },
+    {
+      "time": 20.0,
+      "fuelsim_simultaneous_points": 4096,
+      "abaqus_simultaneous_points": 0,
+      "equivalent_plastic_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 6.157033577682138e-05,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.23531997405012156,
+        "relative_absolute_peak": 0.1501658404762764,
+        "relative_maximum_absolute_error": 0.16951521708325532,
+        "maximum_pointwise_relative": 0.2930183333770431,
+        "passed": false
+      },
+      "equivalent_creep_comparison": {
+        "samples": 4096,
+        "maximum_absolute_error": 7.896509301651924e-05,
+        "zero_reference_samples": 0,
+        "zero_reference_absolute_error": 0.0,
+        "zero_absolute_tolerance": 1e-12,
+        "relative_l2": 0.601087552812279,
+        "relative_absolute_peak": 0.4102330949477343,
+        "relative_maximum_absolute_error": 0.4730155932047909,
+        "maximum_pointwise_relative": 0.6748342337103822,
+        "passed": false
+      },
+      "fuelsim_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 2.2275162197565412e-15,
+        "forward_euler_relative_l2": 0.03005366983388328
+      },
+      "abaqus_integration": {
+        "active_samples": 4096,
+        "backward_euler_relative_l2": 1.3426357762035307e-10,
+        "forward_euler_relative_l2": 0.12994603435604302
+      }
+    }
+  ],
+  "history_metrics_all_passed": false
+}

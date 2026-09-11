@@ -1,6 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$SourceDirectory,
       [ValidateSet('medium','large')][string]$Size='medium',
-      [switch]$Timing, [switch]$Friction, [int]$Runs=1,
+      [switch]$Timing, [switch]$Friction, [switch]$Coupled, [int]$Runs=1,
       [ValidateSet('cax4t','cax4rt','cax8t','cax8rt')][string]$Element='cax4t',
       [ValidateSet('small','finite')][string]$Strain='small',
       [string]$ResultsDirectory='')
@@ -28,6 +28,10 @@ if ($Friction) {
   if ($Size -ne 'medium' -or $Strain -ne 'finite') { throw 'Friction benchmark supports medium finite CAX elements only' }
   $Job += '_friction'
 }
+if ($Coupled) {
+  if (!$Friction -or $Element -ne 'cax4t' -or $Strain -ne 'finite' -or $Size -ne 'medium') { throw 'Coupled benchmark requires medium finite friction CAX4T' }
+  $Job += '_coupled'
+}
 if ($Timing) { $Job += '_timing' }
 Write-Output "work_directory=$Work"
 Push-Location $Work
@@ -46,8 +50,12 @@ try {
     foreach ($Ext in @('dat','msg','sta')) { Copy-Item "$Job.$Ext" (Join-Path $ResultsDirectory "${Job}_run${Run}.$Ext") }
   }
   if (!$Timing) {
-    & C:\SIMULIA\Commands\abaqus.bat python extract_results.py "$Job.odb" $Job
+    $ExtractArguments = @("$Job.odb", $Job)
+    if ($Coupled) { $ExtractArguments += "--coupled" }
+    & C:\SIMULIA\Commands\abaqus.bat python extract_results.py @ExtractArguments
     if ($LASTEXITCODE -ne 0) { throw 'Extraction failed' }
-    foreach ($Kind in @('nodes','points','contact')) { Copy-Item "${Job}_${Kind}.csv.gz" $ResultsDirectory }
+    $Kinds = @('nodes','points','contact')
+    if ($Coupled) { $Kinds += 'inelastic_history' }
+    foreach ($Kind in $Kinds) { Copy-Item "${Job}_${Kind}.csv.gz" $ResultsDirectory }
   }
 } finally { Pop-Location }

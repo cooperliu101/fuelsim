@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import csv
 import gzip
+import math
 import sys
 from odbAccess import openOdb
 
@@ -25,8 +26,13 @@ def values(frame, name, nodal=False):
     return result
 
 
-if len(sys.argv) != 3:
+coupled = len(sys.argv) == 4 and sys.argv[3] == "--coupled"
+if len(sys.argv) != 3 and not coupled:
     raise RuntimeError("usage: extract_results.py job.odb prefix")
+history_file = gzip.GzipFile(sys.argv[2]+"_inelastic_history.csv.gz", "wb", mtime=0) if coupled else None
+history_writer = csv.writer(history_file) if coupled else None
+if coupled:
+    history_writer.writerow(["time", "element", "point", "equiv_plastic", "equiv_creep", "mises"])
 odb = openOdb(sys.argv[1], readOnly=True)
 try:
     with gzip.GzipFile(sys.argv[2]+"_nodes.csv.gz", "wb", mtime=0) as nf, gzip.GzipFile(sys.argv[2]+"_points.csv.gz", "wb", mtime=0) as pf, gzip.GzipFile(sys.argv[2]+"_contact.csv.gz", "wb", mtime=0) as cf:
@@ -40,6 +46,17 @@ try:
             for frame_index in range(1, len(step.frames)):
                 frame = step.frames[frame_index]
                 time = elapsed + frame.frameValue
+                if coupled:
+                    pe, ce = values(frame, "PEEQ"), values(frame, "CEEQ")
+                    stress_history = values(frame, "S")
+                    if not pe or not ce or set(pe) != set(ce):
+                        raise RuntimeError("Missing coupled material history")
+                    for key in sorted(pe):
+                        rr, zz, hoop, rz = stress_history[key]
+                        q = math.sqrt(0.5*((rr-zz)**2+(zz-hoop)**2+(hoop-rr)**2)+3*rz**2)
+                        history_writer.writerow([time, key[0], key[1], pe[key], ce[key], q])
+                    if frame_index != len(step.frames)-1:
+                        continue
                 fields = dict((k, values(frame, k, True)) for k in ["NT11", "U", "RF", "RFL11"])
                 for n in sorted(fields["U"]):
                     nodes.writerow([time, n, fields["NT11"].get(n, float("nan"))]+list(fields["U"][n][:2])+list(fields["RF"][n][:2])+[fields["RFL11"].get(n, float("nan"))])
@@ -64,3 +81,5 @@ try:
             elapsed += step.timePeriod
 finally:
     odb.close()
+    if history_file is not None:
+        history_file.close()

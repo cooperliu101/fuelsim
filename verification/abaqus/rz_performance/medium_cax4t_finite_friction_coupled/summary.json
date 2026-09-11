@@ -1,0 +1,87 @@
+{
+  "fuelsim_external_mean_seconds": 46.65935680648545,
+  "abaqus_external_mean_seconds": 58.7933625,
+  "fuelsim_elapsed_reduction_percent": 20.638393821266053,
+  "fuelsim_runs": [
+    {
+      "run": 0,
+      "warmup": true,
+      "external_seconds": 46.026919615105726,
+      "internal_seconds": 45.518452775,
+      "nonlinear_iterations": 58
+    },
+    {
+      "run": 1,
+      "warmup": false,
+      "external_seconds": 46.461305996985175,
+      "internal_seconds": 45.957838196,
+      "nonlinear_iterations": 58
+    },
+    {
+      "run": 2,
+      "warmup": false,
+      "external_seconds": 46.85740761598572,
+      "internal_seconds": 46.331114463,
+      "nonlinear_iterations": 58
+    }
+  ],
+  "abaqus_runs": [
+    {
+      "run": 0,
+      "warmup": true,
+      "external_seconds": 55.836517,
+      "analysis_wallclock_seconds": 52.0,
+      "nonlinear_iterations": 71,
+      "increments": 20
+    },
+    {
+      "run": 1,
+      "warmup": false,
+      "external_seconds": 57.847072,
+      "analysis_wallclock_seconds": 54.0,
+      "nonlinear_iterations": 71,
+      "increments": 20
+    },
+    {
+      "run": 2,
+      "warmup": false,
+      "external_seconds": 59.739653,
+      "analysis_wallclock_seconds": 55.0,
+      "nonlinear_iterations": 71,
+      "increments": 20
+    }
+  ],
+  "final_fields_all_pass_0_01_percent": true,
+  "final_maximum_pointwise_relative_error_percent": 1.5632299086535657e-05,
+  "history_equivalent_strains_all_pass_project_0_5_percent": true,
+  "history_equivalent_strains_all_pass_0_01_percent": false,
+  "history_worst": {
+    "time": 18.0,
+    "field": "equivalent_plastic_comparison",
+    "metric": {
+      "samples": 4096,
+      "maximum_absolute_error": 9.460017025373496e-12,
+      "zero_reference_samples": 488,
+      "zero_reference_absolute_error": 0.0,
+      "zero_absolute_tolerance": 1e-12,
+      "relative_l2": 1.2644272456770588e-07,
+      "relative_absolute_peak": 2.4675336753167164e-08,
+      "relative_maximum_absolute_error": 4.487658972295602e-08,
+      "maximum_pointwise_relative": 0.0005250532908939639,
+      "passed": false,
+      "worst_point": {
+        "element": 7145,
+        "abaqus_point": 3,
+        "fuelsim": 8.475406985138654e-09,
+        "abaqus": 8.470959280091613e-09,
+        "absolute_difference": 4.4477050470408646e-12
+      }
+    }
+  },
+  "first_simultaneous_time": 14.0,
+  "last_simultaneous_points": 4096,
+  "fuelsim_tangential_force_N": 36.60597093307,
+  "abaqus_tangential_force_N": 36.605970829237464,
+  "accuracy_scope": "Final full fields plus all 20 frames of equivalent plastic and creep history. History pointwise 0.01 percent has one tiny newly yielded value exception explicitly reported; project 0.5 percent gate passes.",
+  "thermal_change": "Transient heat capacity enabled with original density/specific heat. Linear power uses interval-average values; both match. Steady Abaqus skips creep and is not an equivalent reference."
+}
