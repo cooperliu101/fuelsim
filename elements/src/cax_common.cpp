@@ -404,7 +404,7 @@ elements::Cax8Result evaluate(const elements::Cax8Input& data, elements::Element
         AxisymmetricStress stress = {composed[0], composed[1], composed[2], composed[3]};
         if (finite)
             stress = rotate_axisymmetric_tensor(stress, k.rotation);
-        if (history) {
+        if (history && request.history) {
             const AxisymmetricRotation rotation = {k.rotation.rr.value(),
                 k.rotation.rz.value(),
                 k.rotation.zr.value(),

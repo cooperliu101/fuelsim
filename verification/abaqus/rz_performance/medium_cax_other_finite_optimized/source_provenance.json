@@ -1,0 +1,17 @@
+{
+  "baseline_commit": "869112da19a4a8fd8db8faf5fe3dfc3ffe541bf1",
+  "candidate_note": "Modified source and executable were tested before committing.",
+  "sha256": {
+    "elements/src/cax4rt.cpp": "7c618c4bbbc4e5b2d785bd76165bd4e90fafdaec2cff91a4069efa87ca940964",
+    "elements/src/cax_common.cpp": "a7df375448539f529eed70c933f271163f984688d10a52a9d492bd10b0c150b2",
+    "elements/tests/support/cax4_common_tests.hpp": "bc9b5db93c7d7390bbbeec6785bd94cffa389015979c538a894f0edc5b71f48c",
+    "elements/tests/support/cax8_common_tests.cpp": "1ecea1692ea9485b2e8411f6cf8260d03ee3b71c8331362c65ad439fcfc7b2ba",
+    "elements/tests/support/test_support.hpp": "327a57a1ac3c05daa7a7ac9a8e67115402b2b04e1337f16b9b35ec9c6897c303",
+    "src/core/element_evaluation.hpp": "25948a96ad1ecd2d411dfa64368845a7eab9a23f169ca19ec41cf5f739499440",
+    "src/core/spatial_problem.cpp": "686f120246e14ac57707bcf658bb39fa67d064857571c31a9497ad56ff9ea47d",
+    "src/io/results_io.cpp": "d42ea9e24f5b66558e11b8f4d8671151cad7ea2446b88ef9d7c969add86ddc14",
+    "verification/abaqus/rz_performance/medium_cax_other_finite_optimized/run_comparison.py": "85bb7a9078e9fb2526bc8f64b5d54592ca2f8e5b65b9d993cb7cba0ce3203ad5"
+  },
+  "candidate_executable_sha256": "972a437111a13b36f904c977d98d3765540c2b854ea57cf4ba868ad25a48e954",
+  "validation_script_note": "The archived script only removes an overwritten mesh-path assignment from the executed script; commands and input selection are unchanged."
+}

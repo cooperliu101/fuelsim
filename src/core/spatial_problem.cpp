@@ -598,8 +598,8 @@ void SteadyProblem::compute_contribution(std::size_t index,
             {},
             nullptr,
             0,
-            jacobian != nullptr,
-            false);
+            false,
+            {true, jacobian != nullptr, false, false});
         residual.assign(result.residual.begin(), result.residual.end());
         if (jacobian)
             jacobian->assign(result.jacobian.begin(), result.jacobian.end());
@@ -1497,8 +1497,8 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                 old,
                 &_impl->quad8_material_histories[r][e],
                 _impl->active_time_step,
-                false,
-                _impl->include_thermal_time_term);
+                _impl->include_thermal_time_term,
+                {true, false, true, false});
             conservation.stored_heat_rate += update.stored_heat_rate;
             conservation.generated_heat_rate += update.generated_heat_rate;
             for (std::size_t q = 0; q < geometry.point_count; ++q) {
@@ -1939,8 +1939,8 @@ void TransientProblem::compute_contribution(std::size_t index,
             old,
             &_impl->quad8_material_histories[r][e],
             _impl->active_time_step,
-            jacobian != nullptr,
-            _impl->include_thermal_time_term);
+            _impl->include_thermal_time_term,
+            {true, jacobian != nullptr, false, false});
         residual.assign(result.residual.begin(), result.residual.end());
         if (jacobian)
             jacobian->assign(result.jacobian.begin(), result.jacobian.end());

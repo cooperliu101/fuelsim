@@ -810,3 +810,19 @@ python benchmarks/run_rz_performance.py --size medium --element cax8rt --strain 
 
 详细代码边界、逐次时间、环境限制、全场等价性及可复现命令见
 [CAX4T 优化报告](medium_cax4t_finite_optimized/README.md)。
+
+## 其他 CAX 型号按需计算优化（2026-09-11）
+
+继续将按需材料历史计算应用到 CAX4RT、CAX8T、CAX8RT，并减少 CAX4RT
+不需要的切线计算。同环境、单线程 MUMPS、两次正式外部计时均值如下：
+
+| 有限应变中等规模算例 | 原版耗时 | 优化版耗时 | 耗时减少 |
+|---|---:|---:|---:|
+| CAX4RT | 17.14 s | 14.98 s | 12.59% |
+| CAX8T | 113.50 s | 98.09 s | 13.58% |
+| CAX8RT | 69.24 s | 62.29 s | 10.03% |
+
+三者均保持 20 个增量、47 次非线性迭代，全部 21 个时刻的数值输出与原版
+完全一致，已有 Abaqus 指标全部通过，完整回归 281/281 通过。
+本次没有重新计时 Abaqus，没有将中等规模算例加入 CTest。
+详细结果与复现方法见[其他 CAX 型号优化报告](medium_cax_other_finite_optimized/README.md)。

@@ -1,0 +1,71 @@
+{
+  "cax4rt": {
+    "baseline_external_mean_seconds": 17.13747474149568,
+    "baseline_internal_mean_seconds": 16.474594199000002,
+    "baseline_iterations": [
+      47,
+      47
+    ],
+    "candidate_external_mean_seconds": 14.980370571487583,
+    "candidate_internal_mean_seconds": 14.449383813,
+    "candidate_iterations": [
+      47,
+      47
+    ],
+    "elapsed_reduction_percent": 12.587059660458678,
+    "equivalence": {
+      "frames": 21,
+      "numeric_arrays": 228,
+      "text_arrays": 7,
+      "different_arrays": [],
+      "all_identical": true
+    },
+    "abaqus_maximum_pointwise_percent": 1.5232300079751416e-05
+  },
+  "cax8t": {
+    "baseline_external_mean_seconds": 113.49891840253258,
+    "baseline_internal_mean_seconds": 112.8203744245,
+    "baseline_iterations": [
+      47,
+      47
+    ],
+    "candidate_external_mean_seconds": 98.08605076401727,
+    "candidate_internal_mean_seconds": 97.48694387,
+    "candidate_iterations": [
+      47,
+      47
+    ],
+    "elapsed_reduction_percent": 13.57974847289064,
+    "equivalence": {
+      "frames": 21,
+      "numeric_arrays": 423,
+      "text_arrays": 7,
+      "different_arrays": [],
+      "all_identical": true
+    },
+    "abaqus_maximum_pointwise_percent": 4.8603439386107e-06
+  },
+  "cax8rt": {
+    "baseline_external_mean_seconds": 69.24183703999734,
+    "baseline_internal_mean_seconds": 68.616044883,
+    "baseline_iterations": [
+      47,
+      47
+    ],
+    "candidate_external_mean_seconds": 62.29349229953368,
+    "candidate_internal_mean_seconds": 61.689127965500006,
+    "candidate_iterations": [
+      47,
+      47
+    ],
+    "elapsed_reduction_percent": 10.034893696494452,
+    "equivalence": {
+      "frames": 21,
+      "numeric_arrays": 423,
+      "text_arrays": 7,
+      "different_arrays": [],
+      "all_identical": true
+    },
+    "abaqus_maximum_pointwise_percent": 5.1651509488463516e-06
+  }
+}

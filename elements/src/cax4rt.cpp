@@ -177,7 +177,8 @@ elements::Cax4Result compute_cax4rt(const elements::Cax4Input& data,
     const Quad4MaterialHistory* history,
     double time_step,
     bool jacobian,
-    bool thermal_time) {
+    bool thermal_time,
+    bool update_history) {
     const bool finite = data.strain_formulation == StrainFormulation::finite;
     const auto reference = reduce_geometry(geometry, {}, 0.0);
     const auto current = finite ? reduce_geometry(geometry, state, jacobian ? 1.0 : 0.0) : reference;
@@ -294,7 +295,8 @@ elements::Cax4Result compute_cax4rt(const elements::Cax4Input& data,
     std::array<double, 4> trace_response{};
     for (std::size_t i = 0; i < 4; ++i) {
         std::array<double, 5> partials{};
-        raw_components[i].copy_derivatives(partials.data(), partials.size());
+        if (jacobian)
+            raw_components[i].copy_derivatives(partials.data(), partials.size());
         composed[i] = jacobian ? adlite::compose(raw_components[i].value(), inputs.data(), partials.data(), 5)
                                : adlite::Scalar(raw_components[i].value());
         trace_response[i] = (partials[0] + partials[1]) / 2.0;
@@ -303,18 +305,26 @@ elements::Cax4Result compute_cax4rt(const elements::Cax4Input& data,
                        ds = {trace_response[0], trace_response[1], trace_response[2], trace_response[3]};
     if (finite) {
         sigma = rotate_axisymmetric_tensor(sigma, rotation);
-        ds = rotate_axisymmetric_tensor(ds, rotation);
+        if (jacobian) {
+            const AxisymmetricRotation passive_rotation = {rotation.rr.value(),
+                rotation.rz.value(),
+                rotation.zr.value(),
+                rotation.zz.value(),
+                rotation.hoop.value()};
+            ds = rotate_axisymmetric_tensor(ds, passive_rotation);
+        }
     }
     const std::array<adlite::Scalar, 4> stress = {sigma.rr, sigma.zz, sigma.hoop, sigma.rz};
     trace_response = {ds.rr.value(), ds.zz.value(), ds.hoop.value(), ds.rz.value()};
     std::array<Cax4LocalValues, 4> stress_derivative{};
-    for (std::size_t i = 0; i < 4; ++i) {
-        stress_derivative[i] = chain(stress[i], seeds);
-        for (std::size_t j = 0; j < 12; ++j)
-            stress_derivative[i][j] += trace_response[i] * trace_derivative[j];
-    }
+    if (jacobian)
+        for (std::size_t i = 0; i < 4; ++i) {
+            stress_derivative[i] = chain(stress[i], seeds);
+            for (std::size_t j = 0; j < 12; ++j)
+                stress_derivative[i][j] += trace_response[i] * trace_derivative[j];
+        }
     elements::Cax4Result result;
-    if (history) {
+    if (history && update_history) {
         const AxisymmetricRotation rot = {rotation.rr.value(),
             rotation.rz.value(),
             rotation.zr.value(),
@@ -337,8 +347,9 @@ elements::Cax4Result compute_cax4rt(const elements::Cax4Input& data,
     result.history[0].stress = {sigma.rr.value(), sigma.zz.value(), sigma.hoop.value(), sigma.rz.value()};
     const double p = (sigma.rr.value() + sigma.zz.value()) / 2.0;
     Cax4LocalValues dp{};
-    for (std::size_t j = 0; j < 12; ++j)
-        dp[j] = (stress_derivative[0][j] + stress_derivative[1][j]) / 2.0;
+    if (jacobian)
+        for (std::size_t j = 0; j < 12; ++j)
+            dp[j] = (stress_derivative[0][j] + stress_derivative[1][j]) / 2.0;
     for (std::size_t n = 0; n < 4; ++n) {
         const adlite::Scalar br = finite ? (reference.gradient[n][0] * fzz - reference.gradient[n][1] * fzr) / fd
                                          : adlite::Scalar(reference.gradient[n][0]);
@@ -495,7 +506,8 @@ Cax4Result evaluate_cax4rt(const Cax4Input& input, ElementRequest request) {
         input.committed_history,
         input.time_step,
         jacobian,
-        input.include_thermal_time_term);
+        input.include_thermal_time_term,
+        request.history);
     const auto rates = cax4rt_thermal_rates(data,
         input.geometry,
         input.state,

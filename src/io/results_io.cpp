@@ -1072,9 +1072,10 @@ std::vector<std::vector<double>> quad8_elements(const UnstructuredQuad8Mesh& sou
         for (std::size_t i = 0; i < 20; ++i)
             local[i] = state[dofs[i]];
         const auto& geometry = spatial.region_element_geometry(r, e);
-        const auto history = histories
-                                 ? (*histories)[r][e]
-                                 : compute_cax8((*data)[r], geometry, local, {}, nullptr, 0, false, false).history;
+        const auto history =
+            histories
+                ? (*histories)[r][e]
+                : compute_cax8((*data)[r], geometry, local, {}, nullptr, 0, false, {false, false, true, false}).history;
         std::size_t variable = 0;
         for (std::size_t q = 0; q < geometry.point_count; ++q) {
             const auto& point = history[q];

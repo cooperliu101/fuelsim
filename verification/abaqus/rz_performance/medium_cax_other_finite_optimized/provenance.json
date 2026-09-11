@@ -1,0 +1,23 @@
+{
+  "baseline_revision": "869112da19a4a8fd8db8faf5fe3dfc3ffe541bf1",
+  "sha256": {
+    "/tmp/cax-other-speed/fuelsim-baseline": "afb023206e67f5a8a13c8b5b1afb8bda01ada1972a737daff28a38204d1222d1",
+    "/home/cooper/ai_project/fuelsim/build/fuelsim": "972a437111a13b36f904c977d98d3765540c2b854ea57cf4ba868ad25a48e954",
+    "/home/cooper/ai_project/fuelsim/verification/fuelsim/quasistatic_rz_performance_medium_cax8t_finite_timing.fsi": "0888a93feb574127777a2974c50e404cdbef2089ef630e2fd26381ef5ef9f796",
+    "/home/cooper/ai_project/fuelsim/verification/meshes/rz_performance_medium_cax8t.e": "ba88fadda15384a7abfbce8dc2ed3f3b51913258e95de53d8786668426d943cd",
+    "/home/cooper/ai_project/fuelsim/verification/fuelsim/quasistatic_rz_performance_medium_cax8t_finite.fsi": "f29e7fc13896120edb513f65cc37267c0dfd15d514060cf551890eb51e05d3c1",
+    "/tmp/cax-other-speed/results/cax8t/accuracy/baseline/fuelsim/quasistatic_rz_performance_medium_cax8t_finite_results.e": "d34b841e7e7bcba7fdadc8f738ea923c43378c34e2a466990f80b16b409e87d9",
+    "/tmp/cax-other-speed/results/cax8t/accuracy/candidate/fuelsim/quasistatic_rz_performance_medium_cax8t_finite_results.e": "d34b841e7e7bcba7fdadc8f738ea923c43378c34e2a466990f80b16b409e87d9",
+    "/home/cooper/ai_project/fuelsim/verification/fuelsim/quasistatic_rz_performance_medium_cax8rt_finite_timing.fsi": "dbd551905b612cd4abfa0d60e5aaf1a57dbf451beff93a1f415265f83d7c74c5",
+    "/home/cooper/ai_project/fuelsim/verification/fuelsim/quasistatic_rz_performance_medium_cax8rt_finite.fsi": "7e6cdb47d264111f80ac973f5210ad299cc7a1c07b03cdffbaa5872fa225092f",
+    "/tmp/cax-other-speed/results/cax8rt/accuracy/baseline/fuelsim/quasistatic_rz_performance_medium_cax8rt_finite_results.e": "2cbd6805b35464e9f609799497121f52d46d00048f36627f5d7ab53c17536e26",
+    "/tmp/cax-other-speed/results/cax8rt/accuracy/candidate/fuelsim/quasistatic_rz_performance_medium_cax8rt_finite_results.e": "2cbd6805b35464e9f609799497121f52d46d00048f36627f5d7ab53c17536e26",
+    "/home/cooper/ai_project/fuelsim/verification/fuelsim/quasistatic_rz_performance_medium_cax4rt_finite_timing.fsi": "a157d04d929fab66328e990527ee9595e65508cb6ae8eeac6d07a2663c9d724e",
+    "/home/cooper/ai_project/fuelsim/verification/meshes/rz_performance_medium.e": "2474721e4e17738601bc750f81dd678fde7be16aba621477b083f46af824b8c7",
+    "/home/cooper/ai_project/fuelsim/verification/fuelsim/quasistatic_rz_performance_medium_cax4rt_finite.fsi": "9215dbd1a626d17de870506a7ad75c781cd71c0c64b48812ef98ab10712168d2",
+    "/tmp/cax-other-speed/results/cax4rt/accuracy/baseline/fuelsim/quasistatic_rz_performance_medium_cax4rt_finite_results.e": "bdbbab9b0d67baed1f00b8e59e760810688e92cfb756292055fe0e571d42fd6d",
+    "/tmp/cax-other-speed/results/cax4rt/accuracy/candidate/fuelsim/quasistatic_rz_performance_medium_cax4rt_finite_results.e": "bdbbab9b0d67baed1f00b8e59e760810688e92cfb756292055fe0e571d42fd6d"
+  },
+  "cpu": 0,
+  "threads": 1
+}

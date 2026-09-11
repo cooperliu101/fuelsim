@@ -17,6 +17,13 @@
 #include <utility>
 
 namespace fuelsim::test {
+inline bool same_material_state(const MaterialPointState& a, const MaterialPointState& b) {
+    return a.elastic_strain == b.elastic_strain && a.plastic_strain == b.plastic_strain
+           && a.creep_strain == b.creep_strain && a.equivalent_plastic_strain == b.equivalent_plastic_strain
+           && a.equivalent_creep_strain == b.equivalent_creep_strain && a.stress.rr == b.stress.rr
+           && a.stress.zz == b.stress.zz && a.stress.hoop == b.stress.hoop && a.stress.rz == b.stress.rz;
+}
+
 inline ThermoelasticProperties thermoelastic(double conductivity_inverse_temperature,
     double conductivity_offset,
     double young_modulus,

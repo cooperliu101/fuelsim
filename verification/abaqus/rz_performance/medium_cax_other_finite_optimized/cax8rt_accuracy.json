@@ -1,0 +1,94 @@
+{
+  "temperature": {
+    "samples": 7670,
+    "maximum_absolute_error": 2.1872033357794862e-06,
+    "zero_reference_samples": 0,
+    "zero_reference_absolute_error": 0.0,
+    "zero_absolute_tolerance": 1e-08,
+    "relative_l2": 2.1393534029046992e-09,
+    "relative_absolute_peak": 2.911122187282897e-09,
+    "relative_maximum_absolute_error": 2.911122187282897e-09,
+    "maximum_pointwise_relative": 2.911122187282897e-09,
+    "passed": true
+  },
+  "prescribed_displacement": {
+    "samples": 726,
+    "maximum_absolute_error": 3.291699997175889e-35,
+    "zero_reference_samples": 726,
+    "zero_reference_absolute_error": 3.291699997175889e-35,
+    "zero_absolute_tolerance": 1e-12,
+    "passed": true
+  },
+  "free_displacement": {
+    "samples": 22762,
+    "maximum_absolute_error": 1.5300174999567998e-13,
+    "zero_reference_samples": 1,
+    "zero_reference_absolute_error": 0.0,
+    "zero_absolute_tolerance": 1e-12,
+    "relative_l2": 1.4451774403905782e-08,
+    "relative_absolute_peak": 1.4371238701375426e-08,
+    "relative_maximum_absolute_error": 1.4371238701375426e-08,
+    "maximum_pointwise_relative": 4.0105514817905594e-08,
+    "passed": true
+  },
+  "stress_tensor": {
+    "samples": 29696,
+    "maximum_absolute_error": 4.457354561539816,
+    "zero_reference_samples": 0,
+    "zero_reference_absolute_error": 0.0,
+    "zero_absolute_tolerance": 0.001,
+    "relative_l2": 1.5531816391781372e-08,
+    "relative_absolute_peak": 1.6466780153311402e-08,
+    "relative_maximum_absolute_error": 1.6469316612953213e-08,
+    "maximum_pointwise_relative": 5.1651509488463516e-08,
+    "passed": true
+  },
+  "contact_pressure": {
+    "samples": 129,
+    "maximum_absolute_error": 0.25818064622581005,
+    "zero_reference_samples": 0,
+    "zero_reference_absolute_error": 0.0,
+    "zero_absolute_tolerance": 0.001,
+    "relative_l2": 3.5069114932389885e-08,
+    "relative_absolute_peak": 2.300622661330086e-08,
+    "relative_maximum_absolute_error": 2.300622661330086e-08,
+    "maximum_pointwise_relative": 4.3823522586344154e-08,
+    "passed": true
+  },
+  "contact_gap": {
+    "samples": 129,
+    "maximum_absolute_error": 2.6445876728972063e-15,
+    "zero_reference_samples": 0,
+    "zero_reference_absolute_error": 0.0,
+    "zero_absolute_tolerance": 1e-12,
+    "relative_l2": 3.5104079475717364e-08,
+    "relative_absolute_peak": 2.2936036112792852e-08,
+    "relative_maximum_absolute_error": 2.2936036112792852e-08,
+    "maximum_pointwise_relative": 4.435303330611417e-08,
+    "passed": true
+  },
+  "contact_normal_force": {
+    "samples": 129,
+    "maximum_absolute_error": 5.411427288493087e-07,
+    "zero_reference_samples": 0,
+    "zero_reference_absolute_error": 0.0,
+    "zero_absolute_tolerance": 1e-08,
+    "relative_l2": 3.618797927102767e-08,
+    "relative_absolute_peak": 2.4128990913844362e-08,
+    "relative_maximum_absolute_error": 2.4128990913844362e-08,
+    "maximum_pointwise_relative": 4.4353406823470136e-08,
+    "passed": true
+  },
+  "contact_total_force": {
+    "samples": 1,
+    "maximum_absolute_error": 2.502399581771897e-05,
+    "zero_reference_samples": 0,
+    "zero_reference_absolute_error": 0.0,
+    "zero_absolute_tolerance": 1e-08,
+    "relative_l2": 3.7475949287441244e-08,
+    "relative_absolute_peak": 3.7475949287441244e-08,
+    "relative_maximum_absolute_error": 3.7475949287441244e-08,
+    "maximum_pointwise_relative": 3.7475949287441244e-08,
+    "passed": true
+  }
+}

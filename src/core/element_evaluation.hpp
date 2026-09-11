@@ -14,8 +14,8 @@ inline elements::Cax8Result compute_cax8(const AxisymmetricRegionData& data,
     const Quad8RzValues& committed,
     const Quad8MaterialHistory* history,
     double time_step,
-    bool jacobian,
-    bool thermal_time = true) {
+    bool thermal_time,
+    elements::ElementRequest request) {
     const elements::Cax8Input input{data.material,
         geometry,
         state,
@@ -27,8 +27,8 @@ inline elements::Cax8Result compute_cax8(const AxisymmetricRegionData& data,
         data.strain_formulation,
         thermal_time,
         data.initial_temperature};
-    return geometry.point_count == 4 ? elements::evaluate_cax8rt(input, {true, jacobian, true, false})
-                                     : elements::evaluate_cax8t(input, {true, jacobian, true, false});
+    return geometry.point_count == 4 ? elements::evaluate_cax8rt(input, request)
+                                     : elements::evaluate_cax8t(input, request);
 }
 
 inline elements::C3d8Result evaluate_c3d8(const CartesianRegionData& data,

@@ -271,6 +271,44 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
             passed = check(residual == fuelsim::compute_cax4_transient(data, geometry, state, old, history, 0.1),
                          name + " inelastic material residual agrees exactly between passive and Jacobian paths")
                      && passed;
+            if (reduced) {
+                const fuelsim::elements::Cax4Input input{data.material,
+                    geometry,
+                    state,
+                    old,
+                    &history,
+                    .1,
+                    data.time,
+                    data.volumetric_heat_source,
+                    formulation,
+                    true};
+
+                const auto full = fuelsim::elements::evaluate_cax4rt(input, {true, true, true, true});
+                const auto tangent = fuelsim::elements::evaluate_cax4rt(input, {true, true, false, false});
+                const auto residual_request = fuelsim::elements::evaluate_cax4rt(input, {true, false, false, false});
+                const auto history_request = fuelsim::elements::evaluate_cax4rt(input, {false, false, true, false});
+                const auto stress_request = fuelsim::elements::evaluate_cax4rt(input, {false, false, false, true});
+                if (full.residual != tangent.residual || full.jacobian != tangent.jacobian
+                    || full.residual != residual_request.residual
+                    || history_request.residual != decltype(full.residual){}
+                    || stress_request.residual != decltype(full.residual){})
+                    throw std::runtime_error("Element request changed residual or tangent");
+                for (std::size_t q = 0; q < full.history.size(); ++q) {
+                    const auto &a = full.history[q], &b = history_request.history[q];
+                    if (!fuelsim::test::same_material_state(a, b)
+                        || !fuelsim::test::same_material_state(tangent.history[q], {})
+                        || !fuelsim::test::same_material_state(residual_request.history[q], {})
+                        || !fuelsim::test::same_material_state(stress_request.history[q], {})
+                        || stress_request.stress[q].rr != a.stress.rr || stress_request.stress[q].zz != a.stress.zz
+                        || stress_request.stress[q].hoop != a.stress.hoop || stress_request.stress[q].rz != a.stress.rz)
+                        throw std::runtime_error("Element request changed history or stress");
+                }
+                if (full.generated_heat_rate != residual_request.generated_heat_rate
+                    || full.stored_heat_rate != residual_request.stored_heat_rate
+                    || full.generated_heat_rate != history_request.generated_heat_rate
+                    || full.stored_heat_rate != history_request.stored_heat_rate)
+                    throw std::runtime_error("Element request changed heat diagnostics");
+            }
             auto plus = state, minus = state;
             constexpr double step = 1e-5;
             for (std::size_t j = 0; j < 12; ++j) {
