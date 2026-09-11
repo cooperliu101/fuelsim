@@ -1,6 +1,7 @@
 #include "line3_rz.hpp"
 #include "contact_common.hpp"
 #include "contact_types.hpp"
+#include "quadrature_constants.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -19,8 +20,8 @@ Line3RzBoundaryResult compute_line3_rz_boundary(const Line3RzBoundaryData& data,
     std::array<adlite::Scalar, 8> rows{};
     const bool current = data.use_displaced_geometry;
     const double load = data.load;
-    const double g = std::sqrt(3.0 / 5.0);
-    const std::array<double, 3> points = {-g, 0, g}, weights = {5.0 / 9, 8.0 / 9, 5.0 / 9};
+    const auto& points = quadrature::gauss3_points;
+    const auto& weights = quadrature::gauss3_weights;
     for (std::size_t q = 0; q < 3; ++q) {
         const double x = points[q];
         const std::array<double, 3> shape = {x * (x - 1) / 2, x * (x + 1) / 2, 1 - x * x},
@@ -243,8 +244,8 @@ Line3ContactResult compute_line3_contact(const Line3ContactGeometry& geometry,
             (mechanical.augmented_lagrangian ? history.normal_multiplier : 0) - mechanical.penalty * gap;
         const adlite::Scalar pressure = trial_pressure.value() > 0 ? trial_pressure : adlite::Scalar(0);
         adlite::Scalar area = 0, tributary_length = 0;
-        const double g = std::sqrt(3.0 / 5.0);
-        const std::array<double, 3> qs = {-g, 0, g}, weights = {5.0 / 9, 8.0 / 9, 5.0 / 9};
+        const auto& qs = quadrature::gauss3_points;
+        const auto& weights = quadrature::gauss3_weights;
         for (std::size_t q = 0; q < 3; ++q) {
             const auto p = curve(secondary, qs[q]);
             const auto line = p.shape[geometry.secondary_node] * adlite::hypot(p.tangent.r, p.tangent.z) * weights[q];

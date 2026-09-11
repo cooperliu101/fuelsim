@@ -121,3 +121,20 @@ QUAD4/QUAD8 的投影牛顿迭代使用以主面节点为原点的局部坐标�
 `gas_gap` 的最小间隙交界与 `affine` 的开闭交界使用 ADlite `max` 的平均导数。
 `contact_common_tests.cpp` 是唯一允许直接包含 `contact_common.hpp` 的内部契约测试，
 覆盖非法状态及分支导数；公共消费者仍不得包含私有头文件。
+
+共享数学公式按以下边界复用：轴对称中点增量接收调用方按原变量形成的和、差，
+返回面内 Hughes-Winget 应变与转动、环向增量和中点行列式；各型号仍负责体积平均、
+热膨胀温度以及历史准备。材料层统一宽度 5 的应力切线求值与 `adlite::compose` 回挂，
+普通残量请求不播种；CAX4T/RT 专用跨点导数仍由型号文件组装。
+
+三维中心梯度使用 `central_increment_gradient_impl` 的固定 3×3 数学模板，统一
+逐项乘以 2 再累加的运算顺序；current、committed、incremental 的正性检查仍在
+各构形调用方，函数只检查和矩阵可逆性。`reduced_hex8_metric_impl` 统一映射、度量
+与主元；C3D8RT 双精度构形保存这些中间值供原有闭式导数复用。
+`hex8_hourglass_shape_impl` 只处理固定八节点、四模态的投影。三个新增模板都只接受
+`double` 与 `adlite::Scalar`，通过具体类型普通函数调用，不引入类模板或通用几何层。
+
+HEX8 温度形函数集中于 `c3d_common`；QUAD4 双精度形函数及面内叉积复用文件内助手。
+四个表面文件共用私有 `quadrature_constants.hpp` 的二点、三点 Gauss 常数与权重，
+局部积分点排列保持不变。`common_math_tests.cpp` 仅获准包含两个型号族共用实现的私有头文件，
+验证普通值与自动微分值一致性、中心差分方向导数、沙漏的仿射零响应及非法几何拒绝。

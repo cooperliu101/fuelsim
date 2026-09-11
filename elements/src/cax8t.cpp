@@ -182,17 +182,13 @@ PointKinematics evaluate_kinematics(const Quad8RzPoint& p,
     const double old_det = (1 + k.old[0]) * (1 + k.old[3]) - k.old[1] * k.old[2];
     if (!(k.det.value() > 0) || !(old_det > 0) || !(k.radius.value() > 0) || !(p.radius + k.old[4] > 0))
         throw std::domain_error("CAX8 committed and current deformation and radius must remain positive");
-    const adlite::Scalar a = 2 + v[0] + k.old[0], b = v[1] + k.old[1], c = v[2] + k.old[2], d = 2 + v[3] + k.old[3],
-                         det = a * d - b * c;
-    if (!(det.value() > 0))
-        throw std::domain_error("CAX8 midpoint deformation must remain positive");
-    const adlite::Scalar hrr = 2 * ((v[0] - k.old[0]) * d - (v[1] - k.old[1]) * c) / det,
-                         hrz = 2 * (-(v[0] - k.old[0]) * b + (v[1] - k.old[1]) * a) / det,
-                         hzr = 2 * ((v[2] - k.old[2]) * d - (v[3] - k.old[3]) * c) / det,
-                         hzz = 2 * (-(v[2] - k.old[2]) * b + (v[3] - k.old[3]) * a) / det;
-    const auto increment = evaluate_axisymmetric_hughes_winget(hrr, hrz, hzr, hzz);
-    k.rotation = increment.rotation;
-    k.strain = {increment.rr, increment.zz, 2 * (v[4] - k.old[4]) / (2 * p.radius + v[4] + k.old[4]), increment.rz};
+    const auto midpoint = evaluate_axisymmetric_midpoint_increment(
+        {2 + v[0] + k.old[0], v[1] + k.old[1], v[2] + k.old[2], 2 + v[3] + k.old[3]},
+        {v[0] - k.old[0], v[1] - k.old[1], v[2] - k.old[2], v[3] - k.old[3]},
+        2 * p.radius + v[4] + k.old[4],
+        v[4] - k.old[4]);
+    k.rotation = midpoint.in_plane.rotation;
+    k.strain = {midpoint.in_plane.rr, midpoint.in_plane.zz, midpoint.hoop, midpoint.in_plane.rz};
     return k;
 }
 
@@ -309,32 +305,15 @@ Cax8Result evaluate_cax8t(const Cax8Input& data, ElementRequest request, Cax8Qua
                 fed[c] += (*history)[q].elastic_strain[c] + (*history)[q].plastic_strain[c]
                           + (*history)[q].creep_strain[c] + imposed[c];
         }
-        std::array<adlite::Scalar, 5> material;
-        for (std::size_t i = 0; i < 5; ++i)
-            material[i] = jacobian ? adlite::Scalar::independent(fed[i], i, 5) : adlite::Scalar(fed[i]);
-        const auto raw =
-            history ? data.material
-                          .response(material[0],
-                              material[1],
-                              material[2],
-                              material[3],
-                              material[4],
-                              dt,
-                              (*history)[q],
-                              context)
-                          .stress
-                    : data.material.stress(material[0], material[1], material[2], material[3], material[4], context);
-        const std::array<adlite::Scalar, 4> components = {raw.rr, raw.zz, raw.hoop, raw.rz};
+        const auto tangent = evaluate_axisymmetric_stress_tangent(data.material,
+            {fed[0], fed[1], fed[2], fed[3]},
+            fed[4],
+            dt,
+            history ? &(*history)[q] : nullptr,
+            context,
+            jacobian);
         const std::array<adlite::Scalar, 5> inputs = {k.strain[0], k.strain[1], k.strain[2], k.strain[3], t};
-        std::array<adlite::Scalar, 4> composed;
-        for (std::size_t c = 0; c < 4; ++c) {
-            std::array<double, 5> partials{};
-            if (jacobian)
-                components[c].copy_derivatives(partials.data(), 5);
-            composed[c] = jacobian ? adlite::compose(components[c].value(), inputs.data(), partials.data(), 5)
-                                   : adlite::Scalar(components[c].value());
-        }
-        AxisymmetricStress stress = {composed[0], composed[1], composed[2], composed[3]};
+        AxisymmetricStress stress = compose_axisymmetric_stress(tangent, inputs, jacobian);
         if (finite)
             stress = rotate_axisymmetric_tensor(stress, k.rotation);
         if (history && request.history) {

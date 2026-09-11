@@ -9,6 +9,7 @@ namespace fuelsim {
 namespace {
 using namespace c3d8_detail;
 using namespace cartesian_detail;
+constexpr double abaqus_total_stiffness_factor = 0.005;
 
 struct ActiveReducedHex8Geometry final {
     adlite::Scalar volume{0.0}, center_measure{0.0};
@@ -19,6 +20,7 @@ struct ActiveReducedHex8Geometry final {
 };
 
 struct ReducedHex8GeometryValues final {
+    ReducedHex8Metric thermal_metric;
     double volume = 0.0, center_measure = 0.0;
     std::array<std::array<double, 3>, hex8_node_count> average_gradient{};
     std::array<double, hex8_node_count> shape_measures{};
@@ -241,23 +243,12 @@ ReducedHex8GeometryValues reduced_hex8_geometry_values(const Hex8Geometry& refer
         throw std::domain_error(
             std::string("C3D8RT ") + configuration_name + " center Jacobian must be finite and positive");
 
-    for (std::size_t mode = 0; mode < 4; ++mode) {
-        std::array<double, 3> projected_coordinate{};
-        for (std::size_t node = 0; node < hex8_node_count; ++node)
-            for (std::size_t component = 0; component < 3; ++component)
-                projected_coordinate[component] +=
-                    current_coordinates[node][component] * hex8_raw_hourglass[node][mode];
-        for (std::size_t node = 0; node < hex8_node_count; ++node) {
-            result.hourglass_shape[node][mode] = hex8_raw_hourglass[node][mode];
-            for (std::size_t component = 0; component < 3; ++component)
-                result.hourglass_shape[node][mode] -=
-                    result.average_gradient[node][component] * projected_coordinate[component];
-        }
-    }
+    result.hourglass_shape = hex8_hourglass_shape(current_coordinates, result.average_gradient);
 
     try {
+        result.thermal_metric = reduced_hex8_metric(result.average_gradient);
         result.thermal_hourglass_coefficients =
-            reduced_hex8_thermal_hourglass_coefficients(result.average_gradient, result.volume);
+            reduced_hex8_thermal_hourglass_coefficients(result.thermal_metric, result.volume);
     } catch (const std::domain_error& error) {
         throw std::domain_error(std::string("C3D8RT ") + configuration_name + " " + error.what());
     }
@@ -358,26 +349,11 @@ ReducedHex8GeometryDerivatives reduced_hex8_geometry_derivatives(const Hex8Geome
                     result.hourglass_shape[node][mode][column] = -derivative;
                 }
 
-    cartesian_detail::Matrix3 inverse_effective_mapping{};
-    for (std::size_t natural = 0; natural < 3; ++natural)
-        for (std::size_t physical = 0; physical < 3; ++physical)
-            for (std::size_t node = 0; node < hex8_node_count; ++node)
-                inverse_effective_mapping[natural][physical] +=
-                    hex8_signs[node][natural] * values.average_gradient[node][physical];
-    const cartesian_detail::Matrix3 effective_mapping =
-        cartesian_detail::inverse(inverse_effective_mapping, cartesian_detail::determinant(inverse_effective_mapping));
-    cartesian_detail::Matrix3 metric{};
-    for (std::size_t first = 0; first < 3; ++first)
-        for (std::size_t second = 0; second < 3; ++second)
-            for (std::size_t physical = 0; physical < 3; ++physical)
-                metric[first][second] += effective_mapping[physical][first] * effective_mapping[physical][second];
-    const double first_pivot = metric[0][0];
-    const double second_pivot = metric[1][1] - metric[0][1] * metric[0][1] / first_pivot;
-    const double leading = metric[0][0] * metric[1][1] - metric[0][1] * metric[0][1];
-    const double numerator = metric[1][1] * metric[0][2] * metric[0][2]
-                             - 2.0 * metric[0][1] * metric[0][2] * metric[1][2]
-                             + metric[0][0] * metric[1][2] * metric[1][2];
-    const double third_pivot = metric[2][2] - numerator / leading;
+    const auto& effective_mapping = values.thermal_metric.mapping;
+    const auto& metric = values.thermal_metric.metric;
+    const double first_pivot = values.thermal_metric.pivots[0], second_pivot = values.thermal_metric.pivots[1],
+                 third_pivot = values.thermal_metric.pivots[2], leading = values.thermal_metric.leading,
+                 numerator = values.thermal_metric.numerator;
     const double inverse_x = 1.0 / first_pivot, inverse_y = 1.0 / second_pivot, inverse_z = 1.0 / third_pivot;
     const double thermal_scale = values.volume / 192.0;
     const std::array<double, 4> sums = {inverse_x + inverse_y,
@@ -492,19 +468,7 @@ ActiveReducedHex8Geometry active_reduced_hex8_geometry(const Hex8Geometry& refer
         throw std::domain_error(
             std::string("C3D8RT ") + configuration_name + " center Jacobian must be finite and positive");
 
-    for (std::size_t mode = 0; mode < 4; ++mode) {
-        std::array<adlite::Scalar, 3> projected_coordinate{};
-        for (std::size_t node = 0; node < hex8_node_count; ++node)
-            for (std::size_t component = 0; component < 3; ++component)
-                projected_coordinate[component] +=
-                    current_coordinates[node][component] * hex8_raw_hourglass[node][mode];
-        for (std::size_t node = 0; node < hex8_node_count; ++node) {
-            result.hourglass_shape[node][mode] = hex8_raw_hourglass[node][mode];
-            for (std::size_t component = 0; component < 3; ++component)
-                result.hourglass_shape[node][mode] -=
-                    result.average_gradient[node][component] * projected_coordinate[component];
-        }
-    }
+    result.hourglass_shape = hex8_hourglass_shape(current_coordinates, result.average_gradient);
 
     try {
         result.thermal_hourglass_coefficients =
@@ -798,7 +762,6 @@ Hex8LocalResidual reduced_hex8_finite_residual_values(const elements::C3d8Input&
                 average_deformation[component][direction] +=
                     state[8 * (component + 1) + node] * reference.average_shape_gradient[node][direction];
     }
-    constexpr double abaqus_total_stiffness_factor = 0.005;
     for (std::size_t mode = 0; mode < 4; ++mode) {
         std::array<double, 3> reference_amplitude{};
         for (std::size_t component = 0; component < 3; ++component)
@@ -1021,7 +984,6 @@ void add_reduced_hex8_finite_jacobian(const elements::C3d8Input& data,
                 average_deformation[component][direction] +=
                     state[8 * (component + 1) + node] * reference.average_shape_gradient[node][direction];
     }
-    constexpr double abaqus_total_stiffness_factor = 0.005;
     for (std::size_t mode = 0; mode < 4; ++mode) {
         std::array<double, 3> reference_amplitude{}, material_modal_force{};
         for (std::size_t component = 0; component < 3; ++component)
@@ -1336,7 +1298,6 @@ void assemble_c3d8rt_small_strain_system(const elements::C3d8Input& data,
             }
     }
 
-    constexpr double abaqus_total_stiffness_factor = 0.005;
     for (std::size_t component = 0; component < 3; ++component)
         for (std::size_t mode = 0; mode < 4; ++mode) {
             double amplitude = 0.0;
@@ -1548,7 +1509,6 @@ double elements::c3d8rt_hourglass_energy(const C3d8Input& data) {
     if (!std::isfinite(initial_shear_modulus) || !(initial_shear_modulus > 0.0))
         throw std::invalid_argument("C3D8RT initial shear modulus must be finite and positive");
 
-    constexpr double abaqus_total_stiffness_factor = 0.005;
     double energy = 0.0;
     if (data.strain_formulation == StrainFormulation::small) {
         for (std::size_t component = 0; component < 3; ++component)

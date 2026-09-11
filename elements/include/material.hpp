@@ -100,7 +100,12 @@ AxisymmetricStressTangent evaluate_axisymmetric_stress_tangent(const IsotropicTh
     double temperature,
     double time_step,
     const MaterialPointState* committed_material,
-    MaterialFunctionContext context);
+    MaterialFunctionContext context,
+    bool compute_tangent);
+
+AxisymmetricStress compose_axisymmetric_stress(const AxisymmetricStressTangent& response,
+    const std::array<adlite::Scalar, 5>& inputs,
+    bool compute_tangent);
 
 SymmetricTensor3Values rotate_cartesian_tensor_values(const SymmetricTensor3Values& tensor,
     const std::array<std::array<double, 3>, 3>& rotation);

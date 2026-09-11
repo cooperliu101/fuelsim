@@ -2,6 +2,7 @@
 #include "ad_local_system.hpp"
 #include "contact_common.hpp"
 #include "contact_types.hpp"
+#include "quadrature_constants.hpp"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -56,7 +57,7 @@ Cax4LocalResidual extract_line2_values(const Cax4LocalAdValues& state,
 namespace fuelsim {
 namespace {
 constexpr double pi = 3.141592653589793238462643383279502884;
-constexpr double gauss = 0.577350269189625764509148780501957456;
+using quadrature::gauss2;
 
 void validate_edge(const std::array<RzPoint, 2>& coordinates,
     const std::array<std::size_t, 2>& local_nodes,
@@ -104,7 +105,7 @@ void compute_line2_rz_mechanical_residual_ad(const Line2RzBoundaryData& data,
         data.use_displaced_geometry,
         radius,
         axial);
-    const std::array<double, 2> locations = {-gauss, gauss};
+    const std::array<double, 2> locations = {-gauss2, gauss2};
     for (const double xi : locations) {
         const std::array<double, 2> shape = {0.5 * (1.0 - xi), 0.5 * (1.0 + xi)};
         const adlite::Scalar current_radius = shape[0] * radius[0] + shape[1] * radius[1];
@@ -134,7 +135,7 @@ void compute_line2_rz_convection_residual_ad(const Line2RzBoundaryData& data,
     residual.fill(adlite::Scalar(0.0));
     const double dr = geometry.coordinates[1].r - geometry.coordinates[0].r,
                  dz = geometry.coordinates[1].z - geometry.coordinates[0].z, line_jacobian = 0.5 * std::hypot(dr, dz);
-    const std::array<double, 2> locations = {-gauss, gauss};
+    const std::array<double, 2> locations = {-gauss2, gauss2};
     for (const double xi : locations) {
         const std::array<double, 2> shape = {0.5 * (1.0 - xi), 0.5 * (1.0 + xi)};
         const double radius = shape[0] * geometry.coordinates[0].r + shape[1] * geometry.coordinates[1].r;
@@ -413,7 +414,7 @@ std::array<Line2RzHeatQuadraturePoint, line2_interface_quadrature_point_count> m
         || secondary_coordinate_lower < -1.0 || secondary_coordinate_upper > 1.0
         || !(secondary_coordinate_upper > secondary_coordinate_lower))
         throw std::invalid_argument("Heat quadrature requires a nonempty secondary interval in [-1,1]");
-    const std::array<double, line2_interface_quadrature_point_count> locations = {-gauss, gauss};
+    const std::array<double, line2_interface_quadrature_point_count> locations = {-gauss2, gauss2};
     std::array<Line2RzHeatQuadraturePoint, line2_interface_quadrature_point_count> result{};
     for (std::size_t q = 0; q < result.size(); ++q) {
         const double secondary_xi =

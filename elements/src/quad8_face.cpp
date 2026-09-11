@@ -3,6 +3,7 @@
 #include "contact_common.hpp"
 #include "contact_types.hpp"
 #include "quad4_face.hpp"
+#include "quadrature_constants.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -12,12 +13,19 @@
 
 namespace fuelsim {
 namespace {
-constexpr double gauss3 = 0.774596669241483377035853079956479922;
-constexpr double gauss2 = 0.577350269189625764509148780502;
-constexpr std::array<double, 2> gauss2_points = {-gauss2, gauss2};
-constexpr std::array<double, 2> gauss2_weights = {1.0, 1.0};
-constexpr std::array<double, 3> gauss3_points = {-gauss3, 0.0, gauss3};
-constexpr std::array<double, 3> gauss3_weights = {5.0 / 9.0, 8.0 / 9.0, 5.0 / 9.0};
+using ActivePoint3 = std::array<adlite::Scalar, 3>;
+ActivePoint3 cross(const ActivePoint3&, const ActivePoint3&);
+adlite::Scalar norm(const ActivePoint3&);
+CartesianPoint3 double_cross(const CartesianPoint3&, const CartesianPoint3&);
+
+double point_norm(const CartesianPoint3& point) {
+    return std::sqrt(point.x * point.x + point.y * point.y + point.z * point.z);
+}
+
+using quadrature::gauss2_points;
+using quadrature::gauss2_weights;
+using quadrature::gauss3_points;
+using quadrature::gauss3_weights;
 
 void evaluate_quad8_shapes(double xi,
     double eta,
@@ -69,10 +77,8 @@ Quad8FaceGeometry make_quad8_face_geometry(const Quad8FaceCoordinates& coordinat
                 tangent_eta.y += point.derivative_eta[node] * coordinates[node].y;
                 tangent_eta.z += point.derivative_eta[node] * coordinates[node].z;
             }
-            const CartesianPoint3 area{tangent_xi.y * tangent_eta.z - tangent_xi.z * tangent_eta.y,
-                tangent_xi.z * tangent_eta.x - tangent_xi.x * tangent_eta.z,
-                tangent_xi.x * tangent_eta.y - tangent_xi.y * tangent_eta.x};
-            const double measure = std::sqrt(area.x * area.x + area.y * area.y + area.z * area.z);
+            const CartesianPoint3 area = double_cross(tangent_xi, tangent_eta);
+            const double measure = point_norm(area);
             if (!std::isfinite(measure) || !(measure > 0.0))
                 throw std::invalid_argument("Quad8FaceGeometry requires a finite positive area measure");
             point.quadrature_weight = gauss2_weights[kx] * gauss2_weights[ky];
@@ -102,10 +108,8 @@ Quad8FaceMechanicalQuadraturePoint make_quad8_face_mechanical_point(const Quad8F
         point.tangent_eta.y += point.derivative_eta[node] * coordinates[node].y;
         point.tangent_eta.z += point.derivative_eta[node] * coordinates[node].z;
     }
-    const CartesianPoint3 area{point.tangent_xi.y * point.tangent_eta.z - point.tangent_xi.z * point.tangent_eta.y,
-        point.tangent_xi.z * point.tangent_eta.x - point.tangent_xi.x * point.tangent_eta.z,
-        point.tangent_xi.x * point.tangent_eta.y - point.tangent_xi.y * point.tangent_eta.x};
-    const double measure = std::sqrt(area.x * area.x + area.y * area.y + area.z * area.z);
+    const CartesianPoint3 area = double_cross(point.tangent_xi, point.tangent_eta);
+    const double measure = point_norm(area);
     if (!std::isfinite(measure) || !(measure > 0.0) || !std::isfinite(quadrature_weight) || !(quadrature_weight > 0.0))
         throw std::invalid_argument("Quad8 face mechanical point requires a finite positive weighted measure");
     point.quadrature_weight = quadrature_weight;
@@ -144,10 +148,8 @@ Quad8FaceLocalResidual compute_quad8_face_boundary(const Quad4FaceBoundaryData& 
                         tangent_xi[component] += point.derivative_xi[node] * ad_state[4 + 8 * component + node];
                         tangent_eta[component] += point.derivative_eta[node] * ad_state[4 + 8 * component + node];
                     }
-            const std::array<adlite::Scalar, 3> area = {tangent_xi[1] * tangent_eta[2] - tangent_xi[2] * tangent_eta[1],
-                tangent_xi[2] * tangent_eta[0] - tangent_xi[0] * tangent_eta[2],
-                tangent_xi[0] * tangent_eta[1] - tangent_xi[1] * tangent_eta[0]};
-            const adlite::Scalar measure = adlite::hypot(adlite::hypot(area[0], area[1]), area[2]);
+            const ActivePoint3 area = cross(tangent_xi, tangent_eta);
+            const adlite::Scalar measure = norm(area);
             if (!std::isfinite(measure.value()) || !(measure.value() > 0.0))
                 throw std::domain_error("Three-dimensional quadratic face requires a positive current measure");
             if (data.kind == Quad4FaceBoundaryKind::pressure) {
@@ -180,7 +182,6 @@ Quad8FaceLocalResidual compute_quad8_face_boundary(const Quad4FaceBoundaryData& 
 
 namespace fuelsim {
 namespace {
-using ActivePoint3 = std::array<adlite::Scalar, 3>;
 adlite::Scalar quad8_disk_fraction_ad(const Quad8ToQuad8HeatGeometry& geometry,
     const std::array<ActivePoint3, 16>& nodes);
 

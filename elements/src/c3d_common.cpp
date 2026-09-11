@@ -42,6 +42,33 @@ std::array<std::array<Scalar, 3>, 3> multiply_impl(const std::array<std::array<S
                 result[i][j] += first[i][k] * second[k][j];
     return result;
 }
+
+template <typename Scalar>
+std::array<std::array<Scalar, 3>, 3> central_increment_gradient_impl(
+    const std::array<std::array<Scalar, 3>, 3>& current,
+    const Matrix3& committed,
+    std::array<std::array<Scalar, 3>, 3>* midpoint_inverse) {
+    static_assert(std::is_same_v<Scalar, double> || std::is_same_v<Scalar, adlite::Scalar>);
+    std::array<std::array<Scalar, 3>, 3> sum{}, difference{}, gradient{};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = 0; j < 3; ++j) {
+            sum[i][j] = current[i][j] + committed[i][j];
+            difference[i][j] = current[i][j] - committed[i][j];
+        }
+    const Scalar det = determinant(sum);
+    using std::isfinite;
+    if (!isfinite(det) || det == 0.0)
+        throw std::domain_error("Abaqus Hughes-Winget Cartesian increment has singular delta-F plus identity");
+    const auto plus_inverse = inverse(sum, det);
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = 0; j < 3; ++j) {
+            if (midpoint_inverse)
+                (*midpoint_inverse)[i][j] = 2.0 * plus_inverse[i][j];
+            for (std::size_t k = 0; k < 3; ++k)
+                gradient[i][j] += 2.0 * difference[i][k] * plus_inverse[k][j];
+        }
+    return gradient;
+}
 } // namespace
 
 double determinant(const Matrix3& matrix) {
@@ -66,6 +93,15 @@ ActiveMatrix3 multiply(const ActiveMatrix3& first, const Matrix3& second) {
 
 Matrix3 multiply(const Matrix3& first, const Matrix3& second) {
     return multiply_impl(first, second);
+}
+
+Matrix3 central_increment_gradient(const Matrix3& current, const Matrix3& committed, Matrix3* midpoint_inverse) {
+    return central_increment_gradient_impl(current, committed, midpoint_inverse);
+}
+
+ActiveMatrix3
+central_increment_gradient(const ActiveMatrix3& current, const Matrix3& committed, ActiveMatrix3* midpoint_inverse) {
+    return central_increment_gradient_impl(current, committed, midpoint_inverse);
 }
 } // namespace fuelsim::cartesian_detail
 
@@ -125,27 +161,8 @@ KinematicsCore evaluate_kinematics(const ActiveMatrix3& gradient,
     const double incremental_determinant = result.current_determinant.value() / old_determinant;
     if (!std::isfinite(incremental_determinant) || !(incremental_determinant > 0.0))
         throw std::domain_error("Incremental finite-strain Cartesian state requires a positive Jacobian");
-    // (F_new F_old^-1 - I)(F_new F_old^-1 + I)^-1 is exactly
-    // (F_new - F_old)(F_new + F_old)^-1.  The latter avoids an active
-    // inverse and matrix product while retaining the same Hughes-Winget map.
-    ActiveMatrix3 deformation_sum{}, deformation_difference{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j) {
-            deformation_sum[i][j] = current[i][j] + committed_deformation[i][j];
-            deformation_difference[i][j] = current[i][j] - committed_deformation[i][j];
-        }
-    const adlite::Scalar plus_determinant = determinant(deformation_sum);
-    if (!std::isfinite(plus_determinant.value()) || plus_determinant.value() == 0.0)
-        throw std::domain_error("Abaqus Hughes-Winget Cartesian increment has singular delta-F plus identity");
-    const ActiveMatrix3 plus_inverse = inverse(deformation_sum, plus_determinant);
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j)
-            result.midpoint_inverse[i][j] = 2.0 * plus_inverse[i][j];
-    ActiveMatrix3 hughes_winget{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k)
-                hughes_winget[i][j] += 2.0 * deformation_difference[i][k] * plus_inverse[k][j];
+    const ActiveMatrix3 hughes_winget =
+        central_increment_gradient(current, committed_deformation, &result.midpoint_inverse);
     ActiveMatrix3 rotation{};
     std::array<adlite::Scalar, 6> strain{};
     hughes_winget_rotation(hughes_winget, rotation, strain);
@@ -185,13 +202,7 @@ Hex8Geometry c3d8_detail::make_hex8_geometry(const Hex8Coordinates& coordinates)
             for (double xi : {-gauss, gauss}) {
                 std::array<double, 8> shape{};
                 std::array<std::array<double, 3>, 8> derivative{};
-                for (std::size_t node = 0; node < 8; ++node) {
-                    const double sx = hex8_signs[node][0], sy = hex8_signs[node][1], sz = hex8_signs[node][2];
-                    shape[node] = 0.125 * (1.0 + sx * xi) * (1.0 + sy * eta) * (1.0 + sz * zeta);
-                    derivative[node] = {{0.125 * sx * (1.0 + sy * eta) * (1.0 + sz * zeta),
-                        0.125 * sy * (1.0 + sx * xi) * (1.0 + sz * zeta),
-                        0.125 * sz * (1.0 + sx * xi) * (1.0 + sy * eta)}};
-                }
+                hex8_shape_values(xi, eta, zeta, shape, derivative);
                 std::array<std::array<double, 3>, 3> jacobian{};
                 CartesianPoint3 position{0.0, 0.0, 0.0};
                 for (std::size_t node = 0; node < 8; ++node) {
@@ -261,20 +272,10 @@ Hex8Geometry c3d8_detail::make_hex8_geometry(const Hex8Coordinates& coordinates)
     if (!std::isfinite(geometry.reduced_body_source_measure) || !(geometry.reduced_body_source_measure > 0.0))
         throw std::invalid_argument("Reduced HEX8 body-source integration requires a positive center Jacobian");
 
-    for (std::size_t mode = 0; mode < 4; ++mode) {
-        std::array<double, 3> projected_coordinate{};
-        for (std::size_t node = 0; node < hex8_node_count; ++node) {
-            projected_coordinate[0] += coordinates[node].x * hex8_raw_hourglass[node][mode];
-            projected_coordinate[1] += coordinates[node].y * hex8_raw_hourglass[node][mode];
-            projected_coordinate[2] += coordinates[node].z * hex8_raw_hourglass[node][mode];
-        }
-        for (std::size_t node = 0; node < hex8_node_count; ++node) {
-            geometry.hourglass_shape[node][mode] = hex8_raw_hourglass[node][mode];
-            for (std::size_t component = 0; component < 3; ++component)
-                geometry.hourglass_shape[node][mode] -=
-                    geometry.average_shape_gradient[node][component] * projected_coordinate[component];
-        }
-    }
+    std::array<std::array<double, 3>, 8> nodal_coordinates{};
+    for (std::size_t node = 0; node < 8; ++node)
+        nodal_coordinates[node] = {coordinates[node].x, coordinates[node].y, coordinates[node].z};
+    geometry.hourglass_shape = hex8_hourglass_shape(nodal_coordinates, geometry.average_shape_gradient);
 
     try {
         geometry.thermal_hourglass_coefficients =
@@ -403,11 +404,13 @@ void set_history_geometry(const elements::C3d8Input& input, bool reduced, elemen
 namespace fuelsim::c3d8_detail {
 namespace {
 template <typename Scalar>
-std::array<Scalar, 4> reduced_hex8_thermal_hourglass_coefficients_impl(
-    const std::array<std::array<Scalar, 3>, hex8_node_count>& average_gradient,
-    const Scalar& volume) {
-    static_assert(std::is_same_v<Scalar, double> || std::is_same_v<Scalar, adlite::Scalar>,
-        "Reduced HEX8 thermal hourglass only supports double and adlite::Scalar");
+void reduced_hex8_metric_impl(const std::array<std::array<Scalar, 3>, 8>& average_gradient,
+    std::array<std::array<Scalar, 3>, 3>& effective_mapping,
+    std::array<std::array<Scalar, 3>, 3>& metric,
+    std::array<Scalar, 3>& pivots,
+    Scalar& leading_determinant,
+    Scalar& numerator) {
+    static_assert(std::is_same_v<Scalar, double> || std::is_same_v<Scalar, adlite::Scalar>);
     using std::isfinite;
     std::array<std::array<Scalar, 3>, 3> inverse_effective_mapping{};
     for (std::size_t natural = 0; natural < 3; ++natural)
@@ -418,24 +421,31 @@ std::array<Scalar, 4> reduced_hex8_thermal_hourglass_coefficients_impl(
     const Scalar inverse_effective_determinant = cartesian_detail::determinant(inverse_effective_mapping);
     if (!isfinite(inverse_effective_determinant) || inverse_effective_determinant == 0.0)
         throw std::domain_error("effective mapping must be nonsingular");
-    const std::array<std::array<Scalar, 3>, 3> effective_mapping =
-        cartesian_detail::inverse(inverse_effective_mapping, inverse_effective_determinant);
-    std::array<std::array<Scalar, 3>, 3> metric{};
+    effective_mapping = cartesian_detail::inverse(inverse_effective_mapping, inverse_effective_determinant);
+    metric = {};
     for (std::size_t first = 0; first < 3; ++first)
         for (std::size_t second = 0; second < 3; ++second)
             for (std::size_t physical = 0; physical < 3; ++physical)
                 metric[first][second] += effective_mapping[physical][first] * effective_mapping[physical][second];
     const Scalar first_pivot = metric[0][0];
     const Scalar second_pivot = metric[1][1] - metric[0][1] * metric[0][1] / first_pivot;
-    const Scalar leading_determinant = metric[0][0] * metric[1][1] - metric[0][1] * metric[0][1];
-    const Scalar third_pivot =
-        metric[2][2]
-        - (metric[1][1] * metric[0][2] * metric[0][2] - 2.0 * metric[0][1] * metric[0][2] * metric[1][2]
-              + metric[0][0] * metric[1][2] * metric[1][2])
-              / leading_determinant;
+    leading_determinant = metric[0][0] * metric[1][1] - metric[0][1] * metric[0][1];
+    numerator = metric[1][1] * metric[0][2] * metric[0][2] - 2.0 * metric[0][1] * metric[0][2] * metric[1][2]
+                + metric[0][0] * metric[1][2] * metric[1][2];
+    const Scalar third_pivot = metric[2][2] - numerator / leading_determinant;
     if (!isfinite(first_pivot) || !isfinite(second_pivot) || !isfinite(third_pivot) || !(first_pivot > 0.0)
         || !(second_pivot > 0.0) || !(third_pivot > 0.0))
         throw std::domain_error("effective metric must be positive definite");
+    pivots = {first_pivot, second_pivot, third_pivot};
+}
+
+template <typename Scalar>
+std::array<Scalar, 4> reduced_hex8_thermal_hourglass_coefficients_impl(const std::array<Scalar, 3>& pivots,
+    const Scalar& volume) {
+    static_assert(std::is_same_v<Scalar, double> || std::is_same_v<Scalar, adlite::Scalar>);
+    const auto& first_pivot = pivots[0];
+    const auto& second_pivot = pivots[1];
+    const auto& third_pivot = pivots[2];
     const Scalar thermal_scale = volume / 192.0;
     const Scalar inverse_x = 1.0 / first_pivot, inverse_y = 1.0 / second_pivot, inverse_z = 1.0 / third_pivot;
     return {thermal_scale * (inverse_x + inverse_y),
@@ -443,17 +453,80 @@ std::array<Scalar, 4> reduced_hex8_thermal_hourglass_coefficients_impl(
         thermal_scale * (inverse_x + inverse_z),
         thermal_scale * (inverse_x + inverse_y + inverse_z) / 3.0};
 }
+
+template <typename Scalar>
+std::array<std::array<Scalar, 4>, 8> hex8_hourglass_shape_impl(const std::array<std::array<Scalar, 3>, 8>& coordinates,
+    const std::array<std::array<Scalar, 3>, 8>& average_gradient) {
+    static_assert(std::is_same_v<Scalar, double> || std::is_same_v<Scalar, adlite::Scalar>);
+    std::array<std::array<Scalar, 4>, 8> result{};
+    for (std::size_t mode = 0; mode < 4; ++mode) {
+        std::array<Scalar, 3> projected{};
+        for (std::size_t node = 0; node < 8; ++node)
+            for (std::size_t component = 0; component < 3; ++component)
+                projected[component] += coordinates[node][component] * hex8_raw_hourglass[node][mode];
+        for (std::size_t node = 0; node < 8; ++node) {
+            result[node][mode] = hex8_raw_hourglass[node][mode];
+            for (std::size_t component = 0; component < 3; ++component)
+                result[node][mode] -= average_gradient[node][component] * projected[component];
+        }
+    }
+    return result;
+}
 } // namespace
 
 std::array<double, 4> reduced_hex8_thermal_hourglass_coefficients(
     const std::array<std::array<double, 3>, hex8_node_count>& average_gradient,
     double volume) {
-    return reduced_hex8_thermal_hourglass_coefficients_impl(average_gradient, volume);
+    return reduced_hex8_thermal_hourglass_coefficients(reduced_hex8_metric(average_gradient), volume);
 }
 
 std::array<adlite::Scalar, 4> reduced_hex8_thermal_hourglass_coefficients(
     const std::array<std::array<adlite::Scalar, 3>, hex8_node_count>& average_gradient,
     const adlite::Scalar& volume) {
-    return reduced_hex8_thermal_hourglass_coefficients_impl(average_gradient, volume);
+    cartesian_detail::ActiveMatrix3 mapping{}, metric{};
+    std::array<adlite::Scalar, 3> pivots{};
+    adlite::Scalar leading, numerator;
+    reduced_hex8_metric_impl(average_gradient, mapping, metric, pivots, leading, numerator);
+    return reduced_hex8_thermal_hourglass_coefficients_impl(pivots, volume);
+}
+
+void hex8_shape_values(double xi,
+    double eta,
+    double zeta,
+    std::array<double, 8>& shape,
+    std::array<std::array<double, 3>, 8>& derivative) {
+    for (std::size_t node = 0; node < 8; ++node) {
+        const double sx = hex8_signs[node][0], sy = hex8_signs[node][1], sz = hex8_signs[node][2];
+        shape[node] = 0.125 * (1.0 + sx * xi) * (1.0 + sy * eta) * (1.0 + sz * zeta);
+        derivative[node] = {{0.125 * sx * (1.0 + sy * eta) * (1.0 + sz * zeta),
+            0.125 * sy * (1.0 + sx * xi) * (1.0 + sz * zeta),
+            0.125 * sz * (1.0 + sx * xi) * (1.0 + sy * eta)}};
+    }
+}
+
+ReducedHex8Metric reduced_hex8_metric(const std::array<std::array<double, 3>, 8>& average_gradient) {
+    ReducedHex8Metric result;
+    reduced_hex8_metric_impl(average_gradient,
+        result.mapping,
+        result.metric,
+        result.pivots,
+        result.leading,
+        result.numerator);
+    return result;
+}
+
+std::array<double, 4> reduced_hex8_thermal_hourglass_coefficients(const ReducedHex8Metric& metric, double volume) {
+    return reduced_hex8_thermal_hourglass_coefficients_impl(metric.pivots, volume);
+}
+
+std::array<std::array<double, 4>, 8> hex8_hourglass_shape(const std::array<std::array<double, 3>, 8>& coordinates,
+    const std::array<std::array<double, 3>, 8>& average_gradient) {
+    return hex8_hourglass_shape_impl(coordinates, average_gradient);
+}
+
+std::array<std::array<adlite::Scalar, 4>, 8> hex8_hourglass_shape(
+    const std::array<std::array<adlite::Scalar, 3>, 8>& coordinates,
+    const std::array<std::array<adlite::Scalar, 3>, 8>& average_gradient) {
+    return hex8_hourglass_shape_impl(coordinates, average_gradient);
 }
 } // namespace fuelsim::c3d8_detail

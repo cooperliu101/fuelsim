@@ -2,6 +2,7 @@
 #include "ad_local_system.hpp"
 #include "contact_common.hpp"
 #include "contact_types.hpp"
+#include "quadrature_constants.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -10,20 +11,37 @@
 
 namespace fuelsim {
 namespace {
-constexpr double gauss = 0.577350269189625764509148780501957456;
+void quad4_shape_values(double xi,
+    double eta,
+    std::array<double, 4>& shape,
+    std::array<double, 4>& derivative_xi,
+    std::array<double, 4>& derivative_eta) {
+    shape = {0.25 * (1.0 - xi) * (1.0 - eta),
+        0.25 * (1.0 + xi) * (1.0 - eta),
+        0.25 * (1.0 + xi) * (1.0 + eta),
+        0.25 * (1.0 - xi) * (1.0 + eta)};
+    derivative_xi = {-0.25 * (1.0 - eta), 0.25 * (1.0 - eta), 0.25 * (1.0 + eta), -0.25 * (1.0 + eta)};
+    derivative_eta = {-0.25 * (1.0 - xi), -0.25 * (1.0 + xi), 0.25 * (1.0 + xi), 0.25 * (1.0 - xi)};
 }
+
+using ActivePoint3 = std::array<adlite::Scalar, 3>;
+ActivePoint3 cross(const ActivePoint3&, const ActivePoint3&);
+adlite::Scalar norm(const ActivePoint3&);
+CartesianPoint3 cross_points(const CartesianPoint3&, const CartesianPoint3&);
+
+double point_norm(const CartesianPoint3& point) {
+    return std::sqrt(point.x * point.x + point.y * point.y + point.z * point.z);
+}
+
+using quadrature::gauss2;
+} // namespace
 
 Quad4FaceQuadraturePoint make_quad4_face_quadrature_point(const Quad4FaceCoordinates& coordinates,
     double xi,
     double eta,
     double quadrature_weight) {
     Quad4FaceQuadraturePoint point{};
-    point.shape = {{0.25 * (1.0 - xi) * (1.0 - eta),
-        0.25 * (1.0 + xi) * (1.0 - eta),
-        0.25 * (1.0 + xi) * (1.0 + eta),
-        0.25 * (1.0 - xi) * (1.0 + eta)}};
-    point.derivative_xi = {{-0.25 * (1.0 - eta), 0.25 * (1.0 - eta), 0.25 * (1.0 + eta), -0.25 * (1.0 + eta)}};
-    point.derivative_eta = {{-0.25 * (1.0 - xi), -0.25 * (1.0 + xi), 0.25 * (1.0 + xi), 0.25 * (1.0 - xi)}};
+    quad4_shape_values(xi, eta, point.shape, point.derivative_xi, point.derivative_eta);
     for (std::size_t node = 0; node < 4; ++node) {
         point.tangent_xi.x += point.derivative_xi[node] * coordinates[node].x;
         point.tangent_xi.y += point.derivative_xi[node] * coordinates[node].y;
@@ -36,12 +54,8 @@ Quad4FaceQuadraturePoint make_quad4_face_quadrature_point(const Quad4FaceCoordin
     point.normal_derivative_eta = point.derivative_eta;
     point.normal_tangent_xi = point.tangent_xi;
     point.normal_tangent_eta = point.tangent_eta;
-    const CartesianPoint3 area_vector{point.tangent_xi.y * point.tangent_eta.z
-                                          - point.tangent_xi.z * point.tangent_eta.y,
-        point.tangent_xi.z * point.tangent_eta.x - point.tangent_xi.x * point.tangent_eta.z,
-        point.tangent_xi.x * point.tangent_eta.y - point.tangent_xi.y * point.tangent_eta.x};
-    const double measure =
-        std::sqrt(area_vector.x * area_vector.x + area_vector.y * area_vector.y + area_vector.z * area_vector.z);
+    const CartesianPoint3 area_vector = cross_points(point.tangent_xi, point.tangent_eta);
+    const double measure = point_norm(area_vector);
     if (!std::isfinite(measure) || !(measure > 0.0) || !std::isfinite(quadrature_weight) || !(quadrature_weight > 0.0))
         throw std::invalid_argument("Quad4 face quadrature point requires finite positive measure and weight");
     point.weighted_measure = quadrature_weight * measure;
@@ -51,7 +65,7 @@ Quad4FaceQuadraturePoint make_quad4_face_quadrature_point(const Quad4FaceCoordin
 Quad4FaceGeometry make_quad4_face_geometry(const Quad4FaceCoordinates& coordinates) {
     Quad4FaceGeometry geometry{};
     const std::array<std::array<double, 2>, 4> locations = {
-        {{{-gauss, -gauss}}, {{gauss, -gauss}}, {{gauss, gauss}}, {{-gauss, gauss}}}};
+        {{{-gauss2, -gauss2}}, {{gauss2, -gauss2}}, {{gauss2, gauss2}}, {{-gauss2, gauss2}}}};
     for (std::size_t q = 0; q < locations.size(); ++q)
         geometry.points[q] = make_quad4_face_quadrature_point(coordinates, locations[q][0], locations[q][1], 1.0);
     constexpr double nodal_area_location = 1.0 / 3.0;
@@ -70,17 +84,9 @@ Quad4FaceGeometry make_quad4_face_geometry(const Quad4FaceCoordinates& coordinat
         point.normal_derivative_eta = normal_point.derivative_eta;
         point.normal_tangent_xi = normal_point.tangent_xi;
         point.normal_tangent_eta = normal_point.tangent_eta;
-        const CartesianPoint3 area{point.tangent_xi.y * point.tangent_eta.z - point.tangent_xi.z * point.tangent_eta.y,
-            point.tangent_xi.z * point.tangent_eta.x - point.tangent_xi.x * point.tangent_eta.z,
-            point.tangent_xi.x * point.tangent_eta.y - point.tangent_xi.y * point.tangent_eta.x};
-        const CartesianPoint3 normal_area{normal_point.tangent_xi.y * normal_point.tangent_eta.z
-                                              - normal_point.tangent_xi.z * normal_point.tangent_eta.y,
-            normal_point.tangent_xi.z * normal_point.tangent_eta.x
-                - normal_point.tangent_xi.x * normal_point.tangent_eta.z,
-            normal_point.tangent_xi.x * normal_point.tangent_eta.y
-                - normal_point.tangent_xi.y * normal_point.tangent_eta.x};
-        const double normal_measure =
-            std::sqrt(normal_area.x * normal_area.x + normal_area.y * normal_area.y + normal_area.z * normal_area.z);
+        const CartesianPoint3 area = cross_points(point.tangent_xi, point.tangent_eta);
+        const CartesianPoint3 normal_area = cross_points(normal_point.tangent_xi, normal_point.tangent_eta);
+        const double normal_measure = point_norm(normal_area);
         point.weighted_measure =
             (area.x * normal_area.x + area.y * normal_area.y + area.z * normal_area.z) / normal_measure;
         if (!std::isfinite(point.weighted_measure) || !(point.weighted_measure > 0.0))
@@ -123,10 +129,8 @@ Quad4FaceLocalResidual compute_quad4_face_boundary(const Quad4FaceBoundaryData& 
                     normal_tangent_eta[component] +=
                         point.normal_derivative_eta[node] * ad_state[4 * (component + 1) + node];
                 }
-        const std::array<adlite::Scalar, 3> area = {tangent_xi[1] * tangent_eta[2] - tangent_xi[2] * tangent_eta[1],
-            tangent_xi[2] * tangent_eta[0] - tangent_xi[0] * tangent_eta[2],
-            tangent_xi[0] * tangent_eta[1] - tangent_xi[1] * tangent_eta[0]};
-        const adlite::Scalar raw_measure = adlite::hypot(adlite::hypot(area[0], area[1]), area[2]);
+        const ActivePoint3 area = cross(tangent_xi, tangent_eta);
+        const adlite::Scalar raw_measure = norm(area);
         if (!std::isfinite(raw_measure.value()) || !(raw_measure.value() > 0.0))
             throw std::domain_error("Three-dimensional face requires a positive current measure");
         const bool thermal =
@@ -136,12 +140,8 @@ Quad4FaceLocalResidual compute_quad4_face_boundary(const Quad4FaceBoundaryData& 
             if (!data.use_displaced_geometry)
                 measure = point.weighted_measure;
             else {
-                const std::array<adlite::Scalar, 3> normal_area = {normal_tangent_xi[1] * normal_tangent_eta[2]
-                                                                       - normal_tangent_xi[2] * normal_tangent_eta[1],
-                    normal_tangent_xi[2] * normal_tangent_eta[0] - normal_tangent_xi[0] * normal_tangent_eta[2],
-                    normal_tangent_xi[0] * normal_tangent_eta[1] - normal_tangent_xi[1] * normal_tangent_eta[0]};
-                const adlite::Scalar normal_measure =
-                    adlite::hypot(adlite::hypot(normal_area[0], normal_area[1]), normal_area[2]);
+                const ActivePoint3 normal_area = cross(normal_tangent_xi, normal_tangent_eta);
+                const adlite::Scalar normal_measure = norm(normal_area);
                 measure =
                     (area[0] * normal_area[0] + area[1] * normal_area[1] + area[2] * normal_area[2]) / normal_measure;
                 if (!std::isfinite(measure.value()) || !(measure.value() > 0.0))
@@ -184,7 +184,6 @@ Quad4FaceLocalResidual compute_quad4_face_boundary(const Quad4FaceBoundaryData& 
 
 namespace fuelsim {
 namespace {
-using ActivePoint3 = std::array<adlite::Scalar, 3>;
 
 struct SurfaceProjection final {
     bool projected = false;
@@ -239,19 +238,6 @@ CartesianPoint3 interpolate_points(const std::array<CartesianPoint3, 4>& nodes, 
         result.z += shape[node] * nodes[node].z;
     }
     return result;
-}
-
-void quad4_shape_values(double xi,
-    double eta,
-    std::array<double, 4>& shape,
-    std::array<double, 4>& derivative_xi,
-    std::array<double, 4>& derivative_eta) {
-    shape = {0.25 * (1.0 - xi) * (1.0 - eta),
-        0.25 * (1.0 + xi) * (1.0 - eta),
-        0.25 * (1.0 + xi) * (1.0 + eta),
-        0.25 * (1.0 - xi) * (1.0 + eta)};
-    derivative_xi = {-0.25 * (1.0 - eta), 0.25 * (1.0 - eta), 0.25 * (1.0 + eta), -0.25 * (1.0 + eta)};
-    derivative_eta = {-0.25 * (1.0 - xi), -0.25 * (1.0 + xi), 0.25 * (1.0 + xi), 0.25 * (1.0 - xi)};
 }
 
 DoubleSurfaceProjection project_to_primary_double(const CartesianPoint3& secondary_point,

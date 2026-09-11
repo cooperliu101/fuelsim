@@ -91,3 +91,33 @@ AxisymmetricHughesWinget evaluate_axisymmetric_hughes_winget(const adlite::Scala
         cosine * sine * (hrr - hzz) + (cosine * cosine - sine * sine) * shear};
 }
 } // namespace fuelsim
+
+namespace fuelsim {
+AxisymmetricMidpointIncrement evaluate_axisymmetric_midpoint_increment(const std::array<adlite::Scalar, 4>& sum,
+    const std::array<adlite::Scalar, 4>& difference,
+    const adlite::Scalar& hoop_sum,
+    const adlite::Scalar& hoop_difference) {
+    const auto& a = sum[0];
+    const auto& b = sum[1];
+    const auto& c = sum[2];
+    const auto& d = sum[3];
+    const adlite::Scalar determinant_sum = a * d - b * c;
+    if (!(determinant_sum.value() > 0.0) || !(hoop_sum.value() > 0.0))
+        throw std::domain_error("Axisymmetric midpoint configuration must preserve positive volume");
+    const adlite::Scalar hrr = 2.0 * (difference[0] * d - difference[1] * c) / determinant_sum,
+                         hrz = 2.0 * (-difference[0] * b + difference[1] * a) / determinant_sum,
+                         hzr = 2.0 * (difference[2] * d - difference[3] * c) / determinant_sum,
+                         hzz = 2.0 * (-difference[2] * b + difference[3] * a) / determinant_sum;
+    return {evaluate_axisymmetric_hughes_winget(hrr, hrz, hzr, hzz), determinant_sum, 2.0 * hoop_difference / hoop_sum};
+}
+
+void finish_cax4_result(elements::Cax4Result& result, elements::ElementRequest request) {
+    if (request.stress)
+        for (std::size_t q = 0; q < result.history.size(); ++q)
+            result.stress[q] = result.history[q].stress;
+    if (!request.residual && !request.jacobian)
+        result.residual.fill(0.0);
+    if (!request.history)
+        result.history = {};
+}
+} // namespace fuelsim

@@ -18,6 +18,13 @@ ActiveMatrix3 multiply(const ActiveMatrix3& first, const Matrix3& second);
 
 Matrix3 multiply(const Matrix3& first, const Matrix3& second);
 
+// Forms 2*(F-F0)*(F+F0)^-1; model-specific positive-volume checks stay at call sites.
+Matrix3
+central_increment_gradient(const Matrix3& current, const Matrix3& committed, Matrix3* midpoint_inverse = nullptr);
+ActiveMatrix3 central_increment_gradient(const ActiveMatrix3& current,
+    const Matrix3& committed,
+    ActiveMatrix3* midpoint_inverse = nullptr);
+
 // Restricted template: one Hughes-Winget map for primal and AD paths.
 // Inputs are the central displacement gradient; geometry validation belongs to the caller.
 template <typename Scalar>
@@ -82,6 +89,25 @@ KinematicsCore evaluate_hughes_winget_increment(const ActiveMatrix3& central_dis
 } // namespace fuelsim::cartesian_detail
 
 namespace fuelsim::c3d8_detail {
+void hex8_shape_values(double xi,
+    double eta,
+    double zeta,
+    std::array<double, 8>& shape,
+    std::array<std::array<double, 3>, 8>& derivative);
+
+struct ReducedHex8Metric final {
+    cartesian_detail::Matrix3 mapping{}, metric{};
+    std::array<double, 3> pivots{};
+    double leading = 0.0, numerator = 0.0;
+};
+
+ReducedHex8Metric reduced_hex8_metric(const std::array<std::array<double, 3>, 8>& average_gradient);
+std::array<double, 4> reduced_hex8_thermal_hourglass_coefficients(const ReducedHex8Metric& metric, double volume);
+std::array<std::array<double, 4>, 8> hex8_hourglass_shape(const std::array<std::array<double, 3>, 8>& coordinates,
+    const std::array<std::array<double, 3>, 8>& average_gradient);
+std::array<std::array<adlite::Scalar, 4>, 8> hex8_hourglass_shape(
+    const std::array<std::array<adlite::Scalar, 3>, 8>& coordinates,
+    const std::array<std::array<adlite::Scalar, 3>, 8>& average_gradient);
 constexpr std::array<std::array<double, 3>, 8> hex8_signs = {{{{-1.0, -1.0, -1.0}},
     {{1.0, -1.0, -1.0}},
     {{1.0, 1.0, -1.0}},

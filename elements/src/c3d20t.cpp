@@ -61,21 +61,6 @@ void evaluate_hex20_shapes(double xi,
     eta_edge(19, -1.0, 1.0);
 }
 
-void evaluate_hex8_temperature_shapes(double xi,
-    double eta,
-    double zeta,
-    std::array<double, 8>& shape,
-    std::array<std::array<double, 3>, 8>& derivative) {
-    for (std::size_t node = 0; node < 8; ++node) {
-        const double sx = c3d8_detail::hex8_signs[node][0], sy = c3d8_detail::hex8_signs[node][1],
-                     sz = c3d8_detail::hex8_signs[node][2];
-        shape[node] = 0.125 * (1.0 + sx * xi) * (1.0 + sy * eta) * (1.0 + sz * zeta);
-        derivative[node] = {{0.125 * sx * (1.0 + sy * eta) * (1.0 + sz * zeta),
-            0.125 * sy * (1.0 + sx * xi) * (1.0 + sz * zeta),
-            0.125 * sz * (1.0 + sx * xi) * (1.0 + sy * eta)}};
-    }
-}
-
 struct Hex20ReferenceMapping final {
     std::array<double, 20> displacement_shape;
     std::array<std::array<double, 3>, 20> displacement_derivative;
@@ -89,7 +74,7 @@ struct Hex20ReferenceMapping final {
 Hex20ReferenceMapping evaluate_hex20_mapping(const Hex20Coordinates& coordinates, double xi, double eta, double zeta) {
     Hex20ReferenceMapping result{};
     evaluate_hex20_shapes(xi, eta, zeta, result.displacement_shape, result.displacement_derivative);
-    evaluate_hex8_temperature_shapes(xi, eta, zeta, result.temperature_shape, result.temperature_derivative);
+    c3d8_detail::hex8_shape_values(xi, eta, zeta, result.temperature_shape, result.temperature_derivative);
     Matrix3 jacobian{};
     for (std::size_t node = 0; node < 20; ++node) {
         result.position.x += result.displacement_shape[node] * coordinates[node].x;
@@ -314,20 +299,7 @@ Hex20KinematicsValues evaluate_kinematics_values(const Hex20MechanicalQuadrature
         const double incremental_determinant = current_determinant / old_determinant;
         if (!std::isfinite(incremental_determinant) || !(incremental_determinant > 0.0))
             throw std::domain_error("Incremental finite-strain Cartesian state requires a positive Jacobian");
-        Matrix3 deformation_sum{}, deformation_difference{};
-        for (std::size_t i = 0; i < 3; ++i)
-            for (std::size_t j = 0; j < 3; ++j) {
-                deformation_sum[i][j] = current[i][j] + old[i][j];
-                deformation_difference[i][j] = current[i][j] - old[i][j];
-            }
-        const double plus_determinant = determinant(deformation_sum);
-        if (!std::isfinite(plus_determinant) || plus_determinant == 0.0)
-            throw std::domain_error("Abaqus Hughes-Winget Cartesian increment has singular delta-F plus identity");
-        const Matrix3 plus_inverse = inverse(deformation_sum, plus_determinant);
-        Matrix3 hughes_winget = cartesian_detail::multiply(deformation_difference, plus_inverse);
-        for (auto& row : hughes_winget)
-            for (double& value : row)
-                value *= 2.0;
+        const Matrix3 hughes_winget = cartesian_detail::central_increment_gradient(current, old);
         Matrix3 rotation{};
         std::array<double, 6> strain{};
         cartesian_detail::hughes_winget_rotation(hughes_winget, rotation, strain);

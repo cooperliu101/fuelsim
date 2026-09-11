@@ -1339,10 +1339,15 @@ AxisymmetricStressTangent evaluate_axisymmetric_stress_tangent(const IsotropicTh
     double temperature,
     double time_step,
     const MaterialPointState* committed_material,
-    MaterialFunctionContext context) {
+    MaterialFunctionContext context,
+    bool compute_tangent) {
     const std::array<double, 5> seeds = {fed_strain[0], fed_strain[1], fed_strain[2], fed_strain[3], temperature};
     std::array<adlite::Scalar, 5> active{};
-    adlite::seed_identity(seeds.data(), seeds.size(), active.data());
+    if (compute_tangent)
+        adlite::seed_identity(seeds.data(), seeds.size(), active.data());
+    else
+        for (std::size_t i = 0; i < 5; ++i)
+            active[i] = seeds[i];
     const AxisymmetricStress stress =
         committed_material == nullptr ? material.stress(active[0], active[1], active[2], active[3], active[4], context)
                                       : material
@@ -1358,6 +1363,8 @@ AxisymmetricStressTangent evaluate_axisymmetric_stress_tangent(const IsotropicTh
     const std::array<const adlite::Scalar*, 4> components = {&stress.rr, &stress.zz, &stress.hoop, &stress.rz};
     AxisymmetricStressTangent result{};
     result.stress = {stress.rr.value(), stress.zz.value(), stress.hoop.value(), stress.rz.value()};
+    if (!compute_tangent)
+        return result;
     std::array<double, 5> derivatives{};
     for (std::size_t row = 0; row < 4; ++row) {
         components[row]->copy_derivatives(derivatives.data(), derivatives.size());
@@ -1366,6 +1373,25 @@ AxisymmetricStressTangent evaluate_axisymmetric_stress_tangent(const IsotropicTh
         result.thermal[row] = derivatives[4];
     }
     return result;
+}
+
+AxisymmetricStress compose_axisymmetric_stress(const AxisymmetricStressTangent& response,
+    const std::array<adlite::Scalar, 5>& inputs,
+    bool compute_tangent) {
+    const std::array<double, 4> values = {response.stress.rr,
+        response.stress.zz,
+        response.stress.hoop,
+        response.stress.rz};
+    std::array<adlite::Scalar, 4> result;
+    for (std::size_t i = 0; i < 4; ++i) {
+        std::array<double, 5> partials{};
+        for (std::size_t j = 0; j < 4; ++j)
+            partials[j] = response.tangent[i][j];
+        partials[4] = response.thermal[i];
+        result[i] =
+            compute_tangent ? adlite::compose(values[i], inputs.data(), partials.data(), 5) : adlite::Scalar(values[i]);
+    }
+    return {result[0], result[1], result[2], result[3]};
 }
 
 namespace {

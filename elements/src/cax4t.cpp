@@ -196,48 +196,25 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
                 fed[i] = (*old_history)[q].elastic_strain[i] + inputs[i].value() + old_imposed[i]
                          + (*old_history)[q].plastic_strain[i] + (*old_history)[q].creep_strain[i];
         }
-        AxisymmetricStressTangent tangent;
-        if (jacobian) {
-            tangent = evaluate_axisymmetric_stress_tangent(data.material,
-                fed,
-                s.temperature.value(),
-                time_step,
-                old_history ? &(*old_history)[q] : nullptr,
-                context);
-        } else {
-            const auto sigma =
-                old_history ? data.material
-                                  .response(fed[0],
-                                      fed[1],
-                                      fed[2],
-                                      fed[3],
-                                      s.temperature.value(),
-                                      time_step,
-                                      (*old_history)[q],
-                                      context)
-                                  .stress
-                            : data.material.stress(fed[0], fed[1], fed[2], fed[3], s.temperature.value(), context);
-            tangent.stress = {sigma.rr.value(), sigma.zz.value(), sigma.hoop.value(), sigma.rz.value()};
-        }
-        const std::array<double, 4> values = {tangent.stress.rr,
-            tangent.stress.zz,
-            tangent.stress.hoop,
-            tangent.stress.rz};
-        std::array<adlite::Scalar, 4> sigma;
+        const auto tangent = evaluate_axisymmetric_stress_tangent(data.material,
+            fed,
+            s.temperature.value(),
+            time_step,
+            old_history ? &(*old_history)[q] : nullptr,
+            context,
+            jacobian);
+        s.stress = compose_axisymmetric_stress(tangent, inputs, jacobian);
         std::array<double, 4> trace_response{}, hoop_response{}, center_response{};
         for (std::size_t i = 0; i < 4; ++i) {
             std::array<double, 5> partials{};
             for (std::size_t j = 0; j < 4; ++j)
                 partials[j] = tangent.tangent[i][j];
             partials[4] = tangent.thermal[i];
-            sigma[i] =
-                jacobian ? adlite::compose(values[i], inputs.data(), partials.data(), 5) : adlite::Scalar(values[i]);
             trace_response[i] = (partials[0] + partials[1]) / 2.0;
             hoop_response[i] = partials[2] - trace_response[i];
             for (std::size_t j = 0; j < 4; ++j)
                 center_response[i] -= partials[j] * center_derivative[j];
         }
-        s.stress = {sigma[0], sigma[1], sigma[2], sigma[3]};
         AxisymmetricStress trace_stress = {trace_response[0], trace_response[1], trace_response[2], trace_response[3]};
         AxisymmetricStress hoop_tangent = {hoop_response[0], hoop_response[1], hoop_response[2], hoop_response[3]};
         AxisymmetricStress center_tangent = {center_response[0],
@@ -464,13 +441,7 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
                         + hoop_factor * (hoop_stress_derivatives[j] - pressure_derivatives[j]));
             }
     }
-    if (request.stress)
-        for (std::size_t q = 0; q < result.history.size(); ++q)
-            result.stress[q] = result.history[q].stress;
-    if (!request.residual && !request.jacobian)
-        result.residual.fill(0.0);
-    if (!request.history)
-        result.history = {};
+    finish_cax4_result(result, request);
     return result;
 }
 } // namespace fuelsim::elements
@@ -542,32 +513,23 @@ AxisymmetricKinematics evaluate_axisymmetric_kinematics_from_point(const RzQuadr
         || !std::isfinite(incremental_hoop.value()) || !(incremental_hoop.value() > 0.0))
         throw std::domain_error("Incremental finite-strain RZ state requires positive Jacobian and hoop stretch");
     {
-        const adlite::Scalar sum_rr = deformation_rr + old_deformation_rr, sum_rz = deformation_rz + old_deformation_rz,
-                             sum_zr = deformation_zr + old_deformation_zr, sum_zz = deformation_zz + old_deformation_zz,
-                             sum_hoop = deformation_hoop + old_deformation_hoop,
-                             determinant_sum = sum_rr * sum_zz - sum_rz * sum_zr;
-        if (!(determinant_sum.value() > 0.0) || !(sum_hoop.value() > 0.0))
-            throw std::domain_error("CAX4T midpoint configuration must preserve positive volume");
-        result.midpoint_weighted_measure = point.weighted_measure * determinant_sum * sum_hoop / 8.0;
-        const adlite::Scalar
-            hrr =
-                2.0 * ((deformation_rr - old_deformation_rr) * sum_zz - (deformation_rz - old_deformation_rz) * sum_zr)
-                / determinant_sum,
-            hrz = 2.0
-                  * (-(deformation_rr - old_deformation_rr) * sum_rz + (deformation_rz - old_deformation_rz) * sum_rr)
-                  / determinant_sum,
-            hzr = 2.0
-                  * ((deformation_zr - old_deformation_zr) * sum_zz - (deformation_zz - old_deformation_zz) * sum_zr)
-                  / determinant_sum,
-            hzz = 2.0
-                  * (-(deformation_zr - old_deformation_zr) * sum_rz + (deformation_zz - old_deformation_zz) * sum_rr)
-                  / determinant_sum;
-        const auto increment = evaluate_axisymmetric_hughes_winget(hrr, hrz, hzr, hzz);
-        result.rotation = increment.rotation;
-        result.strain_rr = increment.rr;
-        result.strain_zz = increment.zz;
-        result.strain_rz = increment.rz;
-        result.strain_hoop = 2.0 * (deformation_hoop - old_deformation_hoop) / sum_hoop;
+        const adlite::Scalar sum_hoop = deformation_hoop + old_deformation_hoop;
+        const auto midpoint = evaluate_axisymmetric_midpoint_increment({deformation_rr + old_deformation_rr,
+                                                                           deformation_rz + old_deformation_rz,
+                                                                           deformation_zr + old_deformation_zr,
+                                                                           deformation_zz + old_deformation_zz},
+            {deformation_rr - old_deformation_rr,
+                deformation_rz - old_deformation_rz,
+                deformation_zr - old_deformation_zr,
+                deformation_zz - old_deformation_zz},
+            sum_hoop,
+            deformation_hoop - old_deformation_hoop);
+        result.midpoint_weighted_measure = point.weighted_measure * midpoint.determinant_sum * sum_hoop / 8.0;
+        result.rotation = midpoint.in_plane.rotation;
+        result.strain_rr = midpoint.in_plane.rr;
+        result.strain_zz = midpoint.in_plane.zz;
+        result.strain_rz = midpoint.in_plane.rz;
+        result.strain_hoop = midpoint.hoop;
         return result;
     }
 }

@@ -477,23 +477,8 @@ FinitePointResidualCache finite_point_residual_kinematics(const Hex8QuadraturePo
     const double incremental_determinant = current_determinant / old_determinant;
     if (!std::isfinite(incremental_determinant) || !(incremental_determinant > 0.0))
         throw std::domain_error("Incremental finite-strain Cartesian state requires a positive Jacobian");
-    // Match the active Hughes-Winget arithmetic order so residual-only and Jacobian calls return the same primal
-    // values while this path keeps every derivative array out of the residual callback.
-    cartesian_detail::Matrix3 deformation_sum{}, deformation_difference{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j) {
-            deformation_sum[i][j] = result.current_deformation[i][j] + old_deformation[i][j];
-            deformation_difference[i][j] = result.current_deformation[i][j] - old_deformation[i][j];
-        }
-    const double plus_determinant = cartesian_detail::determinant(deformation_sum);
-    if (!std::isfinite(plus_determinant) || plus_determinant == 0.0)
-        throw std::domain_error("Abaqus Hughes-Winget Cartesian increment has singular delta-F plus identity");
-    const cartesian_detail::Matrix3 plus_inverse = cartesian_detail::inverse(deformation_sum, plus_determinant);
-    cartesian_detail::Matrix3 hughes_winget{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k)
-                hughes_winget[i][j] += 2.0 * deformation_difference[i][k] * plus_inverse[k][j];
+    const cartesian_detail::Matrix3 hughes_winget =
+        cartesian_detail::central_increment_gradient(result.current_deformation, old_deformation);
     std::array<double, 6> strain{};
     cartesian_detail::hughes_winget_rotation(hughes_winget, result.rotation, strain);
     result.strain_increment = {strain[0], strain[1], strain[2], strain[3], strain[4], strain[5]};

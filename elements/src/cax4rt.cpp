@@ -232,20 +232,21 @@ elements::Cax4Result compute_cax4rt(const elements::Cax4Input& data,
         const double old_det = (1.0 + old_values[0]) * (1.0 + old_values[3]) - old_values[1] * old_values[2];
         if (!(fd.value() > 0.0) || !(fh.value() > 0.0) || !(old_det > 0.0) || !(1.0 + old_values[4] > 0.0))
             throw std::domain_error("CAX4RT averaged deformation must be positive");
-        const adlite::Scalar a = 2.0 + active[0] + old_values[0], b = active[1] + old_values[1],
-                             c = active[2] + old_values[2], d = 2.0 + active[3] + old_values[3], det = a * d - b * c;
-        if (!(det.value() > 0.0))
-            throw std::domain_error("CAX4RT averaged midpoint must be positive");
-        const adlite::Scalar hrr = 2.0 * ((active[0] - old_values[0]) * d - (active[1] - old_values[1]) * c) / det,
-                             hrz = 2.0 * (-(active[0] - old_values[0]) * b + (active[1] - old_values[1]) * a) / det,
-                             hzr = 2.0 * ((active[2] - old_values[2]) * d - (active[3] - old_values[3]) * c) / det,
-                             hzz = 2.0 * (-(active[2] - old_values[2]) * b + (active[3] - old_values[3]) * a) / det;
-        const auto increment = evaluate_axisymmetric_hughes_winget(hrr, hrz, hzr, hzz);
-        rotation = increment.rotation;
-        rr = increment.rr;
-        zz = increment.zz;
-        rz = increment.rz;
-        hoop = 2.0 * (active[4] - old_values[4]) / (2.0 + active[4] + old_values[4]);
+        const auto midpoint = evaluate_axisymmetric_midpoint_increment({2.0 + active[0] + old_values[0],
+                                                                           active[1] + old_values[1],
+                                                                           active[2] + old_values[2],
+                                                                           2.0 + active[3] + old_values[3]},
+            {active[0] - old_values[0],
+                active[1] - old_values[1],
+                active[2] - old_values[2],
+                active[3] - old_values[3]},
+            2.0 + active[4] + old_values[4],
+            active[4] - old_values[4]);
+        rotation = midpoint.in_plane.rotation;
+        rr = midpoint.in_plane.rr;
+        zz = midpoint.in_plane.zz;
+        rz = midpoint.in_plane.rz;
+        hoop = midpoint.hoop;
     }
     const adlite::Scalar correction = (trace - hoop - rr - zz) / 2.0;
     rr += correction;
@@ -270,38 +271,18 @@ elements::Cax4Result compute_cax4rt(const elements::Cax4Input& data,
             fed[i] += (*history)[0].elastic_strain[i] + (*history)[0].plastic_strain[i] + (*history)[0].creep_strain[i]
                       + imposed[i];
     }
-    std::array<adlite::Scalar, 5> material_inputs;
-    for (std::size_t i = 0; i < 5; ++i)
-        material_inputs[i] = jacobian ? adlite::Scalar::independent(fed[i], i, 5) : adlite::Scalar(fed[i]);
-    const auto raw = history ? data.material
-                                   .response(material_inputs[0],
-                                       material_inputs[1],
-                                       material_inputs[2],
-                                       material_inputs[3],
-                                       material_inputs[4],
-                                       time_step,
-                                       (*history)[0],
-                                       context)
-                                   .stress
-                             : data.material.stress(material_inputs[0],
-                                   material_inputs[1],
-                                   material_inputs[2],
-                                   material_inputs[3],
-                                   material_inputs[4],
-                                   context);
-    const std::array<adlite::Scalar, 4> raw_components = {raw.rr, raw.zz, raw.hoop, raw.rz};
-    std::array<adlite::Scalar, 4> composed;
+    const auto tangent = evaluate_axisymmetric_stress_tangent(data.material,
+        {fed[0], fed[1], fed[2], fed[3]},
+        fed[4],
+        time_step,
+        history ? &(*history)[0] : nullptr,
+        context,
+        jacobian);
+    AxisymmetricStress sigma = compose_axisymmetric_stress(tangent, inputs, jacobian);
     std::array<double, 4> trace_response{};
-    for (std::size_t i = 0; i < 4; ++i) {
-        std::array<double, 5> partials{};
-        if (jacobian)
-            raw_components[i].copy_derivatives(partials.data(), partials.size());
-        composed[i] = jacobian ? adlite::compose(raw_components[i].value(), inputs.data(), partials.data(), 5)
-                               : adlite::Scalar(raw_components[i].value());
-        trace_response[i] = (partials[0] + partials[1]) / 2.0;
-    }
-    AxisymmetricStress sigma = {composed[0], composed[1], composed[2], composed[3]},
-                       ds = {trace_response[0], trace_response[1], trace_response[2], trace_response[3]};
+    for (std::size_t i = 0; i < 4; ++i)
+        trace_response[i] = (tangent.tangent[i][0] + tangent.tangent[i][1]) / 2.0;
+    AxisymmetricStress ds = {trace_response[0], trace_response[1], trace_response[2], trace_response[3]};
     if (finite) {
         sigma = rotate_axisymmetric_tensor(sigma, rotation);
         if (jacobian) {
@@ -515,13 +496,7 @@ Cax4Result evaluate_cax4rt(const Cax4Input& input, ElementRequest request) {
         input.include_thermal_time_term);
     result.stored_heat_rate = rates[0];
     result.generated_heat_rate = rates[1];
-    if (request.stress)
-        for (std::size_t q = 0; q < result.history.size(); ++q)
-            result.stress[q] = result.history[q].stress;
-    if (!request.residual && !request.jacobian)
-        result.residual.fill(0.0);
-    if (!request.history)
-        result.history = {};
+    finish_cax4_result(result, request);
     return result;
 }
 } // namespace fuelsim::elements
