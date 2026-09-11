@@ -1,0 +1,29 @@
+*Heading
+** Axisymmetric steady thermal-elastic contact benchmark, 20 equal increments.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Include, input=rz_performance_medium_cax8t_mesh.inc
+*Include, input=material_contact.inc
+*Step, name=HEATING, nlgeom=YES, inc=20, unsymm=YES
+*Coupled Temperature-Displacement, steady state
+1, 20, 1, 1
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1e-10, 1e-10, , , , 1e-10
+*Controls, parameters=FIELD, field=TEMPERATURE
+1e-10, 1e-10, , , , 1e-10
+*Boundary
+FUEL_LEFT, 1, 1, 0
+FUEL_BOTTOM, 2, 2, 0
+CLAD_BOTTOM, 2, 2, 0
+CLAD_RIGHT, 11, 11, 600
+*Dflux
+FUEL, BF, 2e8
+*Output, field, frequency=20
+*Node Output
+NT, U, RF, RFL
+*Element Output, directions=YES
+S, EE, COORD, IVOL
+*Contact Output
+CSTRESS, CDISP, CFORCE, HFL
+*Output, history, frequency=0
+*Restart, write, frequency=0
+*End Step

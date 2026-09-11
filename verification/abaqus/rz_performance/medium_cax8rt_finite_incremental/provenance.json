@@ -1,0 +1,31 @@
+{
+  "git_revision": "a7c4211b0b93d136fe235bd8899e123c2a221d84",
+  "note": "New inputs and checking/runner changes uncommitted during calculation; production executable unchanged.",
+  "sha256": {
+    "verification/fuelsim/quasistatic_rz_performance_medium_cax8rt_finite.fsi": "7e6cdb47d264111f80ac973f5210ad299cc7a1c07b03cdffbaa5872fa225092f",
+    "build/fuelsim": "d4ae6f0665cef98017cf9f11c4c04bd85c051d1ce6ff9f21949dd4b5dd404c8d",
+    "verification/meshes/rz_performance_medium_cax8t.e": "ba88fadda15384a7abfbce8dc2ed3f3b51913258e95de53d8786668426d943cd",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax8rt_finite.inp": "8ce19ad42a22f4477b06ba2119e8846c44f2ee3222d72543d1d6dd311b6918d5",
+    "verification/abaqus/rz_performance/rz_performance_medium_cax8rt_mesh.inc": "9eeb55356fd45dec53c4152bf6022e4f481565ac17b6fe4787336f91385cc9eb",
+    "verification/abaqus/rz_performance/material_contact.inc": "750d4945e330983e8d84d6cafceccf2a12b4b6291547fef0dd3ce946a3ab7efe",
+    "verification/abaqus/rz_performance/run.ps1": "9c98cfc0845156b94891c74320af534304747905b4f9d861c4fe0bc115f91a28",
+    "verification/abaqus/rz_performance/extract_results.py": "4a95c614092cf6c427ba9174c5c18a9e538d5ec4c7c3678eddf09371933d5c24",
+    "verification/abaqus/rz_performance/compare.py": "f3ad34160d1203b0a9e842e77e3788f7fa0d72bb522e657a8b07bbe869a2bffb"
+  },
+  "reference_sha256": {
+    "rz_performance_medium_cax8rt_finite_nodes.csv.gz": "df50e29f1fc606fa60ab4e32e27a11e1f075afb03446c55e4b0d3f71be6df1e4",
+    "rz_performance_medium_cax8rt_finite_points.csv.gz": "68bb61d781e0783ef8d49ba44a86c8f32db948456ba75720997752e72fc6d058",
+    "rz_performance_medium_cax8rt_finite_contact.csv.gz": "d9b34748cbdd45683c7e4468c284e2f055edb3871a1dccc49d6196749bb1e95b"
+  },
+  "result_sha256": "2cbd6805b35464e9f609799497121f52d46d00048f36627f5d7ab53c17536e26",
+  "environment": {
+    "fuelsim_cpu": 0,
+    "fuelsim_mpi_ranks": 1,
+    "fuelsim_threads": 1,
+    "fuelsim_direct_solver": "MUMPS",
+    "abaqus_cpus": 1,
+    "abaqus_affinity_mask": 1,
+    "ADlite": "0.2.3 SIMD enabled"
+  },
+  "timing_scope": "Accuracy runs with output, possibly overlapping other verification. Not a performance comparison."
+}

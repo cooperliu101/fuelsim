@@ -637,3 +637,87 @@ env NETCDF_LIBRARY=/home/cooper/miniforge/envs/moose/lib/libnetcdf.so \
 [`medium_cax4t_finite_incremental/`](medium_cax4t_finite_incremental/summary.json)。
 原四种小应变中等规模算例的全部比较指标复查保持不变。
 **新执行路径尚未做关闭输出后的重复计时，原 1.57 倍耗时比不能用于此处。**
+
+## 其他 CAX 单元的中等规模有限应变对比（2026-09-11）
+
+**三个型号的全部最终场指标均通过 0.01% 门槛，也满足 0.1% 的要求。**
+
+CAX4RT、CAX8T、CAX8RT 沿用上一节已验证的增量执行方式：使用
+`TransientProblem` 管理节点状态和材料历史，关闭热容项，20 个固定单位增量
+把芯块体积热源从零提高至 `2e8 W/m^3`。包壳外表面保持 600 K，材料、
+热接触、无摩擦有限滑移机械接触和求解器容差与 CAX4T 一致。
+Abaqus 使用对应型号、`nlgeom=YES` 和 20 个固定的稳态温度—位移耦合增量。
+
+| 型号 | 单元数 | 节点数 | 温度自由度 | 总自由度 | 活跃材料积分点 | 最终活跃接触节点 |
+|---|---:|---:|---:|---:|---:|---:|
+| CAX4RT | 7,424 | 7,670 | 7,670 | 23,010 | 7,424 | 65 |
+| CAX8T | 7,424 | 22,762 | 7,670 | 53,194 | 66,816 | 129 |
+| CAX8RT | 7,424 | 22,762 | 7,670 | 53,194 | 29,696 | 129 |
+
+最大逐点相对误差如下；相对 L2 和相对绝对峰值也全部通过，完整数值见各目录
+中的 `accuracy.json`。规定零位移的绝对误差检查均通过。
+
+| 比较量 | CAX4RT | CAX8T | CAX8RT |
+|---|---:|---:|---:|
+| 温度 | 0.000000283761% | 0.000000285512% | 0.000000291112% |
+| 自由位移向量 | 0.00000871137% | 0.00000375919% | 0.00000401055% |
+| 应力张量 | 0.0000103316% | 0.00000486034% | 0.00000516515% |
+| 接触压力 | 0.0000152252% | 0.00000418180% | 0.00000438235% |
+| 接触间隙 | 0.0000152264% | 0.00000419477% | 0.00000443530% |
+| 节点法向反力 | 0.0000152323% | 0.00000419851% | 0.00000443534% |
+| 接触总反力 | 0.00000633624% | 0.00000351151% | 0.00000374759% |
+
+各型号的两套程序均完成 20 个固定增量。Fuelsim 均为 47 次非线性迭代、
+零次失败重试；Abaqus 包含接触不连续迭代在内的总迭代次数依次为 55、53、53。
+CAX4RT 的 63 个未使用积分点字段和 CAX8RT 的 100 个未使用积分点字段在
+全部 21 个输出时刻均为 NaN；CAX8T 的九个积分点全部活跃。
+
+完整输入摘要、结果 SHA256、生产日志、Abaqus 原始日志、压缩参考数据和
+比较报告分别保存在：
+
+- [CAX4RT 对比结果](medium_cax4rt_finite_incremental/summary.json)
+- [CAX8T 对比结果](medium_cax8t_finite_incremental/summary.json)
+- [CAX8RT 对比结果](medium_cax8rt_finite_incremental/summary.json)
+
+输入均为完整、直接运行的文件：
+
+- `verification/fuelsim/quasistatic_rz_performance_medium_cax4rt_finite.fsi`
+- `verification/fuelsim/quasistatic_rz_performance_medium_cax8t_finite.fsi`
+- `verification/fuelsim/quasistatic_rz_performance_medium_cax8rt_finite.fsi`
+
+对应 Abaqus 输入为本目录中的 `rz_performance_medium_<型号>_finite.inp`。
+`run.ps1` 已支持三种型号的有限应变参考计算，例如在 PowerShell 中运行：
+
+```powershell
+.\run.ps1 -SourceDirectory <本目录的Windows路径> -Size medium -Element cax8rt `
+  -Strain finite -ResultsDirectory <新的结果目录>
+```
+
+Fuelsim 及最终场比较示例为：
+
+```bash
+env -u PETSC_OPTIONS OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+  NUMEXPR_NUM_THREADS=1 taskset -c 0 build/fuelsim \
+  -i verification/fuelsim/quasistatic_rz_performance_medium_cax8rt_finite.fsi
+env NETCDF_LIBRARY=/home/cooper/miniforge/envs/moose/lib/libnetcdf.so \
+  /home/cooper/miniforge/envs/moose/bin/python verification/abaqus/rz_performance/compare.py \
+  verification/fuelsim/quasistatic_rz_performance_medium_cax8rt_finite_results.e \
+  verification/abaqus/rz_performance/medium_cax8rt_finite_incremental/rz_performance_medium_cax8rt_finite \
+  --element cax8rt --incremental --report /tmp/cax8rt-finite-accuracy.json
+```
+
+比较保留既有相对 L2、相对绝对峰值和最大逐点相对误差，非零场的门槛仍为
+0.01%，零参考量单独检查绝对误差。温度检查全部角点自由度，并验证八节点单元
+中间节点温度的插值；位移检查全部节点；应力检查全部活跃材料积分点；
+接触检查全部接触节点。八节点单元的 Abaqus 接触压力继续与对应的恢复压力比较，
+该规则与此前的小应变比较一致，没有更换为只检查某一个节点。
+
+`compare.py` 还检查全部输出时刻的未使用积分点字段为 NaN，防止把预留历史
+或输出字段作为活跃材料点。跨程序精度结论只覆盖最终状态，不声称逐增量的全部
+历史场均已完成外部比较。
+
+相关已有测试共 65 项，以 `ctest --test-dir build -j2 --output-on-failure
+-R 'cax4rt|cax8t|cax8rt'` 运行并全部通过；原四种小应变中等规模算例的比较指标
+复查完全不变。没有修改生产单元或求解器代码，没有新增重复的自动回归算例。
+这些计算保留结果输出，并可能与其他验证任务同时运行，**不用于程序速度比较**。
+三种型号的有限应变输入尚未提供关闭输出后的计时版本。

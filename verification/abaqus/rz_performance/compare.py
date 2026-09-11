@@ -77,6 +77,12 @@ def compare(result_path, prefix, element="cax4t", incremental=False):
             if not np.array_equal(times,np.arange(21,dtype=float)):
                 raise ValueError('Expected initial state and 20 unit equilibrium increments')
         elif len(times) != 1:raise ValueError('Expected final steady output only')
+        for i,name in enumerate(names(f.variables['name_elem_var']),1):
+            suffix=name.rsplit('_q',1)
+            if len(suffix)==2 and suffix[1].isdigit() and int(suffix[1])>=point_count:
+                for b in range(1,f.dimensions['num_el_blk']+1):
+                    if not np.isnan(f.variables['vals_elem_var%deb%d'%(i,b)]).all():
+                        raise ValueError('Inactive material point field must be NaN: '+name)
         nodal={name:np.array(f.variables['vals_nod_var%d'%i][-1]) for i,name in enumerate(names(f.variables['name_nod_var']),1)}
         elem={name:np.concatenate([np.array(f.variables['vals_elem_var%deb%d'%(i,b)][-1]) for b in range(1,f.dimensions['num_el_blk']+1)]) for i,name in enumerate(names(f.variables['name_elem_var']),1)}
         glob=dict(zip(names(f.variables['name_glo_var']),map(float,f.variables['vals_glo_var'][-1])))

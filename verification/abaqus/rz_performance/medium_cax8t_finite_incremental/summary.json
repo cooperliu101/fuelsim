@@ -1,0 +1,33 @@
+{
+  "element": "cax8t",
+  "strain": "finite",
+  "execution": "20 unit increments with committed history, thermal storage disabled",
+  "accuracy_passed": true,
+  "relative_gate": 0.0001,
+  "requested_relative_gate": 0.001,
+  "maximum_pointwise_relative": 4.8603439386107005e-08,
+  "coverage": {
+    "frames": 21,
+    "nodes": 22762,
+    "elements": 7424,
+    "material_points": 66816,
+    "temperature_nodes": 7670,
+    "inactive_fields_all_frames_nan": []
+  },
+  "fuelsim": {
+    "completed": "true",
+    "accepted_steps": "20",
+    "rejected_steps": "0",
+    "nonlinear_iterations_total": "47",
+    "contact.fuel_cladding.active_contact_nodes": "129",
+    "contact.fuel_cladding.total_contact_force": "6.677697477862e+02"
+  },
+  "abaqus": {
+    "completed": true,
+    "increments": 20,
+    "nonlinear_iterations_including_discontinuities": 53
+  },
+  "validation": "65/65 related CTest tests passed with -j2; four existing small-strain comparisons unchanged",
+  "scope": "All final nodes, active material points and contact nodes. Intermediate field accuracy is not cross-program qualified. Inactive integration point fields checked in all 21 Fuelsim frames.",
+  "performance": "Not measured under comparable output-disabled conditions."
+}

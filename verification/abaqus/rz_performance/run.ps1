@@ -6,7 +6,8 @@ param([Parameter(Mandatory=$true)][string]$SourceDirectory,
       [string]$ResultsDirectory='')
 $ErrorActionPreference='Stop'
 if ($Element -ne 'cax4t' -and $Size -ne 'medium') { throw 'This element model has only a medium input' }
-if ($Strain -eq 'finite' -and ($Size -ne 'medium' -or $Element -ne 'cax4t')) { throw 'Finite strain has only a medium CAX4T input' }
+if ($Strain -eq 'finite' -and $Size -ne 'medium') { throw 'Finite strain has only medium inputs' }
+if ($Strain -eq 'finite' -and $Element -ne 'cax4t' -and $Timing) { throw 'Reduced and quadratic finite-strain inputs are accuracy cases only' }
 if (!$ResultsDirectory) { $ResultsDirectory = $SourceDirectory }
 New-Item -ItemType Directory -Force -Path $ResultsDirectory | Out-Null
 [System.Diagnostics.Process]::GetCurrentProcess().ProcessorAffinity = [IntPtr]1
@@ -20,7 +21,10 @@ Copy-Item (Join-Path $SourceDirectory '*.inp') $Work
 Copy-Item (Join-Path $SourceDirectory 'extract_results.py') $Work
 $Job='rz_performance_'+$Size
 if ($Element -ne 'cax4t') { $Job += '_'+$Element }
-if ($Strain -eq 'finite') { $Job += '_cax4t_finite' }
+if ($Strain -eq 'finite') {
+  if ($Element -eq 'cax4t') { $Job += '_cax4t' }
+  $Job += '_finite'
+}
 if ($Timing) { $Job += '_timing' }
 Write-Output "work_directory=$Work"
 Push-Location $Work
