@@ -1328,7 +1328,7 @@ void assemble_c3d8rt_small_strain_system(const elements::C3d8Input& data,
     const double reference_shear_modulus = initial_properties.shear_modulus.value();
     if (!std::isfinite(reference_shear_modulus) || !(reference_shear_modulus > 0.0))
         throw std::invalid_argument("C3D8RT initial shear modulus must be finite and positive");
-    const cartesian_detail::CartesianStressTangent tangent = cartesian_detail::evaluate_stress_tangent(data.material,
+    const fuelsim::CartesianStressTangent tangent = fuelsim::evaluate_stress_tangent(data.material,
         fed_strain,
         temperature_value,
         time_step,

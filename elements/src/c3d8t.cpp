@@ -41,7 +41,7 @@ struct FiniteElementPressureSystem final {
 struct FinitePointSystemCache final {
     adlite::Scalar active_temperature;
     C3d8Kinematics kinematics;
-    cartesian_detail::CartesianStressTangent tangent;
+    fuelsim::CartesianStressTangent tangent;
 };
 
 struct FinitePointResidualCache final {
@@ -867,13 +867,13 @@ FiniteElementPressureSystem finite_element_pressure_system(const IsotropicThermo
                 fed_strain[component] = strain_components[component]->value() + point_imposed_values[component]
                                         - element_imposed_values[component];
         }
-        point_system.tangent = cartesian_detail::evaluate_stress_tangent(material,
+        point_system.tangent = fuelsim::evaluate_stress_tangent(material,
             fed_strain,
             state[material_node],
             time_step,
             point_committed_material,
             context);
-        const cartesian_detail::CartesianStressTangent& tangent = point_system.tangent;
+        const fuelsim::CartesianStressTangent& tangent = point_system.tangent;
         const std::array<double, 6> point_imposed_derivative =
                                         eigenstrain_temperature_derivative(material, state[material_node], context),
                                     element_imposed_derivative =
@@ -1093,7 +1093,7 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point,
         &constitutive_strain.xy,
         &constitutive_strain.yz,
         &constitutive_strain.xz};
-    cartesian_detail::CartesianStressTangent local_tangent;
+    fuelsim::CartesianStressTangent local_tangent;
     if (finite_point_system == nullptr) {
         std::array<double, 6> fed_strain{};
         const SymmetricTensor3 point_imposed = material.eigenstrain(adlite::Scalar(temperature_value), context);
@@ -1137,14 +1137,14 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point,
                 fed_strain[component] = strain_components[component]->value() + point_imposed_values[component]
                                         - element_imposed_values[component];
         }
-        local_tangent = cartesian_detail::evaluate_stress_tangent(material,
+        local_tangent = fuelsim::evaluate_stress_tangent(material,
             fed_strain,
             temperature_value,
             time_step,
             committed_material,
             context);
     }
-    const cartesian_detail::CartesianStressTangent& tangent =
+    const fuelsim::CartesianStressTangent& tangent =
         finite_point_system == nullptr ? local_tangent : finite_point_system->tangent;
     const std::array<double, 6> point_imposed_derivative =
                                     eigenstrain_temperature_derivative(material, temperature_value, context),

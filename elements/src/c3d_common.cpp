@@ -944,7 +944,6 @@ namespace {
 using cartesian_detail::ActiveMatrix3;
 using cartesian_detail::determinant;
 using cartesian_detail::inverse;
-using cartesian_detail::material_context;
 using cartesian_detail::Matrix3;
 
 adlite::Scalar interpolate_temperature(const Hex20MechanicalQuadraturePoint& point, const Hex20LocalAdValues& state) {
@@ -1025,7 +1024,7 @@ void add_mechanical_point_residual_values(const Hex20MechanicalQuadraturePoint& 
     if (committed_material == nullptr) {
         stress = material.stress_values(strain, temperature, context);
         if (strain_formulation == StrainFormulation::finite)
-            stress = cartesian_detail::rotate_cartesian_tensor_values(stress, kinematics.rotation);
+            stress = fuelsim::rotate_cartesian_tensor_values(stress, kinematics.rotation);
     } else if (strain_formulation == StrainFormulation::finite) {
         const double old_temperature = interpolate_temperature_values(point, old_state);
         stress = material
@@ -1314,7 +1313,7 @@ void add_mechanical_point_system(const Hex20MechanicalQuadraturePoint& point,
         for (std::size_t component = 0; component < 6; ++component)
             fed_strain[component] = strain_components[component]->value();
     }
-    const cartesian_detail::CartesianStressTangent tangent = cartesian_detail::evaluate_stress_tangent(material,
+    const fuelsim::CartesianStressTangent tangent = fuelsim::evaluate_stress_tangent(material,
         fed_strain,
         temperature_value,
         time_step,

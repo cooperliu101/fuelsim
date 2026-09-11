@@ -1,5 +1,4 @@
 #include "material.hpp"
-#include "c3d_common.hpp"
 #include "material_functions.hpp"
 #include <algorithm>
 #include <array>
@@ -1330,9 +1329,7 @@ MaterialPointState IsotropicThermoelasticMaterial::state_values(const MaterialPo
     validate_material_point_state(state);
     return state;
 }
-} // namespace fuelsim
 
-namespace fuelsim {
 // Evaluates the constitutive relation with AD seeded only on the four strain components and
 // the temperature (width 5), returning the stress values, the consistent material tangent
 // d(stress)/d(strain), and the thermal coupling d(stress)/dT.
@@ -1370,16 +1367,17 @@ AxisymmetricStressTangent evaluate_axisymmetric_stress_tangent(const IsotropicTh
     return result;
 }
 
-} // namespace fuelsim
-
-namespace fuelsim::cartesian_detail {
 SymmetricTensor3Values rotate_cartesian_tensor_values(const SymmetricTensor3Values& tensor,
-    const cartesian_detail::Matrix3& rotation) {
-    const cartesian_detail::Matrix3 value = {{{{tensor.xx, tensor.xy, tensor.xz}},
+    const std::array<std::array<double, 3>, 3>& rotation) {
+    const std::array<std::array<double, 3>, 3> value = {{{{tensor.xx, tensor.xy, tensor.xz}},
         {{tensor.xy, tensor.yy, tensor.yz}},
         {{tensor.xz, tensor.yz, tensor.zz}}}};
-    const auto left = cartesian_detail::multiply(rotation, value);
-    cartesian_detail::Matrix3 rotated{};
+    std::array<std::array<double, 3>, 3> left{};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = 0; j < 3; ++j)
+            for (std::size_t k = 0; k < 3; ++k)
+                left[i][j] += rotation[i][k] * value[k][j];
+    std::array<std::array<double, 3>, 3> rotated{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = i; j < 3; ++j)
             for (std::size_t k = 0; k < 3; ++k)
@@ -1413,23 +1411,19 @@ CartesianInelasticStressResponse evaluate_incremental_cartesian_response(const I
             + committed.creep_strain[5]};
     return material.response(synthetic_total, temperature, time_step, committed, context);
 }
-} // namespace fuelsim::cartesian_detail
-
-namespace fuelsim {
-using namespace cartesian_detail;
 
 SymmetricTensor3 rotate_cartesian_tensor(const SymmetricTensor3& tensor, const CartesianRotation& rotation) {
-    const cartesian_detail::ActiveMatrix3 r = {{{rotation.xx, rotation.xy, rotation.xz},
+    const std::array<std::array<adlite::Scalar, 3>, 3> r = {{{rotation.xx, rotation.xy, rotation.xz},
         {rotation.yx, rotation.yy, rotation.yz},
         {rotation.zx, rotation.zy, rotation.zz}}};
-    const cartesian_detail::ActiveMatrix3 value = {
+    const std::array<std::array<adlite::Scalar, 3>, 3> value = {
         {{tensor.xx, tensor.xy, tensor.xz}, {tensor.xy, tensor.yy, tensor.yz}, {tensor.xz, tensor.yz, tensor.zz}}};
-    cartesian_detail::ActiveMatrix3 left{};
+    std::array<std::array<adlite::Scalar, 3>, 3> left{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t k = 0; k < 3; ++k)
             for (std::size_t l = 0; l < 3; ++l)
                 left[i][k] += r[i][l] * value[l][k];
-    cartesian_detail::ActiveMatrix3 rotated{};
+    std::array<std::array<adlite::Scalar, 3>, 3> rotated{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = i; j < 3; ++j)
             for (std::size_t k = 0; k < 3; ++k)
@@ -1506,7 +1500,7 @@ CartesianMaterialPointState IsotropicThermoelasticMaterial::incremental_response
         committed.elastic_strain[5] + strain_increment.xz + old_imposed.xz.value() + committed.plastic_strain[5]
             + committed.creep_strain[5]};
     CartesianMaterialPointState result = response_values(synthetic_total, temperature, time_step, committed, context);
-    const cartesian_detail::Matrix3 rotation_values = {
+    const std::array<std::array<double, 3>, 3> rotation_values = {
         {{{rotation.xx.value(), rotation.xy.value(), rotation.xz.value()}},
             {{rotation.yx.value(), rotation.yy.value(), rotation.yz.value()}},
             {{rotation.zx.value(), rotation.zy.value(), rotation.zz.value()}}}};
@@ -1523,9 +1517,7 @@ CartesianMaterialPointState IsotropicThermoelasticMaterial::incremental_response
     }
     return result;
 }
-} // namespace fuelsim
 
-namespace fuelsim::cartesian_detail {
 MaterialFunctionContext material_context(double time, const CartesianPoint3& point) {
     return {time, point.x, point.y, point.z};
 }
@@ -1568,9 +1560,10 @@ CartesianStressTangent evaluate_stress_tangent(const IsotropicThermoelasticMater
 
 SymmetricTensor3Values rotate_cartesian_tensor_values(const SymmetricTensor3Values& tensor,
     const CartesianRotation& rotation) {
-    const cartesian_detail::Matrix3 values = {{{{rotation.xx.value(), rotation.xy.value(), rotation.xz.value()}},
-        {{rotation.yx.value(), rotation.yy.value(), rotation.yz.value()}},
-        {{rotation.zx.value(), rotation.zy.value(), rotation.zz.value()}}}};
+    const std::array<std::array<double, 3>, 3> values = {
+        {{{rotation.xx.value(), rotation.xy.value(), rotation.xz.value()}},
+            {{rotation.yx.value(), rotation.yy.value(), rotation.yz.value()}},
+            {{rotation.zx.value(), rotation.zy.value(), rotation.zz.value()}}}};
     return rotate_cartesian_tensor_values(tensor, values);
 }
-} // namespace fuelsim::cartesian_detail
+} // namespace fuelsim
