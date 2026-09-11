@@ -2,6 +2,7 @@
 #include "ad_local_system.hpp"
 #include <cmath>
 #include <stdexcept>
+#include <string>
 
 namespace fuelsim::cartesian_detail {
 double determinant(const Matrix3& matrix) {
@@ -251,64 +252,27 @@ Hex8Geometry c3d8_detail::make_hex8_geometry(const Hex8Coordinates& coordinates)
     if (!std::isfinite(geometry.reduced_body_source_measure) || !(geometry.reduced_body_source_measure > 0.0))
         throw std::invalid_argument("Reduced HEX8 body-source integration requires a positive center Jacobian");
 
-    constexpr std::array<std::array<double, 4>, hex8_node_count> raw_hourglass = {{{{1.0, -1.0, 1.0, -1.0}},
-        {{-1.0, -1.0, -1.0, 1.0}},
-        {{1.0, 1.0, -1.0, -1.0}},
-        {{-1.0, 1.0, 1.0, 1.0}},
-        {{1.0, 1.0, -1.0, 1.0}},
-        {{-1.0, 1.0, 1.0, -1.0}},
-        {{1.0, -1.0, 1.0, 1.0}},
-        {{-1.0, -1.0, -1.0, -1.0}}}};
     for (std::size_t mode = 0; mode < 4; ++mode) {
         std::array<double, 3> projected_coordinate{};
         for (std::size_t node = 0; node < hex8_node_count; ++node) {
-            projected_coordinate[0] += coordinates[node].x * raw_hourglass[node][mode];
-            projected_coordinate[1] += coordinates[node].y * raw_hourglass[node][mode];
-            projected_coordinate[2] += coordinates[node].z * raw_hourglass[node][mode];
+            projected_coordinate[0] += coordinates[node].x * hex8_raw_hourglass[node][mode];
+            projected_coordinate[1] += coordinates[node].y * hex8_raw_hourglass[node][mode];
+            projected_coordinate[2] += coordinates[node].z * hex8_raw_hourglass[node][mode];
         }
         for (std::size_t node = 0; node < hex8_node_count; ++node) {
-            geometry.hourglass_shape[node][mode] = raw_hourglass[node][mode];
+            geometry.hourglass_shape[node][mode] = hex8_raw_hourglass[node][mode];
             for (std::size_t component = 0; component < 3; ++component)
                 geometry.hourglass_shape[node][mode] -=
                     geometry.average_shape_gradient[node][component] * projected_coordinate[component];
         }
     }
 
-    cartesian_detail::Matrix3 inverse_effective_mapping{};
-    for (std::size_t natural = 0; natural < 3; ++natural)
-        for (std::size_t physical = 0; physical < 3; ++physical)
-            for (std::size_t node = 0; node < hex8_node_count; ++node)
-                inverse_effective_mapping[natural][physical] +=
-                    hex8_signs[node][natural] * geometry.average_shape_gradient[node][physical];
-    const double inverse_effective_determinant = cartesian_detail::determinant(inverse_effective_mapping);
-    if (!std::isfinite(inverse_effective_determinant) || inverse_effective_determinant == 0.0)
-        throw std::invalid_argument("Reduced HEX8 effective mapping must be nonsingular");
-    const cartesian_detail::Matrix3 effective_mapping =
-        cartesian_detail::inverse(inverse_effective_mapping, inverse_effective_determinant);
-    cartesian_detail::Matrix3 metric{};
-    for (std::size_t first = 0; first < 3; ++first)
-        for (std::size_t second = 0; second < 3; ++second)
-            for (std::size_t physical = 0; physical < 3; ++physical)
-                metric[first][second] += effective_mapping[physical][first] * effective_mapping[physical][second];
-    const double first_pivot = metric[0][0];
-    const double second_pivot = metric[1][1] - metric[0][1] * metric[0][1] / first_pivot;
-    const double leading_determinant = metric[0][0] * metric[1][1] - metric[0][1] * metric[0][1];
-    const double third_pivot =
-        metric[2][2]
-        - (metric[1][1] * metric[0][2] * metric[0][2] - 2.0 * metric[0][1] * metric[0][2] * metric[1][2]
-              + metric[0][0] * metric[1][2] * metric[1][2])
-              / leading_determinant;
-    if (!std::isfinite(first_pivot) || !std::isfinite(second_pivot) || !std::isfinite(third_pivot)
-        || !(first_pivot > 0.0) || !(second_pivot > 0.0) || !(third_pivot > 0.0))
-        throw std::invalid_argument("Reduced HEX8 effective metric must be positive definite");
-    const double inverse_length_x_squared = 1.0 / first_pivot;
-    const double inverse_length_y_squared = 1.0 / second_pivot;
-    const double inverse_length_z_squared = 1.0 / third_pivot;
-    const double thermal_scale = geometry.reference_volume / 192.0;
-    geometry.thermal_hourglass_coefficients = {thermal_scale * (inverse_length_x_squared + inverse_length_y_squared),
-        thermal_scale * (inverse_length_x_squared + inverse_length_z_squared),
-        thermal_scale * (inverse_length_x_squared + inverse_length_z_squared),
-        thermal_scale * (inverse_length_x_squared + inverse_length_y_squared + inverse_length_z_squared) / 3.0};
+    try {
+        geometry.thermal_hourglass_coefficients =
+            reduced_hex8_thermal_hourglass_coefficients(geometry.average_shape_gradient, geometry.reference_volume);
+    } catch (const std::domain_error& error) {
+        throw std::invalid_argument(std::string("Reduced HEX8 ") + error.what());
+    }
     for (std::size_t component = 0; component < 3; ++component) {
         double gradient_norm_squared = 0.0;
         for (std::size_t node = 0; node < hex8_node_count; ++node)
@@ -424,5 +388,63 @@ void set_history_geometry(const elements::C3d8Input& input, bool reduced, elemen
             k.rotation.zy.value(),
             k.rotation.zz.value()};
     }
+}
+} // namespace fuelsim::c3d8_detail
+
+namespace fuelsim::c3d8_detail {
+namespace {
+template <typename Scalar>
+std::array<Scalar, 4> reduced_hex8_thermal_hourglass_coefficients_impl(
+    const std::array<std::array<Scalar, 3>, hex8_node_count>& average_gradient,
+    const Scalar& volume) {
+    static_assert(std::is_same_v<Scalar, double> || std::is_same_v<Scalar, adlite::Scalar>,
+        "Reduced HEX8 thermal hourglass only supports double and adlite::Scalar");
+    using std::isfinite;
+    std::array<std::array<Scalar, 3>, 3> inverse_effective_mapping{};
+    for (std::size_t natural = 0; natural < 3; ++natural)
+        for (std::size_t physical = 0; physical < 3; ++physical)
+            for (std::size_t node = 0; node < hex8_node_count; ++node)
+                inverse_effective_mapping[natural][physical] +=
+                    hex8_signs[node][natural] * average_gradient[node][physical];
+    const Scalar inverse_effective_determinant = cartesian_detail::determinant(inverse_effective_mapping);
+    if (!isfinite(inverse_effective_determinant) || inverse_effective_determinant == 0.0)
+        throw std::domain_error("effective mapping must be nonsingular");
+    const std::array<std::array<Scalar, 3>, 3> effective_mapping =
+        cartesian_detail::inverse(inverse_effective_mapping, inverse_effective_determinant);
+    std::array<std::array<Scalar, 3>, 3> metric{};
+    for (std::size_t first = 0; first < 3; ++first)
+        for (std::size_t second = 0; second < 3; ++second)
+            for (std::size_t physical = 0; physical < 3; ++physical)
+                metric[first][second] += effective_mapping[physical][first] * effective_mapping[physical][second];
+    const Scalar first_pivot = metric[0][0];
+    const Scalar second_pivot = metric[1][1] - metric[0][1] * metric[0][1] / first_pivot;
+    const Scalar leading_determinant = metric[0][0] * metric[1][1] - metric[0][1] * metric[0][1];
+    const Scalar third_pivot =
+        metric[2][2]
+        - (metric[1][1] * metric[0][2] * metric[0][2] - 2.0 * metric[0][1] * metric[0][2] * metric[1][2]
+              + metric[0][0] * metric[1][2] * metric[1][2])
+              / leading_determinant;
+    if (!isfinite(first_pivot) || !isfinite(second_pivot) || !isfinite(third_pivot) || !(first_pivot > 0.0)
+        || !(second_pivot > 0.0) || !(third_pivot > 0.0))
+        throw std::domain_error("effective metric must be positive definite");
+    const Scalar thermal_scale = volume / 192.0;
+    const Scalar inverse_x = 1.0 / first_pivot, inverse_y = 1.0 / second_pivot, inverse_z = 1.0 / third_pivot;
+    return {thermal_scale * (inverse_x + inverse_y),
+        thermal_scale * (inverse_x + inverse_z),
+        thermal_scale * (inverse_x + inverse_z),
+        thermal_scale * (inverse_x + inverse_y + inverse_z) / 3.0};
+}
+} // namespace
+
+std::array<double, 4> reduced_hex8_thermal_hourglass_coefficients(
+    const std::array<std::array<double, 3>, hex8_node_count>& average_gradient,
+    double volume) {
+    return reduced_hex8_thermal_hourglass_coefficients_impl(average_gradient, volume);
+}
+
+std::array<adlite::Scalar, 4> reduced_hex8_thermal_hourglass_coefficients(
+    const std::array<std::array<adlite::Scalar, 3>, hex8_node_count>& average_gradient,
+    const adlite::Scalar& volume) {
+    return reduced_hex8_thermal_hourglass_coefficients_impl(average_gradient, volume);
 }
 } // namespace fuelsim::c3d8_detail

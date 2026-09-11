@@ -13,14 +13,6 @@ constexpr std::array<double, 2> gauss2_points = {-gauss2, gauss2};
 constexpr std::array<double, 2> gauss2_weights = {1.0, 1.0};
 constexpr std::array<double, 3> gauss3_points = {-gauss3, 0.0, gauss3};
 constexpr std::array<double, 3> gauss3_weights = {5.0 / 9.0, 8.0 / 9.0, 5.0 / 9.0};
-constexpr std::array<std::array<double, 3>, 8> corner_signs = {{{{-1.0, -1.0, -1.0}},
-    {{1.0, -1.0, -1.0}},
-    {{1.0, 1.0, -1.0}},
-    {{-1.0, 1.0, -1.0}},
-    {{-1.0, -1.0, 1.0}},
-    {{1.0, -1.0, 1.0}},
-    {{1.0, 1.0, 1.0}},
-    {{-1.0, 1.0, 1.0}}}};
 
 void evaluate_hex20_shapes(double xi,
     double eta,
@@ -28,7 +20,8 @@ void evaluate_hex20_shapes(double xi,
     std::array<double, 20>& shape,
     std::array<std::array<double, 3>, 20>& derivative) {
     for (std::size_t node = 0; node < 8; ++node) {
-        const double sx = corner_signs[node][0], sy = corner_signs[node][1], sz = corner_signs[node][2];
+        const double sx = c3d8_detail::hex8_signs[node][0], sy = c3d8_detail::hex8_signs[node][1],
+                     sz = c3d8_detail::hex8_signs[node][2];
         const double ax = 1.0 + sx * xi, ay = 1.0 + sy * eta, az = 1.0 + sz * zeta;
         const double sum = sx * xi + sy * eta + sz * zeta - 2.0;
         shape[node] = 0.125 * ax * ay * az * sum;
@@ -74,7 +67,8 @@ void evaluate_hex8_temperature_shapes(double xi,
     std::array<double, 8>& shape,
     std::array<std::array<double, 3>, 8>& derivative) {
     for (std::size_t node = 0; node < 8; ++node) {
-        const double sx = corner_signs[node][0], sy = corner_signs[node][1], sz = corner_signs[node][2];
+        const double sx = c3d8_detail::hex8_signs[node][0], sy = c3d8_detail::hex8_signs[node][1],
+                     sz = c3d8_detail::hex8_signs[node][2];
         shape[node] = 0.125 * (1.0 + sx * xi) * (1.0 + sy * eta) * (1.0 + sz * zeta);
         derivative[node] = {{0.125 * sx * (1.0 + sy * eta) * (1.0 + sz * zeta),
             0.125 * sy * (1.0 + sx * xi) * (1.0 + sz * zeta),

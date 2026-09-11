@@ -29,10 +29,16 @@ foreach(path IN LISTS source_files public_headers)
     string(REGEX MATCHALL "template[ \t\r\n]*<" templates "${content}")
     list(LENGTH templates template_count)
     if(template_count GREATER 0)
-        if(NOT path STREQUAL "${ELEMENTS_SOURCE_DIR}/src/c3d_common.hpp" OR
-           NOT template_count EQUAL 1 OR
-           NOT content MATCHES "template[ \t\r\n]*<typename Scalar>[ \t\r\n]*void hughes_winget_rotation[(]")
-            message(FATAL_ERROR "Only the private Hughes-Winget function template is permitted: ${path}")
+        set(allowed_template FALSE)
+        if(path STREQUAL "${ELEMENTS_SOURCE_DIR}/src/c3d_common.hpp" AND
+           content MATCHES "template[ \t\r\n]*<typename Scalar>[ \t\r\n]*void hughes_winget_rotation[(]")
+            set(allowed_template TRUE)
+        elseif(path STREQUAL "${ELEMENTS_SOURCE_DIR}/src/c3d_common.cpp" AND
+               content MATCHES "template[ \t\r\n]*<typename Scalar>[ \t\r\n]*std::array<Scalar, 4> reduced_hex8_thermal_hourglass_coefficients_impl[(]")
+            set(allowed_template TRUE)
+        endif()
+        if(NOT allowed_template OR NOT template_count EQUAL 1)
+            message(FATAL_ERROR "Only the private Hughes-Winget and reduced HEX8 thermal hourglass templates are permitted: ${path}")
         endif()
     endif()
     if(stem MATCHES "^material(_types|_functions)?$")

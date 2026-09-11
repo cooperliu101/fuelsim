@@ -18,7 +18,7 @@ ActiveMatrix3 multiply(const ActiveMatrix3& first, const Matrix3& second);
 
 Matrix3 multiply(const Matrix3& first, const Matrix3& second);
 
-// The only project template exception: one Hughes-Winget map for primal and AD paths.
+// Restricted template: one Hughes-Winget map for primal and AD paths.
 // Inputs are the central displacement gradient; geometry validation belongs to the caller.
 template <typename Scalar>
 void hughes_winget_rotation(const std::array<std::array<Scalar, 3>, 3>& gradient,
@@ -92,6 +92,15 @@ constexpr std::array<std::array<double, 3>, 8> hex8_signs = {{{{-1.0, -1.0, -1.0
     {{1.0, -1.0, 1.0}},
     {{1.0, 1.0, 1.0}},
     {{-1.0, 1.0, 1.0}}}};
+constexpr std::array<std::array<double, 4>, hex8_node_count> hex8_raw_hourglass = {{{{1.0, -1.0, 1.0, -1.0}},
+    {{-1.0, -1.0, -1.0, 1.0}},
+    {{1.0, 1.0, -1.0, -1.0}},
+    {{-1.0, 1.0, 1.0, 1.0}},
+    {{1.0, 1.0, -1.0, 1.0}},
+    {{-1.0, 1.0, 1.0, -1.0}},
+    {{1.0, -1.0, 1.0, 1.0}},
+    {{-1.0, -1.0, -1.0, -1.0}}}};
+
 // This permutation is its own inverse: node order to Gauss order and back.
 constexpr std::array<std::size_t, hex8_node_count> hex8_node_gauss_permutation = {0, 1, 3, 2, 4, 5, 7, 6};
 
@@ -126,4 +135,16 @@ namespace fuelsim::c3d8_detail {
 Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates);
 
 void validate_cartesian_deformation(const Hex8QuadraturePoint& point, const Hex8LocalValues& state);
+} // namespace fuelsim::c3d8_detail
+
+namespace fuelsim::c3d8_detail {
+std::array<double, 4> reduced_hex8_thermal_hourglass_coefficients(
+    const std::array<std::array<double, 3>, hex8_node_count>& average_gradient,
+    double volume);
+} // namespace fuelsim::c3d8_detail
+
+namespace fuelsim::c3d8_detail {
+std::array<adlite::Scalar, 4> reduced_hex8_thermal_hourglass_coefficients(
+    const std::array<std::array<adlite::Scalar, 3>, hex8_node_count>& average_gradient,
+    const adlite::Scalar& volume);
 } // namespace fuelsim::c3d8_detail

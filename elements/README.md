@@ -20,7 +20,7 @@
 | 文件 | 归属 |
 | --- | --- |
 | `src/cax_common.hpp/.cpp` | CAX4T/RT 实际共用的参考几何，以及三个轴对称实现共用的 Hughes-Winget 转动；专用体积处理和沙漏控制仍在型号实现中 |
-| `src/c3d_common.hpp/.cpp` | 三维型号共用的矩阵与运动学、Hughes-Winget 转动，以及 C3D8T/RT 共用的参考几何和历史几何计算 |
+| `src/c3d_common.hpp/.cpp` | 三维型号共用的矩阵与运动学、Hughes-Winget 转动，以及 HEX8 角点与沙漏常量、减缩热沙漏系数、参考几何和历史几何计算 |
 | `include/material.hpp`、`src/material.cpp` | 轴对称和三维材料响应、本构切线、材料历史及其客观旋转的声明与实现 |
 | `src/material_functions.cpp` | 材料函数注册、具名参数和函数组合 |
 | `src/ad_local_system.hpp` | 多种局部计算共用的自动微分数组初始化与结果提取 |
@@ -88,12 +88,21 @@ ctest --test-dir build-elements -j4 --output-on-failure
 不代替编译和数值测试。生产算例仍通过
 `fuelsim -i <case.fsi>` 运行，并由主体统一 CTest 验证。
 
-## Hughes-Winget 计算的模板例外
+## 局部数学计算的模板例外
 
 轴对称三个实现通过 `cax_common` 的普通 `adlite::Scalar` 函数计算面内增量转动
-和随转应变。三维五个调用位置通过 `c3d_common.hpp` 中唯一的私有函数模板
+和随转应变。三维五个调用位置通过 `c3d_common.hpp` 中的私有函数模板
 `hughes_winget_rotation` 共用相同算法；模板仅接受 `double` 和 `adlite::Scalar`，
 普通双精度路径不构造自动微分标量。标量数学函数采用 `using std::函数名` 加
 非限定调用，使自动微分参数通过参数相关查找选中 ADlite 重载。两者均接收中间构形位移梯度，不进行播种。
 构形合法性、环向应变、体积平均、沙漏控制及闭式节点导数链仍属于各型号。
 此例外不允许引入通用矩阵模板、材料模板或单元标量泛型接口。
+
+HEX8 角点符号和原始沙漏模态统一保存于 `c3d_common.hpp`，下标分别为节点—方向
+和节点—模态。C3D20 的角点形函数使用同一符号顺序。减缩热沙漏系数由
+`c3d_common.cpp` 的两个具体类型重载计算，输入为相应构形的平均梯度和体积；
+两个重载调用实现文件中的同一个私有函数模板，公式只保留一份。参考、当前和
+中间构形调用双精度接口，自动微分构形调用另一接口；模板同样仅允许 `double`
+和 `adlite::Scalar`，数学函数遵循上述参数相关查找规则。
+C3D8RT 的闭式几何导数仍在型号文件中计算，参考几何错误与试探构形错误保留
+各自的异常类型和构形说明。

@@ -9,15 +9,6 @@ namespace fuelsim {
 namespace {
 using namespace c3d8_detail;
 using namespace cartesian_detail;
-constexpr std::array<std::array<double, 4>, hex8_node_count> finite_reduced_hex8_raw_hourglass = {
-    {{{1.0, -1.0, 1.0, -1.0}},
-        {{-1.0, -1.0, -1.0, 1.0}},
-        {{1.0, 1.0, -1.0, -1.0}},
-        {{-1.0, 1.0, 1.0, 1.0}},
-        {{1.0, 1.0, -1.0, 1.0}},
-        {{-1.0, 1.0, 1.0, -1.0}},
-        {{1.0, -1.0, 1.0, 1.0}},
-        {{-1.0, -1.0, -1.0, -1.0}}}};
 
 struct ActiveReducedHex8Geometry final {
     adlite::Scalar volume{0.0}, center_measure{0.0};
@@ -255,49 +246,21 @@ ReducedHex8GeometryValues reduced_hex8_geometry_values(const Hex8Geometry& refer
         for (std::size_t node = 0; node < hex8_node_count; ++node)
             for (std::size_t component = 0; component < 3; ++component)
                 projected_coordinate[component] +=
-                    current_coordinates[node][component] * finite_reduced_hex8_raw_hourglass[node][mode];
+                    current_coordinates[node][component] * hex8_raw_hourglass[node][mode];
         for (std::size_t node = 0; node < hex8_node_count; ++node) {
-            result.hourglass_shape[node][mode] = finite_reduced_hex8_raw_hourglass[node][mode];
+            result.hourglass_shape[node][mode] = hex8_raw_hourglass[node][mode];
             for (std::size_t component = 0; component < 3; ++component)
                 result.hourglass_shape[node][mode] -=
                     result.average_gradient[node][component] * projected_coordinate[component];
         }
     }
 
-    cartesian_detail::Matrix3 inverse_effective_mapping{};
-    for (std::size_t natural = 0; natural < 3; ++natural)
-        for (std::size_t physical = 0; physical < 3; ++physical)
-            for (std::size_t node = 0; node < hex8_node_count; ++node)
-                inverse_effective_mapping[natural][physical] +=
-                    hex8_signs[node][natural] * result.average_gradient[node][physical];
-    const double inverse_effective_determinant = cartesian_detail::determinant(inverse_effective_mapping);
-    if (!std::isfinite(inverse_effective_determinant) || inverse_effective_determinant == 0.0)
-        throw std::domain_error(std::string("C3D8RT ") + configuration_name + " effective mapping must be nonsingular");
-    const cartesian_detail::Matrix3 effective_mapping =
-        cartesian_detail::inverse(inverse_effective_mapping, inverse_effective_determinant);
-    cartesian_detail::Matrix3 metric{};
-    for (std::size_t first = 0; first < 3; ++first)
-        for (std::size_t second = 0; second < 3; ++second)
-            for (std::size_t physical = 0; physical < 3; ++physical)
-                metric[first][second] += effective_mapping[physical][first] * effective_mapping[physical][second];
-    const double first_pivot = metric[0][0];
-    const double second_pivot = metric[1][1] - metric[0][1] * metric[0][1] / first_pivot;
-    const double leading_determinant = metric[0][0] * metric[1][1] - metric[0][1] * metric[0][1];
-    const double third_pivot =
-        metric[2][2]
-        - (metric[1][1] * metric[0][2] * metric[0][2] - 2.0 * metric[0][1] * metric[0][2] * metric[1][2]
-              + metric[0][0] * metric[1][2] * metric[1][2])
-              / leading_determinant;
-    if (!std::isfinite(first_pivot) || !std::isfinite(second_pivot) || !std::isfinite(third_pivot)
-        || !(first_pivot > 0.0) || !(second_pivot > 0.0) || !(third_pivot > 0.0))
-        throw std::domain_error(
-            std::string("C3D8RT ") + configuration_name + " effective metric must be positive definite");
-    const double thermal_scale = result.volume / 192.0;
-    const double inverse_x = 1.0 / first_pivot, inverse_y = 1.0 / second_pivot, inverse_z = 1.0 / third_pivot;
-    result.thermal_hourglass_coefficients = {thermal_scale * (inverse_x + inverse_y),
-        thermal_scale * (inverse_x + inverse_z),
-        thermal_scale * (inverse_x + inverse_z),
-        thermal_scale * (inverse_x + inverse_y + inverse_z) / 3.0};
+    try {
+        result.thermal_hourglass_coefficients =
+            reduced_hex8_thermal_hourglass_coefficients(result.average_gradient, result.volume);
+    } catch (const std::domain_error& error) {
+        throw std::domain_error(std::string("C3D8RT ") + configuration_name + " " + error.what());
+    }
     return result;
 }
 
@@ -381,14 +344,14 @@ ReducedHex8GeometryDerivatives reduced_hex8_geometry_derivatives(const Hex8Geome
         for (std::size_t node = 0; node < hex8_node_count; ++node)
             for (std::size_t component = 0; component < 3; ++component)
                 projected_coordinates[mode][component] +=
-                    current_coordinates[node][component] * finite_reduced_hex8_raw_hourglass[node][mode];
+                    current_coordinates[node][component] * hex8_raw_hourglass[node][mode];
     for (std::size_t node = 0; node < hex8_node_count; ++node)
         for (std::size_t mode = 0; mode < 4; ++mode)
             for (std::size_t component = 0; component < 3; ++component)
                 for (std::size_t active_node = 0; active_node < hex8_node_count; ++active_node) {
                     const std::size_t column = 8 * component + active_node;
                     double derivative = displacement_derivative_scale * values.average_gradient[node][component]
-                                        * finite_reduced_hex8_raw_hourglass[active_node][mode];
+                                        * hex8_raw_hourglass[active_node][mode];
                     for (std::size_t direction = 0; direction < 3; ++direction)
                         derivative +=
                             result.average_gradient[node][direction][column] * projected_coordinates[mode][direction];
@@ -534,50 +497,21 @@ ActiveReducedHex8Geometry active_reduced_hex8_geometry(const Hex8Geometry& refer
         for (std::size_t node = 0; node < hex8_node_count; ++node)
             for (std::size_t component = 0; component < 3; ++component)
                 projected_coordinate[component] +=
-                    current_coordinates[node][component] * finite_reduced_hex8_raw_hourglass[node][mode];
+                    current_coordinates[node][component] * hex8_raw_hourglass[node][mode];
         for (std::size_t node = 0; node < hex8_node_count; ++node) {
-            result.hourglass_shape[node][mode] = finite_reduced_hex8_raw_hourglass[node][mode];
+            result.hourglass_shape[node][mode] = hex8_raw_hourglass[node][mode];
             for (std::size_t component = 0; component < 3; ++component)
                 result.hourglass_shape[node][mode] -=
                     result.average_gradient[node][component] * projected_coordinate[component];
         }
     }
 
-    cartesian_detail::ActiveMatrix3 inverse_effective_mapping{};
-    for (std::size_t natural = 0; natural < 3; ++natural)
-        for (std::size_t physical = 0; physical < 3; ++physical)
-            for (std::size_t node = 0; node < hex8_node_count; ++node)
-                inverse_effective_mapping[natural][physical] +=
-                    hex8_signs[node][natural] * result.average_gradient[node][physical];
-    const adlite::Scalar inverse_effective_determinant = cartesian_detail::determinant(inverse_effective_mapping);
-    if (!std::isfinite(inverse_effective_determinant.value()) || inverse_effective_determinant.value() == 0.0)
-        throw std::domain_error(std::string("C3D8RT ") + configuration_name + " effective mapping must be nonsingular");
-    const cartesian_detail::ActiveMatrix3 effective_mapping =
-        cartesian_detail::inverse(inverse_effective_mapping, inverse_effective_determinant);
-    cartesian_detail::ActiveMatrix3 metric{};
-    for (std::size_t first = 0; first < 3; ++first)
-        for (std::size_t second = 0; second < 3; ++second)
-            for (std::size_t physical = 0; physical < 3; ++physical)
-                metric[first][second] += effective_mapping[physical][first] * effective_mapping[physical][second];
-    const adlite::Scalar first_pivot = metric[0][0];
-    const adlite::Scalar second_pivot = metric[1][1] - metric[0][1] * metric[0][1] / first_pivot;
-    const adlite::Scalar leading_determinant = metric[0][0] * metric[1][1] - metric[0][1] * metric[0][1];
-    const adlite::Scalar third_pivot =
-        metric[2][2]
-        - (metric[1][1] * metric[0][2] * metric[0][2] - 2.0 * metric[0][1] * metric[0][2] * metric[1][2]
-              + metric[0][0] * metric[1][2] * metric[1][2])
-              / leading_determinant;
-    if (!std::isfinite(first_pivot.value()) || !std::isfinite(second_pivot.value())
-        || !std::isfinite(third_pivot.value()) || !(first_pivot.value() > 0.0) || !(second_pivot.value() > 0.0)
-        || !(third_pivot.value() > 0.0))
-        throw std::domain_error(
-            std::string("C3D8RT ") + configuration_name + " effective metric must be positive definite");
-    const adlite::Scalar thermal_scale = result.volume / 192.0;
-    const adlite::Scalar inverse_x = 1.0 / first_pivot, inverse_y = 1.0 / second_pivot, inverse_z = 1.0 / third_pivot;
-    result.thermal_hourglass_coefficients = {thermal_scale * (inverse_x + inverse_y),
-        thermal_scale * (inverse_x + inverse_z),
-        thermal_scale * (inverse_x + inverse_z),
-        thermal_scale * (inverse_x + inverse_y + inverse_z) / 3.0};
+    try {
+        result.thermal_hourglass_coefficients =
+            reduced_hex8_thermal_hourglass_coefficients(result.average_gradient, result.volume);
+    } catch (const std::domain_error& error) {
+        throw std::domain_error(std::string("C3D8RT ") + configuration_name + " " + error.what());
+    }
     return result;
 }
 
