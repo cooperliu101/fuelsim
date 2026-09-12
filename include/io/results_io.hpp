@@ -9,6 +9,8 @@
 #include <string>
 
 namespace fuelsim {
+UnstructuredBar2Mesh read_exodus_bar2(const std::string& path);
+void write_exodus_bar2(const std::string& path, const UnstructuredBar2Mesh& mesh);
 UnstructuredQuad4Mesh read_exodus_quad4(const std::string& path);
 void write_exodus_quad4(const std::string& path, const UnstructuredQuad4Mesh& mesh);
 UnstructuredQuad8Mesh read_exodus_quad8(const std::string& path);
@@ -33,6 +35,10 @@ class EngineeringHistoryWriter final {
 };
 
 void write_steady_results(const std::string& path,
+    const UnstructuredBar2Mesh& mesh,
+    const SteadyProblem& problem,
+    const std::vector<double>& state);
+void write_steady_results(const std::string& path,
     const UnstructuredQuad4Mesh& mesh,
     const SteadyProblem& problem,
     const std::vector<double>& state);
@@ -51,6 +57,7 @@ void write_steady_results(const std::string& path,
 
 class ExodusTransientResultsWriter final {
   public:
+    ExodusTransientResultsWriter(std::string path, UnstructuredBar2Mesh mesh, const TransientProblem& problem);
     ExodusTransientResultsWriter(std::string path, UnstructuredQuad4Mesh mesh, const TransientProblem& problem);
     ExodusTransientResultsWriter(std::string path, UnstructuredQuad8Mesh mesh, const TransientProblem& problem);
     ExodusTransientResultsWriter(std::string path, UnstructuredHex8Mesh mesh, const TransientProblem& problem);
@@ -59,6 +66,7 @@ class ExodusTransientResultsWriter final {
 
   private:
     std::string _path;
+    std::unique_ptr<UnstructuredBar2Mesh> _bar2_mesh;
     std::unique_ptr<UnstructuredQuad4Mesh> _rz_mesh;
     std::unique_ptr<UnstructuredQuad8Mesh> _quad8_mesh;
     std::unique_ptr<UnstructuredHex8Mesh> _hex_mesh;

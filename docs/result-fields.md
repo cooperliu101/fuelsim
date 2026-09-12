@@ -4,6 +4,32 @@
 文件，数值采用 SI 单位。变量名称包含输入卡中的接触对名称，结果文件为名称
 预留 256 个字符；名称超出文件容量时明确报错，不允许截断后混淆接触对。
 
+## 轴对称一维结果
+
+`axisymmetric_1d` 的 BAR2 结果保留全部源节点与轴向控制属性。节点字段
+`node_role` 用 0 表示未参与求解的源节点、1 表示径向节点、2 表示轴向控制
+节点。温度和径向位移仅在径向节点上有值；控制节点输出独立轴向位移，径向
+节点的 `displacement_z` 是切片中面插值，不是额外自由度。未定义字段为 NaN。
+
+瞬态 `reaction_force_z` 只写在轴向控制节点；`reaction_heat_flux` 和
+`reaction_force_r` 只写在径向节点，避免把轴向插值节点的量重复计入合力。
+各单元 `material_point_count` 为 2，输出两个材料点的完整应力、弹性、塑性、
+蠕变及等效历史，还有 `reference_r/z/measure_q<index>` 和材料温度。
+
+`reference_height` 为参考切片高度；`axial_strain` 始终表示端位移差除以参考
+高度的工程应变，有限应变下不等于累计材料应变或对数应变。`axial_force` 为
+这个径向单元的轴向截面合力，单位为 N；同片多个径向单元的值相加才是完整
+截面合力，有限应变使用当前截面面积。
+
+圆柱接触在 secondary 所属体单元上写入两个轴向积分点字段，命名为
+`contact_<field>_<pair>_q<index>`。字段为 `gap`、`pressure`、`heat_flux`、
+`area`、`tangential_traction`、`elastic_tangential_slip`、`total_tangential_slip`
+及 `sliding`，其他单元位置为 NaN。`area` 为该点积分面积，有限应变采用
+当前面积；牵引遵循残量符号，正值抵抗 secondary 沿正轴向的相对滑移。
+全局 `contact_heat_rate_<pair>`、`contact_force_<pair>` 和
+`contact_tangential_force_<pair>` 为各积分点总量。摩擦耗散读取已接受步的
+全局守恒字段，不通过重新执行已提交状态的接触更新来重建。
+
 ## 材料与反力
 
 瞬态结果对每个材料积分点输出 `stress_<component>_q<index>`、

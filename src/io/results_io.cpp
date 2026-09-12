@@ -183,6 +183,7 @@ struct ExodusMeshData final {
     std::vector<ElementBlockInfo> element_blocks;
     std::vector<NodeSet> node_sets;
     std::vector<SideSet> side_sets;
+    std::vector<std::array<std::size_t, 2>> axial_nodes{};
 };
 
 ExodusMeshData read_exodus_mesh(const std::string& path,
@@ -258,6 +259,26 @@ ExodusMeshData read_exodus_mesh(const std::string& path,
         std::vector<std::int64_t> connectivity(block_elements * nodes_per_element);
         check_exodus(ex_get_conn(file.id(), EX_ELEM_BLOCK, block_id, connectivity.data(), nullptr, nullptr),
             "Could not read Exodus connectivity");
+        std::vector<double> axial_references;
+        std::array<std::size_t, 2> axial_columns{0, 1};
+        if (nodes_per_element == 2) {
+            if (block.num_attribute != 2)
+                throw std::runtime_error(
+                    "Exodus BAR2 blocks require exactly axial_lower_node and axial_upper_node attributes");
+            std::array<std::vector<char>, 2> names = {std::vector<char>(name_length + 1, '\0'),
+                std::vector<char>(name_length + 1, '\0')};
+            std::array<char*, 2> pointers{names[0].data(), names[1].data()};
+            check_exodus(ex_get_attr_names(file.id(), EX_ELEM_BLOCK, block_id, pointers.data()),
+                "Could not read BAR2 axial attribute names");
+            const std::string first(names[0].data()), second(names[1].data());
+            if (first == "axial_upper_node" && second == "axial_lower_node")
+                axial_columns = {1, 0};
+            else if (first != "axial_lower_node" || second != "axial_upper_node")
+                throw std::runtime_error("Exodus BAR2 axial attribute names do not match the required schema");
+            axial_references.resize(2 * block_elements);
+            check_exodus(ex_get_attr(file.id(), EX_ELEM_BLOCK, block_id, axial_references.data()),
+                "Could not read BAR2 axial control node references");
+        }
         for (std::size_t element = 0; element < block_elements; ++element) {
             std::array<std::size_t, 20> nodes{};
             for (std::size_t local = 0; local < nodes_per_element; ++local) {
@@ -268,6 +289,18 @@ ExodusMeshData read_exodus_mesh(const std::string& path,
             }
             result.elements.push_back(nodes);
             result.element_block_ids.push_back(block_id);
+            if (nodes_per_element == 2) {
+                std::array<std::size_t, 2> axial{};
+                for (std::size_t end = 0; end < 2; ++end) {
+                    const double value = axial_references[2 * element + axial_columns[end]];
+                    if (!std::isfinite(value) || value < 1.0 || value > static_cast<double>(node_count)
+                        || value > 9007199254740991.0 || std::floor(value) != value)
+                        throw std::runtime_error(
+                            "Exodus BAR2 axial control node reference must be an exact valid node ID");
+                    axial[end] = static_cast<std::size_t>(value) - 1;
+                }
+                result.axial_nodes.push_back(axial);
+            }
         }
     }
     if (result.elements.size() != checked_size(parameters.num_elem, "Exodus element count"))
@@ -341,10 +374,25 @@ void write_exodus_mesh(const std::string& path, const ExodusMeshData& mesh) {
                          checked_count(mesh.nodes_per_element, "Nodes per element"),
                          0,
                          0,
-                         0),
+                         mesh.axial_nodes.empty() ? 0 : 2),
             "Could not write Exodus element block");
         check_exodus(ex_put_conn(file.id(), EX_ELEM_BLOCK, block._id, block._nodes.data(), nullptr, nullptr),
             "Could not write Exodus connectivity");
+        if (!mesh.axial_nodes.empty()) {
+            std::array<char*, 2> names{const_cast<char*>("axial_lower_node"), const_cast<char*>("axial_upper_node")};
+            check_exodus(ex_put_attr_names(file.id(), EX_ELEM_BLOCK, block._id, names.data()),
+                "Could not write BAR2 axial attribute names");
+            std::vector<double> references;
+            for (const std::size_t element : block._source_elements)
+                for (const std::size_t node : mesh.axial_nodes.at(element)) {
+                    if (node >= 9007199254740991ULL)
+                        throw std::length_error(
+                            "BAR2 axial node ID cannot be represented exactly as an Exodus attribute");
+                    references.push_back(static_cast<double>(node + 1));
+                }
+            check_exodus(ex_put_attr(file.id(), EX_ELEM_BLOCK, block._id, references.data()),
+                "Could not write BAR2 axial control node references");
+        }
         write_entity_name(file.id(),
             EX_ELEM_BLOCK,
             block._id,
@@ -418,6 +466,45 @@ bool exodus_uses_quadratic_elements(const std::string& path, int dimension) {
 }
 
 } // namespace
+
+UnstructuredBar2Mesh read_exodus_bar2(const std::string& path) {
+    auto data = read_exodus_mesh(path, 2, 2, 2, "BAR2", "BAR2", "fuelsim radial generalized-plane-strain mesh");
+    std::vector<RzPoint> nodes;
+    for (const auto& node : data.nodes)
+        nodes.push_back({node[0], node[1]});
+    std::vector<Bar2Element> elements;
+    for (std::size_t element = 0; element < data.elements.size(); ++element)
+        elements.push_back({{data.elements[element][0], data.elements[element][1]}, data.axial_nodes.at(element)});
+    return UnstructuredBar2Mesh(std::move(nodes),
+        std::move(elements),
+        std::move(data.element_block_ids),
+        std::move(data.element_blocks),
+        std::move(data.node_sets),
+        std::move(data.side_sets));
+}
+
+void write_exodus_bar2(const std::string& path, const UnstructuredBar2Mesh& mesh) {
+    ExodusMeshData data{2,
+        2,
+        2,
+        "BAR2",
+        "BAR2",
+        "fuelsim radial generalized-plane-strain mesh",
+        {"r", "z", nullptr},
+        {},
+        {},
+        mesh.element_block_ids(),
+        mesh.element_blocks(),
+        mesh.node_sets(),
+        mesh.side_sets()};
+    for (const RzPoint& node : mesh.nodes())
+        data.nodes.push_back({node.r, node.z, 0.0});
+    for (const Bar2Element& element : mesh.elements()) {
+        data.elements.push_back({element.nodes[0], element.nodes[1]});
+        data.axial_nodes.push_back(element.axial_nodes);
+    }
+    write_exodus_mesh(path, data);
+}
 
 UnstructuredQuad4Mesh read_exodus_quad4(const std::string& path) {
     ExodusMeshData data = read_exodus_mesh(path, 2, 4, 4, "QUAD4", "QUAD", "fuelsim Quad4 mesh");
@@ -789,6 +876,10 @@ struct ResultsMeshView {
     const std::vector<ElementBlockInfo>& blocks;
     const std::vector<std::int64_t>& element_block_ids;
 };
+
+ResultsMeshView results_mesh_view(const UnstructuredBar2Mesh& mesh) {
+    return {mesh.nodes().size(), mesh.elements().size(), mesh.element_blocks(), mesh.element_block_ids()};
+}
 
 ResultsMeshView results_mesh_view(const UnstructuredQuad4Mesh& mesh) {
     return {mesh.nodes().size(), mesh.elements().size(), mesh.element_blocks(), mesh.element_block_ids()};
@@ -1492,6 +1583,180 @@ std::vector<std::vector<double>> cartesian_elements(const UnstructuredHex20Mesh&
 }
 } // namespace
 
+namespace {
+std::vector<std::string> radial_nodal_names(bool transient) {
+    std::vector<std::string> names{"temperature", "displacement_r", "displacement_z", "node_role"};
+    if (transient)
+        for (const auto name : {"reaction_heat_flux", "reaction_force_r", "reaction_force_z"})
+            names.emplace_back(name);
+    return names;
+}
+
+constexpr std::array<const char*, 8> radial_contact_fields{"gap",
+    "pressure",
+    "heat_flux",
+    "area",
+    "tangential_traction",
+    "elastic_tangential_slip",
+    "total_tangential_slip",
+    "sliding"};
+
+std::vector<std::string> radial_element_names(const SpatialDefinition& definition) {
+    std::vector<std::string> names{"material_point_count", "reference_height", "axial_strain", "axial_force"};
+    for (std::size_t q = 0; q < 2; ++q) {
+        for (const char* field : {"reference_r", "reference_z", "reference_measure", "temperature"})
+            names.push_back(std::string(field) + "_q" + std::to_string(q));
+        for (const char* prefix : {"stress_", "elastic_", "plastic_", "creep_"})
+            append_component_variable_names(names, prefix, q);
+        for (const char* field : {"equiv_plastic", "equiv_creep"})
+            names.push_back(std::string(field) + "_q" + std::to_string(q));
+    }
+    for (const auto& contact : definition.contacts)
+        for (std::size_t q = 0; q < 2; ++q)
+            for (const auto field : radial_contact_fields)
+                names.push_back("contact_" + std::string(field) + "_" + contact.name + "_q" + std::to_string(q));
+    return names;
+}
+
+std::vector<std::vector<double>>
+radial_nodal(const radial::SpatialAssembly& spatial, const std::vector<double>& state, const std::vector<double>* raw) {
+    const auto& mesh = spatial.source_mesh();
+    const double missing = std::numeric_limits<double>::quiet_NaN();
+    std::vector<std::vector<double>> values(radial_nodal_names(raw != nullptr).size(),
+        std::vector<double>(mesh.nodes().size(), missing));
+    values[3].assign(mesh.nodes().size(), 0.0);
+    for (std::size_t region = 0; region < spatial.region_count(); ++region)
+        for (const auto source : spatial.region_source_node_ids(region)) {
+            const auto radial_node = spatial.radial_node(source);
+            const auto t = spatial.dof(Field::temperature, radial_node);
+            const auto u = spatial.dof(Field::radial_displacement, radial_node);
+            values[0][source] = state.at(t);
+            values[1][source] = state.at(u);
+            values[3][source] = 1.0;
+            if (raw) {
+                values[4][source] = raw->at(t);
+                values[5][source] = raw->at(u);
+            }
+        }
+    for (std::size_t region = 0; region < spatial.region_count(); ++region)
+        for (const auto source : spatial.region_source_element_ids(region)) {
+            const auto& element = mesh.elements()[source];
+            const double lower = state.at(spatial.axial_dof(element.axial_nodes[0]));
+            const double upper = state.at(spatial.axial_dof(element.axial_nodes[1]));
+            for (const auto node : element.nodes)
+                values[2][node] = .5 * (lower + upper);
+            for (const auto node : element.axial_nodes) {
+                const auto dof = spatial.axial_dof(node);
+                values[2][node] = state.at(dof);
+                values[3][node] = 2.0;
+                if (raw)
+                    values[6][node] = raw->at(dof);
+            }
+        }
+    return values;
+}
+
+std::vector<std::vector<double>> radial_elements(const radial::SpatialAssembly& spatial,
+    const std::vector<double>& state,
+    const std::vector<std::vector<Cax2tGpsMaterialHistory>>* histories) {
+    const auto& mesh = spatial.source_mesh();
+    std::vector<std::vector<double>> values(radial_element_names(spatial.definition()).size(),
+        std::vector<double>(mesh.elements().size(), std::numeric_limits<double>::quiet_NaN()));
+    constexpr double pi = 3.141592653589793238462643383279502884;
+    constexpr double gauss = .577350269189625764509148780501957456;
+    for (std::size_t region = 0; region < spatial.region_count(); ++region)
+        for (std::size_t element = 0; element < spatial.region_source_element_ids(region).size(); ++element) {
+            const auto source = spatial.region_source_element_ids(region)[element];
+            const auto& geometry = spatial.region_element_geometry(region, element);
+            const auto& connectivity = mesh.elements()[source];
+            const double height = geometry.z_upper - geometry.z_lower;
+            const double u0 =
+                state.at(spatial.dof(Field::radial_displacement, spatial.radial_node(connectivity.nodes[0])));
+            const double u1 =
+                state.at(spatial.dof(Field::radial_displacement, spatial.radial_node(connectivity.nodes[1])));
+            const double radial_stretch = 1.0 + (u1 - u0) / (geometry.radii[1] - geometry.radii[0]);
+            const double axial_strain = (state.at(spatial.axial_dof(connectivity.axial_nodes[1]))
+                                            - state.at(spatial.axial_dof(connectivity.axial_nodes[0])))
+                                        / height;
+            Cax2tGpsMaterialHistory history{};
+            if (histories)
+                history = histories->at(region).at(element);
+            else
+                history = spatial
+                              .evaluate_volume(region,
+                                  element,
+                                  state,
+                                  spatial.reference_state(),
+                                  nullptr,
+                                  0.0,
+                                  spatial.time(),
+                                  false)
+                              .history;
+            values[0][source] = 2.0;
+            values[1][source] = height;
+            values[2][source] = axial_strain;
+            values[3][source] = 0.0;
+            std::size_t field = 4;
+            for (std::size_t q = 0; q < 2; ++q) {
+                const double xi = q == 0 ? -gauss : gauss;
+                const std::array<double, 2> shape{.5 * (1 - xi), .5 * (1 + xi)};
+                const double radius = shape[0] * geometry.radii[0] + shape[1] * geometry.radii[1];
+                const double measure = pi * radius * (geometry.radii[1] - geometry.radii[0]) * height;
+                double temperature = 0.0;
+                for (std::size_t node = 0; node < 2; ++node)
+                    temperature +=
+                        shape[node]
+                        * state.at(spatial.dof(Field::temperature, spatial.radial_node(connectivity.nodes[node])));
+                for (const double value : {radius, .5 * (geometry.z_lower + geometry.z_upper), measure, temperature})
+                    values[field++][source] = value;
+                const auto& point = history[q];
+                for (const double value : {point.stress.rr, point.stress.zz, point.stress.hoop, point.stress.rz})
+                    values[field++][source] = value;
+                for (const auto* tensor : {&point.elastic_strain, &point.plastic_strain, &point.creep_strain})
+                    for (const double value : *tensor)
+                        values[field++][source] = value;
+                values[field++][source] = point.equivalent_plastic_strain;
+                values[field++][source] = point.equivalent_creep_strain;
+                const double area_ratio = spatial.region(region).strain_formulation == StrainFormulation::finite
+                                              ? radial_stretch * (radius + shape[0] * u0 + shape[1] * u1) / radius
+                                              : 1.0;
+                values[3][source] += point.stress.zz * measure / height * area_ratio;
+            }
+        }
+    for (std::size_t contact = 0; contact < spatial.definition().contacts.size(); ++contact) {
+        const auto pairs = spatial.contact_source_elements(contact);
+        for (std::size_t pair = 0; pair < pairs.size(); ++pair) {
+            const auto result = spatial.evaluate_contact(contact, pair, state);
+            const auto source = pairs[pair].second;
+            std::size_t field = 48 + contact * 2 * radial_contact_fields.size();
+            for (const auto& point : result.points)
+                for (const double value : {point.gap,
+                         point.pressure,
+                         point.heat_flux,
+                         point.weighted_measure,
+                         point.signed_tangential_traction,
+                         point.elastic_tangential_slip,
+                         point.total_tangential_slip,
+                         point.sliding ? 1.0 : 0.0})
+                    values[field++][source] = value;
+        }
+    }
+    return values;
+}
+
+std::vector<double>
+radial_globals(const radial::SpatialAssembly& spatial, const std::vector<double>& state, double load_factor) {
+    std::vector<double> values{load_factor};
+    for (std::size_t contact = 0; contact < spatial.definition().contacts.size(); ++contact) {
+        const auto summary = spatial.summarize_interface(contact, state);
+        values.push_back(summary.total_heat_rate);
+        values.push_back(summary.total_contact_force);
+        values.push_back(summary.total_tangential_force);
+    }
+    return values;
+}
+} // namespace
+
 std::string next_results_segment_path(const std::string& configured_path) {
     if (configured_path.empty())
         throw std::invalid_argument("Results segment path requires a configured path");
@@ -1551,15 +1816,37 @@ void EngineeringHistoryWriter::append(const TransientProblem& problem,
     }
     for (std::size_t contact = 0; contact < problem.definition().contacts.size(); ++contact) {
         const InterfaceSummary summary =
-            problem.is_cartesian_3d() ? BackendAccess::cartesian_spatial(problem).summarize_interface(contact, state)
-            : problem.uses_quad8()    ? BackendAccess::quad8_spatial(problem).summarize_interface(contact, state)
-                                      : BackendAccess::transient(problem).spatial.summarize_interface(contact, state);
+            BackendAccess::uses_radial_gps(problem)
+                ? BackendAccess::radial_spatial(problem).summarize_interface(contact, state)
+            : problem.is_cartesian_3d() ? BackendAccess::cartesian_spatial(problem).summarize_interface(contact, state)
+            : problem.uses_quad8()      ? BackendAccess::quad8_spatial(problem).summarize_interface(contact, state)
+                                        : BackendAccess::transient(problem).spatial.summarize_interface(contact, state);
         _stream << ',' << summary.minimum_gap << ',' << summary.maximum_contact_pressure << ','
                 << summary.total_heat_rate << ',' << summary.total_contact_force << ','
                 << summary.total_tangential_force;
     }
     _stream << '\n';
     _stream.flush();
+}
+
+void write_steady_results(const std::string& path,
+    const UnstructuredBar2Mesh& mesh,
+    const SteadyProblem& problem,
+    const std::vector<double>& state) {
+    const auto& spatial = BackendAccess::radial_spatial(problem);
+    write_exodus_bar2(path, mesh);
+    define_result_variables(path,
+        results_mesh_view(mesh),
+        radial_nodal_names(false),
+        radial_element_names(spatial.definition()),
+        global_variable_names(spatial.definition().contacts));
+    write_result_step(path,
+        results_mesh_view(mesh),
+        1,
+        0.0,
+        radial_nodal(spatial, state, nullptr),
+        radial_elements(spatial, state, nullptr),
+        radial_globals(spatial, state, problem.load_factor()));
 }
 
 void write_steady_results(const std::string& path,
@@ -1660,6 +1947,19 @@ void write_steady_results(const std::string& path,
 }
 
 ExodusTransientResultsWriter::ExodusTransientResultsWriter(std::string path,
+    UnstructuredBar2Mesh mesh,
+    const TransientProblem& problem)
+    : _path(std::move(path)), _bar2_mesh(std::make_unique<UnstructuredBar2Mesh>(std::move(mesh))),
+      _problem_signature(transient_problem_signature(problem)), _step_count(0) {
+    write_exodus_bar2(_path, *_bar2_mesh);
+    define_result_variables(_path,
+        results_mesh_view(*_bar2_mesh),
+        radial_nodal_names(true),
+        radial_element_names(problem.definition()),
+        global_variable_names(problem.definition().contacts, true));
+}
+
+ExodusTransientResultsWriter::ExodusTransientResultsWriter(std::string path,
     UnstructuredQuad4Mesh mesh,
     const TransientProblem& problem)
     : _path(std::move(path)), _rz_mesh(std::make_unique<UnstructuredQuad4Mesh>(std::move(mesh))),
@@ -1732,7 +2032,17 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
         throw std::invalid_argument("Exodus result problem does not match writer model");
     ++_step_count;
     std::vector<std::vector<double>> nodal_values;
-    if (_quad8_mesh) {
+    if (_bar2_mesh) {
+        const auto& spatial = BackendAccess::radial_spatial(problem);
+        const auto& state = problem.committed_solution();
+        write_result_step(_path,
+            results_mesh_view(*_bar2_mesh),
+            _step_count,
+            problem.committed_time(),
+            radial_nodal(spatial, state, &BackendAccess::committed_raw_residual(problem)),
+            radial_elements(spatial, state, &BackendAccess::radial_material_histories(problem)),
+            transient_globals(radial_globals(spatial, state, problem.committed_load_factor()), problem));
+    } else if (_quad8_mesh) {
         const auto& spatial = BackendAccess::quad8_spatial(problem);
         const auto& state = problem.committed_solution();
         write_result_step(_path,

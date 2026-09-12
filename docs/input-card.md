@@ -33,10 +33,33 @@
 对应的两个生产 C++ 类型是 `SteadyProblem` 和 `TransientProblem`。M0、M1、
 M2 只作为路线和回归名称。
 
-`geometry` 必须显式选择 `axisymmetric_rz` 或 `cartesian_3d`。前者要求二维
-Quad4 网格，使用 `[T(:), ur(:), uz(:)]`；后者要求三维 HEX8 或 HEX20 网格，
+`geometry` 必须显式选择 `axisymmetric_1d`、`axisymmetric_rz` 或 `cartesian_3d`。
+`axisymmetric_rz` 要求二维 Quad4 或 QUAD8 网格，使用 `[T(:), ur(:), uz(:)]`；
+`cartesian_3d` 要求三维 HEX8 或 HEX20 网格，
 使用 `[T(:), ux(:), uy(:), uz(:)]`。HEX20 采用二阶 20 节点位移和一阶八角点
 温度，同一文件不能混合 HEX8 与 HEX20。版本 2 和省略几何的输入都会被拒绝。
+
+`axisymmetric_1d` 要求二维 RZ 坐标的 `BAR2` 径向网格，每个区域必须声明
+`element = cax2t_gps`，`strain = small|finite` 均可使用。
+全局字段为 `[T(径向节点), ur(径向节点), w(轴向控制节点)]`，三个场可以不同长。
+每个 BAR2 必须具有且仅具有 `axial_lower_node` 和 `axial_upper_node` 两个具名
+元素属性，属性值是源节点表中从一开始的控制节点编号。径向节点位于切片中面，
+控制节点坐标和共享关系给定切片高度及轴向连接，输入卡不另行定义切片几何。
+详见[网格与运动学约定](axisymmetric-1d.md)。
+
+该几何下，轴向位移边界使用 `type = dirichlet`、`field = axial_displacement`
+及 `boundary = <控制节点集>`。端部轴向力使用 `type = axial_force`、
+`boundary = <控制节点集>` 和 `value`，并可用瞬态 `function` 作为乘子。
+力的单位为 N，数值施加到
+集合中的每个节点；
+不接受 `field` 或 `configuration`。径向温度、位移及圆柱表面载荷使用 BAR2
+端点边集（侧号 1、2）或适用的径向节点集。
+
+一维接触两侧必须覆盖相同的参考轴向区间，机械接触采用 `sliding = small`。
+`primary` 为外侧实体内表面，`secondary` 为内侧实体外表面。机械接触只支持
+显式 `penalty` 的罚函数法，可选择已有库仑摩擦；热接触支持现有气隙
+导热和仿射导热律。`slip_tolerance` 乘 primary 切片平均参考高度得到弹性滑移
+长度。有限应变会更新接触面积，但不执行跨切片的大滑移搜索。
 
 `[Mesh]` 只接受一个 Exodus 文件：
 
@@ -47,7 +70,7 @@ Quad4 网格，使用 `[T(:), ur(:), uz(:)]`；后者要求三维 HEX8 或 HEX20
 []
 ```
 
-文件可以包含多个 Quad4、HEX8 或 HEX20 元素块、节点集和边集；一个输入卡不能
+文件可以包含多个 BAR2、Quad4、QUAD8、HEX8 或 HEX20 元素块、节点集和边集；一个输入卡不能
 混合这些拓扑。输入输出层保留这些元数据，
 求解区域保留选中元素块的原始节点坐标和连接关系；区域不需要是张量积网格。
 每个 Quad4 在积分点必须具有正 Jacobian。输入卡不重复定义半径、高度和
@@ -696,7 +719,8 @@ secondary 侧切向合力；轴对称为有符号标量，三维为合力向量�
 状态开始，不得隐式启用预测。该选项只改变牛顿法的初始猜测，不改变离散方程、
 材料参数或收敛门槛。若预测状态无效或不能收敛，求解器在缩小时间步之前先从当前已
 提交状态重试同一时间步。上一个已提交节点状态及其物理时间属于完整 committed 状态，
-参与状态快照、回滚和检查点重启动；检查点格式版本 18 还保存轴对称累计切向滑移，
+参与状态快照、回滚和检查点重启动；检查点格式版本 19 保存轴对称累计切向滑移及
+一维广义平面应变单元的两个材料积分点历史，
 不兼容版本 17 及更早文件。
 
 瞬态载荷因子为 `min(time/load_ramp_time, 1)`；`load_ramp_time = 0` 表示从

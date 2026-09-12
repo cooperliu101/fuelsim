@@ -73,12 +73,14 @@ include(CTest)
 add_subdirectory(elements)
 
 add_library(fuelsim_core
+    src/core/radial_assembly.cpp
     src/core/rz_assembly.cpp
     src/core/cartesian3d_assembly.cpp
     src/core/contact_search.cpp
     src/core/rz8_assembly.cpp
     src/core/rz8_contact.cpp
     src/core/mesh.cpp
+    src/core/mesh_bar2.cpp
     src/core/mesh_quad8.cpp
     src/core/nonlinear_problem.cpp
     src/core/spatial_problem.cpp
@@ -145,6 +147,16 @@ fuelsim_enable_warnings(fuelsim)
 include(CTest)
 
 if(BUILD_TESTING)
+    add_test(NAME fuelsim_cax2t_gps_tests COMMAND fuelsim_cax2t_gps_tests)
+    add_test(NAME fuelsim_ring_gps_tests COMMAND fuelsim_ring_gps_tests)
+    add_executable(fuelsim_bar2_mesh_tests tests/bar2_mesh_tests.cpp)
+    target_link_libraries(fuelsim_bar2_mesh_tests PRIVATE fuelsim::core)
+    fuelsim_enable_warnings(fuelsim_bar2_mesh_tests)
+    add_test(NAME fuelsim_bar2_mesh_tests COMMAND fuelsim_bar2_mesh_tests)
+    add_executable(fuelsim_bar2_io_tests tests/bar2_io_tests.cpp)
+    target_link_libraries(fuelsim_bar2_io_tests PRIVATE fuelsim::io SEACASExodus::exodus)
+    fuelsim_enable_warnings(fuelsim_bar2_io_tests)
+    add_test(NAME fuelsim_bar2_io_tests COMMAND fuelsim_bar2_io_tests "${CMAKE_CURRENT_BINARY_DIR}/bar2_io")
     add_test(NAME fuelsim_cax4t_tests COMMAND fuelsim_cax4t_tests)
     add_test(NAME fuelsim_cax4rt_tests COMMAND fuelsim_cax4rt_tests)
     add_test(NAME fuelsim_cax8t_tests COMMAND fuelsim_cax8t_tests)
@@ -182,6 +194,32 @@ if(BUILD_TESTING)
     add_library(fuelsim_field_error_metrics tests/support/field_error_metrics.cpp)
     target_include_directories(fuelsim_field_error_metrics PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/tests")
     fuelsim_enable_warnings(fuelsim_field_error_metrics)
+
+    add_executable(fuelsim_radial_assembly_tests tests/radial_assembly_tests.cpp)
+    target_link_libraries(fuelsim_radial_assembly_tests PRIVATE fuelsim::core)
+    fuelsim_enable_warnings(fuelsim_radial_assembly_tests)
+    add_test(NAME fuelsim_radial_assembly_tests COMMAND fuelsim_radial_assembly_tests)
+    add_executable(fuelsim_radial_transaction_tests tests/radial_transaction_tests.cpp)
+    target_link_libraries(fuelsim_radial_transaction_tests PRIVATE fuelsim::io)
+    fuelsim_enable_warnings(fuelsim_radial_transaction_tests)
+    add_test(NAME fuelsim_radial_transaction_tests COMMAND fuelsim_radial_transaction_tests
+        "${CMAKE_CURRENT_BINARY_DIR}/radial_transaction.checkpoint")
+    add_executable(fuelsim_production_radial tests/production_radial.cpp)
+    target_link_libraries(fuelsim_production_radial PRIVATE
+        fuelsim_exodus_result_test_support fuelsim_field_error_metrics SEACASExodus::exodus)
+    fuelsim_enable_warnings(fuelsim_production_radial)
+    add_executable(fuelsim_production_radial_equivalence tests/production_radial_equivalence.cpp)
+    target_link_libraries(fuelsim_production_radial_equivalence PRIVATE
+        fuelsim_exodus_result_test_support SEACASExodus::exodus)
+    fuelsim_enable_warnings(fuelsim_production_radial_equivalence)
+    add_executable(fuelsim_production_radial_chain tests/production_radial_chain.cpp)
+    target_link_libraries(fuelsim_production_radial_chain PRIVATE
+        fuelsim_exodus_result_test_support fuelsim_field_error_metrics)
+    fuelsim_enable_warnings(fuelsim_production_radial_chain)
+    add_executable(fuelsim_production_radial_inelastic tests/production_radial_inelastic.cpp)
+    target_link_libraries(fuelsim_production_radial_inelastic PRIVATE
+        fuelsim_exodus_result_test_support fuelsim_field_error_metrics)
+    fuelsim_enable_warnings(fuelsim_production_radial_inelastic)
 
     add_executable(fuelsim_production_pcmi_abaqus tests/production_pcmi_abaqus.cpp)
     target_link_libraries(fuelsim_production_pcmi_abaqus PRIVATE
@@ -256,6 +294,77 @@ if(BUILD_TESTING)
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
         set_tests_properties("${test_name}" PROPERTIES LABELS "${test_labels}")
     endfunction()
+
+    function(fuelsim_add_radial_case test_name input_stem mode)
+        fuelsim_stage_blackbox_case(staged_input "${test_name}" "${input_stem}.fsi")
+        get_filename_component(case_directory "${staged_input}" DIRECTORY)
+        set(results "${case_directory}/${input_stem}_results.e")
+        set(summary "${case_directory}/${input_stem}_summary.csv")
+        add_test(NAME "${test_name}" COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DINPUT_FILE=${staged_input}"
+            "-DOUTPUT_FILES=${results};${summary};${case_directory}/${input_stem}.checkpoint"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_radial>"
+            "-DCHECK_ARGUMENTS=${mode};${results};${summary};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/gps_1d"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
+    endfunction()
+    fuelsim_add_radial_case(fuelsim_gps_uniform_small_abaqus transient_gps_uniform_small uniform-small)
+    fuelsim_add_radial_case(fuelsim_gps_uniform_finite_abaqus transient_gps_uniform_finite uniform-finite)
+    fuelsim_add_radial_case(fuelsim_gps_contact_abaqus transient_gps_contact_small contact-small)
+    fuelsim_stage_blackbox_case(gps_steady_input gps_steady steady_gps_uniform_finite.fsi)
+    get_filename_component(gps_steady_directory "${gps_steady_input}" DIRECTORY)
+    set(gps_steady_result "${gps_steady_directory}/steady_gps_uniform_finite_results.e")
+    set(gps_steady_summary "${gps_steady_directory}/steady_gps_uniform_finite_summary.csv")
+    add_test(NAME fuelsim_gps_steady_finite COMMAND "${CMAKE_COMMAND}"
+        "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+        "-DINPUT_FILE=${gps_steady_input}"
+        "-DOUTPUT_FILES=${gps_steady_result};${gps_steady_summary}"
+        "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_radial>"
+        "-DCHECK_ARGUMENTS=steady-finite;${gps_steady_result};${gps_steady_summary};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/gps_1d"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
+    set_tests_properties(fuelsim_gps_contact_abaqus PROPERTIES FIXTURES_SETUP gps_contact_reference)
+    set(gps_contact_reference "${CMAKE_CURRENT_BINARY_DIR}/blackbox/fuelsim_gps_contact_abaqus/verification/fuelsim/transient_gps_contact_small_results.e")
+    foreach(formulation IN ITEMS small finite)
+        set(case_name "gps_chain_${formulation}")
+        set(input_stem "transient_gps_chain_${formulation}")
+        fuelsim_stage_blackbox_case(staged_input "${case_name}" "${input_stem}.fsi")
+        get_filename_component(case_directory "${staged_input}" DIRECTORY)
+        set(results "${case_directory}/${input_stem}_results.e")
+        set(summary "${case_directory}/${input_stem}_summary.csv")
+        add_test(NAME "fuelsim_${case_name}" COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DINPUT_FILE=${staged_input}"
+            "-DOUTPUT_FILES=${results};${summary};${case_directory}/${input_stem}.checkpoint"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_radial_chain>"
+            "-DCHECK_ARGUMENTS=${formulation};${results};${summary}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
+    endforeach()
+    set_tests_properties(fuelsim_gps_chain_finite PROPERTIES FIXTURES_SETUP gps_finite_reference)
+    fuelsim_stage_blackbox_case(gps_inelastic_input gps_inelastic transient_gps_inelastic_finite.fsi)
+    get_filename_component(gps_inelastic_directory "${gps_inelastic_input}" DIRECTORY)
+    set(gps_inelastic_result "${gps_inelastic_directory}/transient_gps_inelastic_finite_results.e")
+    set(gps_inelastic_summary "${gps_inelastic_directory}/transient_gps_inelastic_finite_summary.csv")
+    add_test(NAME fuelsim_gps_inelastic_finite COMMAND "${CMAKE_COMMAND}"
+        "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+        "-DINPUT_FILE=${gps_inelastic_input}"
+        "-DOUTPUT_FILES=${gps_inelastic_result};${gps_inelastic_summary};${gps_inelastic_directory}/transient_gps_inelastic_finite.checkpoint"
+        "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_radial_inelastic>"
+        "-DCHECK_ARGUMENTS=${gps_inelastic_result};${gps_inelastic_summary}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
+    fuelsim_stage_blackbox_case(gps_checkpoint_input gps_restart transient_gps_contact_checkpoint.fsi)
+    fuelsim_stage_blackbox_case(gps_restart_input gps_restart transient_gps_contact_restart.fsi)
+    get_filename_component(gps_restart_directory "${gps_restart_input}" DIRECTORY)
+    set(gps_restart_result "${gps_restart_directory}/transient_gps_contact_restart_results.part1.e")
+    add_test(NAME fuelsim_gps_contact_restart COMMAND "${CMAKE_COMMAND}"
+        "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+        "-DCHECKPOINT_INPUT=${gps_checkpoint_input}"
+        "-DCHECKPOINT_FILE=${gps_restart_directory}/transient_gps_contact_checkpoint.checkpoint"
+        "-DINPUT_FILE=${gps_restart_input}"
+        "-DOUTPUT_FILES=${gps_restart_result};${gps_restart_directory}/transient_gps_contact_restart.checkpoint"
+        "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_radial_equivalence>"
+        "-DCHECK_ARGUMENTS=${gps_contact_reference};${gps_restart_result}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_restart.cmake")
+    set_tests_properties(fuelsim_gps_contact_restart PROPERTIES FIXTURES_REQUIRED gps_contact_reference)
 
     # Test scheduling only: every physical input card is copied byte-for-byte.
     function(fuelsim_add_production_test test_name case_name input_stem check_mode)
@@ -1756,6 +1865,19 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_production_hex20_restart PROPERTIES
         FIXTURES_REQUIRED h20_production_reference LABELS "acceptance;production;restart" TIMEOUT 120)
     if(FUELSIM_MPIEXEC_EXECUTABLE)
+        fuelsim_stage_blackbox_case(gps_mpi_input gps_mpi transient_gps_chain_finite.fsi)
+        get_filename_component(gps_mpi_directory "${gps_mpi_input}" DIRECTORY)
+        set(gps_mpi_result "${gps_mpi_directory}/transient_gps_chain_finite_results.e")
+        add_test(NAME fuelsim_gps_finite_mpi_equivalence COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DFUELSIM_LAUNCHER=${FUELSIM_MPIEXEC_EXECUTABLE};-n;2"
+            "-DINPUT_FILE=${gps_mpi_input}"
+            "-DOUTPUT_FILES=${gps_mpi_result};${gps_mpi_directory}/transient_gps_chain_finite.checkpoint"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_radial_equivalence>"
+            "-DCHECK_ARGUMENTS=${CMAKE_CURRENT_BINARY_DIR}/blackbox/gps_chain_finite/verification/fuelsim/transient_gps_chain_finite_results.e;${gps_mpi_result}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
+        set_tests_properties(fuelsim_gps_finite_mpi_equivalence PROPERTIES
+            FIXTURES_REQUIRED gps_finite_reference PROCESSORS 2 TIMEOUT 120)
         fuelsim_stage_blackbox_case(h20_mpi_input h20_mpi transient_hex20_inelastic_coupled_moose.fsi)
         get_filename_component(h20_mpi_directory "${h20_mpi_input}" DIRECTORY)
         set(h20_mpi_result "${h20_mpi_directory}/transient_hex20_inelastic_coupled_moose_results.e")

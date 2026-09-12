@@ -1,0 +1,9 @@
+case=gps_uniform_axial
+abaqus_version=3DEXPERIENCE R2018x
+cpus=1
+output_precision=full
+accepted_increments=10
+completed_utc=2026-09-12T09:03:11.7670491Z
+work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_gps_fafb64971c01468c910b294db8064f15
+input_sha256=CB6E5D926FBD01133179BFC92C1041702F6A4C6699BD895E0742FC6294FEFE3F
+extractor_sha256=96CED54503D57E47D64043823565ECE0070CCD4360A6DB5CF76CA843346C8322

@@ -7,6 +7,11 @@
 #include <vector>
 
 namespace fuelsim {
+struct Bar2Element final {
+    std::array<std::size_t, 2> nodes;
+    std::array<std::size_t, 2> axial_nodes;
+};
+
 struct Quad4Element final {
     std::array<std::size_t, 4> nodes;
 };
@@ -92,6 +97,29 @@ class UnstructuredMeshMetadata {
     std::vector<ElementBlockInfo> _element_blocks;
     std::vector<NodeSet> _node_sets;
     std::vector<SideSet> _side_sets;
+};
+
+class UnstructuredBar2Mesh final : public UnstructuredMeshMetadata {
+  public:
+    UnstructuredBar2Mesh(std::vector<RzPoint> nodes,
+        std::vector<Bar2Element> elements,
+        std::vector<std::int64_t> element_block_ids,
+        std::vector<ElementBlockInfo> element_blocks,
+        std::vector<NodeSet> node_sets,
+        std::vector<SideSet> side_sets);
+
+    const std::vector<RzPoint>& nodes() const noexcept { return _nodes; }
+
+    const std::vector<Bar2Element>& elements() const noexcept { return _elements; }
+
+    const std::vector<std::size_t>& radial_source_node_ids() const noexcept { return _radial_source_node_ids; }
+
+    const std::vector<std::size_t>& axial_source_node_ids() const noexcept { return _axial_source_node_ids; }
+
+  private:
+    std::vector<RzPoint> _nodes;
+    std::vector<Bar2Element> _elements;
+    std::vector<std::size_t> _radial_source_node_ids, _axial_source_node_ids;
 };
 
 class UnstructuredQuad4Mesh final : public UnstructuredMeshMetadata {

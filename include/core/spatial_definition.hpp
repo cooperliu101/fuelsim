@@ -56,6 +56,7 @@ struct RegionDefinition final {
     Hex20ElementFormulation hex20_element_formulation = Hex20ElementFormulation::c3d20t;
     // Explicit input-card topology; zero means a programmatically constructed definition.
     std::size_t requested_cartesian_node_count = 0;
+    bool radial_gps = false;
 };
 enum class MechanicalContactFormulation {
     penalty,
@@ -108,6 +109,7 @@ enum class BoundaryConditionType {
     traction,
     heat_flux,
     convection,
+    axial_force,
 };
 
 struct BoundaryConditionDefinition final {

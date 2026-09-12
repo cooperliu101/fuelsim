@@ -115,6 +115,59 @@ void hash_contacts(std::uint64_t& hash, const SpatialDefinition& definition) {
 std::uint64_t transient_problem_signature(const TransientProblem& problem) {
     std::uint64_t hash = hashing::fnv1a_offset;
     const bool cartesian = problem.is_cartesian_3d();
+    if (BackendAccess::uses_radial_gps(problem)) {
+        hash_string(hash, "axisymmetric_1d_bar2_gps_two_points");
+        hash_size(hash, problem.dof_count());
+        const auto& spatial = BackendAccess::radial_spatial(problem);
+        const auto& mesh = spatial.source_mesh();
+        hash_size(hash, mesh.nodes().size());
+        for (const auto& node : mesh.nodes()) {
+            hash_double(hash, node.r);
+            hash_double(hash, node.z);
+        }
+        hash_size(hash, mesh.elements().size());
+        for (std::size_t i = 0; i < mesh.elements().size(); ++i) {
+            for (const auto node : mesh.elements()[i].nodes)
+                hash_size(hash, node);
+            for (const auto node : mesh.elements()[i].axial_nodes)
+                hash_size(hash, node);
+            hash_integer(hash, mesh.element_block_ids()[i]);
+        }
+        for (const auto& block : mesh.element_blocks()) {
+            hash_integer(hash, block.id);
+            hash_string(hash, block.name);
+        }
+        for (const auto& set : mesh.node_sets()) {
+            hash_integer(hash, set.id);
+            hash_string(hash, set.name);
+            hash_size(hash, set.nodes.size());
+            for (const auto node : set.nodes)
+                hash_size(hash, node);
+        }
+        for (const auto& set : mesh.side_sets()) {
+            hash_integer(hash, set.id);
+            hash_string(hash, set.name);
+            hash_size(hash, set.sides.size());
+            for (const auto& side : set.sides) {
+                hash_size(hash, side.element);
+                hash_size(hash, side.local_side);
+            }
+        }
+        for (const auto& region : problem.definition().regions)
+            hash_region_definition(hash, region);
+        hash_contacts(hash, problem.definition());
+        for (const auto& contact : problem.definition().contacts) {
+            hash_integer(hash, static_cast<std::int64_t>(contact.gap_heat_conductance_law));
+            hash_double(hash, contact.gap_conductance);
+            hash_double(hash, contact.gap_conductance_clearance_derivative);
+            hash_double(hash, contact.gap_conductance_pressure_derivative);
+            hash_double(hash, contact.gap_conductance_temperature_derivative);
+            hash_double(hash, contact.gap_conductance_reference_temperature);
+        }
+        hash_boundaries(hash, problem.definition(), true);
+        hash_time_tables(hash, problem.definition());
+        return hash;
+    }
     if (problem.uses_quad8()) {
         hash_string(hash, "axisymmetric_rz_quad8_u2_t1_nine_points");
         hash_size(hash, problem.dof_count());

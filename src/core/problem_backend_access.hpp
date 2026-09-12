@@ -1,11 +1,13 @@
 #pragma once
 #include "cartesian3d_assembly.hpp"
+#include "cax2t_gps.hpp"
 #include "cax4_types.hpp"
 #include "contact_types.hpp"
 #include "core/element_region_data.hpp"
 #include "core/steady_problem.hpp"
 #include "core/transient_problem.hpp"
 #include "material_types.hpp"
+#include "radial_assembly.hpp"
 #include "rz8_assembly.hpp"
 #include "rz_assembly.hpp"
 #include <array>
@@ -21,6 +23,7 @@ struct TransientCommittedState final {
     TransientConservationSummary conservation;
     double time = 0.0, load_factor = 0.0, previous_time = 0.0;
     std::vector<std::vector<Quad8MaterialHistory>> quad8_material_histories;
+    std::vector<std::vector<Cax2tGpsMaterialHistory>> radial_material_histories;
 };
 
 namespace rz {
@@ -41,6 +44,12 @@ struct TransientBackendView final {
 
 class BackendAccess final {
   public:
+    static bool uses_radial_gps(const SteadyProblem& problem) noexcept;
+    static bool uses_radial_gps(const TransientProblem& problem) noexcept;
+    static const radial::SpatialAssembly& radial_spatial(const SteadyProblem& problem) noexcept;
+    static const radial::SpatialAssembly& radial_spatial(const TransientProblem& problem) noexcept;
+    static const std::vector<std::vector<Cax2tGpsMaterialHistory>>& radial_material_histories(
+        const TransientProblem& problem) noexcept;
     static const rz8::SpatialAssembly& quad8_spatial(const SteadyProblem& problem) noexcept;
     static const rz8::SpatialAssembly& quad8_spatial(const TransientProblem& problem) noexcept;
     static bool uses_quad8(const SteadyProblem& problem) noexcept;

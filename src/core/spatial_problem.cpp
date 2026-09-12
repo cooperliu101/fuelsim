@@ -112,6 +112,13 @@ gather_rz_state(const rz::SpatialAssembly& spatial, std::size_t index, const std
 
 class SpatialProblemStorage {
   public:
+    SpatialProblemStorage(SpatialDefinition definition, const UnstructuredBar2Mesh& source_mesh)
+        : _radial(std::make_unique<radial::SpatialAssembly>(std::move(definition), source_mesh)) {
+        _radial_material_histories.resize(_radial->region_count());
+        for (std::size_t region = 0; region < _radial->region_count(); ++region)
+            _radial_material_histories[region].resize(_radial->region_element_count(region));
+    }
+
     SpatialProblemStorage(SpatialDefinition definition, const UnstructuredQuad8Mesh& source_mesh)
         : rz8(std::make_unique<rz8::SpatialAssembly>(std::move(definition), source_mesh)) {
         for (std::size_t r = 0; r < rz8->region_count(); ++r) {
@@ -205,6 +212,8 @@ class SpatialProblemStorage {
                 active ? StrainFormulation::small : _steady_strain_formulations[region];
             if (is_cartesian())
                 cartesian->set_region_strain_formulation(region, formulation);
+            else if (_radial)
+                _radial->set_region_strain_formulation(region, formulation);
             else {
                 if (rz8)
                     rz8->set_region_strain_formulation(region, formulation);
@@ -216,18 +225,24 @@ class SpatialProblemStorage {
     }
 
     const spatial_detail::SpatialLayout& layout() const noexcept {
+        if (_radial)
+            return *_radial;
         if (rz8)
             return *rz8;
         return is_cartesian() ? static_cast<const spatial_detail::SpatialLayout&>(*cartesian) : *rz;
     }
 
     std::size_t contribution_count() const noexcept {
+        if (_radial)
+            return _radial->contribution_count();
         if (rz8)
             return rz8->contribution_count();
         return is_cartesian() ? cartesian->contribution_count() : rz->contribution_count();
     }
 
     std::size_t sparsity_contribution_count() const noexcept {
+        if (_radial)
+            return _radial->contribution_count();
         if (rz8)
             return rz8->sparsity_contribution_count();
         return is_cartesian() ? cartesian->sparsity_contribution_count() : rz->sparsity_contribution_count();
@@ -237,7 +252,9 @@ class SpatialProblemStorage {
         return is_cartesian() && cartesian->jacobian_sparsity_is_state_dependent();
     }
 
-    bool contribution_metadata_is_fixed() const noexcept { return layout().definition().contacts.empty(); }
+    bool contribution_metadata_is_fixed() const noexcept {
+        return _radial ? _radial->contribution_metadata_is_fixed() : layout().definition().contacts.empty();
+    }
 
     std::pair<std::size_t, std::size_t> contribution_partition(std::size_t partition,
         std::size_t partition_count) const {
@@ -250,6 +267,8 @@ class SpatialProblemStorage {
     }
 
     void set_load_factor(double value) {
+        if (_radial)
+            return _radial->set_load_factor(value);
         if (rz8)
             return rz8->set_load_factor(value);
         if (is_cartesian())
@@ -259,6 +278,10 @@ class SpatialProblemStorage {
     }
 
     void set_time(double value) {
+        if (_radial) {
+            _radial_time = value;
+            return _radial->set_time(value);
+        }
         if (rz8)
             return rz8->set_time(value);
         if (is_cartesian())
@@ -268,6 +291,8 @@ class SpatialProblemStorage {
     }
 
     void validate_state(const std::vector<double>& state) const {
+        if (_radial)
+            return _radial->validate_state(state);
         if (rz8)
             return rz8->validate_state(state);
         if (is_cartesian())
@@ -277,12 +302,16 @@ class SpatialProblemStorage {
     }
 
     std::vector<std::size_t> required_state_dofs(std::size_t first, std::size_t last) const {
+        if (_radial)
+            return _radial->required_state_dofs(first, last);
         if (rz8)
             return rz8->required_state_dofs(first, last);
         return is_cartesian() ? cartesian->required_state_dofs(first, last) : rz->required_state_dofs(first, last);
     }
 
     void validate_local_state(std::size_t first, std::size_t last, const std::vector<double>& state) const {
+        if (_radial)
+            return _radial->validate_local_state(first, last, state);
         if (rz8)
             return rz8->validate_local_state(first, last, state);
         if (is_cartesian())
@@ -292,12 +321,18 @@ class SpatialProblemStorage {
     }
 
     const std::vector<std::vector<ContactPointHistory>>& committed_contact_histories() const noexcept {
+        if (_radial)
+            return _radial->committed_contact_histories();
         if (rz8)
             return rz8->committed_contact_histories();
         return is_cartesian() ? cartesian->committed_contact_histories() : rz->committed_contact_histories();
     }
 
     void commit_contact_state(const std::vector<double>& state) {
+        if (_radial) {
+            (void)_radial->commit_contact_state(state);
+            return;
+        }
         if (rz8)
             return rz8->commit_contact_state(state);
         if (is_cartesian())
@@ -308,6 +343,8 @@ class SpatialProblemStorage {
 
     void restore_contact_state(const std::vector<double>& state,
         std::vector<std::vector<ContactPointHistory>> histories) {
+        if (_radial)
+            return _radial->restore_contact_state(state, std::move(histories));
         if (rz8)
             return rz8->restore_contact_state(state, std::move(histories));
         if (is_cartesian())
@@ -317,6 +354,8 @@ class SpatialProblemStorage {
     }
 
     void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
+        if (_radial)
+            return _radial->contribution_dofs(index, dofs);
         if (rz8)
             return rz8->contribution_dofs(index, dofs);
         if (is_cartesian()) {
@@ -336,6 +375,8 @@ class SpatialProblemStorage {
     }
 
     void sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
+        if (_radial)
+            return _radial->contribution_dofs(index, dofs);
         if (rz8)
             return rz8->sparsity_contribution_dofs(index, dofs);
         if (is_cartesian()) {
@@ -364,6 +405,9 @@ class SpatialProblemStorage {
         std::vector<double>* jacobian,
         bool transient) const;
 
+    std::unique_ptr<radial::SpatialAssembly> _radial;
+    std::vector<std::vector<Cax2tGpsMaterialHistory>> _radial_material_histories;
+    double _radial_time = 0.0;
     std::unique_ptr<rz::SpatialAssembly> rz;
     std::unique_ptr<rz8::SpatialAssembly> rz8;
     std::vector<std::vector<Quad8MaterialHistory>> quad8_material_histories;
@@ -389,6 +433,27 @@ void SpatialProblemStorage::compute_contribution(std::size_t index,
     std::vector<double>& residual,
     std::vector<double>* jacobian,
     bool transient) const {
+    if (_radial) {
+        const Cax2tGpsMaterialHistory* history = nullptr;
+        if (transient && index < _radial->volume_contribution_count()) {
+            const auto [region, element] = _radial->element_location(index);
+            history = &_radial_material_histories[region][element];
+        }
+        radial::LocalContribution contribution;
+        _radial->compute_contribution(index,
+            state,
+            committed_solution,
+            history,
+            transient ? active_time_step : 0.0,
+            transient ? active_end_time : _radial_time,
+            transient && include_thermal_time_term,
+            jacobian != nullptr,
+            contribution);
+        residual = std::move(contribution.residual);
+        if (jacobian)
+            *jacobian = std::move(contribution.jacobian);
+        return;
+    }
     if (rz8) {
         if (index >= rz8->volume_contribution_count())
             return rz8->compute_boundary(index, state, residual, jacobian);
@@ -455,6 +520,15 @@ void SpatialProblemStorage::compute_contribution(std::size_t index,
         jacobian->assign(local_jacobian.begin(), local_jacobian.end());
 }
 
+SteadyProblem::SteadyProblem(SpatialDefinition definition, const UnstructuredBar2Mesh& source_mesh)
+    : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh)) {
+    for (const auto& region : _impl->layout().definition().regions)
+        if (region.material.functions->has_creep() || region.material.functions->has_plasticity())
+            throw std::invalid_argument(
+                "Steady radial GPS supports elasticity; use transient execution for inelastic materials");
+    _impl->initialize_steady_strain_formulations();
+}
+
 SteadyProblem::SteadyProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
     : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh)) {
     _impl->initialize_steady_strain_formulations();
@@ -479,6 +553,27 @@ SteadyProblem::SteadyProblem(SpatialDefinition definition, const UnstructuredQua
             throw std::invalid_argument(
                 "Steady CAX8T supports elasticity; use transient execution for inelastic materials");
     _impl->initialize_steady_strain_formulations();
+}
+
+bool BackendAccess::uses_radial_gps(const SteadyProblem& problem) noexcept {
+    return problem._impl->_radial != nullptr;
+}
+
+bool BackendAccess::uses_radial_gps(const TransientProblem& problem) noexcept {
+    return problem._impl->_radial != nullptr;
+}
+
+const radial::SpatialAssembly& BackendAccess::radial_spatial(const SteadyProblem& problem) noexcept {
+    return *problem._impl->_radial;
+}
+
+const radial::SpatialAssembly& BackendAccess::radial_spatial(const TransientProblem& problem) noexcept {
+    return *problem._impl->_radial;
+}
+
+const std::vector<std::vector<Cax2tGpsMaterialHistory>>& BackendAccess::radial_material_histories(
+    const TransientProblem& problem) noexcept {
+    return problem._impl->_radial_material_histories;
 }
 
 const rz8::SpatialAssembly& BackendAccess::quad8_spatial(const SteadyProblem& problem) noexcept {
@@ -511,12 +606,16 @@ rz::SteadyBackendView BackendAccess::steady(const SteadyProblem& problem) noexce
 }
 
 bool SteadyProblem::uses_augmented_contact() const noexcept {
+    if (_impl->_radial)
+        return false;
     return _impl->rz8 ? _impl->rz8->uses_augmented_contact()
                       : !_impl->is_cartesian() && _impl->rz->uses_augmented_contact();
 }
 
 AugmentedContactUpdate SteadyProblem::update_augmented_contact_multipliers(const std::vector<double>& state,
     std::size_t completed_updates) {
+    if (_impl->_radial)
+        throw std::logic_error("Radial GPS contact does not support augmented contact");
     if (_impl->is_cartesian())
         throw std::logic_error("Cartesian three-dimensional stage B does not support augmented contact");
     if (_impl->rz8)
@@ -526,7 +625,7 @@ AugmentedContactUpdate SteadyProblem::update_augmented_contact_multipliers(const
 
 void SteadyProblem::set_load_factor(double value) {
     _impl->set_load_factor(value);
-    if (_impl->is_cartesian())
+    if (_impl->is_cartesian() || _impl->_radial)
         return;
     for (std::size_t region = 0; region < _impl->layout().region_count(); ++region)
         _impl->kernel_data[region].volumetric_heat_source = _impl->layout().region_heat_source(region);
@@ -537,6 +636,10 @@ double SteadyProblem::load_factor() const noexcept {
 }
 
 void SteadyProblem::set_time(double value) {
+    if (_impl->_radial) {
+        _impl->set_time(value);
+        return;
+    }
     if (_impl->is_cartesian()) {
         _impl->cartesian->set_time(value);
         return;
@@ -654,7 +757,8 @@ std::vector<double> TransientProblem::accumulate_contribution_conservation(const
     ContributionWorkspace workspace;
     for (std::size_t entry = 0; entry < contribution_count(); ++entry) {
         evaluate_contribution(entry, solution, workspace, false);
-        const SpatialContributionType type = _impl->rz8              ? _impl->rz8->contribution_type(entry)
+        const SpatialContributionType type = _impl->_radial          ? _impl->_radial->contribution_type(entry)
+                                             : _impl->rz8            ? _impl->rz8->contribution_type(entry)
                                              : _impl->is_cartesian() ? _impl->cartesian->contribution_type(entry)
                                                                      : _impl->rz->contribution_type(entry);
         for (std::size_t local = 0; local < workspace.dofs.size(); ++local) {
@@ -662,7 +766,8 @@ std::vector<double> TransientProblem::accumulate_contribution_conservation(const
             const double residual = workspace.residual[local];
             raw_residual[dof] += residual;
             if (field_layout()[field_index(dof)].category == FieldCategory::thermal) {
-                if (type == SpatialContributionType::thermal_contact)
+                if (type == SpatialContributionType::thermal_contact
+                    || (_impl->_radial && type == SpatialContributionType::mechanical_contact))
                     summary.interface_heat_imbalance += residual;
                 else if (type == SpatialContributionType::convection)
                     summary.convection_heat_rate += residual;
@@ -797,6 +902,11 @@ bool valid_material_state(const CartesianMaterialPointState& state) {
 }
 } // namespace
 
+TransientProblem::TransientProblem(SpatialDefinition definition, const UnstructuredBar2Mesh& source_mesh)
+    : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh)) {
+    initialize_committed_state();
+}
+
 TransientProblem::TransientProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
     : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh)) {
     const std::size_t regions = _impl->layout().definition().regions.size();
@@ -836,6 +946,10 @@ void TransientProblem::initialize_committed_state() {
 
 bool TransientProblem::uses_quad8() const noexcept {
     return _impl->rz8 != nullptr;
+}
+
+bool TransientProblem::uses_radial_gps() const noexcept {
+    return _impl->_radial != nullptr;
 }
 
 bool TransientProblem::is_cartesian_3d() const noexcept {
@@ -920,7 +1034,8 @@ RegionStateSummary TransientProblem::summarize_region(std::size_t region) const 
     if (region >= _impl->layout().definition().regions.size())
         throw std::out_of_range("TransientProblem region summary index is out of range");
     const std::size_t node_count =
-        _impl->is_cartesian()
+        _impl->_radial ? _impl->_radial->region_source_node_ids(region).size()
+        : _impl->is_cartesian()
             ? (_impl->cartesian->uses_hex20() ? _impl->cartesian->hex20_region_mesh(region).nodes().size()
                                               : _impl->cartesian->region_mesh(region).nodes().size())
         : _impl->rz8 ? _impl->rz8->region_mesh(region).nodes().size()
@@ -937,6 +1052,16 @@ RegionStateSummary TransientProblem::summarize_region(std::size_t region) const 
             continue;
         result.maximum_temperature = std::max(result.maximum_temperature,
             _impl->committed_solution.at(temperature->begin + _impl->layout().global_temperature_node(region, node)));
+    }
+    if (_impl->_radial) {
+        for (const auto& element : _impl->_radial_material_histories[region])
+            for (const auto& point : element) {
+                result.maximum_equivalent_plastic_strain =
+                    std::max(result.maximum_equivalent_plastic_strain, point.equivalent_plastic_strain);
+                result.maximum_equivalent_creep_strain =
+                    std::max(result.maximum_equivalent_creep_strain, point.equivalent_creep_strain);
+            }
+        return result;
     }
     if (_impl->is_cartesian()) {
         for (const CartesianMaterialHistory& element : _impl->cartesian_material_histories[region])
@@ -985,7 +1110,8 @@ TransientCommittedState BackendAccess::committed_state(const TransientProblem& p
         storage.committed_time,
         storage.committed_load_factor,
         storage.previous_committed_time,
-        storage.quad8_material_histories};
+        storage.quad8_material_histories,
+        storage._radial_material_histories};
 }
 
 void BackendAccess::restore_committed_state(TransientProblem& problem, TransientCommittedState state) {
@@ -1014,7 +1140,24 @@ void BackendAccess::restore_committed_state(TransientProblem& problem, Transient
             state.external_load_residual.end(),
             [](double value) { return std::isfinite(value); }))
         throw std::invalid_argument("Transient committed state layout does not match the problem");
-    if (storage.rz8) {
+    if (storage._radial) {
+        if (!state.material_histories.empty() || !state.cartesian_material_histories.empty()
+            || !state.quad8_material_histories.empty()
+            || state.radial_material_histories.size() != storage.layout().region_count())
+            throw std::invalid_argument("Radial GPS committed material layout mismatch");
+        storage._radial->validate_state(state.solution);
+        for (std::size_t region = 0; region < storage.layout().region_count(); ++region) {
+            if (state.radial_material_histories[region].size() != storage.layout().region_element_count(region))
+                throw std::invalid_argument("Radial GPS committed element layout mismatch");
+            for (const auto& element : state.radial_material_histories[region])
+                for (const auto& point : element)
+                    if (!valid_material_state(point) || !finite_stress(point.stress))
+                        throw std::invalid_argument("Radial GPS committed material state is invalid");
+        }
+        storage.restore_contact_state(state.solution, std::move(state.contact_histories));
+    } else if (!state.radial_material_histories.empty()) {
+        throw std::invalid_argument("Unexpected radial GPS material history");
+    } else if (storage.rz8) {
         if (!state.material_histories.empty() || !state.cartesian_material_histories.empty()
             || state.quad8_material_histories.size() != storage.layout().region_count())
             throw std::invalid_argument("CAX8T committed material layout mismatch");
@@ -1086,7 +1229,9 @@ void BackendAccess::restore_committed_state(TransientProblem& problem, Transient
     storage.previous_committed_solution = std::move(state.previous_solution);
     storage.committed_raw_residual = std::move(state.raw_residual);
     storage.committed_external_load_residual = std::move(state.external_load_residual);
-    if (storage.rz8)
+    if (storage._radial)
+        storage._radial_material_histories = std::move(state.radial_material_histories);
+    else if (storage.rz8)
         storage.quad8_material_histories = std::move(state.quad8_material_histories);
     else if (storage.is_cartesian())
         storage.cartesian_material_histories = std::move(state.cartesian_material_histories);
@@ -1274,6 +1419,17 @@ TransientTimeErrorEstimate compare_rz_step_doubling_states(const TransientCommit
     MaterialTimeErrors material;
     TimeErrorAccumulator contact_friction, contact_normal_multiplier;
     bool contact_state_mismatch = false;
+    if (full_step.radial_material_histories.size() != two_half_steps.radial_material_histories.size())
+        throw std::logic_error("Radial GPS step-doubling material region layouts differ");
+    for (std::size_t region = 0; region < full_step.radial_material_histories.size(); ++region) {
+        const auto& full_region = full_step.radial_material_histories[region];
+        const auto& half_region = two_half_steps.radial_material_histories[region];
+        if (full_region.size() != half_region.size())
+            throw std::logic_error("Radial GPS step-doubling material element layouts differ");
+        for (std::size_t element = 0; element < full_region.size(); ++element)
+            for (std::size_t q = 0; q < cax2t_gps_material_point_count; ++q)
+                accumulate_material_time_error(material, full_region[element][q], half_region[element][q]);
+    }
     if (full_step.quad8_material_histories.size() != two_half_steps.quad8_material_histories.size())
         throw std::logic_error("CAX8T step-doubling material region layouts differ");
     for (std::size_t r = 0; r < full_step.quad8_material_histories.size(); ++r) {
@@ -1304,6 +1460,8 @@ TransientTimeErrorEstimate compare_rz_step_doubling_states(const TransientCommit
             const ContactPointHistory &full = full_step.contact_histories[contact][node],
                                       &half = two_half_steps.contact_histories[contact][node];
             accumulate_time_error(contact_friction, full.elastic_tangential_slip, half.elastic_tangential_slip);
+            if (!full_step.radial_material_histories.empty())
+                accumulate_time_error(contact_friction, full.total_tangential_slip, half.total_tangential_slip);
             for (std::size_t component = 0; component < full.cartesian_elastic_tangential_slip.size(); ++component)
                 accumulate_time_error(contact_friction,
                     full.cartesian_elastic_tangential_slip[component],
@@ -1405,7 +1563,9 @@ void TransientProblem::begin_time_step(const TransientStepInput& input) {
         _impl->active_contact_histories = _impl->committed_contact_histories();
     try {
         apply_spatial_controls(input.end_time, input.load_factor);
-        if (_impl->is_cartesian())
+        if (_impl->_radial)
+            _impl->_radial->set_heat_source_interval(_impl->committed_time, input.end_time);
+        else if (_impl->is_cartesian())
             _impl->cartesian->set_heat_source_interval(_impl->committed_time, input.end_time);
         else
             for (std::size_t region = 0; region < _impl->layout().region_count(); ++region)
@@ -1444,7 +1604,72 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
     std::vector<double> external_load_residual;
     const std::vector<double> raw_residual =
         accumulate_contribution_conservation(converged_solution, conservation, &external_load_residual);
-    if (_impl->rz8) {
+    if (_impl->_radial) {
+        auto staged = _impl->_radial_material_histories;
+        constexpr double gauss = 0.577350269189625764509148780501957456;
+        constexpr double pi = 3.141592653589793238462643383279502884;
+        const std::array<double, 2> stations = {-gauss, gauss};
+        for (std::size_t region = 0; region < staged.size(); ++region)
+            for (std::size_t element = 0; element < staged[region].size(); ++element) {
+                const auto update = _impl->_radial->evaluate_volume(region,
+                    element,
+                    converged_solution,
+                    _impl->committed_solution,
+                    &_impl->_radial_material_histories[region][element],
+                    _impl->active_time_step,
+                    _impl->active_end_time,
+                    _impl->include_thermal_time_term,
+                    false);
+                conservation.stored_heat_rate += update.stored_heat_rate;
+                conservation.generated_heat_rate += update.generated_heat_rate;
+                const auto& geometry = _impl->_radial->region_element_geometry(region, element);
+                const bool finite = _impl->layout().region(region).strain_formulation == StrainFormulation::finite;
+                Cax2tGpsLocalValues current{}, old{};
+                if (finite) {
+                    const std::size_t index = _impl->_radial->region_element_offset(region) + element;
+                    current = _impl->_radial->volume_state(index, converged_solution);
+                    old = _impl->_radial->volume_state(index, _impl->committed_solution);
+                }
+                for (std::size_t q = 0; q < stations.size(); ++q) {
+                    const std::array<double, 2> shape = {0.5 * (1.0 - stations[q]), 0.5 * (1.0 + stations[q])};
+                    const double radius = shape[0] * geometry.radii[0] + shape[1] * geometry.radii[1];
+                    const double thickness = geometry.radii[1] - geometry.radii[0];
+                    const double height = geometry.z_upper - geometry.z_lower;
+                    double current_measure = pi * radius * thickness * height;
+                    double committed_measure = current_measure;
+                    if (finite) {
+                        current_measure *= (1.0 + (current[3] - current[2]) / thickness)
+                                           * (1.0 + (current[5] - current[4]) / height)
+                                           * (1.0 + (shape[0] * current[2] + shape[1] * current[3]) / radius);
+                        committed_measure *= (1.0 + (old[3] - old[2]) / thickness) * (1.0 + (old[5] - old[4]) / height)
+                                             * (1.0 + (shape[0] * old[2] + shape[1] * old[3]) / radius);
+                    }
+                    const auto& previous = _impl->_radial_material_histories[region][element][q];
+                    rz::accumulate_material_conservation(conservation, previous, update.history[q], current_measure);
+                    // The diagonal kinematics have no objective rotation. The
+                    // elastic energies belong to their respective volumes;
+                    // dissipation uses the current volume and trapezoidal stress.
+                    if (finite)
+                        conservation.elastic_energy_change +=
+                            0.5 * (current_measure - committed_measure)
+                            * rz::stress_strain_inner_product(previous.stress, previous.elastic_strain);
+                }
+                staged[region][element] = update.history;
+            }
+        finalize_conservation(*this,
+            converged_solution,
+            _impl->committed_solution,
+            raw_residual,
+            _impl->committed_raw_residual,
+            external_load_residual,
+            _impl->committed_external_load_residual,
+            conservation);
+        conservation.friction_dissipation_increment = _impl->_radial->commit_contact_state(converged_solution);
+        _impl->_radial_material_histories.swap(staged);
+        _impl->last_conservation_summary = conservation;
+        _impl->committed_raw_residual = raw_residual;
+        _impl->committed_external_load_residual = std::move(external_load_residual);
+    } else if (_impl->rz8) {
         auto staged = _impl->quad8_material_histories;
         std::vector<std::size_t> dofs;
         for (std::size_t index = 0; index < _impl->rz8->volume_contribution_count(); ++index) {
@@ -1746,7 +1971,7 @@ void TransientProblem::rollback_time_step() noexcept {
 void TransientProblem::apply_spatial_controls(double time, double load_factor) {
     _impl->set_time(time);
     _impl->set_load_factor(load_factor);
-    if (_impl->is_cartesian())
+    if (_impl->is_cartesian() || _impl->_radial)
         return;
     for (AxisymmetricRegionData& kernel_data : _impl->kernel_data)
         kernel_data.time = time;
@@ -1764,6 +1989,8 @@ void TransientProblem::clear_active_time_step() noexcept {
 }
 
 bool TransientProblem::uses_augmented_contact() const noexcept {
+    if (_impl->_radial)
+        return false;
     return _impl->rz8 ? _impl->rz8->uses_augmented_contact()
                       : !_impl->is_cartesian() && _impl->rz->uses_augmented_contact();
 }
@@ -1771,6 +1998,8 @@ bool TransientProblem::uses_augmented_contact() const noexcept {
 AugmentedContactUpdate TransientProblem::update_augmented_contact_multipliers(const std::vector<double>& state,
     std::size_t completed_updates) {
     require_active_time_step();
+    if (_impl->_radial)
+        throw std::logic_error("Radial GPS contact does not support augmented contact");
     if (_impl->is_cartesian())
         throw std::logic_error("Cartesian three-dimensional stage B does not support augmented contact");
     if (_impl->rz8)

@@ -594,6 +594,13 @@ bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, co
     std::string consistent_area_case = friction_case;
     consistent_area_case.insert(consistent_area_case.find(contact_penalty) + contact_penalty.size(),
         "\n      quad8_nodal_area_rule = consistent_shape");
+    std::string radial_area_case = consistent_area_case;
+    replace_all(radial_area_case, "axisymmetric_rz", "axisymmetric_1d");
+    replace_all(radial_area_case, "element = cax4t", "element = cax2t_gps");
+    passed = expect_case_failure(malformed_path,
+                 radial_area_case,
+                 "quad8_nodal_area_rule applies only to discretization = node_to_surface")
+             && passed;
     {
         std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
         if (!output)

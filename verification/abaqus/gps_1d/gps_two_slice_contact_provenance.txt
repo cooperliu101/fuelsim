@@ -1,0 +1,9 @@
+case=gps_two_slice_contact
+abaqus_version=3DEXPERIENCE R2018x
+cpus=1
+output_precision=full
+accepted_increments=10
+completed_utc=2026-09-12T09:03:20.9485902Z
+work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_gps_f3b6b3feb79a49038d621fb0d8cfa825
+input_sha256=0A2D992210613BDA32E90EA4CE6E916FF48F30B0C154A83FAFFD90400E0F4D87
+extractor_sha256=96CED54503D57E47D64043823565ECE0070CCD4360A6DB5CF76CA843346C8322

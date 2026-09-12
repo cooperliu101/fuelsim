@@ -13,6 +13,7 @@ enum class CaseProblem {
 enum class CaseGeometry {
     axisymmetric_rz,
     cartesian_3d,
+    axisymmetric_1d,
 };
 
 struct CaseOutputInput final {

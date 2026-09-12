@@ -164,6 +164,16 @@ int main(int argc, char** argv) {
         if (!std::getline(matrix, line) || line != "id\tstatus\tcapability\tctest\tevidence\tacceptance")
             throw std::runtime_error("Verification matrix header does not match schema");
         const std::set<std::string> required_ids = {
+            "gps.local",
+            "gps.uniform_small",
+            "gps.uniform_finite",
+            "gps.steady_finite",
+            "gps.contact",
+            "gps.chain_small",
+            "gps.chain_finite",
+            "gps.inelastic_finite",
+            "gps.transactions",
+            "gps.scope",
             "elements.cax4t",
             "elements.local_kernels",
             "b150_cax4t_small_thermal_operator",
@@ -433,7 +443,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 175 || qualified != 13 || measured != 12 || limitations != 4)
+        if (verified != 183 || qualified != 14 || measured != 12 || limitations != 5)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         check_c3d8t_contract(argv[4], registered_tests);
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'

@@ -144,13 +144,20 @@ void SpatialLayout::initialize_counts(const std::vector<std::size_t>& node_count
 }
 
 void SpatialLayout::initialize_field_layout() {
-    const std::size_t mechanical_fields = _layout == DofLayout::axisymmetric_rz ? 2U : 3U;
+    const std::size_t mechanical_fields =
+        _layout == DofLayout::axisymmetric_1d ? 1U : (_layout == DofLayout::axisymmetric_rz ? 2U : 3U);
     if (_node_count == 0 || _temperature_node_count == 0)
         throw std::invalid_argument("Spatial layout field node counts must be positive");
     if (_node_count > (std::numeric_limits<std::size_t>::max() - _temperature_node_count) / mechanical_fields)
         throw std::length_error("Spatial layout DOF count overflows");
     _field_layout = {{"temperature", 0, _temperature_node_count, FieldCategory::thermal}};
-    if (_layout == DofLayout::axisymmetric_rz) {
+    if (_layout == DofLayout::axisymmetric_1d) {
+        const auto radial_end = _temperature_node_count + _node_count;
+        if (_axial_node_count > std::numeric_limits<std::size_t>::max() - radial_end)
+            throw std::length_error("Radial spatial layout axial DOF count overflows");
+        _field_layout.push_back({"radial", _temperature_node_count, radial_end, FieldCategory::mechanical});
+        _field_layout.push_back({"axial", radial_end, radial_end + _axial_node_count, FieldCategory::mechanical});
+    } else if (_layout == DofLayout::axisymmetric_rz) {
         _field_layout.push_back(
             {"radial", _temperature_node_count, _temperature_node_count + _node_count, FieldCategory::mechanical});
         _field_layout.push_back({"axial",
@@ -171,6 +178,14 @@ void SpatialLayout::initialize_field_layout() {
             _temperature_node_count + 3 * _node_count,
             FieldCategory::mechanical});
     }
+}
+
+void SpatialLayout::initialize_radial_shared_nodes(const std::vector<std::vector<std::size_t>>& region_source_node_ids,
+    std::size_t axial_node_count) {
+    if (_layout != DofLayout::axisymmetric_1d || axial_node_count == 0)
+        throw std::invalid_argument("Radial shared-node initialization requires axial control nodes");
+    _axial_node_count = axial_node_count;
+    initialize_shared_nodes(region_source_node_ids);
 }
 
 void SpatialLayout::initialize_shared_nodes(const std::vector<std::vector<std::size_t>>& region_source_node_ids) {
@@ -299,9 +314,14 @@ std::size_t SpatialLayout::dof(Field field, std::size_t node) const {
             throw std::out_of_range("Spatial layout temperature node is out of range");
         return node;
     }
+    if (_layout == DofLayout::axisymmetric_1d && field == Field::axial_displacement) {
+        if (node >= _axial_node_count)
+            throw std::out_of_range("Radial spatial layout axial control node is out of range");
+        return temperature_node_count() + node_count() + node;
+    }
     if (node >= node_count())
         throw std::out_of_range("Spatial layout mechanical node is out of range");
-    if (_layout == DofLayout::axisymmetric_rz) {
+    if (_layout == DofLayout::axisymmetric_rz || _layout == DofLayout::axisymmetric_1d) {
         if (field == Field::radial_displacement)
             return temperature_node_count() + node;
         if (field == Field::axial_displacement)

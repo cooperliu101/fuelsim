@@ -10,6 +10,7 @@ include(CTest)
 option(FUELSIM_ELEMENTS_WARNINGS_AS_ERRORS "Treat element library warnings as errors" ON)
 
 add_library(fuelsim_elements
+    src/cax2t_gps.cpp
     src/c3d20rt.cpp
     src/c3d20t.cpp
     src/c3d8rt.cpp
@@ -27,6 +28,7 @@ add_library(fuelsim_elements
     src/material_functions.cpp
     src/quad4_face.cpp
     src/quad8_face.cpp
+    src/ring_gps.cpp
 )
 add_library(fuelsim::elements ALIAS fuelsim_elements)
 target_compile_features(fuelsim_elements PUBLIC cxx_std_17)
@@ -77,6 +79,8 @@ if(BUILD_TESTING)
     target_include_directories(fuelsim_elements_test_support PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")
     fuelsim_element_warnings(fuelsim_elements_test_support)
     fuelsim_add_element_test(fuelsim_cax4t_tests cax4t_tests.cpp)
+    fuelsim_add_element_test(fuelsim_cax2t_gps_tests cax2t_gps_tests.cpp)
+    fuelsim_add_element_test(fuelsim_ring_gps_tests ring_gps_tests.cpp)
     fuelsim_add_element_test(fuelsim_cax4rt_tests cax4rt_tests.cpp)
     fuelsim_add_element_test(fuelsim_cax8t_tests cax8t_tests.cpp)
     fuelsim_add_element_test(fuelsim_cax8rt_tests cax8rt_tests.cpp)

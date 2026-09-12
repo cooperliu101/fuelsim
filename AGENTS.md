@@ -14,7 +14,7 @@
 ## 目标与当前范围
 
 `fuelsim` 使用 C++17 开发核燃料性能有限元程序。当前生产入口读取一个
-Exodus 文件，显式选择二维轴对称 RZ 或三维 Cartesian 几何，使用相应网格
+Exodus 文件，显式选择一维轴对称广义平面应变、二维轴对称 RZ 或三维 Cartesian 几何，使用相应网格
 中的任意数量命名区域，并选择稳态或瞬态计算。
 
 三维 HEX8（c3d8t或c3d8rt）接触支持 node-to-surface（NTS，节点到面）和
@@ -23,6 +23,7 @@ surface-to-surface（STS，面到面），C3D20T 机械接触只启用 STS。C3D
 field-major 排列：
 
 ```text
+1D GPS:  [T(radial nodes), ur(radial nodes), w(axial control nodes)]
 RZ:       [T(:), ur(:), uz(:)]
 Cartesian:[T(:), ux(:), uy(:), uz(:)]
 ```
@@ -58,6 +59,20 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
 
 ## 数值契约
 
+- `axisymmetric_1d` 使用真实 BAR2 径向网格与 `cax2t_gps`，局部自由度为
+  `[T0,T1,ur0,ur1,w_lower,w_upper]`。同片共享轴向控制节点，相邻切片共享
+  端截面控制节点，径向场与轴向场长度可以不同。两个径向材料点采用完整
+  `2*pi*R*H*dR` 参考测度和一致热容，不套用 CAX4T 的专用积分规则。
+  小应变直接计算三个正应变；有限应变采用三个正对角伸长比和
+  Hughes-Winget 中间构形增量，当前应力、梯度、体积及热算子几何导数必须一致。
+  当前、已接受和中间构形必须有效。材料只按四应变分量加温度播种，闭式节点链
+  组装 6×6 切线。`ring_gps` 只支持参考轴向区间匹配的固定切片配对，两个轴向
+  接触积分点使用同一两侧面积，有限应变面积随当前半径与高度变化。热流、法向
+  力和摩擦力成对守恒；六个局部界面量经闭式链组装 8×8 切线。大滑移跨切片
+  重新配对、轴向导热和摩擦生热尚不支持，不能据此宣称二维剪切变形能力。
+  BAR2 的 `axial_lower_node`、`axial_upper_node` 元素属性为从一开始的源节点
+  内部编号，切片几何与共享关系完全来自 Exodus。详见 `docs/axisymmetric-1d.md`。
+
 - 局部自由度顺序按单元拓扑固定：RZ Quad4 为
   `[T0..T3, ur0..ur3, uz0..uz3]`，三维 HEX8 为
   `[T0..T7, ux0..ux7, uy0..uy7, uz0..uz7]`，混合阶 HEX20 为
@@ -71,7 +86,8 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
   同样经 `adlite::compose` 挂回并由闭式链组装 32×32 Jacobian；HEX20 使用
   相同的宽度 10 运动学链和宽度 7 本构链，并闭式组装 68×68 Jacobian。
 - RZ 积分测度为完整的 `2*pi*r*detJ*w`。
-- 每个区域必须显式设置 `element`；轴对称只接受 `cax4t|cax4rt|cax8t|cax8rt`。
+- 每个区域必须显式设置 `element`；二维轴对称只接受 `cax4t|cax4rt|cax8t|cax8rt`，
+  一维轴对称只接受 `cax2t_gps`。
   默认 `quad4` 型号及其专用实现已经删除，不提供别名或隐式回退。
   `cax4t` 使用四个材料积分点和 Abaqus 轴对称选择性体积处理：平均完整体积应变，
   环向分量单独平均，剩余修正只平均分配到两个面内正应变，不能套用三维的三等分规则。
@@ -218,10 +234,10 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
 ## 架构边界
 
 - `fuelsim_elements`：位于 `elements/`，独立配置、构建和测试的局部单元计算库；
-  持有 CAX4T/CAX4RT、CAX8T/CAX8RT、C3D8T/C3D8RT、C3D20T/C3D20RT
+  持有 CAX2T_GPS、CAX4T/CAX4RT、CAX8T/CAX8RT、C3D8T/C3D8RT、C3D20T/C3D20RT
   体单元、局部边界积分与接触计算，以及材料积分、材料函数、坐标和局部几何，仅依赖 ADlite。
   局部入口接收坐标、材料、节点状态与已接受历史，返回残量、切线矩阵和试探结果；
-  体单元按八种型号分别建立同名头文件、实现和测试，不建立 `detail` 目录；
+  体单元按九种型号分别建立同名头文件、实现和测试，不建立 `detail` 目录；
   专用算法留在型号文件。CAX8T 和 C3D20T 分别持有对应二次单元的完整算法，
   CAX8RT 和 C3D20RT 通过全积分型号头文件中的显式积分规则入口调用；只有这两组
   减缩积分型号到全积分型号的调用被允许，其他型号之间不得互相调用。
@@ -248,7 +264,7 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
   只作为路线与回归名称。旧的专用问题类只能留在 `tests/support` 中支撑
   已有回归，不得重新进入公共头文件或生产库。
 - `SteadyProblem` 和 `TransientProblem` 从与输入几何一致的
-  `UnstructuredQuad4Mesh`、`UnstructuredQuad8Mesh`、`UnstructuredHex8Mesh` 或 `UnstructuredHex20Mesh`
+  `UnstructuredBar2Mesh`、`UnstructuredQuad4Mesh`、`UnstructuredQuad8Mesh`、`UnstructuredHex8Mesh` 或 `UnstructuredHex20Mesh`
   选择任意数量的命名块；一个输入算例只使用一种体单元拓扑。每个块独立建立
   区域自由度、材料和 `small|finite` 应变形式。
 - Contact 输入只接受 `primary` 和 `secondary` 边集名，不接受主/从 block；
@@ -262,7 +278,7 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
   函数必须使用具体 `adlite::Scalar`、严格具名参数和现有统一状态事务。
 - 除非用户明确要求，不增加旧 API 别名、适配器或兼容层。
 - 用户运行入口固定为 `fuelsim -i <case.fsi>`。输入 v3 只接受一个 Exodus
-  文件，并要求显式选择 `axisymmetric_rz` 或 `cartesian_3d` 几何；使用 SI
+  文件，并要求显式选择 `axisymmetric_1d`、`axisymmetric_rz` 或 `cartesian_3d` 几何；使用 SI
   单位和严格字段集合，不提供 include、宏、表达式、单位换算、旧键别名或隐式
   默认问题。材料在 `[Materials]` 中由已注册函数组合，区域只用 `material`
   引用；网格几何与离散规模必须来自 Exodus 文件。

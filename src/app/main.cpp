@@ -327,6 +327,7 @@ void write_configuration_warnings(const spatial_detail::SpatialLayout& spatial, 
 }
 
 bool run_steady(const FuelSimCaseDefinition& definition,
+    const UnstructuredBar2Mesh* bar2_source,
     const UnstructuredQuad4Mesh* rz_source,
     const UnstructuredHex8Mesh* hex_source,
     const UnstructuredHex20Mesh* hex20_source,
@@ -335,7 +336,9 @@ bool run_steady(const FuelSimCaseDefinition& definition,
     bool check_jacobian,
     const PetscSession& session) {
     std::unique_ptr<SteadyProblem> problem_storage;
-    if (hex20_source != nullptr)
+    if (bar2_source)
+        problem_storage = std::make_unique<SteadyProblem>(definition.spatial, *bar2_source);
+    else if (hex20_source != nullptr)
         problem_storage = std::make_unique<SteadyProblem>(definition.spatial, *hex20_source);
     else if (hex_source != nullptr)
         problem_storage = std::make_unique<SteadyProblem>(definition.spatial, *hex_source);
@@ -344,7 +347,9 @@ bool run_steady(const FuelSimCaseDefinition& definition,
     else
         problem_storage = std::make_unique<SteadyProblem>(definition.spatial, *rz_source);
     SteadyProblem& problem = *problem_storage;
-    if (hex_source != nullptr || hex20_source != nullptr)
+    if (bar2_source)
+        write_configuration_warnings(BackendAccess::radial_spatial(problem), session);
+    else if (hex_source != nullptr || hex20_source != nullptr)
         write_configuration_warnings(BackendAccess::cartesian_spatial(problem), session);
     else if (quad8_source)
         write_configuration_warnings(BackendAccess::quad8_spatial(problem), session);
@@ -386,7 +391,9 @@ bool run_steady(const FuelSimCaseDefinition& definition,
     if (result.completed && result.solve.converged) {
         for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact) {
             InterfaceSummary summary;
-            if (hex_source != nullptr || hex20_source != nullptr)
+            if (bar2_source)
+                summary = BackendAccess::radial_spatial(problem).summarize_interface(contact, result.solve.state);
+            else if (hex_source != nullptr || hex20_source != nullptr)
                 summary = BackendAccess::cartesian_spatial(problem).summarize_interface(contact, result.solve.state);
             else if (quad8_source)
                 summary = BackendAccess::quad8_spatial(problem).summarize_interface(contact, result.solve.state);
@@ -397,7 +404,9 @@ bool run_steady(const FuelSimCaseDefinition& definition,
     }
     if (result.completed && result.solve.converged && !definition.outputs.exodus_file.empty())
         session.collective_root_action([&]() {
-            if (hex20_source != nullptr)
+            if (bar2_source)
+                write_steady_results(definition.outputs.exodus_file, *bar2_source, problem, result.solve.state);
+            else if (hex20_source != nullptr)
                 write_steady_results(definition.outputs.exodus_file, *hex20_source, problem, result.solve.state);
             else if (hex_source != nullptr)
                 write_steady_results(definition.outputs.exodus_file, *hex_source, problem, result.solve.state);
@@ -410,6 +419,7 @@ bool run_steady(const FuelSimCaseDefinition& definition,
 }
 
 bool run_transient(const FuelSimCaseDefinition& definition,
+    const UnstructuredBar2Mesh* bar2_source,
     const UnstructuredQuad4Mesh* rz_source,
     const UnstructuredHex8Mesh* hex_source,
     const UnstructuredHex20Mesh* hex20_source,
@@ -418,7 +428,9 @@ bool run_transient(const FuelSimCaseDefinition& definition,
     bool check_jacobian,
     const PetscSession& session) {
     std::unique_ptr<TransientProblem> problem_storage;
-    if (hex20_source != nullptr)
+    if (bar2_source)
+        problem_storage = std::make_unique<TransientProblem>(definition.spatial, *bar2_source);
+    else if (hex20_source != nullptr)
         problem_storage = std::make_unique<TransientProblem>(definition.spatial, *hex20_source);
     else if (hex_source != nullptr)
         problem_storage = std::make_unique<TransientProblem>(definition.spatial, *hex_source);
@@ -427,7 +439,9 @@ bool run_transient(const FuelSimCaseDefinition& definition,
     else
         problem_storage = std::make_unique<TransientProblem>(definition.spatial, *rz_source);
     TransientProblem& problem = *problem_storage;
-    if (hex_source != nullptr || hex20_source != nullptr)
+    if (bar2_source)
+        write_configuration_warnings(BackendAccess::radial_spatial(problem), session);
+    else if (hex_source != nullptr || hex20_source != nullptr)
         write_configuration_warnings(BackendAccess::cartesian_spatial(problem), session);
     else if (quad8_source)
         write_configuration_warnings(BackendAccess::quad8_spatial(problem), session);
@@ -465,7 +479,9 @@ bool run_transient(const FuelSimCaseDefinition& definition,
     if (!definition.outputs.exodus_file.empty())
         session.collective_root_action([&]() {
             results_path = output_segment_path(definition.restart_file, definition.outputs.exodus_file);
-            if (hex20_source != nullptr)
+            if (bar2_source)
+                results = std::make_unique<ExodusTransientResultsWriter>(results_path, *bar2_source, problem);
+            else if (hex20_source != nullptr)
                 results = std::make_unique<ExodusTransientResultsWriter>(results_path, *hex20_source, problem);
             else if (hex_source != nullptr)
                 results = std::make_unique<ExodusTransientResultsWriter>(results_path, *hex_source, problem);
@@ -548,7 +564,9 @@ bool run_transient(const FuelSimCaseDefinition& definition,
     }
     for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact) {
         InterfaceSummary summary;
-        if (hex_source != nullptr || hex20_source != nullptr)
+        if (bar2_source)
+            summary = BackendAccess::radial_spatial(problem).summarize_interface(contact, result.committed_state);
+        else if (hex_source != nullptr || hex20_source != nullptr)
             summary = BackendAccess::cartesian_spatial(problem).summarize_interface(contact, result.committed_state);
         else if (quad8_source)
             summary = BackendAccess::quad8_spatial(problem).summarize_interface(contact, result.committed_state);
@@ -565,11 +583,14 @@ int run_application(int argc, char** argv) {
         const FuelSimCaseDefinition definition = read_case_input(command.input_path);
         PetscSession session(argc, argv, "fuelsim input-driven multi-region thermo-mechanics solver\n");
         const bool root_rank = session.rank() == 0;
+        std::unique_ptr<UnstructuredBar2Mesh> bar2_source;
         std::unique_ptr<UnstructuredQuad4Mesh> rz_source;
         std::unique_ptr<UnstructuredQuad8Mesh> quad8_source;
         std::unique_ptr<UnstructuredHex8Mesh> hex_source;
         std::unique_ptr<UnstructuredHex20Mesh> hex20_source;
-        if (definition.geometry == CaseGeometry::cartesian_3d)
+        if (definition.geometry == CaseGeometry::axisymmetric_1d)
+            bar2_source = std::make_unique<UnstructuredBar2Mesh>(read_exodus_bar2(definition.mesh_file));
+        else if (definition.geometry == CaseGeometry::cartesian_3d)
             if (exodus_uses_hex20(definition.mesh_file))
                 hex20_source = std::make_unique<UnstructuredHex20Mesh>(read_exodus_hex20(definition.mesh_file));
             else
@@ -587,6 +608,7 @@ int run_application(int argc, char** argv) {
         output->value("mesh_file", definition.mesh_file);
         output->value("mpi_ranks", session.size());
         const bool completed = definition.problem == CaseProblem::steady ? run_steady(definition,
+                                                                               bar2_source.get(),
                                                                                rz_source.get(),
                                                                                hex_source.get(),
                                                                                hex20_source.get(),
@@ -595,6 +617,7 @@ int run_application(int argc, char** argv) {
                                                                                command.check_jacobian,
                                                                                session)
                                                                          : run_transient(definition,
+                                                                               bar2_source.get(),
                                                                                rz_source.get(),
                                                                                hex_source.get(),
                                                                                hex20_source.get(),

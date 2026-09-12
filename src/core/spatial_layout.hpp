@@ -13,6 +13,7 @@ namespace fuelsim::spatial_detail {
 inline constexpr std::size_t contact_search_tree_minimum_items = 64;
 
 enum class DofLayout {
+    axisymmetric_1d,
     axisymmetric_rz,
     cartesian_3d,
 };
@@ -121,6 +122,8 @@ class SpatialLayout {
     SpatialLayout(SpatialDefinition definition, std::vector<std::int64_t> block_ids, DofLayout layout);
     void initialize_counts(const std::vector<std::size_t>& node_counts, const std::vector<std::size_t>& element_counts);
     void initialize_shared_nodes(const std::vector<std::vector<std::size_t>>& region_source_node_ids);
+    void initialize_radial_shared_nodes(const std::vector<std::vector<std::size_t>>& region_source_node_ids,
+        std::size_t axial_node_count);
     void initialize_mixed_shared_nodes(const std::vector<std::vector<std::size_t>>& region_source_node_ids,
         const std::vector<std::vector<bool>>& region_temperature_nodes);
     void add_dirichlet(std::size_t dof, std::size_t boundary_index);
@@ -148,6 +151,7 @@ class SpatialLayout {
     };
 
     DofLayout _layout;
+    std::size_t _axial_node_count = 0;
     std::vector<ControlledDirichlet> _controlled_dirichlet_conditions;
     void initialize_field_layout();
     static constexpr std::size_t invalid_node = std::numeric_limits<std::size_t>::max();

@@ -1,0 +1,8 @@
+# Preserve native solver output bytes, including Windows line endings and spaces.
+# SHA256SUMS records these exact bytes; source inputs and scripts retain normal checks.
+*.csv -text whitespace=cr-at-eol
+*.dat -text -whitespace
+*.msg -text -whitespace
+*.sta -text -whitespace
+*.log -text -whitespace
+*.txt -text -whitespace

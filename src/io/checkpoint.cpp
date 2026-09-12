@@ -21,7 +21,7 @@ namespace fuelsim {
 namespace {
 constexpr std::array<unsigned char, 16> checkpoint_magic =
     {'F', 'U', 'E', 'L', 'S', 'I', 'M', '_', 'C', 'H', 'E', 'C', 'K', 'P', 'T', '\0'};
-constexpr std::uint32_t checkpoint_version = 18U;
+constexpr std::uint32_t checkpoint_version = 19U;
 constexpr std::uint32_t endian_marker = 0x01020304U;
 constexpr std::uint64_t maximum_checkpoint_bytes = 16ULL * 1024ULL * 1024ULL * 1024ULL;
 
@@ -244,6 +244,13 @@ BinaryBuffer state_payload(const TransientProblem& problem, double next_time_ste
                     append_material_point(payload, point);
         return payload;
     }
+    if (BackendAccess::uses_radial_gps(problem)) {
+        for (const auto& region : state.radial_material_histories)
+            for (const auto& element : region)
+                for (const auto& point : element)
+                    append_material_point(payload, point);
+        return payload;
+    }
     if (problem.uses_quad8()) {
         const auto& spatial = BackendAccess::quad8_spatial(problem);
         for (std::size_t r = 0; r < state.quad8_material_histories.size(); ++r)
@@ -427,6 +434,12 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
                     read_material_point(payload, point);
             }
         }
+    } else if (BackendAccess::uses_radial_gps(problem)) {
+        state.radial_material_histories = BackendAccess::radial_material_histories(problem);
+        for (auto& region : state.radial_material_histories)
+            for (auto& element : region)
+                for (auto& point : element)
+                    read_material_point(payload, point);
     } else if (problem.uses_quad8()) {
         const auto& spatial = BackendAccess::quad8_spatial(problem);
         state.quad8_material_histories = BackendAccess::quad8_material_histories(problem);

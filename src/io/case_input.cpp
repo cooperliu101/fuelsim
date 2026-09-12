@@ -533,6 +533,14 @@ RegionDefinition read_region(const InputDocument& document,
     else
         value_error(document, strain, "unknown strain formulation '" + strain.value + "'");
     const std::string element = required_entry(document, section, "element").value;
+    if (geometry == CaseGeometry::axisymmetric_1d) {
+        if (element != "cax2t_gps")
+            value_error(document,
+                required_entry(document, section, "element"),
+                "axisymmetric_1d requires element = cax2t_gps");
+        result.radial_gps = true;
+        return result;
+    }
     if (geometry == CaseGeometry::axisymmetric_rz) {
         if (element == "cax4t")
             result.rz_element_formulation = RzElementFormulation::cax4t;
@@ -699,7 +707,8 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
             value_error(document,
                 required_entry(document, *mechanical, "quad8_nodal_area_rule"),
                 "quad8_nodal_area_rule must be 'positive_lumped' or 'consistent_shape'");
-        if (result.mechanical_discretization == MechanicalContactDiscretization::surface_to_surface
+        if ((result.mechanical_discretization == MechanicalContactDiscretization::surface_to_surface
+                || geometry == CaseGeometry::axisymmetric_1d)
             && find_entry(*mechanical, "quad8_nodal_area_rule") != nullptr)
             value_error(document,
                 required_entry(document, *mechanical, "quad8_nodal_area_rule"),
@@ -812,6 +821,18 @@ BoundaryConditionDefinition read_boundary_condition(const InputDocument& documen
         read_boundary_configuration(document, section, type, result);
         return result;
     }
+    if (type == "axial_force") {
+        forbid_key(document, section, "configuration", "type='axial_force'");
+        forbid_key(document, section, "field", "type='axial_force'");
+        forbid_convection_keys(document, section, "type='axial_force'");
+        return make_boundary_condition(document,
+            section,
+            BoundaryConditionType::axial_force,
+            Field::axial_displacement,
+            read_double(document, section, "value"),
+            scale_with_load,
+            function);
+    }
     if (type == "traction") {
         forbid_convection_keys(document, section, "type='traction'");
         const Field field = parse_field(document, required_entry(document, section, "field"));
@@ -870,6 +891,8 @@ void read_case(const InputDocument& document, FuelSimCaseDefinition& result) {
         result.geometry = CaseGeometry::axisymmetric_rz;
     else if (geometry == "cartesian_3d")
         result.geometry = CaseGeometry::cartesian_3d;
+    else if (geometry == "axisymmetric_1d")
+        result.geometry = CaseGeometry::axisymmetric_1d;
     else
         value_error(document,
             required_entry(document, case_section, "geometry"),
@@ -1206,6 +1229,9 @@ FuelSimCaseDefinition read_case_input(const std::string& path, const MaterialFun
     read_regions(document, path, materials, result);
     read_contacts(document, result);
     read_boundary_conditions(document, result);
+    for (const auto& boundary : result.spatial.boundary_conditions)
+        if (boundary.type == BoundaryConditionType::axial_force && result.geometry != CaseGeometry::axisymmetric_1d)
+            throw std::invalid_argument(path + ": axial_force requires geometry = axisymmetric_1d");
     validate_time_function_references(path, result);
     read_executioner(document, path, result);
     read_solver(document, path, result);
