@@ -103,6 +103,12 @@ using solver_workflow::initial_guess_with_dirichlet_values;
 using solver_workflow::solve_contact_equilibrium;
 
 namespace {
+void mark_physical_domain_failure(SolveResult& result, const std::exception& error) {
+    result.converged = false;
+    result.failure_category = SolveFailureCategory::physical_domain;
+    result.failure_message = error.what();
+}
+
 SteadyResult solve_steady_from_state(PetscSolver& solver,
     SteadyProblem& problem,
     const SteadyLoadOptions& load_options,
@@ -134,13 +140,9 @@ SteadyResult solve_steady_from_state(PetscSolver& solver,
                         if (solved.converged)
                             problem.commit_internal_state(solved.state);
                     } catch (const std::domain_error& error) {
-                        solved.converged = false;
-                        solved.failure_category = SolveFailureCategory::physical_domain;
-                        solved.failure_message = error.what();
+                        mark_physical_domain_failure(solved, error);
                     } catch (const std::overflow_error& error) {
-                        solved.converged = false;
-                        solved.failure_category = SolveFailureCategory::physical_domain;
-                        solved.failure_message = error.what();
+                        mark_physical_domain_failure(solved, error);
                     } catch (...) {
                         problem.restore_internal_state(internal_state, state);
                         problem.set_load_factor(accepted_load_factor);
@@ -371,15 +373,11 @@ TransientResult solve_transient(TransientProblem& problem,
         } catch (const std::domain_error& error) {
             if (!predictor_used)
                 throw;
-            step_result.converged = false;
-            step_result.failure_category = SolveFailureCategory::physical_domain;
-            step_result.failure_message = error.what();
+            mark_physical_domain_failure(step_result, error);
         } catch (const std::overflow_error& error) {
             if (!predictor_used)
                 throw;
-            step_result.converged = false;
-            step_result.failure_category = SolveFailureCategory::physical_domain;
-            step_result.failure_message = error.what();
+            mark_physical_domain_failure(step_result, error);
         }
         if (step_result.converged || !predictor_used)
             return step_result;
@@ -503,15 +501,11 @@ TransientResult solve_transient(TransientProblem& problem,
             } catch (const std::domain_error& error) {
                 if (base_state_available)
                     problem.restore_state(base_state);
-                attempt.converged = false;
-                attempt.failure_category = SolveFailureCategory::physical_domain;
-                attempt.failure_message = error.what();
+                mark_physical_domain_failure(attempt, error);
             } catch (const std::overflow_error& error) {
                 if (base_state_available)
                     problem.restore_state(base_state);
-                attempt.converged = false;
-                attempt.failure_category = SolveFailureCategory::physical_domain;
-                attempt.failure_message = error.what();
+                mark_physical_domain_failure(attempt, error);
             } catch (...) {
                 if (base_state_available)
                     problem.restore_state(base_state);

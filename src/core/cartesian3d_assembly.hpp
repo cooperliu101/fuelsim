@@ -277,6 +277,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     void build_hex20_contacts(const UnstructuredHex20Mesh& source_mesh);
     ThermalCandidate thermal_candidate(std::size_t point, std::size_t primary) const;
     MechanicalCandidate mechanical_candidate(std::size_t point, std::size_t primary) const;
+    NormalContactProperties mechanical_contact_properties(const MechanicalCandidate& candidate) const;
     Hex20ThermalCandidate hex20_thermal_candidate(std::size_t point, std::size_t primary) const;
     void hex20_thermal_patch_dofs(std::size_t patch, std::vector<std::size_t>& dofs, bool all_candidates = false) const;
     std::vector<Quad8HeatPatchSample> hex20_thermal_patch_samples(std::size_t patch,

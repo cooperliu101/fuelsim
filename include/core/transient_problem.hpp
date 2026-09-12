@@ -126,6 +126,7 @@ class TransientProblem final : public NonlinearProblem {
 
   private:
     friend class BackendAccess;
+    void initialize_committed_state();
     void apply_spatial_controls(double time, double load_factor);
     std::vector<double> accumulate_contribution_conservation(const std::vector<double>& solution,
         TransientConservationSummary& summary,

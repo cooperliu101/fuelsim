@@ -626,50 +626,47 @@ PetscErrorCode scale_residual(Vec residual, SolverContext& context) {
     }
     if (!context.field_residual_scaling) {
         context.latest_field_residual_norms = context.latest_unscaled_field_residual_norms;
-        for (std::size_t field = 0; field < context.field_residual_reference_norms.size(); ++field)
-            context.field_residual_reference_norms[field] =
-                std::max(context.field_residual_reference_norms[field], context.latest_field_residual_norms[field]);
-        PetscFunctionReturn(PETSC_SUCCESS);
-    }
-    double thermal_norm = 0.0, mechanics_norm = 0.0;
-    for (std::size_t field = 0; field < context.problem->field_layout().size(); ++field)
-        if (context.problem->field_layout()[field].category == FieldCategory::thermal)
-            thermal_norm = std::hypot(thermal_norm, context.latest_unscaled_field_residual_norms[field]);
-        else
-            mechanics_norm = std::hypot(mechanics_norm, context.latest_unscaled_field_residual_norms[field]);
-    if (!context.thermal_scaling_initialized && thermal_norm > context.residual_scaling_floor) {
-        for (std::size_t field = 0; field < context.problem->field_layout().size(); ++field) {
-            if (context.problem->field_layout()[field].category == FieldCategory::thermal) {
-                context.field_residual_scalings[field] = 1.0 / thermal_norm;
-                context.initial_field_residual_norms[field] = context.latest_unscaled_field_residual_norms[field];
+    } else {
+        double thermal_norm = 0.0, mechanics_norm = 0.0;
+        for (std::size_t field = 0; field < context.problem->field_layout().size(); ++field)
+            if (context.problem->field_layout()[field].category == FieldCategory::thermal)
+                thermal_norm = std::hypot(thermal_norm, context.latest_unscaled_field_residual_norms[field]);
+            else
+                mechanics_norm = std::hypot(mechanics_norm, context.latest_unscaled_field_residual_norms[field]);
+        if (!context.thermal_scaling_initialized && thermal_norm > context.residual_scaling_floor) {
+            for (std::size_t field = 0; field < context.problem->field_layout().size(); ++field) {
+                if (context.problem->field_layout()[field].category == FieldCategory::thermal) {
+                    context.field_residual_scalings[field] = 1.0 / thermal_norm;
+                    context.initial_field_residual_norms[field] = context.latest_unscaled_field_residual_norms[field];
+                }
+            }
+            context.thermal_scaling_initialized = true;
+        }
+        if (!context.mechanics_scaling_initialized && mechanics_norm > context.residual_scaling_floor) {
+            const double mechanics_scaling = 1.0 / mechanics_norm;
+            for (std::size_t field = 0; field < context.problem->field_layout().size(); ++field) {
+                if (context.problem->field_layout()[field].category == FieldCategory::mechanical) {
+                    context.field_residual_scalings[field] = mechanics_scaling;
+                    context.initial_field_residual_norms[field] = context.latest_unscaled_field_residual_norms[field];
+                }
+            }
+            context.mechanics_scaling_initialized = true;
+        }
+        PetscInt ownership_begin = 0;
+        PetscInt ownership_end = 0;
+        PetscCall(VecGetOwnershipRange(residual, &ownership_begin, &ownership_end));
+        PetscScalar* values = nullptr;
+        PetscCall(VecGetArray(residual, &values));
+        for (PetscInt global = ownership_begin; global < ownership_end; ++global) {
+            const std::size_t problem_dof = context.petsc_to_problem[static_cast<std::size_t>(global)];
+            if (!context.constrained[problem_dof]) {
+                const std::size_t field = context.dof_fields[problem_dof];
+                values[global - ownership_begin] *= context.field_residual_scalings[field];
             }
         }
-        context.thermal_scaling_initialized = true;
+        PetscCall(VecRestoreArray(residual, &values));
+        PetscCall(field_norms(residual, context, context.latest_field_residual_norms));
     }
-    if (!context.mechanics_scaling_initialized && mechanics_norm > context.residual_scaling_floor) {
-        const double mechanics_scaling = 1.0 / mechanics_norm;
-        for (std::size_t field = 0; field < context.problem->field_layout().size(); ++field) {
-            if (context.problem->field_layout()[field].category == FieldCategory::mechanical) {
-                context.field_residual_scalings[field] = mechanics_scaling;
-                context.initial_field_residual_norms[field] = context.latest_unscaled_field_residual_norms[field];
-            }
-        }
-        context.mechanics_scaling_initialized = true;
-    }
-    PetscInt ownership_begin = 0;
-    PetscInt ownership_end = 0;
-    PetscCall(VecGetOwnershipRange(residual, &ownership_begin, &ownership_end));
-    PetscScalar* values = nullptr;
-    PetscCall(VecGetArray(residual, &values));
-    for (PetscInt global = ownership_begin; global < ownership_end; ++global) {
-        const std::size_t problem_dof = context.petsc_to_problem[static_cast<std::size_t>(global)];
-        if (!context.constrained[problem_dof]) {
-            const std::size_t field = context.dof_fields[problem_dof];
-            values[global - ownership_begin] *= context.field_residual_scalings[field];
-        }
-    }
-    PetscCall(VecRestoreArray(residual, &values));
-    PetscCall(field_norms(residual, context, context.latest_field_residual_norms));
     for (std::size_t field = 0; field < context.field_residual_reference_norms.size(); ++field)
         context.field_residual_reference_norms[field] =
             std::max(context.field_residual_reference_norms[field], context.latest_field_residual_norms[field]);
@@ -809,6 +806,21 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
     PetscFunctionReturn(PETSC_SUCCESS);
 }
 
+double field_residual_threshold(const SolverContext& context, std::size_t field) {
+    constexpr double numerical_residual_floor = 10.0 * std::sqrt(std::numeric_limits<double>::epsilon());
+    const double initial_scaled = context.initial_field_residual_norms[field] * context.field_residual_scalings[field];
+    const double reference = std::max(initial_scaled, context.field_residual_reference_norms[field]);
+    const double physical_tolerance = context.problem->field_layout()[field].category == FieldCategory::thermal
+                                          ? context.temperature_residual_absolute_tolerance
+                                          : context.mechanical_residual_absolute_tolerance;
+    const double configured_threshold =
+        std::max(physical_tolerance * context.field_residual_scalings[field], context.relative_tolerance * reference);
+    const double independent_threshold =
+        std::max(numerical_residual_floor, context.residual_reduction_tolerance * reference);
+    return std::max(configured_threshold, independent_threshold)
+           * (1.0 + 64.0 * std::numeric_limits<double>::epsilon());
+}
+
 PetscErrorCode field_residual_convergence_test(SNES snes,
     PetscInt iteration,
     PetscReal state_norm,
@@ -823,21 +835,9 @@ PetscErrorCode field_residual_convergence_test(SNES snes,
     const SolverContext& context = *static_cast<const SolverContext*>(raw_context);
     if (!context.field_residual_convergence || context.last_function_domain_error || iteration == 0)
         PetscFunctionReturn(PETSC_SUCCESS);
-    constexpr double numerical_residual_floor = 10.0 * std::sqrt(std::numeric_limits<double>::epsilon());
     bool converged = true;
     for (std::size_t field = 0; field < context.latest_field_residual_norms.size(); ++field) {
-        const double initial_scaled =
-            context.initial_field_residual_norms[field] * context.field_residual_scalings[field];
-        const double reference = std::max(initial_scaled, context.field_residual_reference_norms[field]);
-        const double physical_tolerance = context.problem->field_layout()[field].category == FieldCategory::thermal
-                                              ? context.temperature_residual_absolute_tolerance
-                                              : context.mechanical_residual_absolute_tolerance;
-        const double configured_threshold = std::max(physical_tolerance * context.field_residual_scalings[field],
-            context.relative_tolerance * reference);
-        const double independent_threshold =
-            std::max(numerical_residual_floor, context.residual_reduction_tolerance * reference);
-        const double threshold = std::max(configured_threshold, independent_threshold)
-                                 * (1.0 + 64.0 * std::numeric_limits<double>::epsilon());
+        const double threshold = field_residual_threshold(context, field);
         converged = std::isfinite(context.latest_field_residual_norms[field])
                     && context.latest_field_residual_norms[field] <= threshold && converged;
     }
@@ -1343,17 +1343,7 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem,
     bool fields_verified = true;
     std::vector<double> field_thresholds(result.final_scaled_field_residual_norms.size());
     for (std::size_t field = 0; field < result.final_scaled_field_residual_norms.size(); ++field) {
-        const double initial_scaled =
-            result.initial_field_residual_norms[field] * result.field_residual_scalings[field];
-        const double reference = std::max(initial_scaled, result.field_residual_reference_norms[field]);
-        const double configured_field_threshold =
-            std::max(problem.field_layout()[field].category == FieldCategory::thermal
-                         ? options.temperature_residual_absolute_tolerance * result.field_residual_scalings[field]
-                         : options.mechanical_residual_absolute_tolerance * result.field_residual_scalings[field],
-                options.relative_tolerance * reference);
-        const double independent_field_threshold = std::max(numerical_residual_floor, fallback_reduction * reference);
-        const double field_threshold = std::max(configured_field_threshold, independent_field_threshold)
-                                       * (1.0 + 64.0 * std::numeric_limits<double>::epsilon());
+        const double field_threshold = field_residual_threshold(context, field);
         field_thresholds[field] = field_threshold;
         fields_verified = std::isfinite(result.final_scaled_field_residual_norms[field])
                           && result.final_scaled_field_residual_norms[field] <= field_threshold && fields_verified;

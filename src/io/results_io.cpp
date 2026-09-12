@@ -381,6 +381,42 @@ void write_exodus_mesh(const std::string& path, const ExodusMeshData& mesh) {
     }
     file.close();
 }
+
+bool exodus_uses_quadratic_elements(const std::string& path, int dimension) {
+    const bool cartesian = dimension == 3;
+    const int linear_nodes = cartesian ? 8 : 4, quadratic_nodes = cartesian ? 20 : 8;
+    int cpu_word_size = static_cast<int>(sizeof(double)), io_word_size = 0;
+    float version = 0.0F;
+    const int exoid = ex_open(path.c_str(), EX_READ, &cpu_word_size, &io_word_size, &version);
+    if (exoid < 0)
+        throw std::runtime_error("Could not open Exodus file '" + path + "': " + ex_strerror(exoid));
+    ExodusFile file(exoid);
+    ex_set_int64_status(file.id(), EX_ALL_INT64_API);
+    ex_init_params parameters{};
+    check_exodus(ex_get_init_ext(file.id(), &parameters), "Could not read Exodus model parameters");
+    if (parameters.num_dim != dimension || parameters.num_elem_blk <= 0)
+        throw std::runtime_error(cartesian ? "Cartesian three-dimensional Exodus mesh must contain element blocks"
+                                           : "Axisymmetric Exodus mesh must contain element blocks");
+    std::vector<std::int64_t> block_ids(checked_size(parameters.num_elem_blk, "Exodus element block count"));
+    check_exodus(ex_get_ids(file.id(), EX_ELEM_BLOCK, block_ids.data()), "Could not read Exodus element block IDs");
+    std::int64_t node_count = 0;
+    for (const std::int64_t block_id : block_ids) {
+        ex_block block{};
+        block.id = block_id;
+        block.type = EX_ELEM_BLOCK;
+        check_exodus(ex_get_block_param(file.id(), &block), "Could not read Exodus element block");
+        if (block.num_nodes_per_entry != linear_nodes && block.num_nodes_per_entry != quadratic_nodes)
+            throw std::runtime_error(
+                cartesian ? "Cartesian Exodus element blocks must contain only HEX8 or HEX20 elements"
+                          : "Axisymmetric Exodus element blocks must contain only QUAD4 or QUAD8 elements");
+        if (node_count != 0 && node_count != block.num_nodes_per_entry)
+            throw std::runtime_error(cartesian ? "Cartesian Exodus mesh cannot mix HEX8 and HEX20 element blocks"
+                                               : "Axisymmetric Exodus mesh cannot mix QUAD4 and QUAD8 element blocks");
+        node_count = block.num_nodes_per_entry;
+    }
+    return node_count == quadratic_nodes;
+}
+
 } // namespace
 
 UnstructuredQuad4Mesh read_exodus_quad4(const std::string& path) {
@@ -514,61 +550,11 @@ void write_exodus_hex20(const std::string& path, const UnstructuredHex20Mesh& me
 }
 
 bool exodus_uses_hex20(const std::string& path) {
-    int cpu_word_size = static_cast<int>(sizeof(double)), io_word_size = 0;
-    float version = 0.0F;
-    const int exoid = ex_open(path.c_str(), EX_READ, &cpu_word_size, &io_word_size, &version);
-    if (exoid < 0)
-        throw std::runtime_error("Could not open Exodus file '" + path + "': " + ex_strerror(exoid));
-    ExodusFile file(exoid);
-    ex_set_int64_status(file.id(), EX_ALL_INT64_API);
-    ex_init_params parameters{};
-    check_exodus(ex_get_init_ext(file.id(), &parameters), "Could not read Exodus model parameters");
-    if (parameters.num_dim != 3 || parameters.num_elem_blk <= 0)
-        throw std::runtime_error("Cartesian three-dimensional Exodus mesh must contain element blocks");
-    std::vector<std::int64_t> block_ids(checked_size(parameters.num_elem_blk, "Exodus element block count"));
-    check_exodus(ex_get_ids(file.id(), EX_ELEM_BLOCK, block_ids.data()), "Could not read Exodus element block IDs");
-    std::int64_t node_count = 0;
-    for (const std::int64_t block_id : block_ids) {
-        ex_block block{};
-        block.id = block_id;
-        block.type = EX_ELEM_BLOCK;
-        check_exodus(ex_get_block_param(file.id(), &block), "Could not read Exodus element block");
-        if (block.num_nodes_per_entry != 8 && block.num_nodes_per_entry != 20)
-            throw std::runtime_error("Cartesian Exodus element blocks must contain only HEX8 or HEX20 elements");
-        if (node_count != 0 && node_count != block.num_nodes_per_entry)
-            throw std::runtime_error("Cartesian Exodus mesh cannot mix HEX8 and HEX20 element blocks");
-        node_count = block.num_nodes_per_entry;
-    }
-    return node_count == 20;
+    return exodus_uses_quadratic_elements(path, 3);
 }
 
 bool exodus_uses_quad8(const std::string& path) {
-    int cpu_word_size = static_cast<int>(sizeof(double)), io_word_size = 0;
-    float version = 0.0F;
-    const int exoid = ex_open(path.c_str(), EX_READ, &cpu_word_size, &io_word_size, &version);
-    if (exoid < 0)
-        throw std::runtime_error("Could not open Exodus file '" + path + "': " + ex_strerror(exoid));
-    ExodusFile file(exoid);
-    ex_set_int64_status(file.id(), EX_ALL_INT64_API);
-    ex_init_params parameters{};
-    check_exodus(ex_get_init_ext(file.id(), &parameters), "Could not read Exodus model parameters");
-    if (parameters.num_dim != 2 || parameters.num_elem_blk <= 0)
-        throw std::runtime_error("Axisymmetric Exodus mesh must contain element blocks");
-    std::vector<std::int64_t> block_ids(checked_size(parameters.num_elem_blk, "Exodus element block count"));
-    check_exodus(ex_get_ids(file.id(), EX_ELEM_BLOCK, block_ids.data()), "Could not read Exodus element block IDs");
-    std::int64_t node_count = 0;
-    for (const std::int64_t block_id : block_ids) {
-        ex_block block{};
-        block.id = block_id;
-        block.type = EX_ELEM_BLOCK;
-        check_exodus(ex_get_block_param(file.id(), &block), "Could not read Exodus element block");
-        if (block.num_nodes_per_entry != 4 && block.num_nodes_per_entry != 8)
-            throw std::runtime_error("Axisymmetric Exodus element blocks must contain only QUAD4 or QUAD8 elements");
-        if (node_count != 0 && node_count != block.num_nodes_per_entry)
-            throw std::runtime_error("Axisymmetric Exodus mesh cannot mix QUAD4 and QUAD8 element blocks");
-        node_count = block.num_nodes_per_entry;
-    }
-    return node_count == 8;
+    return exodus_uses_quadratic_elements(path, 2);
 }
 
 void write_exodus_hex8(const std::string& path, const UnstructuredHex8Mesh& mesh) {
@@ -982,12 +968,10 @@ void fill_rz_nodal(const UnstructuredQuad4Mesh& mesh,
 std::vector<std::string> quad8_element_names(bool transient) {
     std::vector<std::string> result;
     for (std::size_t q = 0; q < 9; ++q) {
-        for (const char* component : {"rr", "zz", "hoop", "rz"})
-            result.push_back("stress_" + std::string(component) + "_q" + std::to_string(q));
+        append_component_variable_names(result, "stress_", q);
         if (transient) {
             for (const char* prefix : {"elastic_", "plastic_", "creep_"})
-                for (const char* component : {"rr", "zz", "hoop", "rz"})
-                    result.push_back(std::string(prefix) + component + "_q" + std::to_string(q));
+                append_component_variable_names(result, prefix, q);
             result.push_back("equiv_plastic_q" + std::to_string(q));
             result.push_back("equiv_creep_q" + std::to_string(q));
         }

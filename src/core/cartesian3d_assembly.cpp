@@ -1542,16 +1542,7 @@ void SpatialAssembly::compute_contribution(std::size_t index,
         Quad4SurfaceContactLocalValues current{};
         std::copy(state.begin(), state.end(), current.begin());
         const Quad4SurfaceContactLocalValues committed = contribution_state(index, _committed_contact_solution);
-        NormalContactProperties point_properties = _mechanical_properties[entry.contact];
-        if (entry.surface_to_surface
-            && std::any_of(_abaqus_averaged_constraints.begin(),
-                _abaqus_averaged_constraints.end(),
-                [&entry](const AbaqusAveragedConstraint& constraint) {
-                    return constraint.contact == entry.contact && constraint.friction_only;
-                })) {
-            point_properties.friction_coefficient = 0.0;
-            point_properties.maximum_elastic_slip = 0.0;
-        }
+        const NormalContactProperties point_properties = mechanical_contact_properties(entry);
         Quad4SurfaceContactLocalJacobian local_jacobian{};
         const Quad4SurfaceContactLocalResidual result =
             entry.surface_to_surface ? compute_quad4_to_quad4_contact(point_properties,
@@ -5888,6 +5879,20 @@ SpatialAssembly::MechanicalCandidate SpatialAssembly::mechanical_candidate(std::
     return result;
 }
 
+NormalContactProperties SpatialAssembly::mechanical_contact_properties(const MechanicalCandidate& candidate) const {
+    NormalContactProperties result = _mechanical_properties[candidate.contact];
+    if (candidate.surface_to_surface
+        && std::any_of(_abaqus_averaged_constraints.begin(),
+            _abaqus_averaged_constraints.end(),
+            [&candidate](const AbaqusAveragedConstraint& constraint) {
+                return constraint.contact == candidate.contact && constraint.friction_only;
+            })) {
+        result.friction_coefficient = 0.0;
+        result.maximum_elastic_slip = 0.0;
+    }
+    return result;
+}
+
 SpatialAssembly::Hex20ThermalCandidate SpatialAssembly::hex20_thermal_candidate(std::size_t point,
     std::size_t primary) const {
     const Hex20ThermalPoint& metadata = _hex20_thermal_points.at(point);
@@ -6613,154 +6618,67 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
     std::vector<std::vector<bool>> updated(_definition.contacts.size());
     for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact)
         updated[contact].resize(_contact_histories[contact].size(), false);
-    if (_uses_hex20) {
-        for (std::size_t point = 0; point < _mechanical_active_primary.size(); ++point) {
-            const std::size_t primary = _mechanical_active_primary[point];
-            if (primary == std::numeric_limits<std::size_t>::max())
-                continue;
-            const Hex20MechanicalCandidate candidate = hex20_mechanical_candidate(point, primary);
-            const Quad8SurfaceContactLocalValues current = hex20_contact_state(candidate, state),
-                                                 committed =
-                                                     hex20_contact_state(candidate, _committed_contact_solution);
-            const CartesianContactPointValue value =
-                candidate.surface_to_surface
-                    ? compute_quad8_to_quad8_contact_value(_mechanical_properties[candidate.contact],
-                          candidate.surface_geometry,
-                          current,
-                          committed,
-                          _contact_histories[candidate.contact][candidate.secondary])
-                    : compute_node_to_quad8_contact_value(_mechanical_properties[candidate.contact],
-                          candidate.node_geometry,
-                          current,
-                          committed,
-                          _contact_histories[candidate.contact][candidate.secondary]);
-            if (!value.projected)
-                continue;
-            ContactPointHistory trial = _contact_histories[candidate.contact][candidate.secondary];
-            trial.sliding = value.sliding;
-            trial.cartesian_total_tangential_slip = value.tangential_slip;
-            trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
-            if (candidate.surface_to_surface && _mechanical_properties[candidate.contact].friction_coefficient > 0.0) {
-                trial.cartesian_tangent_basis_initialized = true;
-                trial.cartesian_contact_normal = value.normal;
-                trial.cartesian_contact_tangent_first = value.tangent_first;
-            }
-            if (updated[candidate.contact][candidate.secondary]) {
-                const ContactPointHistory& prior = staged[candidate.contact][candidate.secondary];
-                bool equal = prior.sliding == trial.sliding;
-                for (std::size_t component = 0; component < 3; ++component) {
-                    const double scale = std::max({1.0,
-                        std::abs(prior.cartesian_elastic_tangential_slip[component]),
-                        std::abs(trial.cartesian_elastic_tangential_slip[component])});
-                    equal = equal
-                            && std::abs(prior.cartesian_elastic_tangential_slip[component]
-                                        - trial.cartesian_elastic_tangential_slip[component])
-                                   <= 64.0 * std::numeric_limits<double>::epsilon() * scale;
-                    const double total_scale = std::max({1.0,
-                        std::abs(prior.cartesian_total_tangential_slip[component]),
-                        std::abs(trial.cartesian_total_tangential_slip[component])});
-                    equal = equal
-                            && std::abs(prior.cartesian_total_tangential_slip[component]
-                                        - trial.cartesian_total_tangential_slip[component])
-                                   <= 64.0 * std::numeric_limits<double>::epsilon() * total_scale;
-                    equal = equal
-                            && prior.cartesian_contact_normal[component] == trial.cartesian_contact_normal[component]
-                            && prior.cartesian_contact_tangent_first[component]
-                                   == trial.cartesian_contact_tangent_first[component];
-                }
-                equal = equal && prior.cartesian_tangent_basis_initialized == trial.cartesian_tangent_basis_initialized;
-                if (!equal)
-                    throw std::logic_error("HEX20 secondary faces disagree on contact-node friction history");
-                continue;
-            }
-            staged[candidate.contact][candidate.secondary] = trial;
-            updated[candidate.contact][candidate.secondary] = true;
-            friction_dissipation += value.friction_dissipation;
-        }
-        for (const AbaqusAveragedConstraint& constraint : _abaqus_averaged_constraints) {
-            std::vector<std::size_t> dofs;
-            averaged_constraint_dofs(constraint, dofs);
-            std::vector<double> current(dofs.size()), committed(dofs.size());
-            for (std::size_t local = 0; local < dofs.size(); ++local) {
-                current[local] = state.at(dofs[local]);
-                committed[local] = _committed_contact_solution.at(dofs[local]);
-            }
-            const AbaqusAveragedConstraintValue value = averaged_constraint_value(constraint,
-                current,
-                committed,
-                _contact_histories[constraint.contact][constraint.history]);
-            ContactPointHistory trial = _contact_histories[constraint.contact][constraint.history];
-            trial.sliding = value.sliding;
-            trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
-            trial.cartesian_total_tangential_slip = value.tangential_slip;
-            if (constraint.finite_sliding) {
-                trial.cartesian_tangent_basis_initialized = true;
-                trial.cartesian_contact_normal =
-                    std::array<double, 3>{constraint.normal.x, constraint.normal.y, constraint.normal.z};
-                trial.cartesian_contact_tangent_first = value.tangent_first;
-            }
-            if (updated[constraint.contact][constraint.history])
-                throw std::logic_error("Abaqus-style averaged constraints share one friction-history slot");
-            staged[constraint.contact][constraint.history] = trial;
-            updated[constraint.contact][constraint.history] = true;
-            friction_dissipation += value.friction_dissipation;
-        }
-        for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact) {
-            if (!_definition.contacts[contact].mechanical)
-                continue;
-            if (std::find(updated[contact].begin(), updated[contact].end(), false) != updated[contact].end())
-                throw std::domain_error(
-                    _definition.contacts[contact].mechanical_discretization
-                            == MechanicalContactDiscretization::surface_to_surface
-                        ? "Cannot commit HEX20 friction history for an unprojected surface integration point"
-                        : "Cannot commit HEX20 friction history for an unprojected node");
-        }
-        _contact_histories.swap(staged);
-        _committed_contact_solution = state;
-        return friction_dissipation;
-    }
     for (std::size_t point = 0; point < _mechanical_active_primary.size(); ++point) {
         const std::size_t primary = _mechanical_active_primary[point];
         if (primary == std::numeric_limits<std::size_t>::max())
             continue;
-        const MechanicalCandidate candidate = mechanical_candidate(point, primary);
-        const Quad4SurfaceContactLocalValues current = contact_state(candidate.nodes, state),
-                                             committed = contact_state(candidate.nodes, _committed_contact_solution);
-        NormalContactProperties point_properties = _mechanical_properties[candidate.contact];
-        if (candidate.surface_to_surface
-            && std::any_of(_abaqus_averaged_constraints.begin(),
-                _abaqus_averaged_constraints.end(),
-                [&candidate](const AbaqusAveragedConstraint& constraint) {
-                    return constraint.contact == candidate.contact && constraint.friction_only;
-                })) {
-            point_properties.friction_coefficient = 0.0;
-            point_properties.maximum_elastic_slip = 0.0;
+        std::size_t contact, secondary;
+        bool update_tangent_basis;
+        CartesianContactPointValue value{};
+        if (_uses_hex20) {
+            const Hex20MechanicalCandidate candidate = hex20_mechanical_candidate(point, primary);
+            const Quad8SurfaceContactLocalValues current = hex20_contact_state(candidate, state),
+                                                 committed =
+                                                     hex20_contact_state(candidate, _committed_contact_solution);
+            value = candidate.surface_to_surface
+                        ? compute_quad8_to_quad8_contact_value(_mechanical_properties[candidate.contact],
+                              candidate.surface_geometry,
+                              current,
+                              committed,
+                              _contact_histories[candidate.contact][candidate.secondary])
+                        : compute_node_to_quad8_contact_value(_mechanical_properties[candidate.contact],
+                              candidate.node_geometry,
+                              current,
+                              committed,
+                              _contact_histories[candidate.contact][candidate.secondary]);
+            contact = candidate.contact;
+            secondary = candidate.secondary;
+            update_tangent_basis =
+                candidate.surface_to_surface && _mechanical_properties[candidate.contact].friction_coefficient > 0.0;
+        } else {
+            const MechanicalCandidate candidate = mechanical_candidate(point, primary);
+            const Quad4SurfaceContactLocalValues current = contact_state(candidate.nodes, state),
+                                                 committed =
+                                                     contact_state(candidate.nodes, _committed_contact_solution);
+            const NormalContactProperties point_properties = mechanical_contact_properties(candidate);
+            value = candidate.surface_to_surface
+                        ? compute_quad4_to_quad4_contact_value(point_properties,
+                              candidate.surface_geometry,
+                              current,
+                              committed,
+                              _contact_histories[candidate.contact][candidate.secondary])
+                        : compute_node_to_quad4_contact_value(_mechanical_properties[candidate.contact],
+                              candidate.node_geometry,
+                              current,
+                              committed,
+                              _contact_histories[candidate.contact][candidate.secondary]);
+            contact = candidate.contact;
+            secondary = candidate.secondary;
+            update_tangent_basis = candidate.surface_to_surface && point_properties.friction_coefficient > 0.0;
         }
-        const CartesianContactPointValue value =
-            candidate.surface_to_surface
-                ? compute_quad4_to_quad4_contact_value(point_properties,
-                      candidate.surface_geometry,
-                      current,
-                      committed,
-                      _contact_histories[candidate.contact][candidate.secondary])
-                : compute_node_to_quad4_contact_value(_mechanical_properties[candidate.contact],
-                      candidate.node_geometry,
-                      current,
-                      committed,
-                      _contact_histories[candidate.contact][candidate.secondary]);
         if (!value.projected)
             continue;
-        ContactPointHistory trial = _contact_histories[candidate.contact][candidate.secondary];
+        ContactPointHistory trial = _contact_histories[contact][secondary];
         trial.sliding = value.sliding;
         trial.cartesian_total_tangential_slip = value.tangential_slip;
         trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
-        if (candidate.surface_to_surface && point_properties.friction_coefficient > 0.0) {
+        if (update_tangent_basis) {
             trial.cartesian_tangent_basis_initialized = true;
             trial.cartesian_contact_normal = value.normal;
             trial.cartesian_contact_tangent_first = value.tangent_first;
         }
-        if (updated[candidate.contact][candidate.secondary]) {
-            const ContactPointHistory& prior = staged[candidate.contact][candidate.secondary];
+        if (updated[contact][secondary]) {
+            const ContactPointHistory& prior = staged[contact][secondary];
             bool equal = prior.sliding == trial.sliding;
             for (std::size_t component = 0; component < 3; ++component) {
                 const double scale = std::max({1.0,
@@ -6784,11 +6702,12 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
             equal = equal && prior.cartesian_tangent_basis_initialized == trial.cartesian_tangent_basis_initialized;
             if (!equal)
                 throw std::logic_error(
-                    "Three-dimensional secondary half-faces disagree on contact-node friction history");
+                    _uses_hex20 ? "HEX20 secondary faces disagree on contact-node friction history"
+                                : "Three-dimensional secondary half-faces disagree on contact-node friction history");
             continue;
         }
-        staged[candidate.contact][candidate.secondary] = trial;
-        updated[candidate.contact][candidate.secondary] = true;
+        staged[contact][secondary] = trial;
+        updated[contact][secondary] = true;
         friction_dissipation += value.friction_dissipation;
     }
     for (const AbaqusAveragedConstraint& constraint : _abaqus_averaged_constraints) {
@@ -6807,7 +6726,8 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
         trial.sliding = value.sliding;
         trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
         trial.cartesian_total_tangential_slip = value.tangential_slip;
-        if (constraint.finite_sliding && _mechanical_properties[constraint.contact].friction_coefficient > 0.0) {
+        if (constraint.finite_sliding
+            && (_uses_hex20 || _mechanical_properties[constraint.contact].friction_coefficient > 0.0)) {
             trial.cartesian_tangent_basis_initialized = true;
             trial.cartesian_contact_normal =
                 std::array<double, 3>{constraint.normal.x, constraint.normal.y, constraint.normal.z};
@@ -6826,8 +6746,11 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
             throw std::domain_error(
                 _definition.contacts[contact].mechanical_discretization
                         == MechanicalContactDiscretization::surface_to_surface
-                    ? "Cannot commit HEX8 friction history for an unprojected finite-sliding contact point"
-                    : "Cannot commit three-dimensional friction history for an unprojected node");
+                    ? (_uses_hex20
+                              ? "Cannot commit HEX20 friction history for an unprojected surface integration point"
+                              : "Cannot commit HEX8 friction history for an unprojected finite-sliding contact point")
+                    : (_uses_hex20 ? "Cannot commit HEX20 friction history for an unprojected node"
+                                   : "Cannot commit three-dimensional friction history for an unprojected node"));
     }
     _contact_histories.swap(staged);
     _committed_contact_solution = state;
@@ -7180,16 +7103,7 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
             continue;
         const Quad4SurfaceContactLocalValues current = contact_state(candidate.nodes, state),
                                              committed = contact_state(candidate.nodes, _committed_contact_solution);
-        NormalContactProperties point_properties = _mechanical_properties[candidate.contact];
-        if (candidate.surface_to_surface
-            && std::any_of(_abaqus_averaged_constraints.begin(),
-                _abaqus_averaged_constraints.end(),
-                [&candidate](const AbaqusAveragedConstraint& constraint) {
-                    return constraint.contact == candidate.contact && constraint.friction_only;
-                })) {
-            point_properties.friction_coefficient = 0.0;
-            point_properties.maximum_elastic_slip = 0.0;
-        }
+        const NormalContactProperties point_properties = mechanical_contact_properties(candidate);
         const CartesianContactPointValue value =
             candidate.surface_to_surface
                 ? compute_quad4_to_quad4_contact_value(point_properties,
