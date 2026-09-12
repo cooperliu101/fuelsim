@@ -162,7 +162,7 @@ InputDocument parse_input_file(const std::string& path) {
 }
 
 [[noreturn]] void value_error(const InputDocument& document, const InputEntry& entry, const std::string& message) {
-    throw std::invalid_argument(document.source_path + ":" + std::to_string(entry.line) + ": " + message);
+    input_error(document.source_path, entry.line, message);
 }
 
 const InputEntry* find_entry(const InputSection& section, const std::string& key) {
@@ -175,8 +175,9 @@ const InputEntry* find_entry(const InputSection& section, const std::string& key
 const InputEntry& required_entry(const InputDocument& document, const InputSection& section, const std::string& key) {
     const InputEntry* entry = find_entry(section, key);
     if (entry == nullptr)
-        throw std::invalid_argument(document.source_path + ":" + std::to_string(section.line) + ": section ["
-                                    + section.path + "] is missing required key '" + key + "'");
+        input_error(document.source_path,
+            section.line,
+            "section [" + section.path + "] is missing required key '" + key + "'");
     return *entry;
 }
 
@@ -230,8 +231,7 @@ void validate_sections(const InputDocument& document) {
                     && (section.name == "thermal" || section.name == "mechanical");
         }
         if (!known)
-            throw std::invalid_argument(
-                document.source_path + ":" + std::to_string(section.line) + ": unknown section [" + section.path + "]");
+            input_error(document.source_path, section.line, "unknown section [" + section.path + "]");
     }
 }
 
@@ -388,8 +388,9 @@ std::vector<ParsedMaterial> read_materials(const InputDocument& document, const 
         const InputSection* thermal = find_section(document, base + "/thermal");
         const InputSection* elasticity = find_section(document, base + "/elasticity");
         if (thermal == nullptr || elasticity == nullptr)
-            throw std::invalid_argument(document.source_path + ":" + std::to_string(material_section->line)
-                                        + ": material [" + base + "] requires [thermal] and [elasticity]");
+            input_error(document.source_path,
+                material_section->line,
+                "material [" + base + "] requires [thermal] and [elasticity]");
         auto functions = std::make_shared<MaterialFunctionSet>();
         functions->name = material_name;
         try {
@@ -475,8 +476,9 @@ RegionDefinition read_region(const InputDocument& document,
     const InputEntry* block = find_entry(section, "block");
     const InputEntry* block_id = find_entry(section, "block_id");
     if ((block == nullptr) == (block_id == nullptr))
-        throw std::invalid_argument(document.source_path + ":" + std::to_string(section.line) + ": region ["
-                                    + section.path + "] requires exactly one of 'block' or 'block_id'");
+        input_error(document.source_path,
+            section.line,
+            "region [" + section.path + "] requires exactly one of 'block' or 'block_id'");
     std::int64_t resolved_block_id = -1;
     if (block_id != nullptr) {
         const std::size_t value = parse_size(document, *block_id);
@@ -566,8 +568,7 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
     const InputSection* thermal = find_section(document, base + "/thermal");
     const InputSection* mechanical = find_section(document, base + "/mechanical");
     if (thermal == nullptr && mechanical == nullptr)
-        throw std::invalid_argument(document.source_path + ":" + std::to_string(section.line) + ": contact [" + base
-                                    + "] requires [thermal] or [mechanical]");
+        input_error(document.source_path, section.line, "contact [" + base + "] requires [thermal] or [mechanical]");
     ContactDefinition result{section.name,
         read_string(document, section, "primary"),
         read_string(document, section, "secondary"),
@@ -797,13 +798,14 @@ BoundaryConditionDefinition read_boundary_condition(const InputDocument& documen
             scale_with_load,
             function);
     }
-    if (type == "pressure") {
-        forbid_key(document, section, "field", "type='pressure'");
-        forbid_convection_keys(document, section, "type='pressure'");
+    if (type == "pressure" || type == "heat_flux") {
+        const bool pressure = type == "pressure";
+        forbid_key(document, section, "field", "type='" + type + "'");
+        forbid_convection_keys(document, section, "type='" + type + "'");
         BoundaryConditionDefinition result = make_boundary_condition(document,
             section,
-            BoundaryConditionType::pressure,
-            Field::radial_displacement,
+            pressure ? BoundaryConditionType::pressure : BoundaryConditionType::heat_flux,
+            pressure ? Field::radial_displacement : Field::temperature,
             read_double(document, section, "value"),
             scale_with_load,
             function);
@@ -819,19 +821,6 @@ BoundaryConditionDefinition read_boundary_condition(const InputDocument& documen
             section,
             BoundaryConditionType::traction,
             field,
-            read_double(document, section, "value"),
-            scale_with_load,
-            function);
-        read_boundary_configuration(document, section, type, result);
-        return result;
-    }
-    if (type == "heat_flux") {
-        forbid_key(document, section, "field", "type='heat_flux'");
-        forbid_convection_keys(document, section, "type='heat_flux'");
-        BoundaryConditionDefinition result = make_boundary_condition(document,
-            section,
-            BoundaryConditionType::heat_flux,
-            Field::temperature,
             read_double(document, section, "value"),
             scale_with_load,
             function);
@@ -1215,11 +1204,6 @@ FuelSimCaseDefinition read_case_input(const std::string& path, const MaterialFun
     read_time_functions(document, result);
     const std::vector<ParsedMaterial> materials = read_materials(document, registry);
     read_regions(document, path, materials, result);
-    if (result.geometry != CaseGeometry::cartesian_3d)
-        for (const RegionDefinition& region : result.spatial.regions)
-            if (region.hex8_element_formulation != Hex8ElementFormulation::c3d8t)
-                throw std::invalid_argument(path + ": region '" + region.name
-                                            + "' selects c3d8rt outside Cartesian three-dimensional geometry");
     read_contacts(document, result);
     read_boundary_conditions(document, result);
     validate_time_function_references(path, result);

@@ -106,6 +106,8 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     void update_contact_search_trees(const std::vector<double>& state) const;
     void update_thermal_candidates(std::size_t first, std::size_t last, const std::vector<double>& state) const;
     void update_mechanical_candidates(std::size_t first, std::size_t last, const std::vector<double>& state) const;
+    void consider_thermal_candidate(std::size_t entry, std::size_t point, const std::vector<double>& state) const;
+    bool consider_mechanical_candidate(std::size_t entry, std::size_t node, const std::vector<double>& state) const;
     void update_large_thermal_candidates(const std::vector<double>& state) const;
     void update_large_mechanical_candidates(const std::vector<double>& state) const;
     bool mark_touched_thermal_points(std::size_t first, std::size_t last) const;

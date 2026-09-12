@@ -828,23 +828,30 @@ void SpatialAssembly::update_thermal_candidates(std::size_t first,
             const std::size_t point = thermal_point_index(candidate.contact, candidate.integration_point);
             if (_touched_thermal_points[point] == 0U)
                 continue;
-            const ContactProjectionValue value =
-                compute_line2_rz_heat_projection(candidate.geometry, contact_state(candidate.nodes, state));
-            if (!value.projected)
-                continue;
-            const double distance = std::abs(value.gap);
-            const std::size_t selected = _thermal_active_candidates[point];
-            if (distance < _thermal_minimum_distance[point]
-                || (distance == _thermal_minimum_distance[point]
-                    && (selected == std::numeric_limits<std::size_t>::max()
-                        || candidate.primary < _thermal_contributions[selected].primary))) {
-                _thermal_minimum_distance[point] = distance;
-                _thermal_active_candidates[point] = entry;
-            }
+            consider_thermal_candidate(entry, point, state);
         }
         return;
     }
     update_large_thermal_candidates(state);
+}
+
+void SpatialAssembly::consider_thermal_candidate(std::size_t entry,
+    std::size_t point,
+    const std::vector<double>& state) const {
+    const ThermalContribution& candidate = _thermal_contributions[entry];
+    const ContactProjectionValue value =
+        compute_line2_rz_heat_projection(candidate.geometry, contact_state(candidate.nodes, state));
+    if (!value.projected)
+        return;
+    const double distance = std::abs(value.gap);
+    const std::size_t selected = _thermal_active_candidates[point];
+    if (distance < _thermal_minimum_distance[point]
+        || (distance == _thermal_minimum_distance[point]
+            && (selected == std::numeric_limits<std::size_t>::max()
+                || candidate.primary < _thermal_contributions[selected].primary))) {
+        _thermal_minimum_distance[point] = distance;
+        _thermal_active_candidates[point] = entry;
+    }
 }
 
 void SpatialAssembly::update_large_thermal_candidates(const std::vector<double>& state) const {
@@ -857,25 +864,9 @@ void SpatialAssembly::update_large_thermal_candidates(const std::vector<double>&
         if (begin == end)
             continue;
         const ThermalContribution& representative = _thermal_contributions[begin];
-        const auto consider = [this, point, &state](std::size_t entry) {
-            const ThermalContribution& candidate = _thermal_contributions[entry];
-            const ContactProjectionValue value =
-                compute_line2_rz_heat_projection(candidate.geometry, contact_state(candidate.nodes, state));
-            if (!value.projected)
-                return;
-            const double distance = std::abs(value.gap);
-            const std::size_t selected = _thermal_active_candidates[point];
-            if (distance < _thermal_minimum_distance[point]
-                || (distance == _thermal_minimum_distance[point]
-                    && (selected == std::numeric_limits<std::size_t>::max()
-                        || candidate.primary < _thermal_contributions[selected].primary))) {
-                _thermal_minimum_distance[point] = distance;
-                _thermal_active_candidates[point] = entry;
-            }
-        };
         const std::size_t cached_primary = _thermal_cached_primary[point];
         if (cached_primary < end - begin)
-            consider(begin + cached_primary);
+            consider_thermal_candidate(begin + cached_primary, point, state);
         if (end - begin > spatial_detail::contact_search_tree_minimum_items) {
             const Cax4LocalValues representative_state = contact_state(representative.nodes, state);
             _contact_search_trees[representative.contact].begin_query(
@@ -886,12 +877,12 @@ void SpatialAssembly::update_large_thermal_candidates(const std::vector<double>&
                 _thermal_minimum_distance[point],
                 primary)) {
                 if (primary != cached_primary)
-                    consider(begin + primary);
+                    consider_thermal_candidate(begin + primary, point, state);
             }
         } else
             for (std::size_t entry = begin; entry < end; ++entry)
                 if (_thermal_contributions[entry].primary != cached_primary)
-                    consider(entry);
+                    consider_thermal_candidate(entry, point, state);
         if (_thermal_active_candidates[point] != std::numeric_limits<std::size_t>::max())
             _thermal_cached_primary[point] = _thermal_contributions[_thermal_active_candidates[point]].primary;
     }
@@ -919,18 +910,8 @@ void SpatialAssembly::update_mechanical_candidates(std::size_t first,
             const std::size_t node = mechanical_node_index(candidate.contact, candidate.secondary);
             if (_touched_mechanical_nodes[node] == 0U)
                 continue;
-            const ContactProjectionValue value =
-                compute_node_to_line_rz_contact_projection(candidate.geometry, contact_state(candidate.nodes, state));
-            if (!value.projected)
-                continue;
-            _projected_mechanical_candidates[entry] = 1U;
-            const double distance = std::abs(value.gap);
-            if (distance < _mechanical_minimum_distance[node]
-                || (distance == _mechanical_minimum_distance[node]
-                    && candidate.primary < _mechanical_selected_primary[node])) {
-                _mechanical_minimum_distance[node] = distance;
-                _mechanical_selected_primary[node] = candidate.primary;
-            }
+            if (consider_mechanical_candidate(entry, node, state))
+                _projected_mechanical_candidates[entry] = 1U;
         }
         for (std::size_t entry = 0; entry < _mechanical_contributions.size(); ++entry) {
             const MechanicalContribution& candidate = _mechanical_contributions[entry];
@@ -942,6 +923,23 @@ void SpatialAssembly::update_mechanical_candidates(std::size_t first,
         return;
     }
     update_large_mechanical_candidates(state);
+}
+
+bool SpatialAssembly::consider_mechanical_candidate(std::size_t entry,
+    std::size_t node,
+    const std::vector<double>& state) const {
+    const MechanicalContribution& candidate = _mechanical_contributions[entry];
+    const ContactProjectionValue value =
+        compute_node_to_line_rz_contact_projection(candidate.geometry, contact_state(candidate.nodes, state));
+    if (!value.projected)
+        return false;
+    const double distance = std::abs(value.gap);
+    if (distance < _mechanical_minimum_distance[node]
+        || (distance == _mechanical_minimum_distance[node] && candidate.primary < _mechanical_selected_primary[node])) {
+        _mechanical_minimum_distance[node] = distance;
+        _mechanical_selected_primary[node] = candidate.primary;
+    }
+    return true;
 }
 
 void SpatialAssembly::update_large_mechanical_candidates(const std::vector<double>& state) const {
@@ -960,23 +958,9 @@ void SpatialAssembly::update_large_mechanical_candidates(const std::vector<doubl
         if (begin == end)
             continue;
         const MechanicalContribution& representative = _mechanical_contributions[begin];
-        const auto consider = [this, node, &state](std::size_t entry) {
-            const MechanicalContribution& candidate = _mechanical_contributions[entry];
-            const ContactProjectionValue value =
-                compute_node_to_line_rz_contact_projection(candidate.geometry, contact_state(candidate.nodes, state));
-            if (!value.projected)
-                return;
-            const double distance = std::abs(value.gap);
-            if (distance < _mechanical_minimum_distance[node]
-                || (distance == _mechanical_minimum_distance[node]
-                    && candidate.primary < _mechanical_selected_primary[node])) {
-                _mechanical_minimum_distance[node] = distance;
-                _mechanical_selected_primary[node] = candidate.primary;
-            }
-        };
         const std::size_t cached_primary = _mechanical_cached_primary[node];
         if (cached_primary < end - begin)
-            consider(begin + cached_primary);
+            consider_mechanical_candidate(begin + cached_primary, node, state);
         if (end - begin > spatial_detail::contact_search_tree_minimum_items) {
             const Cax4LocalValues representative_state = contact_state(representative.nodes, state);
             _contact_search_trees[metadata.contact].begin_query(
@@ -987,12 +971,12 @@ void SpatialAssembly::update_large_mechanical_candidates(const std::vector<doubl
                 _mechanical_minimum_distance[node],
                 primary)) {
                 if (primary != cached_primary)
-                    consider(begin + primary);
+                    consider_mechanical_candidate(begin + primary, node, state);
             }
         } else
             for (std::size_t entry = begin; entry < end; ++entry)
                 if (_mechanical_contributions[entry].primary != cached_primary)
-                    consider(entry);
+                    consider_mechanical_candidate(entry, node, state);
     }
     for (std::size_t point = 0; point < _mechanical_points.size(); ++point) {
         const MechanicalPoint& metadata = _mechanical_points[point];

@@ -181,12 +181,9 @@ SteadyResult solve_steady_from_state(PetscSolver& solver,
                     attempt.failure_category,
                     attempt.failure_message});
                 result.solve = attempt;
-                if (cutbacks >= load_options.maximum_cutbacks_per_step) {
-                    result.total_seconds = seconds_since(start);
-                    return result;
-                }
                 const double tolerance = 16.0 * std::numeric_limits<double>::epsilon();
-                if (load_increment <= load_options.minimum_load_increment + tolerance) {
+                if (cutbacks >= load_options.maximum_cutbacks_per_step
+                    || load_increment <= load_options.minimum_load_increment + tolerance) {
                     result.total_seconds = seconds_since(start);
                     return result;
                 }
