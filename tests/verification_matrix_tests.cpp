@@ -370,6 +370,9 @@ int main(int argc, char** argv) {
             "scope.boundary",
         };
         const std::set<std::string> manually_qualified_ids = {
+            "b90.cax4rt_small_probe",
+            "b1214.cax8rt_recovery",
+            "b150_cax4t_small_thermal_operator",
             "b14_nts_cax4rt",
             "b14_nts_cax8rt",
             "b60.c3d20t_finite_steady_bending",
@@ -430,7 +433,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 178 || qualified != 10 || measured != 12 || limitations != 4)
+        if (verified != 175 || qualified != 13 || measured != 12 || limitations != 4)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         check_c3d8t_contract(argv[4], registered_tests);
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'

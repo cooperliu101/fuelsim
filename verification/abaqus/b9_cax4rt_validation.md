@@ -1,5 +1,24 @@
 # CAX4RT 离散与 Abaqus 验证
 
+## 当前自动测试范围（2026-09-12）
+
+B9.0 已移出 CTest，完整输入与原始 Abaqus 参考保留为手动鉴定资料。
+B9.16 使用相同的小应变几何、位移和温度加载，其首个时刻除节点热反力外，
+节点及材料参考数据与 B9.0 完全相同，并增加温度相关导热和热源开关阶段。
+B9.15 继续独立检查常数导热的温度模式。B9.1、B9.2 及其余自动测试保持不变。
+下文的原始鉴定数量和误差表属于历史记录。
+
+在仓库根目录手动运行 B9.0，并使用原检查器验证全部字段：
+
+```bash
+build/fuelsim -i verification/fuelsim/transient_b90_cax4rt_small_probe.fsi
+build/fuelsim_production_result_tests rz-abaqus \
+  verification/fuelsim/transient_b90_cax4rt_small_probe_results.e \
+  verification/fuelsim/transient_b90_cax4rt_small_probe_summary.csv \
+  verification/abaqus/b90_cax4rt_small_probe_nodes.csv \
+  verification/abaqus/b90_cax4rt_small_probe_points.csv probe
+```
+
 当前 B9.5 已改为先蠕变、后塑性与蠕变同时激活的应力上升与保持测试。Fuelsim 始终
 使用隐式积分，Abaqus 在屈服前显式、塑性激活后隐式；分别按对应离散解析解
 以 0.1% 检查，并逐步确认两种非弹性增量同时为正。跨程序差异仅作诊断，

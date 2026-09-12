@@ -1,5 +1,26 @@
 # CAX8RT 离散与 Abaqus 验证
 
+## 当前自动测试范围（2026-09-12）
+
+B12.14 已移出 CTest，完整输入与原始 Abaqus 参考保留为手动鉴定资料。
+B10.14 继续检查共用的节点接触应力恢复，即从原始接触牵引计算节点输出应力。
+两个例题的所有节点状态均规定，除单元型号和输出文件名外输入相同，70 条
+接触参考记录在舍入误差内一致。体单元反力和材料积分点数据并不相同；
+CAX8RT 的四积分点体响应及自由变形接触继续由 B12.0、B12.12、B12.13 等检查。
+下文的十五个例题及其原始误差表属于历史鉴定记录。
+
+在仓库根目录手动运行 B12.14，并使用原检查器验证全部字段：
+
+```bash
+build/fuelsim -i verification/fuelsim/transient_b1214_cax8rt_recovery.fsi
+build/fuelsim_production_result_tests rz8-recovery-abaqus \
+  verification/fuelsim/transient_b1214_cax8rt_recovery_results.e \
+  verification/fuelsim/transient_b1214_cax8rt_recovery_summary.csv \
+  verification/abaqus/b1214_cax8rt_recovery_nodes.csv \
+  verification/abaqus/b1214_cax8rt_recovery_points.csv \
+  verification/abaqus/b1214_cax8rt_recovery_contact.csv
+```
+
 当前 B12.6 已改为先蠕变、后塑性与蠕变同时激活的应力上升与保持测试。Fuelsim 始终
 使用隐式积分，Abaqus 在屈服前显式、塑性激活后隐式；分别按对应离散解析解
 以 0.1% 检查，并逐步确认两种非弹性增量同时为正。跨程序差异仅作诊断，

@@ -1,5 +1,24 @@
 # CAX4T 综合例题的第一轮误差修正
 
+## 当前自动测试范围（2026-09-12）
+
+B15.0 的小应变常数导热探测已移出 CTest，完整输入和原始 Abaqus 参考保留为
+手动鉴定资料。B15.1 使用相同的几何、三个时间步、热容、热源和边界条件，
+并增加温度相关导热。两者所有时刻的节点及材料参考数据仅节点热反力不同。
+B15.1 继续检查小应变的热容、传导和热源，B15.0 有限应变版本继续自动运行。
+下文关于三个热算子探测和统一回归的数量、误差及状态均属于历史记录。
+
+在仓库根目录手动运行 B15.0 小应变版本，并使用原检查器验证全部字段：
+
+```bash
+build/fuelsim -i verification/fuelsim/transient_b150_cax4t_small_thermal_operator.fsi
+build/fuelsim_production_result_tests rz-abaqus \
+  verification/fuelsim/transient_b150_cax4t_small_thermal_operator_results.e \
+  verification/fuelsim/transient_b150_cax4t_small_thermal_operator_summary.csv \
+  verification/abaqus/b150_cax4t_small_thermal_operator_nodes.csv \
+  verification/abaqus/b150_cax4t_small_thermal_operator_points.csv probe
+```
+
 后续独立逐节点升温探测再次确认 CAX4T 热膨胀使用四节点算术平均温度；
 CAX4RT 则使用轴对称体积平均温度。完整原生证据见
 [热膨胀温度鉴定](thermal_expansion_probe/README.md)。

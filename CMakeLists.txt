@@ -2082,15 +2082,18 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b81_rz_friction_history_contract PROPERTIES
         FIXTURES_REQUIRED b81_rz_production LABELS "unit;contact;checkpoint")
 
-    foreach(cax4t_thermal_case IN ITEMS b150_cax4t_small_thermal_operator
-        b150_cax4t_finite_thermal_operator b151_cax4t_small_conductivity)
+    # B15.1 retains the small-strain capacity/source stages and adds variable conductivity.
+    # The constant-conductivity B15.0 small-strain input remains a manual reference.
+    foreach(cax4t_thermal_case IN ITEMS b150_cax4t_finite_thermal_operator b151_cax4t_small_conductivity)
         fuelsim_add_production_test("fuelsim_${cax4t_thermal_case}_abaqus_tests" "${cax4t_thermal_case}"
             "transient_${cax4t_thermal_case}" rz-abaqus
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax4t_thermal_case}_nodes.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax4t_thermal_case}_points.csv" "probe")
     endforeach()
 
-    foreach(cax4rt_case IN ITEMS b90_cax4rt_small_probe b91_cax4rt_finite_probe b92_cax4rt_rectangle_probe
+    # B9.16 retains the B9.0 mechanical state and extends its thermal operator checks;
+    # B9.15 separately identifies constant-conductivity modes. B9.0 remains manual.
+    foreach(cax4rt_case IN ITEMS b91_cax4rt_finite_probe b92_cax4rt_rectangle_probe
         b93_cax4rt_small_coupled b94_cax4rt_finite_coupled b95_cax4rt_small_creep
         b96_cax4rt_finite_creep b97_cax4rt_small_plastic b98_cax4rt_finite_plastic
         b99_cax4rt_small_thermal b910_cax4rt_finite_thermal b911_cax4rt_small_contact b912_cax4rt_finite_contact)
@@ -2181,11 +2184,8 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1213_cax8rt_finite_sliding_points.csv"
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1213_cax8rt_finite_sliding_contact.csv")
 
-    fuelsim_add_production_test(fuelsim_b1214_cax8rt_recovery_abaqus_tests b1214_cax8rt_recovery
-        transient_b1214_cax8rt_recovery rz8-recovery-abaqus
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1214_cax8rt_recovery_nodes.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1214_cax8rt_recovery_points.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1214_cax8rt_recovery_contact.csv")
+    # B10.14 identifies the shared quadratic-edge recovery on prescribed states.
+    # B12.0/B12.12/B12.13 retain CAX8RT bulk/contact coverage; B12.14 remains manual.
 
     set_tests_properties(fuelsim_b105_cax8t_finite_coupled_abaqus_tests PROPERTIES FIXTURES_SETUP b105_cax8t_finite_coupled)
     fuelsim_stage_blackbox_case(rz8_split b105_cax8t_finite_coupled_restart transient_b105_cax8t_finite_coupled_split.fsi)
