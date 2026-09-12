@@ -1438,6 +1438,29 @@ std::array<Scalar, 6> rotate_cartesian_tensor_impl(const std::array<Scalar, 6>& 
 }
 } // namespace
 
+SymmetricTensor3 compose_cartesian_stress(const CartesianStressTangent& response,
+    const SymmetricTensor3& strain,
+    const adlite::Scalar& temperature,
+    const std::array<double, 6>& thermal) {
+    const std::array<adlite::Scalar, 7> inputs =
+        {strain.xx, strain.yy, strain.zz, strain.xy, strain.yz, strain.xz, temperature};
+    const std::array<double, 6> values = {response.stress.xx,
+        response.stress.yy,
+        response.stress.zz,
+        response.stress.xy,
+        response.stress.yz,
+        response.stress.xz};
+    std::array<double, 7> partials{};
+    std::array<adlite::Scalar, 6> stress{};
+    for (std::size_t row = 0; row < 6; ++row) {
+        for (std::size_t column = 0; column < 6; ++column)
+            partials[column] = response.tangent[row][column];
+        partials[6] = thermal[row];
+        stress[row] = adlite::compose(values[row], inputs.data(), partials.data(), inputs.size());
+    }
+    return {stress[0], stress[1], stress[2], stress[3], stress[4], stress[5]};
+}
+
 SymmetricTensor3Values rotate_cartesian_tensor_values(const SymmetricTensor3Values& tensor,
     const std::array<std::array<double, 3>, 3>& rotation) {
     const auto rotated =

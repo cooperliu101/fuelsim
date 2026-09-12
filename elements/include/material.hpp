@@ -140,4 +140,11 @@ CartesianStressTangent evaluate_stress_tangent(const IsotropicThermoelasticMater
     double time_step,
     const CartesianMaterialPointState* committed_material,
     MaterialFunctionContext context);
+
+// Attach the six-strain/temperature material tangent to the caller's kinematic chain.
+// The explicit thermal partials retain model-specific expansion-temperature corrections.
+SymmetricTensor3 compose_cartesian_stress(const CartesianStressTangent& response,
+    const SymmetricTensor3& strain,
+    const adlite::Scalar& temperature,
+    const std::array<double, 6>& thermal);
 } // namespace fuelsim
