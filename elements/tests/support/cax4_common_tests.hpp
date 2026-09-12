@@ -48,6 +48,25 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
     data.element_formulation = reduced ? fuelsim::RzElementFormulation::cax4rt : fuelsim::RzElementFormulation::cax4t;
     const fuelsim::Cax4LocalValues direction = {0.2, -0.3, 0.4, -0.1, 0.3, -0.5, 0.2, 0.4, -0.2, 0.35, -0.45, 0.25};
     bool passed = true;
+    const auto evaluate = [&](const fuelsim::Cax4LocalValues& state,
+                              const fuelsim::Cax4LocalValues& committed,
+                              const fuelsim::Quad4MaterialHistory& history,
+                              fuelsim::elements::ElementRequest request,
+                              bool thermal_time = true) {
+        const fuelsim::elements::Cax4Input input{data.material,
+            geometry,
+            state,
+            committed,
+            &history,
+            0.1,
+            data.time,
+            data.volumetric_heat_source,
+            data.strain_formulation,
+            thermal_time,
+            data.initial_temperature};
+        return reduced ? fuelsim::elements::evaluate_cax4rt(input, request)
+                       : fuelsim::elements::evaluate_cax4t(input, request);
+    };
     {
         fuelsim::Cax4LocalValues heated{}, committed{};
         for (std::size_t n = 0; n < 4; ++n) {
@@ -93,8 +112,8 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
             heated[1] = 690.0;
             heated[2] = 710.0;
             heated[3] = 750.0;
-            const auto history = fuelsim::compute_cax4_transient_update(data, geometry, old, initial, {}, 0.1);
-            const auto next = fuelsim::compute_cax4_transient_update(data, geometry, heated, old, history, 0.1);
+            const auto history = evaluate(old, initial, {}, {false, false, true, false}).history;
+            const auto next = evaluate(heated, old, history, {false, false, true, false}).history;
             for (const auto& point : next) {
                 const std::array<double, 3> stress = {point.stress.rr, point.stress.zz, point.stress.hoop};
                 for (std::size_t component = 0; component < 3; ++component) {
@@ -120,8 +139,8 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
             state[4 + n] = 0.08 * coordinates[n].r;
             state[8 + n] = -0.04 * coordinates[n].z;
         }
-        const auto old_history = fuelsim::compute_cax4_transient_update(data, geometry, old, initial, {}, 0.1);
-        const auto affine = fuelsim::compute_cax4_transient_update(data, geometry, state, old, old_history, 0.1);
+        const auto old_history = evaluate(old, initial, {}, {false, false, true, false}).history;
+        const auto affine = evaluate(state, old, old_history, {false, false, true, false}).history;
         const bool finite = formulation == fuelsim::StrainFormulation::finite;
         const double radial = finite ? 2.0 * 0.03 / 2.03 + 2.0 * 0.05 / 2.11 : 0.08;
         const double axial = finite ? -2.0 * 0.02 / 1.98 - 2.0 * 0.02 / 1.94 : -0.04;
@@ -164,7 +183,7 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
             }
             const double saved_source = data.volumetric_heat_source;
             data.volumetric_heat_source = data.material.heat_capacity(601.0, {}).value() / 0.1;
-            const auto residual = fuelsim::compute_cax4_transient(data, geometry, heated, unheated, {}, 0.1);
+            const auto residual = evaluate(heated, unheated, {}, {true, false, false, false}).residual;
             for (std::size_t n = 0; n < 4; ++n)
                 passed = check(std::abs(residual[n]) < 1e-10 * data.volumetric_heat_source,
                              "CAX4RT uniform heating balances uniform source on a distorted element")
@@ -174,11 +193,12 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
         state[0] += 3.0;
         state[2] -= 2.0;
         fuelsim::Cax4LocalJacobian jacobian{};
-        const auto active = fuelsim::compute_cax4_transient(data, geometry, state, old, old_history, 0.1, &jacobian);
-        const auto passive = fuelsim::compute_cax4_transient(data, geometry, state, old, old_history, 0.1);
+        const auto active_result = evaluate(state, old, old_history, {true, true, false, false});
+        const auto& active = active_result.residual;
+        jacobian = active_result.jacobian;
+        const auto passive = evaluate(state, old, old_history, {true, false, false, false}).residual;
         if (!reduced) {
-            const auto no_capacity =
-                fuelsim::compute_cax4_transient(data, geometry, state, old, old_history, 0.1, nullptr, false);
+            const auto no_capacity = evaluate(state, old, old_history, {true, false, false, false}, false).residual;
             auto thermal_coordinates = coordinates;
             if (finite)
                 for (std::size_t n = 0; n < 4; ++n) {
@@ -207,8 +227,8 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
             plus[j] += step * direction[j];
             minus[j] -= step * direction[j];
         }
-        const auto rp = fuelsim::compute_cax4_transient(data, geometry, plus, old, old_history, 0.1);
-        const auto rm = fuelsim::compute_cax4_transient(data, geometry, minus, old, old_history, 0.1);
+        const auto rp = evaluate(plus, old, old_history, {true, false, false, false}).residual;
+        const auto rm = evaluate(minus, old, old_history, {true, false, false, false}).residual;
         double derivative_error = 0.0;
         for (std::size_t i = 0; i < 12; ++i) {
             double ad = 0.0;
@@ -224,7 +244,7 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
         auto translated = state;
         for (std::size_t n = 0; n < 4; ++n)
             translated[8 + n] += 0.5;
-        const auto shifted = fuelsim::compute_cax4_transient(data, geometry, translated, old, old_history, 0.1);
+        const auto shifted = evaluate(translated, old, old_history, {true, false, false, false}).residual;
         double translation_error = 0.0;
         for (std::size_t i = 0; i < 12; ++i)
             translation_error = std::max(translation_error, scaled_error(shifted[i], passive[i]));
@@ -266,7 +286,7 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
             // det(F_new)=1 and all current radii are positive, but det(F_mid)<0.
             bool rejected = false;
             try {
-                (void)fuelsim::compute_cax4_transient(data, geometry, invalid_midpoint, initial, {}, 0.1);
+                (void)evaluate(invalid_midpoint, initial, {}, {true, false, false, false}).residual;
             } catch (const std::domain_error& error) {
                 rejected = std::string(error.what()).find("midpoint") != std::string::npos;
             }
@@ -294,29 +314,20 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
             }
             state[5] += 0.0003;
             state[10] -= 0.0002;
-            const auto history = fuelsim::compute_cax4_transient_update(data, geometry, old, initial, {}, 0.1);
+            const auto history = evaluate(old, initial, {}, {false, false, true, false}).history;
             fuelsim::Cax4LocalJacobian jacobian{};
-            const auto residual = fuelsim::compute_cax4_transient(data, geometry, state, old, history, 0.1, &jacobian);
-            passed = check(residual == fuelsim::compute_cax4_transient(data, geometry, state, old, history, 0.1),
+            const auto residual_result = evaluate(state, old, history, {true, true, false, false});
+            const auto& residual = residual_result.residual;
+            jacobian = residual_result.jacobian;
+            passed = check(residual == evaluate(state, old, history, {true, false, false, false}).residual,
                          name + " inelastic material residual agrees exactly between passive and Jacobian paths")
                      && passed;
-            if (reduced) {
-                const fuelsim::elements::Cax4Input input{data.material,
-                    geometry,
-                    state,
-                    old,
-                    &history,
-                    .1,
-                    data.time,
-                    data.volumetric_heat_source,
-                    formulation,
-                    true};
-
-                const auto full = fuelsim::elements::evaluate_cax4rt(input, {true, true, true, true});
-                const auto tangent = fuelsim::elements::evaluate_cax4rt(input, {true, true, false, false});
-                const auto residual_request = fuelsim::elements::evaluate_cax4rt(input, {true, false, false, false});
-                const auto history_request = fuelsim::elements::evaluate_cax4rt(input, {false, false, true, false});
-                const auto stress_request = fuelsim::elements::evaluate_cax4rt(input, {false, false, false, true});
+            {
+                const auto full = evaluate(state, old, history, {true, true, true, true});
+                const auto tangent = evaluate(state, old, history, {true, true, false, false});
+                const auto residual_request = evaluate(state, old, history, {true, false, false, false});
+                const auto history_request = evaluate(state, old, history, {false, false, true, false});
+                const auto stress_request = evaluate(state, old, history, {false, false, false, true});
                 if (full.residual != tangent.residual || full.jacobian != tangent.jacobian
                     || full.residual != residual_request.residual
                     || history_request.residual != decltype(full.residual){}
@@ -344,8 +355,8 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
                 plus[j] += step * direction[j];
                 minus[j] -= step * direction[j];
             }
-            const auto rp = fuelsim::compute_cax4_transient(data, geometry, plus, old, history, 0.1);
-            const auto rm = fuelsim::compute_cax4_transient(data, geometry, minus, old, history, 0.1);
+            const auto rp = evaluate(plus, old, history, {true, false, false, false}).residual;
+            const auto rm = evaluate(minus, old, history, {true, false, false, false}).residual;
             double error = 0.0;
             for (std::size_t i = 0; i < 12; ++i) {
                 double ad = 0.0;
@@ -353,7 +364,7 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
                     ad += jacobian[12 * i + j] * direction[j];
                 error = std::max(error, scaled_error(ad, (rp[i] - rm[i]) / (2.0 * step)));
             }
-            const auto next = fuelsim::compute_cax4_transient_update(data, geometry, state, old, history, 0.1);
+            const auto next = evaluate(state, old, history, {false, false, true, false}).history;
             for (std::size_t q = 0; q < points; ++q) {
                 const auto& point = next[q];
                 if (mechanism != 0)

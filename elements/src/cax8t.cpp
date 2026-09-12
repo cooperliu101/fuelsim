@@ -3,7 +3,7 @@
 #include <cmath>
 #include <stdexcept>
 
-namespace fuelsim {
+namespace fuelsim::elements {
 namespace {
 Quad8RzPoint evaluate_quad8_rz_point(const Quad8RzCoordinates& coordinates, double x, double y, double weight) {
     constexpr std::array<std::array<double, 2>, 4> signs = {{{-1, -1}, {1, -1}, {1, 1}, {-1, 1}}};
@@ -74,35 +74,6 @@ Quad8RzPoint evaluate_quad8_rz_point(const Quad8RzCoordinates& coordinates, doub
     return p;
 }
 
-} // namespace
-
-Quad8RzGeometry elements::make_cax8t_geometry(const Quad8RzCoordinates& coordinates, Cax8Quadrature quadrature) {
-    if (quadrature != Cax8Quadrature::full && quadrature != Cax8Quadrature::reduced)
-        throw std::invalid_argument("Invalid CAX8 quadrature");
-    const std::size_t order = quadrature == Cax8Quadrature::full ? 3 : 2;
-    Quad8RzGeometry result{coordinates, {}};
-    if (order == 2) {
-        result.point_count = 4;
-        const double g = 1 / std::sqrt(3.0);
-        const std::array<double, 4> xi = {-g, g, g, -g}, eta = {-g, -g, g, g};
-        for (std::size_t q = 0; q < 4; ++q)
-            result.points[q] = evaluate_quad8_rz_point(coordinates, xi[q], eta[q], 1);
-        return result;
-    }
-    if (order != 3)
-        throw std::invalid_argument("QUAD8 geometry requires cax8t or cax8rt");
-    const double g = std::sqrt(3.0 / 5.0);
-    const std::array<double, 3> q = {-g, 0, g}, w = {5.0 / 9, 8.0 / 9, 5.0 / 9};
-    for (std::size_t j = 0; j < 3; ++j)
-        for (std::size_t i = 0; i < 3; ++i)
-            result.points[3 * j + i] = evaluate_quad8_rz_point(coordinates, q[i], q[j], w[i] * w[j]);
-    return result;
-}
-
-} // namespace fuelsim
-
-namespace fuelsim::cax8_detail {
-namespace {
 struct PointKinematics final {
     std::array<adlite::Scalar, 6> active;
     std::array<Quad8RzValues, 6> chain{};
@@ -124,21 +95,6 @@ struct SourceGeometry final {
     double measure = 0.0;
     Quad8RzValues derivative{};
 };
-
-PointKinematics evaluate_kinematics(const Quad8RzPoint& point,
-    const Quad8RzValues& state,
-    const Quad8RzValues& committed,
-    bool finite,
-    bool jacobian);
-MechanicalGradient
-mechanical_gradient(const Quad8RzPoint& point, const PointKinematics& kinematics, std::size_t node, bool finite);
-ThermalGeometry thermal_geometry(const Quad8RzPoint& point, const PointKinematics& kinematics, bool finite);
-SourceGeometry source_geometry(const Quad8RzPoint& point, const Quad8RzValues& state, bool finite);
-} // namespace
-} // namespace fuelsim::cax8_detail
-
-namespace fuelsim::cax8_detail {
-namespace {
 
 PointKinematics evaluate_kinematics(const Quad8RzPoint& p,
     const Quad8RzValues& state,
@@ -240,11 +196,6 @@ SourceGeometry source_geometry(const Quad8RzPoint& p, const Quad8RzValues& state
     }
     return {source_measure, source_derivative};
 }
-} // namespace
-} // namespace fuelsim::cax8_detail
-
-namespace fuelsim::cax8_detail {
-namespace {
 
 void add_row(elements::Cax8Result& result,
     std::size_t row,
@@ -260,13 +211,10 @@ void add_row(elements::Cax8Result& result,
         for (std::size_t a = 0; a < 6; ++a)
             result.jacobian[20 * row + j] += d[a] * k.chain[a][j];
 }
+
 } // namespace
 
-} // namespace fuelsim::cax8_detail
-
-namespace fuelsim::elements {
 Cax8Result evaluate_cax8t(const Cax8Input& data, ElementRequest request, Cax8Quadrature quadrature) {
-    using namespace cax8_detail;
     if (quadrature != Cax8Quadrature::full && quadrature != Cax8Quadrature::reduced)
         throw std::invalid_argument("Invalid CAX8 quadrature");
     const std::size_t expected = quadrature == Cax8Quadrature::full ? 9 : 4;
@@ -279,10 +227,7 @@ Cax8Result evaluate_cax8t(const Cax8Input& data, ElementRequest request, Cax8Qua
     const double dt = data.time_step;
     const bool jacobian = request.jacobian;
     const bool thermal_time = data.include_thermal_time_term;
-    if (history && (!(dt > 0) || !std::isfinite(dt)))
-        throw std::invalid_argument("CAX8 material update requires positive finite time step");
-    if (!history && thermal_time)
-        throw std::invalid_argument("CAX8 heat capacity requires committed material history");
+    validate_cax_time_input(history != nullptr, dt, thermal_time);
     const bool finite = data.strain_formulation == StrainFormulation::finite;
     elements::Cax8Result result;
     for (std::size_t q = 0; q < geometry.point_count; ++q) {
@@ -307,36 +252,22 @@ Cax8Result evaluate_cax8t(const Cax8Input& data, ElementRequest request, Cax8Qua
                 fed[c] += (*history)[q].elastic_strain[c] + (*history)[q].plastic_strain[c]
                           + (*history)[q].creep_strain[c] + imposed[c];
         }
-        const auto tangent = evaluate_axisymmetric_stress_tangent(data.material,
+        const auto tangent = evaluate_axisymmetric_material_response(data.material,
             {fed[0], fed[1], fed[2], fed[3]},
             fed[4],
             dt,
             history ? &(*history)[q] : nullptr,
             context,
-            jacobian);
+            jacobian,
+            request.history);
         const std::array<adlite::Scalar, 5> inputs = {k.strain[0], k.strain[1], k.strain[2], k.strain[3], t};
         AxisymmetricStress stress = compose_axisymmetric_stress(tangent, inputs, jacobian);
         if (finite)
             stress = rotate_axisymmetric_tensor(stress, k.rotation);
         if (history && request.history) {
-            const AxisymmetricRotation rotation = {k.rotation.rr.value(),
-                k.rotation.rz.value(),
-                k.rotation.zr.value(),
-                k.rotation.zz.value(),
-                1.0};
-            const auto response =
-                finite ? data.material.incremental_response(k.strain[0].value(),
-                             k.strain[1].value(),
-                             k.strain[2].value(),
-                             k.strain[3].value(),
-                             rotation,
-                             t.value(),
-                             k.old[5],
-                             dt,
-                             (*history)[q],
-                             context)
-                       : data.material.response(fed[0], fed[1], fed[2], fed[3], fed[4], dt, (*history)[q], context);
-            result.history[q] = IsotropicThermoelasticMaterial::state_values(response.trial_state);
+            result.history[q] = tangent.history;
+            if (finite)
+                rotate_axisymmetric_strain_history(result.history[q], k.rotation);
         }
         result.history[q].stress = {stress.rr.value(), stress.zz.value(), stress.hoop.value(), stress.rz.value()};
         for (std::size_t n = 0; n < 8; ++n) {
@@ -387,9 +318,27 @@ Cax8Result evaluate_cax8t(const Cax8Input& data, ElementRequest request, Cax8Qua
         result.history = {};
     return result;
 }
-} // namespace fuelsim::elements
 
-namespace fuelsim::elements {
+Quad8RzGeometry make_cax8t_geometry(const Quad8RzCoordinates& coordinates, Cax8Quadrature quadrature) {
+    if (quadrature != Cax8Quadrature::full && quadrature != Cax8Quadrature::reduced)
+        throw std::invalid_argument("Invalid CAX8 quadrature");
+    Quad8RzGeometry result{coordinates, {}};
+    if (quadrature == Cax8Quadrature::reduced) {
+        result.point_count = 4;
+        const double g = 1 / std::sqrt(3.0);
+        const std::array<double, 4> xi = {-g, g, g, -g}, eta = {-g, -g, g, g};
+        for (std::size_t q = 0; q < 4; ++q)
+            result.points[q] = evaluate_quad8_rz_point(coordinates, xi[q], eta[q], 1);
+        return result;
+    }
+    const double g = std::sqrt(3.0 / 5.0);
+    const std::array<double, 3> q = {-g, 0, g}, w = {5.0 / 9, 8.0 / 9, 5.0 / 9};
+    for (std::size_t j = 0; j < 3; ++j)
+        for (std::size_t i = 0; i < 3; ++i)
+            result.points[3 * j + i] = evaluate_quad8_rz_point(coordinates, q[i], q[j], w[i] * w[j]);
+    return result;
+}
+
 Cax8Result evaluate_cax8t(const Cax8Input& input, ElementRequest request) {
     return evaluate_cax8t(input, request, Cax8Quadrature::full);
 }

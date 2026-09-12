@@ -170,15 +170,15 @@ HourglassState hourglass_state(const elements::Cax4Input& data,
 }
 } // namespace
 
-elements::Cax4Result compute_cax4rt(const elements::Cax4Input& data,
-    const Quad4RzGeometry& geometry,
-    const Cax4LocalValues& state,
-    const Cax4LocalValues& committed,
-    const Quad4MaterialHistory* history,
-    double time_step,
-    bool jacobian,
-    bool thermal_time,
-    bool update_history) {
+Cax4Result evaluate_cax4rt(const Cax4Input& data, ElementRequest request) {
+    const auto& geometry = data.geometry;
+    const auto& state = data.state;
+    const auto& committed = data.committed_state;
+    const auto* history = data.committed_history;
+    const double time_step = data.time_step;
+    const bool jacobian = request.jacobian;
+    const bool thermal_time = data.include_thermal_time_term;
+    validate_cax_time_input(history != nullptr, time_step, thermal_time);
     const bool finite = data.strain_formulation == StrainFormulation::finite;
     const auto reference = reduce_geometry(geometry, {}, 0.0);
     const auto current = finite ? reduce_geometry(geometry, state, jacobian ? 1.0 : 0.0) : reference;
@@ -271,13 +271,14 @@ elements::Cax4Result compute_cax4rt(const elements::Cax4Input& data,
             fed[i] += (*history)[0].elastic_strain[i] + (*history)[0].plastic_strain[i] + (*history)[0].creep_strain[i]
                       + imposed[i];
     }
-    const auto tangent = evaluate_axisymmetric_stress_tangent(data.material,
+    const auto tangent = evaluate_axisymmetric_material_response(data.material,
         {fed[0], fed[1], fed[2], fed[3]},
         fed[4],
         time_step,
         history ? &(*history)[0] : nullptr,
         context,
-        jacobian);
+        jacobian,
+        request.history);
     AxisymmetricStress sigma = compose_axisymmetric_stress(tangent, inputs, jacobian);
     std::array<double, 4> trace_response{};
     for (std::size_t i = 0; i < 4; ++i)
@@ -304,25 +305,10 @@ elements::Cax4Result compute_cax4rt(const elements::Cax4Input& data,
                 stress_derivative[i][j] += trace_response[i] * trace_derivative[j];
         }
     elements::Cax4Result result;
-    if (history && update_history) {
-        const AxisymmetricRotation rot = {rotation.rr.value(),
-            rotation.rz.value(),
-            rotation.zr.value(),
-            rotation.zz.value(),
-            1.0};
-        const auto response =
-            finite ? data.material.incremental_response(rr.value(),
-                         zz.value(),
-                         hoop.value(),
-                         rz.value(),
-                         rot,
-                         values[5],
-                         old_values[5],
-                         time_step,
-                         (*history)[0],
-                         context)
-                   : data.material.response(fed[0], fed[1], fed[2], fed[3], fed[4], time_step, (*history)[0], context);
-        result.history[0] = IsotropicThermoelasticMaterial::state_values(response.trial_state);
+    if (history && request.history) {
+        result.history[0] = tangent.history;
+        if (finite)
+            rotate_axisymmetric_strain_history(result.history[0], rotation);
     }
     result.history[0].stress = {sigma.rr.value(), sigma.zz.value(), sigma.hoop.value(), sigma.rz.value()};
     const double p = (sigma.rr.value() + sigma.zz.value()) / 2.0;
@@ -430,6 +416,7 @@ elements::Cax4Result compute_cax4rt(const elements::Cax4Input& data,
                 {data.time, geometry.coordinates[n].r, 0.0, geometry.coordinates[n].z});
             const double rate = (state[n] - committed[n]) / time_step;
             result.residual[n] += current.measures[n] * cap.value() * rate;
+            result.stored_heat_rate += current.measures[n] * cap.value() * (state[n] - committed[n]) / time_step;
             if (jacobian) {
                 for (std::size_t j = 4; j < 12; ++j)
                     result.jacobian[n * 12 + j] += current.measure_derivative[n][j] * cap.value() * rate;
@@ -439,28 +426,9 @@ elements::Cax4Result compute_cax4rt(const elements::Cax4Input& data,
             }
         }
     }
+    result.generated_heat_rate = data.volumetric_heat_source * current.volume;
+    finish_cax4_result(result, request);
     return result;
-}
-
-std::array<double, 2> cax4rt_thermal_rates(const elements::Cax4Input& data,
-    const Quad4RzGeometry& geometry,
-    const Cax4LocalValues& state,
-    const Cax4LocalValues& committed,
-    double time_step,
-    bool thermal_time) {
-    const auto current = reduce_geometry(geometry,
-        data.strain_formulation == StrainFormulation::finite ? state : Cax4LocalValues{},
-        0.0);
-    std::array<double, 2> rates = {0.0, data.volumetric_heat_source * current.volume};
-    if (thermal_time)
-        for (std::size_t n = 0; n < 4; ++n)
-            rates[0] +=
-                current.measures[n]
-                * data.material
-                      .heat_capacity(state[n], {data.time, geometry.coordinates[n].r, 0.0, geometry.coordinates[n].z})
-                      .value()
-                * (state[n] - committed[n]) / time_step;
-    return rates;
 }
 
 double cax4rt_hourglass_energy(const Cax4Input& data) {
@@ -471,39 +439,7 @@ double cax4rt_hourglass_energy(const Cax4Input& data) {
            * (hourglass.transported[0] * hourglass.transported[0]
                + hourglass.transported[1] * hourglass.transported[1]);
 }
-} // namespace fuelsim::elements
 
-namespace fuelsim::elements {
-Cax4Result evaluate_cax4rt(const Cax4Input& input, ElementRequest request) {
-    const bool jacobian = request.jacobian;
-    if (input.committed_history && (!std::isfinite(input.time_step) || !(input.time_step > 0)))
-        throw std::invalid_argument("CAX4RT history update requires a positive finite time step");
-    if (!input.committed_history && input.include_thermal_time_term)
-        throw std::invalid_argument("CAX4RT heat capacity requires committed material history");
-    const auto& data = input;
-    auto result = compute_cax4rt(data,
-        input.geometry,
-        input.state,
-        input.committed_state,
-        input.committed_history,
-        input.time_step,
-        jacobian,
-        input.include_thermal_time_term,
-        request.history);
-    const auto rates = cax4rt_thermal_rates(data,
-        input.geometry,
-        input.state,
-        input.committed_state,
-        input.time_step,
-        input.include_thermal_time_term);
-    result.stored_heat_rate = rates[0];
-    result.generated_heat_rate = rates[1];
-    finish_cax4_result(result, request);
-    return result;
-}
-} // namespace fuelsim::elements
-
-namespace fuelsim::elements {
 Quad4RzGeometry make_cax4rt_geometry(const Quad4Coordinates& coordinates) {
     return cax4_detail::make_quad4_rz_geometry(coordinates);
 }

@@ -34,17 +34,7 @@ int run_cax4t_contract_tests() {
     std::cout << std::scientific << std::setprecision(12);
     return test_cax_kinematics_and_jacobian(false) && test_temperature_active_thermoelastic_properties() ? 0 : 1;
 }
-} // namespace
 
-#include "cax4t.hpp"
-#include <algorithm>
-#include <cmath>
-#include <iostream>
-#include <limits>
-#include <memory>
-#include <stdexcept>
-
-namespace {
 using namespace fuelsim;
 using namespace fuelsim::elements;
 

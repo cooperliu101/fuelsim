@@ -1,5 +1,5 @@
 #include "io/results_io.hpp"
-#include "core/cax4_evaluation.hpp"
+#include "core/cax_evaluation.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
 #include "core/problem_backend_access.hpp"
@@ -1150,9 +1150,15 @@ steady_elements(const UnstructuredQuad4Mesh& mesh, const SteadyProblem& problem,
             Cax4LocalValues local{};
             for (std::size_t index = 0; index < dofs.size(); ++index)
                 local[index] = state.at(dofs[index]);
-            const auto stresses = compute_cax4_thermoelastic_stress(backend.kernel_data[region],
+            const auto stresses = evaluate_cax4(backend.kernel_data[region],
                 backend.spatial.region_element_geometry(region, element),
-                local);
+                local,
+                {},
+                nullptr,
+                0.0,
+                false,
+                {false, false, false, true})
+                                      .stress;
             const std::size_t source = region_mesh.source_element_ids().at(element);
             const std::size_t count =
                 backend.kernel_data[region].element_formulation == RzElementFormulation::cax4rt ? 1 : 4;

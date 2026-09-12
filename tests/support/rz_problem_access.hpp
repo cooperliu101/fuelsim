@@ -1,10 +1,10 @@
 #include "contact_types.hpp"
-#include "core/cax4_evaluation.hpp"
+#include "core/cax_evaluation.hpp"
 #include "core/element_region_data.hpp"
 #ifndef FUELSIM_TEST_RZ_PROBLEM_ACCESS_HPP
 #define FUELSIM_TEST_RZ_PROBLEM_ACCESS_HPP
 #include "core/problem_backend_access.hpp"
-#include "rz_volume_linearization.hpp"
+#include "support/test_support.hpp"
 #include <algorithm>
 #include <stdexcept>
 
@@ -127,9 +127,15 @@ class ProblemAccess final {
         if (contribution >= backend.spatial.volume_contribution_count())
             return backend.spatial.compute_contribution(contribution, state);
         const auto location = backend.spatial.element_location(contribution);
-        return compute_cax4_thermoelastic(backend.kernel_data[location.first],
+        return evaluate_cax4(backend.kernel_data[location.first],
             backend.spatial.region_element_geometry(location.first, location.second),
-            state);
+            state,
+            {},
+            nullptr,
+            0.0,
+            false,
+            {true, false, false, false})
+            .residual;
     }
 
     static LocalLinearization
@@ -140,10 +146,16 @@ class ProblemAccess final {
             result.residual = backend.spatial.compute_contribution(contribution, state, &result.jacobian);
         else {
             const auto location = backend.spatial.element_location(contribution);
-            result.residual = compute_cax4_thermoelastic(backend.kernel_data[location.first],
+            const auto volume = evaluate_cax4(backend.kernel_data[location.first],
                 backend.spatial.region_element_geometry(location.first, location.second),
                 state,
-                &result.jacobian);
+                {},
+                nullptr,
+                0.0,
+                false,
+                {true, true, false, false});
+            result.residual = volume.residual;
+            result.jacobian = volume.jacobian;
         }
         return result;
     }
@@ -249,12 +261,15 @@ class ProblemAccess final {
         if (contribution >= backend.spatial.volume_contribution_count())
             return backend.spatial.compute_contribution(contribution, state);
         const auto location = backend.spatial.element_location(contribution);
-        return compute_cax4_transient(backend.kernel_data[location.first],
+        return evaluate_cax4(backend.kernel_data[location.first],
             backend.spatial.region_element_geometry(location.first, location.second),
             state,
             contribution_state(problem, contribution, backend.committed_solution),
-            backend.histories[location.first][location.second],
-            backend.active_time_step);
+            &backend.histories[location.first][location.second],
+            backend.active_time_step,
+            true,
+            {true, false, false, false})
+            .residual;
     }
 
     static LocalLinearization
@@ -267,13 +282,16 @@ class ProblemAccess final {
             result.residual = backend.spatial.compute_contribution(contribution, state, &result.jacobian);
         else {
             const auto location = backend.spatial.element_location(contribution);
-            result.residual = compute_cax4_transient(backend.kernel_data[location.first],
+            const auto volume = evaluate_cax4(backend.kernel_data[location.first],
                 backend.spatial.region_element_geometry(location.first, location.second),
                 state,
                 contribution_state(problem, contribution, backend.committed_solution),
-                backend.histories[location.first][location.second],
+                &backend.histories[location.first][location.second],
                 backend.active_time_step,
-                &result.jacobian);
+                true,
+                {true, true, false, false});
+            result.residual = volume.residual;
+            result.jacobian = volume.jacobian;
         }
         return result;
     }

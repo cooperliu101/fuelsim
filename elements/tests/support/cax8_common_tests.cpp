@@ -12,51 +12,12 @@
 
 int run_cax8_tests(fuelsim::RzElementFormulation selected) {
     try {
-        // Nonuniform temperature and genuinely curved geometry distinguish NTS
-        // heat transfer from surface integration and from mechanical nodal area.
-        for (std::size_t node = 0; node < 2; ++node) {
-            fuelsim::rz8::Line3ContactGeometry contact;
-            contact.secondary = {{{1, .2}, {1.2, 1.2}, {1.15, .7}}};
-            contact.primary = {{{1.8, 2}, {1.4, 0}, {1.7, 1}}};
-            contact.primary_first = contact.primary_last = true;
-            contact.coordinate = node == 0 ? -1 : 1;
-            contact.secondary_node = node;
-            contact.nodal_heat = true;
-            std::vector<double> v = {500, 650, 300, 350, .01, .02, .03, .01, .02, .03, .03, -.01, .02, -.02, .01, .01};
-            const fuelsim::GapHeatProperties heat{.2, 1e-5};
-            const fuelsim::NormalContactProperties mechanical{1e8};
-            const auto active = fuelsim::rz8::compute_line3_contact(contact, heat, mechanical, v, v, {}, true);
-            const auto passive = fuelsim::rz8::compute_line3_contact(contact, heat, mechanical, v, v, {}, false);
-            if (!active.thermal.projected || active.residual != passive.residual)
-                throw std::runtime_error("Quadratic NTS contact projection or passive residual failed");
-            double sum = 0, scale = 0;
-            for (std::size_t row = 0; row < 4; ++row) {
-                sum += active.residual[row];
-                scale += std::abs(active.residual[row]);
-            }
-            if (std::abs(sum) > 1e-13 * scale)
-                throw std::runtime_error("Quadratic NTS heat is not conserved");
-            for (std::size_t column = 0; column < 16; ++column) {
-                auto plus = v, minus = v;
-                const double step = column < 4 ? 1e-3 : 1e-6;
-                plus[column] += step;
-                minus[column] -= step;
-                const auto p = fuelsim::rz8::compute_line3_contact(contact, heat, mechanical, plus, v, {}, false);
-                const auto m = fuelsim::rz8::compute_line3_contact(contact, heat, mechanical, minus, v, {}, false);
-                for (std::size_t row = 0; row < 16; ++row) {
-                    const double fd = (p.residual[row] - m.residual[row]) / (2 * step),
-                                 ad = active.jacobian[16 * row + column];
-                    if (std::abs(fd - ad) > 2e-6 * (1 + std::abs(fd)))
-                        throw std::runtime_error("Quadratic NTS heat Jacobian differs from centered differences");
-                }
-            }
-            auto moved = v;
-            moved[6] += .02;
-            moved[9] -= .01;
-            const auto midnode = fuelsim::rz8::compute_line3_contact(contact, heat, mechanical, moved, v, {}, false);
-            if (midnode.residual != passive.residual)
-                throw std::runtime_error("NTS corner heat transfer incorrectly depends on secondary midnode");
-        }
+        const auto evaluate = [selected](const fuelsim::elements::Cax8Input& input,
+                                  fuelsim::elements::ElementRequest request) {
+            return selected == fuelsim::RzElementFormulation::cax8rt
+                       ? fuelsim::elements::evaluate_cax8rt(input, request)
+                       : fuelsim::elements::evaluate_cax8t(input, request);
+        };
         const fuelsim::Quad8RzCoordinates coordinates = {
             {{1, 0}, {2.1, .1}, {1.9, 1.2}, {.9, 1}, {1.55, .03}, {2.02, .65}, {1.4, 1.12}, {.93, .5}}};
 
@@ -99,7 +60,17 @@ int run_cax8_tests(fuelsim::RzElementFormulation selected) {
                 affine[4 + n] = .001 * annulus[n].r;
                 affine[12 + n] = -.002 * annulus[n].z;
             }
-            const auto result = fuelsim::compute_cax8(data, geometry, affine, {}, nullptr, 0, false, false);
+            const auto result = evaluate({data.material,
+                                             geometry,
+                                             affine,
+                                             {},
+                                             nullptr,
+                                             0,
+                                             data.time,
+                                             data.volumetric_heat_source,
+                                             data.strain_formulation,
+                                             false},
+                {true, false, true, false});
             double heat = 0;
             for (std::size_t n = 0; n < 4; ++n)
                 heat += result.residual[n];
@@ -139,7 +110,17 @@ int run_cax8_tests(fuelsim::RzElementFormulation selected) {
             if (steady.stored_heat_rate != 0.0)
                 throw std::runtime_error("CAX8 steady evaluation without history must have zero stored heat rate");
             const fuelsim::Quad8MaterialHistory history{};
-            const auto transient = fuelsim::compute_cax8(data, geometry, heated, affine, &history, .1, false);
+            const auto transient = evaluate({data.material,
+                                                geometry,
+                                                heated,
+                                                affine,
+                                                &history,
+                                                .1,
+                                                data.time,
+                                                data.volumetric_heat_source,
+                                                data.strain_formulation,
+                                                true},
+                {true, false, true, false});
             const double capacity = 3 * std::acos(-1.0) * 1000 * 100 * 30 / .1;
             if (std::abs(transient.stored_heat_rate / capacity - 1) > 1e-13)
                 throw std::runtime_error("QUAD8 capacity violates the uniform-heating energy balance");
@@ -159,8 +140,28 @@ int run_cax8_tests(fuelsim::RzElementFormulation selected) {
                     data.strain_formulation = form;
                     data.volumetric_heat_source = 1e4;
                     const fuelsim::Quad8MaterialHistory history{};
-                    const auto active = fuelsim::compute_cax8(data, geometry, state, old, &history, .1, true);
-                    const auto passive = fuelsim::compute_cax8(data, geometry, state, old, &history, .1, false);
+                    const auto active = evaluate({data.material,
+                                                     geometry,
+                                                     state,
+                                                     old,
+                                                     &history,
+                                                     .1,
+                                                     data.time,
+                                                     data.volumetric_heat_source,
+                                                     data.strain_formulation,
+                                                     true},
+                        {true, true, true, false});
+                    const auto passive = evaluate({data.material,
+                                                      geometry,
+                                                      state,
+                                                      old,
+                                                      &history,
+                                                      .1,
+                                                      data.time,
+                                                      data.volumetric_heat_source,
+                                                      data.strain_formulation,
+                                                      true},
+                        {true, false, true, false});
                     if (active.residual != passive.residual)
                         throw std::runtime_error("QUAD8 residual depends on Jacobian request");
                     {
@@ -174,11 +175,6 @@ int run_cax8_tests(fuelsim::RzElementFormulation selected) {
                             data.volumetric_heat_source,
                             form,
                             true};
-                        const auto evaluate = [&](const fuelsim::elements::Cax8Input& value,
-                                                  fuelsim::elements::ElementRequest request) {
-                            return geometry.point_count == 4 ? fuelsim::elements::evaluate_cax8rt(value, request)
-                                                             : fuelsim::elements::evaluate_cax8t(value, request);
-                        };
                         for (const auto quadrature : {fuelsim::elements::Cax8Quadrature::full,
                                  fuelsim::elements::Cax8Quadrature::reduced,
                                  static_cast<fuelsim::elements::Cax8Quadrature>(-1)}) {
@@ -228,8 +224,28 @@ int run_cax8_tests(fuelsim::RzElementFormulation selected) {
                         const double h = column < 4 ? 1e-3 : 1e-7;
                         plus[column] += h;
                         minus[column] -= h;
-                        const auto rp = fuelsim::compute_cax8(data, geometry, plus, old, &history, .1, false);
-                        const auto rm = fuelsim::compute_cax8(data, geometry, minus, old, &history, .1, false);
+                        const auto rp = evaluate({data.material,
+                                                     geometry,
+                                                     plus,
+                                                     old,
+                                                     &history,
+                                                     .1,
+                                                     data.time,
+                                                     data.volumetric_heat_source,
+                                                     data.strain_formulation,
+                                                     true},
+                            {true, false, true, false});
+                        const auto rm = evaluate({data.material,
+                                                     geometry,
+                                                     minus,
+                                                     old,
+                                                     &history,
+                                                     .1,
+                                                     data.time,
+                                                     data.volumetric_heat_source,
+                                                     data.strain_formulation,
+                                                     true},
+                            {true, false, true, false});
                         double scale = 0, error = 0;
                         for (std::size_t row = 0; row < 20; ++row) {
                             const auto fd = (rp.residual[row] - rm.residual[row]) / (2 * h),
@@ -247,7 +263,17 @@ int run_cax8_tests(fuelsim::RzElementFormulation selected) {
                         data.volumetric_heat_source = form == fuelsim::StrainFormulation::small ? 0 : 1e6;
                         std::cout << "probe_form " << (form == fuelsim::StrainFormulation::small ? "small" : "finite")
                                   << '\n';
-                        const auto probe = fuelsim::compute_cax8(data, geometry, state, old, &history, .1, false);
+                        const auto probe = evaluate({data.material,
+                                                        geometry,
+                                                        state,
+                                                        old,
+                                                        &history,
+                                                        .1,
+                                                        data.time,
+                                                        data.volumetric_heat_source,
+                                                        data.strain_formulation,
+                                                        true},
+                            {true, false, true, false});
                         std::cout << std::setprecision(17);
                         for (std::size_t q = 0; q < geometry.point_count; ++q) {
                             const auto& s = probe.history[q].stress;

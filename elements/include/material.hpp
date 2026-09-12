@@ -89,21 +89,26 @@ class IsotropicThermoelasticMaterial final {
     ThermoelasticProperties _properties;
 };
 
-struct AxisymmetricStressTangent final {
+struct AxisymmetricMaterialResponse final {
     AxisymmetricStressValues stress;
     std::array<std::array<double, 4>, 4> tangent{};
     std::array<double, 4> thermal{};
+    // Unrotated trial strain histories; populated only when requested.
+    MaterialPointState history{};
 };
 
-AxisymmetricStressTangent evaluate_axisymmetric_stress_tangent(const IsotropicThermoelasticMaterial& material,
+AxisymmetricMaterialResponse evaluate_axisymmetric_material_response(const IsotropicThermoelasticMaterial& material,
     const std::array<double, 4>& fed_strain,
     double temperature,
     double time_step,
     const MaterialPointState* committed_material,
     MaterialFunctionContext context,
-    bool compute_tangent);
+    bool compute_tangent,
+    bool compute_history);
 
-AxisymmetricStress compose_axisymmetric_stress(const AxisymmetricStressTangent& response,
+void rotate_axisymmetric_strain_history(MaterialPointState& history, const AxisymmetricRotation& rotation);
+
+AxisymmetricStress compose_axisymmetric_stress(const AxisymmetricMaterialResponse& response,
     const std::array<adlite::Scalar, 5>& inputs,
     bool compute_tangent);
 

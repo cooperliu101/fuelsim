@@ -5,7 +5,7 @@
 #include "cax4rt.hpp"
 #include "cax4t.hpp"
 #include "contact_types.hpp"
-#include "core/cax4_evaluation.hpp"
+#include "core/cax_evaluation.hpp"
 #include "core/element_evaluation.hpp"
 #include "core/element_region_data.hpp"
 #include "core/nonlinear_problem.hpp"
@@ -617,10 +617,16 @@ void SteadyProblem::compute_contribution(std::size_t index,
             _impl->rz->compute_contribution(index, local_state, jacobian == nullptr ? nullptr : &local_jacobian);
     else {
         const auto location = _impl->rz->element_location(index);
-        local_residual = compute_cax4_thermoelastic(_impl->kernel_data[location.first],
+        const auto volume = evaluate_cax4(_impl->kernel_data[location.first],
             _impl->rz->region_element_geometry(location.first, location.second),
             local_state,
-            jacobian == nullptr ? nullptr : &local_jacobian);
+            {},
+            nullptr,
+            0.0,
+            false,
+            {true, jacobian != nullptr, false, false});
+        local_residual = volume.residual;
+        local_jacobian = volume.jacobian;
     }
     residual.assign(local_residual.begin(), local_residual.end());
     if (jacobian != nullptr)
@@ -1980,14 +1986,16 @@ void TransientProblem::compute_contribution(std::size_t index,
             backend.spatial.compute_contribution(index, local_state, jacobian == nullptr ? nullptr : &local_jacobian);
     else {
         const auto location = backend.spatial.element_location(index);
-        local_residual = compute_cax4_transient(backend.kernel_data[location.first],
+        const auto volume = evaluate_cax4(backend.kernel_data[location.first],
             backend.spatial.region_element_geometry(location.first, location.second),
             local_state,
             gather_rz_state(backend.spatial, index, backend.committed_solution),
-            backend.histories[location.first][location.second],
+            &backend.histories[location.first][location.second],
             backend.active_time_step,
-            jacobian == nullptr ? nullptr : &local_jacobian,
-            backend.include_thermal_time_term);
+            backend.include_thermal_time_term,
+            {true, jacobian != nullptr, false, false});
+        local_residual = volume.residual;
+        local_jacobian = volume.jacobian;
     }
     residual.assign(local_residual.begin(), local_residual.end());
     if (jacobian != nullptr)

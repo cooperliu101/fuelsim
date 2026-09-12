@@ -1,4 +1,4 @@
-#include "core/cax4_evaluation.hpp"
+#include "core/cax_evaluation.hpp"
 #include "core/nonlinear_problem.hpp"
 #include "core/steady_problem.hpp"
 #include "solver/petsc_solver.hpp"
@@ -822,10 +822,15 @@ bool test_free_thermal_expansion() {
     for (std::size_t element = 0; element < fuelsim::rz::ProblemAccess::region_element_count(problem, 0); ++element) {
         const fuelsim::Cax4LocalValues state =
             fuelsim::rz::ProblemAccess::contribution_state(problem, element, result.state);
-        const auto stresses =
-            fuelsim::compute_cax4_thermoelastic_stress(fuelsim::rz::ProblemAccess::region_kernel_data(problem, 0),
-                fuelsim::rz::ProblemAccess::region_element_geometry(problem, 0, element),
-                state);
+        const auto stresses = fuelsim::evaluate_cax4(fuelsim::rz::ProblemAccess::region_kernel_data(problem, 0),
+            fuelsim::rz::ProblemAccess::region_element_geometry(problem, 0, element),
+            state,
+            {},
+            nullptr,
+            0.0,
+            false,
+            {false, false, false, true})
+                                  .stress;
         for (const fuelsim::AxisymmetricStressValues& stress : stresses) {
             maximum_stress = std::max(maximum_stress, std::abs(stress.rr));
             maximum_stress = std::max(maximum_stress, std::abs(stress.zz));

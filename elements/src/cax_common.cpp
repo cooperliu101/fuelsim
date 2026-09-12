@@ -76,9 +76,6 @@ Quad4RzGeometry cax4_detail::make_quad4_rz_geometry(const Quad4Coordinates& coor
     return geometry;
 }
 
-} // namespace fuelsim
-
-namespace fuelsim {
 AxisymmetricHughesWinget evaluate_axisymmetric_hughes_winget(const adlite::Scalar& hrr,
     const adlite::Scalar& hrz,
     const adlite::Scalar& hzr,
@@ -90,9 +87,7 @@ AxisymmetricHughesWinget evaluate_axisymmetric_hughes_winget(const adlite::Scala
         sine * sine * hrr + 2.0 * cosine * sine * shear + cosine * cosine * hzz,
         cosine * sine * (hrr - hzz) + (cosine * cosine - sine * sine) * shear};
 }
-} // namespace fuelsim
 
-namespace fuelsim {
 AxisymmetricMidpointIncrement evaluate_axisymmetric_midpoint_increment(const std::array<adlite::Scalar, 4>& sum,
     const std::array<adlite::Scalar, 4>& difference,
     const adlite::Scalar& hoop_sum,
@@ -109,6 +104,13 @@ AxisymmetricMidpointIncrement evaluate_axisymmetric_midpoint_increment(const std
                          hzr = 2.0 * (difference[2] * d - difference[3] * c) / determinant_sum,
                          hzz = 2.0 * (-difference[2] * b + difference[3] * a) / determinant_sum;
     return {evaluate_axisymmetric_hughes_winget(hrr, hrz, hzr, hzz), determinant_sum, 2.0 * hoop_difference / hoop_sum};
+}
+
+void validate_cax_time_input(bool has_history, double time_step, bool thermal_time) {
+    if (has_history && (!std::isfinite(time_step) || !(time_step > 0.0)))
+        throw std::invalid_argument("CAX material history requires a positive finite time step");
+    if (!has_history && thermal_time)
+        throw std::invalid_argument("CAX heat capacity requires committed material history");
 }
 
 void finish_cax4_result(elements::Cax4Result& result, elements::ElementRequest request) {

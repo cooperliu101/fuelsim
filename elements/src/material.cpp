@@ -1333,14 +1333,15 @@ MaterialPointState IsotropicThermoelasticMaterial::state_values(const MaterialPo
 
 // Evaluates the constitutive relation with AD seeded only on the four strain components and
 // the temperature (width 5), returning the stress values, the consistent material tangent
-// d(stress)/d(strain), and the thermal coupling d(stress)/dT.
-AxisymmetricStressTangent evaluate_axisymmetric_stress_tangent(const IsotropicThermoelasticMaterial& material,
+// d(stress)/d(strain), the thermal coupling d(stress)/dT, and optional trial history.
+AxisymmetricMaterialResponse evaluate_axisymmetric_material_response(const IsotropicThermoelasticMaterial& material,
     const std::array<double, 4>& fed_strain,
     double temperature,
     double time_step,
     const MaterialPointState* committed_material,
     MaterialFunctionContext context,
-    bool compute_tangent) {
+    bool compute_tangent,
+    bool compute_history) {
     const std::array<double, 5> seeds = {fed_strain[0], fed_strain[1], fed_strain[2], fed_strain[3], temperature};
     std::array<adlite::Scalar, 5> active{};
     if (compute_tangent)
@@ -1348,20 +1349,23 @@ AxisymmetricStressTangent evaluate_axisymmetric_stress_tangent(const IsotropicTh
     else
         for (std::size_t i = 0; i < 5; ++i)
             active[i] = seeds[i];
-    const AxisymmetricStress stress =
-        committed_material == nullptr ? material.stress(active[0], active[1], active[2], active[3], active[4], context)
-                                      : material
-                                            .response(active[0],
-                                                active[1],
-                                                active[2],
-                                                active[3],
-                                                active[4],
-                                                time_step,
-                                                *committed_material,
-                                                context)
-                                            .stress;
+    AxisymmetricMaterialResponse result{};
+    AxisymmetricStress stress;
+    if (committed_material) {
+        const auto response = material.response(active[0],
+            active[1],
+            active[2],
+            active[3],
+            active[4],
+            time_step,
+            *committed_material,
+            context);
+        stress = response.stress;
+        if (compute_history)
+            result.history = IsotropicThermoelasticMaterial::state_values(response.trial_state);
+    } else
+        stress = material.stress(active[0], active[1], active[2], active[3], active[4], context);
     const std::array<const adlite::Scalar*, 4> components = {&stress.rr, &stress.zz, &stress.hoop, &stress.rz};
-    AxisymmetricStressTangent result{};
     result.stress = {stress.rr.value(), stress.zz.value(), stress.hoop.value(), stress.rz.value()};
     if (!compute_tangent)
         return result;
@@ -1375,7 +1379,21 @@ AxisymmetricStressTangent evaluate_axisymmetric_stress_tangent(const IsotropicTh
     return result;
 }
 
-AxisymmetricStress compose_axisymmetric_stress(const AxisymmetricStressTangent& response,
+void rotate_axisymmetric_strain_history(MaterialPointState& history, const AxisymmetricRotation& rotation) {
+    const AxisymmetricRotation passive = {rotation.rr.value(),
+        rotation.rz.value(),
+        rotation.zr.value(),
+        rotation.zz.value(),
+        rotation.hoop.value()};
+    for (auto* strain : {&history.elastic_strain, &history.plastic_strain, &history.creep_strain}) {
+        const auto rotated =
+            rotate_axisymmetric_tensor({(*strain)[0], (*strain)[1], (*strain)[2], (*strain)[3]}, passive);
+        *strain = {rotated.rr.value(), rotated.zz.value(), rotated.hoop.value(), rotated.rz.value()};
+    }
+    validate_material_point_state(history);
+}
+
+AxisymmetricStress compose_axisymmetric_stress(const AxisymmetricMaterialResponse& response,
     const std::array<adlite::Scalar, 5>& inputs,
     bool compute_tangent) {
     const std::array<double, 4> values = {response.stress.rr,

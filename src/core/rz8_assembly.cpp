@@ -1,4 +1,5 @@
 #include "rz8_assembly.hpp"
+#include "core/cax_evaluation.hpp"
 #include "core/element_evaluation.hpp"
 #include "line3_rz.hpp"
 #include "quad4_face.hpp"

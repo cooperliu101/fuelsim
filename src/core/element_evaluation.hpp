@@ -3,34 +3,9 @@
 #include "c3d20t.hpp"
 #include "c3d8rt.hpp"
 #include "c3d8t.hpp"
-#include "cax8rt.hpp"
-#include "cax8t.hpp"
 #include "core/element_region_data.hpp"
 
 namespace fuelsim {
-inline elements::Cax8Result compute_cax8(const AxisymmetricRegionData& data,
-    const Quad8RzGeometry& geometry,
-    const Quad8RzValues& state,
-    const Quad8RzValues& committed,
-    const Quad8MaterialHistory* history,
-    double time_step,
-    bool thermal_time,
-    elements::ElementRequest request) {
-    const elements::Cax8Input input{data.material,
-        geometry,
-        state,
-        committed,
-        history,
-        time_step,
-        data.time,
-        data.volumetric_heat_source,
-        data.strain_formulation,
-        thermal_time,
-        data.initial_temperature};
-    return geometry.point_count == 4 ? elements::evaluate_cax8rt(input, request)
-                                     : elements::evaluate_cax8t(input, request);
-}
-
 inline elements::C3d8Result evaluate_c3d8(const CartesianRegionData& data,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
@@ -188,12 +163,6 @@ compute_c3d20_stress(const CartesianRegionData& data, const Hex20Geometry& geome
 } // namespace fuelsim
 
 namespace fuelsim {
-inline Quad8RzGeometry make_cax8_geometry(const Quad8RzCoordinates& coordinates,
-    RzElementFormulation model = RzElementFormulation::cax8t) {
-    return model == RzElementFormulation::cax8rt ? elements::make_cax8rt_geometry(coordinates)
-                                                 : elements::make_cax8t_geometry(coordinates);
-}
-
 inline Hex20Geometry make_c3d20_geometry(const Hex20Coordinates& coordinates,
     Hex20ElementFormulation model = Hex20ElementFormulation::c3d20t) {
     return model == Hex20ElementFormulation::c3d20rt ? elements::make_c3d20rt_geometry(coordinates)
