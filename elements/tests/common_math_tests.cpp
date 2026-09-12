@@ -209,6 +209,23 @@ void quad8_polynomials() {
 }
 
 void axisymmetric() {
+    const std::array<double, 4> tensor = {2.0, 5.0, 7.0, 3.0};
+    const AxisymmetricRotation quarter_turn = {Scalar::independent(0.0, 0, 1), -1.0, 1.0, 0.0, 1.0};
+    check(rotate_axisymmetric_tensor_values(tensor, quarter_turn) == std::array<double, 4>{5.0, 2.0, 7.0, -3.0},
+        "Value-only tensor rotation swaps in-plane axes and reverses tensor shear");
+    MaterialPointState history;
+    history.elastic_strain = tensor;
+    history.plastic_strain = {1.0, -2.0, 1.0, 3.0};
+    history.creep_strain = {-3.0, 2.0, 1.0, -2.0};
+    history.equivalent_plastic_strain = 4.0;
+    history.equivalent_creep_strain = 6.0;
+    rotate_axisymmetric_strain_history(history, quarter_turn);
+    check(history.elastic_strain == std::array<double, 4>{5.0, 2.0, 7.0, -3.0}
+              && history.plastic_strain == std::array<double, 4>{-2.0, 1.0, 1.0, -3.0}
+              && history.creep_strain == std::array<double, 4>{2.0, -3.0, 1.0, 2.0}
+              && history.equivalent_plastic_strain == 4.0 && history.equivalent_creep_strain == 6.0,
+        "History rotation preserves hoop components and equivalent scalar histories");
+
     const std::array<Scalar, 4> sum = {2.2, 0.1, 0.04, 1.9}, difference = {0.2, 0.1, 0.04, -0.1};
     const auto result = evaluate_axisymmetric_midpoint_increment(sum, difference, 2.1, 0.1);
     check(near(result.determinant_sum.value(), 2.2 * 1.9 - 0.1 * 0.04, 1e-14),

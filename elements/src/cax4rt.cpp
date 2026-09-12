@@ -143,16 +143,19 @@ struct HourglassState final {
     std::array<std::array<double, 2>, 2> deformation = {{{1, 0}, {0, 1}}};
 };
 
-HourglassState hourglass_state(const elements::Cax4Input& data,
-    const Quad4RzGeometry& geometry,
-    const ReducedGeometry& reference,
-    const Cax4LocalValues& state) {
-    HourglassState result;
-    double norm = 0.0, normalization = 0.0, radius = 0.0, axial = 0.0;
+RzPoint reference_material_position(const Quad4RzGeometry& geometry, double volume) {
+    RzPoint position{};
     for (const auto& point : geometry.points) {
-        radius += point.weighted_measure * point.radius / reference.volume;
-        axial += point.weighted_measure * point.axial_coordinate / reference.volume;
+        position.r += point.weighted_measure * point.radius / volume;
+        position.z += point.weighted_measure * point.axial_coordinate / volume;
     }
+    return position;
+}
+
+HourglassState hourglass_state(const Cax4Input& data, const ReducedGeometry& reference, const RzPoint& position) {
+    const auto& state = data.state;
+    HourglassState result;
+    double norm = 0.0, normalization = 0.0;
     for (std::size_t n = 0; n < 4; ++n) {
         normalization += reference.gamma[n] * mode[n];
         for (double b : reference.gradient[n])
@@ -164,7 +167,7 @@ HourglassState hourglass_state(const elements::Cax4Input& data,
                     result.deformation[c][d] += reference.gradient[n][d] * state[4 + 4 * c + n];
         }
     }
-    const auto initial = data.material.active_properties(data.initial_temperature, {0.0, radius, 0.0, axial});
+    const auto initial = data.material.active_properties(data.initial_temperature, {0.0, position.r, 0.0, position.z});
     result.coefficient =
         .005 * initial.shear_modulus.value() * reference.volume * norm / (normalization * normalization);
     if (!std::isfinite(result.coefficient) || !(result.coefficient > 0.0))
@@ -188,6 +191,7 @@ Cax4rtPointSystem evaluate_material_point(const Cax4Input& data,
     ElementRequest request,
     const ReducedGeometry& reference,
     const ReducedGeometry& current,
+    const RzPoint& position,
     Cax4Result& result) {
     const auto& geometry = data.geometry;
     const auto& state = data.state;
@@ -274,12 +278,7 @@ Cax4rtPointSystem evaluate_material_point(const Cax4Input& data,
     zz += correction;
     const std::array<adlite::Scalar, 5> inputs = {rr, zz, hoop, rz, active[5]};
     std::array<double, 5> fed = {rr.value(), zz.value(), hoop.value(), rz.value(), active[5].value()};
-    double radius = 0.0, axial = 0.0;
-    for (const auto& p : geometry.points) {
-        radius += p.weighted_measure * p.radius / reference.volume;
-        axial += p.weighted_measure * p.axial_coordinate / reference.volume;
-    }
-    const MaterialFunctionContext context = {data.time, radius, 0.0, axial};
+    const MaterialFunctionContext context = {data.time, position.r, 0.0, position.z};
     if (finite && history) {
         auto old_context = context;
         old_context.time -= time_step;
@@ -305,23 +304,11 @@ Cax4rtPointSystem evaluate_material_point(const Cax4Input& data,
         sigma = rotate_axisymmetric_tensor(sigma, rotation);
     std::array<Cax4LocalValues, 4> stress_derivative{};
     if (jacobian) {
-        AxisymmetricStress trace_stress;
         std::array<double, 4> trace_response{};
         for (std::size_t i = 0; i < 4; ++i)
             trace_response[i] = (tangent.tangent[i][0] + tangent.tangent[i][1]) / 2.0;
-        trace_stress = {trace_response[0], trace_response[1], trace_response[2], trace_response[3]};
-        if (finite) {
-            const AxisymmetricRotation passive_rotation = {rotation.rr.value(),
-                rotation.rz.value(),
-                rotation.zr.value(),
-                rotation.zz.value(),
-                rotation.hoop.value()};
-            trace_stress = rotate_axisymmetric_tensor(trace_stress, passive_rotation);
-        }
-        trace_response = {trace_stress.rr.value(),
-            trace_stress.zz.value(),
-            trace_stress.hoop.value(),
-            trace_stress.rz.value()};
+        if (finite)
+            trace_response = rotate_axisymmetric_tensor_values(trace_response, rotation);
         const std::array<adlite::Scalar, 4> stress = {sigma.rr, sigma.zz, sigma.hoop, sigma.rz};
         for (std::size_t i = 0; i < 4; ++i) {
             stress_derivative[i] = chain(stress[i], seeds);
@@ -387,12 +374,14 @@ void assemble_mechanics(const ReducedGeometry& reference,
     }
 }
 
-void add_hourglass(const Cax4Input& data, const ReducedGeometry& reference, bool jacobian, Cax4Result& result) {
-    const auto& geometry = data.geometry;
-    const auto& state = data.state;
+void add_hourglass(const Cax4Input& data,
+    const ReducedGeometry& reference,
+    const RzPoint& position,
+    bool jacobian,
+    Cax4Result& result) {
     const bool finite = data.strain_formulation == StrainFormulation::finite;
     // Total-stiffness hourglass energy: 0.5*C*|F^T*a|^2, including both derivatives of F.
-    const auto hourglass = hourglass_state(data, geometry, reference, state);
+    const auto hourglass = hourglass_state(data, reference, position);
     const double coefficient = hourglass.coefficient;
     const auto &amplitude = hourglass.amplitude, &transported = hourglass.transported;
     const auto& F = hourglass.deformation;
@@ -496,19 +485,20 @@ Cax4Result evaluate_cax4rt(const Cax4Input& data, ElementRequest request) {
     const bool finite = data.strain_formulation == StrainFormulation::finite;
     const auto reference = reduce_geometry(data.geometry, {}, 0.0);
     const auto current = finite ? reduce_geometry(data.geometry, data.state, request.jacobian ? 1.0 : 0.0) : reference;
+    const auto position = reference_material_position(data.geometry, reference.volume);
     Cax4Result result;
-    const auto point = evaluate_material_point(data, request, reference, current, result);
+    const auto point = evaluate_material_point(data, request, reference, current, position, result);
     assemble_mechanics(reference, current, point, finite, request.jacobian, result);
-    add_hourglass(data, reference, request.jacobian, result);
+    add_hourglass(data, reference, position, request.jacobian, result);
     assemble_thermal(data, current, point, request.jacobian, result);
     finish_cax4_result(result, request);
     return result;
 }
 
 double cax4rt_hourglass_energy(const Cax4Input& data) {
-    const auto& geometry = data.geometry;
-    const auto& state = data.state;
-    const auto hourglass = hourglass_state(data, geometry, reduce_geometry(geometry, {}, 0.0), state);
+    const auto reference = reduce_geometry(data.geometry, {}, 0.0);
+    const auto position = reference_material_position(data.geometry, reference.volume);
+    const auto hourglass = hourglass_state(data, reference, position);
     return 0.5 * hourglass.coefficient
            * (hourglass.transported[0] * hourglass.transported[0]
                + hourglass.transported[1] * hourglass.transported[1]);

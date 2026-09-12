@@ -22,6 +22,17 @@ AxisymmetricStress rotate_axisymmetric_tensor(const AxisymmetricStress& tensor, 
     };
 }
 
+std::array<double, 4> rotate_axisymmetric_tensor_values(const std::array<double, 4>& tensor,
+    const AxisymmetricRotation& rotation) {
+    const AxisymmetricRotation passive = {rotation.rr.value(),
+        rotation.rz.value(),
+        rotation.zr.value(),
+        rotation.zz.value(),
+        rotation.hoop.value()};
+    const auto rotated = rotate_axisymmetric_tensor({tensor[0], tensor[1], tensor[2], tensor[3]}, passive);
+    return {rotated.rr.value(), rotated.zz.value(), rotated.hoop.value(), rotated.rz.value()};
+}
+
 IsotropicThermoelasticMaterial::IsotropicThermoelasticMaterial(ThermoelasticProperties properties)
     : _properties(std::move(properties)) {
     if (!_properties.functions || _properties.functions->thermal.function == nullptr)
@@ -1380,16 +1391,8 @@ AxisymmetricMaterialResponse evaluate_axisymmetric_material_response(const Isotr
 }
 
 void rotate_axisymmetric_strain_history(MaterialPointState& history, const AxisymmetricRotation& rotation) {
-    const AxisymmetricRotation passive = {rotation.rr.value(),
-        rotation.rz.value(),
-        rotation.zr.value(),
-        rotation.zz.value(),
-        rotation.hoop.value()};
-    for (auto* strain : {&history.elastic_strain, &history.plastic_strain, &history.creep_strain}) {
-        const auto rotated =
-            rotate_axisymmetric_tensor({(*strain)[0], (*strain)[1], (*strain)[2], (*strain)[3]}, passive);
-        *strain = {rotated.rr.value(), rotated.zz.value(), rotated.hoop.value(), rotated.rz.value()};
-    }
+    for (auto* strain : {&history.elastic_strain, &history.plastic_strain, &history.creep_strain})
+        *strain = rotate_axisymmetric_tensor_values(*strain, rotation);
     validate_material_point_state(history);
 }
 

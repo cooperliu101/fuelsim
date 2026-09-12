@@ -16,6 +16,9 @@ struct ActiveThermoelasticProperties final {
 };
 
 AxisymmetricStress rotate_axisymmetric_tensor(const AxisymmetricStress& tensor, const AxisymmetricRotation& rotation);
+// Rotate fixed [rr, zz, hoop, rz] values without propagating rotation derivatives.
+std::array<double, 4> rotate_axisymmetric_tensor_values(const std::array<double, 4>& tensor,
+    const AxisymmetricRotation& rotation);
 SymmetricTensor3 rotate_cartesian_tensor(const SymmetricTensor3& tensor, const CartesianRotation& rotation);
 
 class IsotropicThermoelasticMaterial final {

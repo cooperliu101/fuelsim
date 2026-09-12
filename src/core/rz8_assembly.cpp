@@ -175,7 +175,9 @@ void SpatialAssembly::validate_local_state(std::size_t first,
             coordinates[n].r += state[dof(Field::radial_displacement, global_node(r, nodes[n]))];
             coordinates[n].z += state[dof(Field::axial_displacement, global_node(r, nodes[n]))];
         }
-        (void)make_cax8_geometry(coordinates);
+        // Validate both quadratic models at the full nine-point rule, independently
+        // of their material integration rule.
+        (void)make_cax8_geometry(coordinates, RzElementFormulation::cax8t);
     }
     validate_contact_state(first, last, state);
 }

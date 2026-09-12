@@ -47,6 +47,44 @@ simple_thermoelastic(double young_modulus = 200.0, double density = 10.0, double
         specific_heat);
 }
 
+bool test_cax8_model_selection() {
+    using namespace fuelsim;
+    const Quad8RzCoordinates coordinates = {{{1, 0}, {2, 0}, {2, 1}, {1, 1}, {1.5, 0}, {2, .5}, {1.5, 1}, {1, .5}}};
+    Quad8RzValues state{};
+    for (std::size_t n = 0; n < 4; ++n)
+        state[n] = 600.0;
+    AxisymmetricRegionData data{IsotropicThermoelasticMaterial(simple_thermoelastic())};
+    bool passed = true;
+    for (auto geometry_model : {RzElementFormulation::cax8t, RzElementFormulation::cax8rt}) {
+        const auto geometry = make_cax8_geometry(coordinates, geometry_model);
+        for (auto selected_model : {RzElementFormulation::cax8t,
+                 RzElementFormulation::cax8rt,
+                 RzElementFormulation::cax4t,
+                 RzElementFormulation::cax4rt}) {
+            data.element_formulation = selected_model;
+            bool rejected = false;
+            try {
+                (void)compute_cax8(data, geometry, state, state, nullptr, 0.0, false, {true, false, false, false});
+            } catch (const std::invalid_argument&) {
+                rejected = true;
+            }
+            passed = check(rejected == (selected_model != geometry_model),
+                         "CAX8 dispatch must use the selected model and validate its quadrature")
+                     && passed;
+        }
+    }
+    for (auto model : {RzElementFormulation::cax4t, RzElementFormulation::cax4rt}) {
+        bool rejected = false;
+        try {
+            (void)make_cax8_geometry(coordinates, model);
+        } catch (const std::invalid_argument&) {
+            rejected = true;
+        }
+        passed = check(rejected, "CAX8 geometry must reject four-node models") && passed;
+    }
+    return passed;
+}
+
 fuelsim::ThermoelasticProperties elastic_properties(double density = 10.0, double specific_heat = 20.0) {
     return simple_thermoelastic(200.0, density, specific_heat);
 }
@@ -972,6 +1010,7 @@ int main() {
     std::cout << std::scientific << std::setprecision(12);
     try {
         bool passed = true;
+        passed = test_cax8_model_selection() && passed;
         passed = test_builtin_material_parameter_order() && passed;
         passed = test_registered_material_functions() && passed;
         passed = test_objective_incremental_history_rotation() && passed;

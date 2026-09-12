@@ -56,14 +56,25 @@ inline elements::Cax8Result compute_cax8(const AxisymmetricRegionData& data,
         data.volumetric_heat_source,
         data.strain_formulation,
         thermal_time};
-    return geometry.point_count == 4 ? elements::evaluate_cax8rt(input, request)
-                                     : elements::evaluate_cax8t(input, request);
+    switch (data.element_formulation) {
+    case RzElementFormulation::cax8t:
+        return elements::evaluate_cax8t(input, request);
+    case RzElementFormulation::cax8rt:
+        return elements::evaluate_cax8rt(input, request);
+    default:
+        throw std::invalid_argument("Eight-node axisymmetric region requires CAX8T or CAX8RT");
+    }
 }
 
-inline Quad8RzGeometry make_cax8_geometry(const Quad8RzCoordinates& coordinates,
-    RzElementFormulation model = RzElementFormulation::cax8t) {
-    return model == RzElementFormulation::cax8rt ? elements::make_cax8rt_geometry(coordinates)
-                                                 : elements::make_cax8t_geometry(coordinates);
+inline Quad8RzGeometry make_cax8_geometry(const Quad8RzCoordinates& coordinates, RzElementFormulation model) {
+    switch (model) {
+    case RzElementFormulation::cax8t:
+        return elements::make_cax8t_geometry(coordinates);
+    case RzElementFormulation::cax8rt:
+        return elements::make_cax8rt_geometry(coordinates);
+    default:
+        throw std::invalid_argument("Eight-node axisymmetric geometry requires CAX8T or CAX8RT");
+    }
 }
 
 } // namespace fuelsim

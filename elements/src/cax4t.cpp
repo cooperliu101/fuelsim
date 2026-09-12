@@ -15,7 +15,7 @@ double interpolate(const std::array<double, quad4_node_count>& coefficients,
 }
 
 struct AxisymmetricKinematics final {
-    std::array<adlite::Scalar, quad4_node_count> gradient_r, gradient_z;
+    std::array<adlite::Scalar, quad4_node_count> gradient_r, gradient_z, thermal_gradient_r, thermal_gradient_z;
     adlite::Scalar radius, weighted_measure, strain_rr, strain_zz, strain_hoop, strain_rz;
     AxisymmetricRotation rotation;
     adlite::Scalar midpoint_weighted_measure = 0.0;
@@ -34,6 +34,8 @@ AxisymmetricKinematics evaluate_axisymmetric_kinematics_from_point(const RzQuadr
         for (std::size_t node = 0; node < quad4_node_count; ++node) {
             result.gradient_r[node] = point.gradient_r[node];
             result.gradient_z[node] = point.gradient_z[node];
+            result.thermal_gradient_r[node] = point.gradient_r[node];
+            result.thermal_gradient_z[node] = point.gradient_z[node];
         }
         result.radius = point.radius;
         result.weighted_measure = point.weighted_measure;
@@ -62,11 +64,13 @@ AxisymmetricKinematics evaluate_axisymmetric_kinematics_from_point(const RzQuadr
     }
     result.radius = current_radius;
     result.weighted_measure = point.weighted_measure * determinant_rz * deformation_hoop;
-    const double old_radial_displacement = interpolate(point.shape, committed_state, 4),
-                 old_deformation_rr = 1.0 + interpolate(point.gradient_r, committed_state, 4),
-                 old_deformation_rz = interpolate(point.gradient_z, committed_state, 4),
-                 old_deformation_zr = interpolate(point.gradient_r, committed_state, 8),
-                 old_deformation_zz = 1.0 + interpolate(point.gradient_z, committed_state, 8),
+    const double old_gradient_rr = interpolate(point.gradient_r, committed_state, 4),
+                 old_gradient_rz = interpolate(point.gradient_z, committed_state, 4),
+                 old_gradient_zr = interpolate(point.gradient_r, committed_state, 8),
+                 old_gradient_zz = interpolate(point.gradient_z, committed_state, 8),
+                 old_radial_displacement = interpolate(point.shape, committed_state, 4),
+                 old_deformation_rr = 1.0 + old_gradient_rr, old_deformation_rz = old_gradient_rz,
+                 old_deformation_zr = old_gradient_zr, old_deformation_zz = 1.0 + old_gradient_zz,
                  old_deformation_hoop = 1.0 + old_radial_displacement / point.radius,
                  old_determinant_rz = old_deformation_rr * old_deformation_zz - old_deformation_rz * old_deformation_zr;
     if (!std::isfinite(old_determinant_rz) || !(old_determinant_rz > 0.0) || !std::isfinite(old_deformation_hoop)
@@ -103,6 +107,19 @@ AxisymmetricKinematics evaluate_axisymmetric_kinematics_from_point(const RzQuadr
         result.strain_zz = midpoint.in_plane.zz;
         result.strain_rz = midpoint.in_plane.rz;
         result.strain_hoop = midpoint.hoop;
+        // Thermal geometry shares the original width-six displacement gradients,
+        // but retains its own midpoint arithmetic and integration measure.
+        const adlite::Scalar fa = 1.0 + .5 * (displacement_gradient_rr + old_gradient_rr),
+                             fb = .5 * (displacement_gradient_rz + old_gradient_rz),
+                             fc = .5 * (displacement_gradient_zr + old_gradient_zr),
+                             fd = 1.0 + .5 * (displacement_gradient_zz + old_gradient_zz);
+        const auto thermal_determinant = fa * fd - fb * fc;
+        if (!(thermal_determinant.value() > 0))
+            throw std::domain_error("CAX4T thermal midpoint must remain positive");
+        for (std::size_t n = 0; n < 4; ++n) {
+            result.thermal_gradient_r[n] = (fd * point.gradient_r[n] - fc * point.gradient_z[n]) / thermal_determinant;
+            result.thermal_gradient_z[n] = (fa * point.gradient_z[n] - fb * point.gradient_r[n]) / thermal_determinant;
+        }
         return result;
     }
 }
@@ -289,49 +306,25 @@ Cax4tStressAverages evaluate_cax4t_material(const Cax4Input& data,
             jacobian,
             request.history);
         s.stress = compose_axisymmetric_stress(tangent, inputs, jacobian);
-        std::array<double, 4> trace_response{}, hoop_response{}, center_response{};
-        for (std::size_t i = 0; i < 4; ++i) {
-            const auto& partials = tangent.tangent[i];
-            trace_response[i] = (partials[0] + partials[1]) / 2.0;
-            hoop_response[i] = partials[2] - trace_response[i];
-            for (std::size_t j = 0; j < 4; ++j)
-                center_response[i] -= partials[j] * center_derivative[j];
-        }
-        AxisymmetricStress trace_stress = {trace_response[0], trace_response[1], trace_response[2], trace_response[3]};
-        AxisymmetricStress hoop_tangent = {hoop_response[0], hoop_response[1], hoop_response[2], hoop_response[3]};
-        AxisymmetricStress center_tangent = {center_response[0],
-            center_response[1],
-            center_response[2],
-            center_response[3]};
-        if (data.strain_formulation == StrainFormulation::finite) {
+        if (finite_strain)
             s.stress = rotate_axisymmetric_tensor(s.stress, k.rotation);
-            if (jacobian) {
-                // These are coefficients of the explicit cross-point chain.
-                // Only their values are used; rotation derivatives already enter s.stress.
-                const AxisymmetricRotation rotation = {k.rotation.rr.value(),
-                    k.rotation.rz.value(),
-                    k.rotation.zr.value(),
-                    k.rotation.zz.value(),
-                    k.rotation.hoop.value()};
-                trace_stress = rotate_axisymmetric_tensor(trace_stress, rotation);
-                hoop_tangent = rotate_axisymmetric_tensor(hoop_tangent, rotation);
-                center_tangent = rotate_axisymmetric_tensor(center_tangent, rotation);
+        if (jacobian) {
+            std::array<double, 4> trace_response{}, hoop_response{}, center_response{};
+            for (std::size_t i = 0; i < 4; ++i) {
+                const auto& partials = tangent.tangent[i];
+                trace_response[i] = (partials[0] + partials[1]) / 2.0;
+                hoop_response[i] = partials[2] - trace_response[i];
+                for (std::size_t j = 0; j < 4; ++j)
+                    center_response[i] -= partials[j] * center_derivative[j];
             }
-        }
-        const std::array<adlite::Scalar, 4> final_sigma = {s.stress.rr, s.stress.zz, s.stress.hoop, s.stress.rz};
-        trace_response = {trace_stress.rr.value(),
-            trace_stress.zz.value(),
-            trace_stress.hoop.value(),
-            trace_stress.rz.value()};
-        hoop_response = {hoop_tangent.rr.value(),
-            hoop_tangent.zz.value(),
-            hoop_tangent.hoop.value(),
-            hoop_tangent.rz.value()};
-        center_response = {center_tangent.rr.value(),
-            center_tangent.zz.value(),
-            center_tangent.hoop.value(),
-            center_tangent.rz.value()};
-        if (jacobian)
+            // Cross-point coefficients need only rotated values. The local
+            // stress above already carries the rotation derivatives.
+            if (finite_strain) {
+                trace_response = rotate_axisymmetric_tensor_values(trace_response, k.rotation);
+                hoop_response = rotate_axisymmetric_tensor_values(hoop_response, k.rotation);
+                center_response = rotate_axisymmetric_tensor_values(center_response, k.rotation);
+            }
+            const std::array<adlite::Scalar, 4> final_sigma = {s.stress.rr, s.stress.zz, s.stress.hoop, s.stress.rz};
             for (std::size_t i = 0; i < 4; ++i) {
                 s.stress_derivatives[i] = cax4t_nodal_chain(final_sigma[i], point);
                 for (std::size_t j = 0; j < 12; ++j)
@@ -340,6 +333,7 @@ Cax4tStressAverages evaluate_cax4t_material(const Cax4Input& data,
                 for (std::size_t j = 0; j < 4; ++j)
                     s.stress_derivatives[i][j] += center_response[i] / 4.0;
             }
+        }
         const double weight = point.weighted_measure / averages.reference_volume;
         pressure += weight * (s.stress.rr.value() + s.stress.zz.value()) / 2.0;
         hoop_stress += weight * s.stress.hoop.value();
@@ -425,30 +419,10 @@ void assemble_cax4t(const Cax4Input& data,
         double conductivity_derivative = 0.0;
         if (jacobian)
             conductivity.copy_derivatives(&conductivity_derivative, 1);
-        std::array<adlite::Scalar, 4> thermal_gr{}, thermal_gz{};
-        adlite::Scalar fa = 1.0, fb = 0.0, fc = 0.0, fd = 1.0;
-        if (finite) {
-            std::array<adlite::Scalar, 4> gradient{};
-            for (std::size_t component = 0; component < 4; ++component) {
-                const auto& coefficients = component % 2 == 0 ? point.gradient_r : point.gradient_z;
-                const std::size_t offset = component < 2 ? 4 : 8;
-                const double current = interpolate(coefficients, state, offset);
-                gradient[component] =
-                    jacobian ? adlite::Scalar::independent(current, component, 6) : adlite::Scalar(current);
-                gradient[component] = .5 * (gradient[component] + interpolate(coefficients, old_state, offset));
-            }
-            fa += gradient[0];
-            fb = gradient[1];
-            fc = gradient[2];
-            fd += gradient[3];
-        }
-        const auto thermal_determinant = fa * fd - fb * fc;
-        if (!(thermal_determinant.value() > 0))
-            throw std::domain_error("CAX4T thermal midpoint must remain positive");
+        const auto& thermal_gr = k.thermal_gradient_r;
+        const auto& thermal_gz = k.thermal_gradient_z;
         adlite::Scalar tr = 0.0, tz = 0.0;
         for (std::size_t n = 0; n < 4; ++n) {
-            thermal_gr[n] = (fd * point.gradient_r[n] - fc * point.gradient_z[n]) / thermal_determinant;
-            thermal_gz[n] = (fa * point.gradient_z[n] - fb * point.gradient_r[n]) / thermal_determinant;
             tr += thermal_gr[n] * state[n];
             tz += thermal_gz[n] * state[n];
         }
