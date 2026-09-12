@@ -29,50 +29,6 @@ namespace {
 void finalize_conservation(const NonlinearProblem& problem,
     const std::vector<double>& current,
     const std::vector<double>& old,
-    const std::vector<double>& raw_residual,
-    TransientConservationSummary& result) {
-    std::vector<bool> constrained(problem.dof_count(), false);
-    for (const DirichletCondition& condition : problem.dirichlet_conditions()) {
-        constrained[condition.dof] = true;
-        if (problem.field_layout()[problem.field_index(condition.dof)].category == FieldCategory::thermal)
-            result.dirichlet_heat_input_rate += raw_residual[condition.dof];
-        else
-            result.dirichlet_reaction_work_increment +=
-                raw_residual[condition.dof] * (current[condition.dof] - old[condition.dof]);
-    }
-    double thermal_residual_squared = 0.0, mechanical_residual_squared = 0.0;
-    for (std::size_t dof = 0; dof < problem.dof_count(); ++dof) {
-        if (constrained[dof])
-            continue;
-        double& norm_squared = problem.field_layout()[problem.field_index(dof)].category == FieldCategory::thermal
-                                   ? thermal_residual_squared
-                                   : mechanical_residual_squared;
-        norm_squared += raw_residual[dof] * raw_residual[dof];
-    }
-    result.unconstrained_thermal_residual_l2 = std::sqrt(thermal_residual_squared);
-    result.unconstrained_mechanical_residual_l2 = std::sqrt(mechanical_residual_squared);
-    result.global_thermal_balance = result.stored_heat_rate + result.convection_heat_rate
-                                    + result.interface_heat_imbalance - result.generated_heat_rate
-                                    - result.surface_heat_input_rate - result.dirichlet_heat_input_rate;
-    const double thermal_scale = std::abs(result.stored_heat_rate) + std::abs(result.convection_heat_rate)
-                                 + std::abs(result.interface_heat_imbalance) + std::abs(result.generated_heat_rate)
-                                 + std::abs(result.surface_heat_input_rate)
-                                 + std::abs(result.dirichlet_heat_input_rate);
-    result.relative_thermal_balance =
-        thermal_scale > 0.0 ? std::abs(result.global_thermal_balance) / thermal_scale : 0.0;
-    result.mechanical_work_balance = result.internal_mechanical_work_increment + result.contact_work_increment
-                                     - result.pressure_traction_work_increment
-                                     - result.dirichlet_reaction_work_increment;
-    const double mechanical_scale =
-        std::abs(result.internal_mechanical_work_increment) + std::abs(result.contact_work_increment)
-        + std::abs(result.pressure_traction_work_increment) + std::abs(result.dirichlet_reaction_work_increment);
-    result.relative_mechanical_work_balance =
-        mechanical_scale > 0.0 ? std::abs(result.mechanical_work_balance) / mechanical_scale : 0.0;
-}
-
-void add_trapezoidal_external_work(const NonlinearProblem& problem,
-    const std::vector<double>& current,
-    const std::vector<double>& old,
     const std::vector<double>& current_raw_residual,
     const std::vector<double>& old_raw_residual,
     const std::vector<double>& current_external_load_residual,
@@ -95,7 +51,44 @@ void add_trapezoidal_external_work(const NonlinearProblem& problem,
             result.trapezoidal_dirichlet_reaction_work_increment +=
                 0.5 * (old_raw_residual[dof] + current_raw_residual[dof]) * increment;
     }
+
+    for (const DirichletCondition& condition : problem.dirichlet_conditions()) {
+        if (problem.field_layout()[problem.field_index(condition.dof)].category == FieldCategory::thermal)
+            result.dirichlet_heat_input_rate += current_raw_residual[condition.dof];
+        else
+            result.dirichlet_reaction_work_increment +=
+                current_raw_residual[condition.dof] * (current[condition.dof] - old[condition.dof]);
+    }
+    double thermal_residual_squared = 0.0, mechanical_residual_squared = 0.0;
+    for (std::size_t dof = 0; dof < problem.dof_count(); ++dof) {
+        if (constrained[dof])
+            continue;
+        double& norm_squared = problem.field_layout()[problem.field_index(dof)].category == FieldCategory::thermal
+                                   ? thermal_residual_squared
+                                   : mechanical_residual_squared;
+        norm_squared += current_raw_residual[dof] * current_raw_residual[dof];
+    }
+    result.unconstrained_thermal_residual_l2 = std::sqrt(thermal_residual_squared);
+    result.unconstrained_mechanical_residual_l2 = std::sqrt(mechanical_residual_squared);
+    result.global_thermal_balance = result.stored_heat_rate + result.convection_heat_rate
+                                    + result.interface_heat_imbalance - result.generated_heat_rate
+                                    - result.surface_heat_input_rate - result.dirichlet_heat_input_rate;
+    const double thermal_scale = std::abs(result.stored_heat_rate) + std::abs(result.convection_heat_rate)
+                                 + std::abs(result.interface_heat_imbalance) + std::abs(result.generated_heat_rate)
+                                 + std::abs(result.surface_heat_input_rate)
+                                 + std::abs(result.dirichlet_heat_input_rate);
+    result.relative_thermal_balance =
+        thermal_scale > 0.0 ? std::abs(result.global_thermal_balance) / thermal_scale : 0.0;
+    result.mechanical_work_balance = result.internal_mechanical_work_increment + result.contact_work_increment
+                                     - result.pressure_traction_work_increment
+                                     - result.dirichlet_reaction_work_increment;
+    const double mechanical_scale =
+        std::abs(result.internal_mechanical_work_increment) + std::abs(result.contact_work_increment)
+        + std::abs(result.pressure_traction_work_increment) + std::abs(result.dirichlet_reaction_work_increment);
+    result.relative_mechanical_work_balance =
+        mechanical_scale > 0.0 ? std::abs(result.mechanical_work_balance) / mechanical_scale : 0.0;
 }
+
 } // namespace
 
 namespace {
@@ -712,6 +705,23 @@ double trapezoidal_stress_strain_inner_product(const AxisymmetricStressValues& o
     return 0.5
            * (stress_strain_inner_product(old_stress, strain_increment)
                + stress_strain_inner_product(new_stress, strain_increment));
+}
+
+void accumulate_material_conservation(TransientConservationSummary& result,
+    const MaterialPointState& old,
+    const MaterialPointState& current,
+    double measure) {
+    result.elastic_energy_change += 0.5 * measure
+                                    * (stress_strain_inner_product(current.stress, current.elastic_strain)
+                                        - stress_strain_inner_product(old.stress, old.elastic_strain));
+    result.plastic_dissipation_increment += measure
+                                            * trapezoidal_stress_strain_inner_product(old.stress,
+                                                current.stress,
+                                                strain_difference(current.plastic_strain, old.plastic_strain));
+    result.creep_dissipation_increment += measure
+                                          * trapezoidal_stress_strain_inner_product(old.stress,
+                                              current.stress,
+                                              strain_difference(current.creep_strain, old.creep_strain));
 }
 } // namespace
 } // namespace rz
@@ -1488,10 +1498,11 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
     // Refresh their projections from the complete converged state before
     // assembling reactions or committing any history.
     _impl->validate_state(converged_solution);
+    TransientConservationSummary conservation;
+    std::vector<double> external_load_residual;
+    const std::vector<double> raw_residual =
+        accumulate_contribution_conservation(converged_solution, conservation, &external_load_residual);
     if (_impl->rz8) {
-        TransientConservationSummary conservation;
-        std::vector<double> external;
-        const auto raw = accumulate_contribution_conservation(converged_solution, conservation, &external);
         auto staged = _impl->quad8_material_histories;
         std::vector<std::size_t> dofs;
         for (std::size_t index = 0; index < _impl->rz8->volume_contribution_count(); ++index) {
@@ -1514,43 +1525,27 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
             conservation.stored_heat_rate += update.stored_heat_rate;
             conservation.generated_heat_rate += update.generated_heat_rate;
             for (std::size_t q = 0; q < geometry.point_count; ++q) {
-                const auto &a = _impl->quad8_material_histories[r][e][q], &b = update.history[q];
-                const double w = geometry.points[q].weighted_measure;
-                conservation.elastic_energy_change +=
-                    .5 * w
-                    * (rz::stress_strain_inner_product(b.stress, b.elastic_strain)
-                        - rz::stress_strain_inner_product(a.stress, a.elastic_strain));
-                conservation.plastic_dissipation_increment +=
-                    w
-                    * rz::trapezoidal_stress_strain_inner_product(a.stress,
-                        b.stress,
-                        rz::strain_difference(b.plastic_strain, a.plastic_strain));
-                conservation.creep_dissipation_increment += w
-                                                            * rz::trapezoidal_stress_strain_inner_product(a.stress,
-                                                                b.stress,
-                                                                rz::strain_difference(b.creep_strain, a.creep_strain));
+                rz::accumulate_material_conservation(conservation,
+                    _impl->quad8_material_histories[r][e][q],
+                    update.history[q],
+                    geometry.points[q].weighted_measure);
             }
             staged[r][e] = update.history;
         }
-        add_trapezoidal_external_work(*this,
+        finalize_conservation(*this,
             converged_solution,
             _impl->committed_solution,
-            raw,
+            raw_residual,
             _impl->committed_raw_residual,
-            external,
+            external_load_residual,
             _impl->committed_external_load_residual,
             conservation);
-        finalize_conservation(*this, converged_solution, _impl->committed_solution, raw, conservation);
         _impl->commit_contact_state(converged_solution);
         _impl->quad8_material_histories.swap(staged);
         _impl->last_conservation_summary = conservation;
-        _impl->committed_raw_residual = raw;
-        _impl->committed_external_load_residual = std::move(external);
+        _impl->committed_raw_residual = raw_residual;
+        _impl->committed_external_load_residual = std::move(external_load_residual);
     } else if (_impl->is_cartesian()) {
-        TransientConservationSummary conservation;
-        std::vector<double> external_load_residual;
-        const std::vector<double> raw_residual =
-            accumulate_contribution_conservation(converged_solution, conservation, &external_load_residual);
         auto& staged = _impl->_staged_cartesian_material_histories;
         for (std::size_t region = 0; region < _impl->cartesian->region_count(); ++region) {
             const std::size_t offset = _impl->cartesian->region_element_offset(region);
@@ -1697,7 +1692,7 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                 staged[region][element] = std::move(update);
             }
         }
-        add_trapezoidal_external_work(*this,
+        finalize_conservation(*this,
             converged_solution,
             _impl->committed_solution,
             raw_residual,
@@ -1705,17 +1700,12 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
             external_load_residual,
             _impl->committed_external_load_residual,
             conservation);
-        finalize_conservation(*this, converged_solution, _impl->committed_solution, raw_residual, conservation);
         conservation.friction_dissipation_increment = _impl->cartesian->commit_contact_state(converged_solution);
         _impl->last_conservation_summary = conservation;
         _impl->cartesian_material_histories.swap(staged);
         _impl->committed_raw_residual = raw_residual;
         _impl->committed_external_load_residual = std::move(external_load_residual);
     } else {
-        TransientConservationSummary conservation;
-        std::vector<double> external_load_residual;
-        const std::vector<double> raw_residual =
-            accumulate_contribution_conservation(converged_solution, conservation, &external_load_residual);
         const std::size_t regions = _impl->layout().region_count();
         auto& staged = _impl->_staged_material_histories;
         for (std::size_t region = 0; region < regions; ++region) {
@@ -1770,26 +1760,15 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     const RzQuadraturePoint& point = geometry.points[q];
                     const MaterialPointState &old_history = _impl->material_histories[region][element][reduced ? 0 : q],
                                              &new_history = update[reduced ? 0 : q];
-                    const AxisymmetricStressValues &old_stress = old_history.stress, &new_stress = new_history.stress;
-                    conservation.elastic_energy_change +=
-                        0.5 * point.weighted_measure
-                        * (rz::stress_strain_inner_product(new_stress, new_history.elastic_strain)
-                            - rz::stress_strain_inner_product(old_stress, old_history.elastic_strain));
-                    conservation.plastic_dissipation_increment +=
-                        point.weighted_measure
-                        * rz::trapezoidal_stress_strain_inner_product(old_stress,
-                            new_stress,
-                            rz::strain_difference(new_history.plastic_strain, old_history.plastic_strain));
-                    conservation.creep_dissipation_increment +=
-                        point.weighted_measure
-                        * rz::trapezoidal_stress_strain_inner_product(old_stress,
-                            new_stress,
-                            rz::strain_difference(new_history.creep_strain, old_history.creep_strain));
+                    rz::accumulate_material_conservation(conservation,
+                        old_history,
+                        new_history,
+                        point.weighted_measure);
                 }
                 staged[region][element] = std::move(update);
             }
         }
-        add_trapezoidal_external_work(*this,
+        finalize_conservation(*this,
             converged_solution,
             _impl->committed_solution,
             raw_residual,
@@ -1797,7 +1776,6 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
             external_load_residual,
             _impl->committed_external_load_residual,
             conservation);
-        finalize_conservation(*this, converged_solution, _impl->committed_solution, raw_residual, conservation);
         _impl->last_conservation_summary = conservation;
         _impl->rz->commit_contact_state(converged_solution);
         _impl->material_histories.swap(staged);

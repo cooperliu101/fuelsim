@@ -950,6 +950,18 @@ CartesianMaterialPointState evaluate_inelastic_tensor_values(const MaterialFunct
     return result;
 }
 
+bool uses_builtin_inelastic_update(const MaterialFunctionSet& functions) {
+    const bool builtin_creep =
+        !functions.has_creep() || functions.creep.builtin.kind != CreepBuiltinParameters::Kind::custom;
+    const bool builtin_plasticity =
+        !functions.has_plasticity() || functions.plasticity.builtin.kind != PlasticBuiltinParameters::Kind::custom;
+    const bool matching_reference =
+        functions.creep.builtin.kind != CreepBuiltinParameters::Kind::linear_temperature_norton
+        || functions.plasticity.builtin.kind != PlasticBuiltinParameters::Kind::linear_temperature_isotropic_hardening
+        || functions.creep.builtin.reference_temperature == functions.plasticity.builtin.reference_temperature;
+    return builtin_creep && builtin_plasticity && matching_reference;
+}
+
 struct InelasticScalarUpdate final {
     adlite::Scalar equivalent_stress, plastic_increment, creep_increment, zero_stress_scale{1.0};
 };
@@ -962,30 +974,12 @@ InelasticScalarUpdate evaluate_inelastic_scalars(const MaterialFunctionSet& func
     double equivalent_creep_strain,
     double time_step,
     MaterialFunctionContext context) {
-    const bool builtin_creep =
-        !functions.has_creep() || functions.creep.builtin.kind != CreepBuiltinParameters::Kind::custom;
-    const bool builtin_plasticity =
-        !functions.has_plasticity() || functions.plasticity.builtin.kind != PlasticBuiltinParameters::Kind::custom;
-    const bool matching_reference =
-        functions.creep.builtin.kind != CreepBuiltinParameters::Kind::linear_temperature_norton
-        || functions.plasticity.builtin.kind != PlasticBuiltinParameters::Kind::linear_temperature_isotropic_hardening
-        || functions.creep.builtin.reference_temperature == functions.plasticity.builtin.reference_temperature;
-    if (!(builtin_creep && builtin_plasticity && matching_reference)) {
+    if (!uses_builtin_inelastic_update(functions)) {
         if (!functions.has_creep() && !functions.has_plasticity())
             return {equivalent_trial_stress, 0.0, 0.0, 1.0};
-        if (equivalent_trial_stress.value() == 0.0) {
-            if (!functions.has_creep())
-                return {equivalent_trial_stress, 0.0, 0.0, 1.0};
-            const FunctionCreepRoot update = solve_function_creep(functions.creep,
-                equivalent_trial_stress,
-                shear_modulus,
-                temperature,
-                equivalent_creep_strain,
-                time_step,
-                context);
-            return {update.equivalent_stress, 0.0, update.creep_increment, update.zero_stress_scale};
-        }
-        if (functions.has_plasticity()) {
+        if (equivalent_trial_stress.value() == 0.0 && !functions.has_creep())
+            return {equivalent_trial_stress, 0.0, 0.0, 1.0};
+        if (equivalent_trial_stress.value() != 0.0 && functions.has_plasticity()) {
             const FunctionCoupledUpdate update = solve_function_coupled(functions,
                 equivalent_trial_stress,
                 shear_modulus,
@@ -1248,18 +1242,7 @@ CartesianMaterialPointState IsotropicThermoelasticMaterial::response_values(cons
     if (!std::isfinite(temperature) || !std::isfinite(time_step) || time_step < 0.0)
         throw std::domain_error("Inelastic material temperature or time step is invalid");
     const MaterialFunctionSet& material_functions = functions();
-    const bool builtin_creep = !material_functions.has_creep()
-                               || material_functions.creep.builtin.kind != CreepBuiltinParameters::Kind::custom;
-    const bool builtin_plasticity =
-        !material_functions.has_plasticity()
-        || material_functions.plasticity.builtin.kind != PlasticBuiltinParameters::Kind::custom;
-    const bool matching_reference =
-        material_functions.creep.builtin.kind != CreepBuiltinParameters::Kind::linear_temperature_norton
-        || material_functions.plasticity.builtin.kind
-               != PlasticBuiltinParameters::Kind::linear_temperature_isotropic_hardening
-        || material_functions.creep.builtin.reference_temperature
-               == material_functions.plasticity.builtin.reference_temperature;
-    if (!(builtin_creep && builtin_plasticity && matching_reference)) {
+    if (!uses_builtin_inelastic_update(material_functions)) {
         const CartesianInelasticStressResponse response =
             this->response({strain.xx, strain.yy, strain.zz, strain.xy, strain.yz, strain.xz},
                 adlite::Scalar(temperature),

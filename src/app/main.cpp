@@ -392,24 +392,15 @@ bool run_steady(const FuelSimCaseDefinition& definition,
     output.value("petsc_workspace_setups", result.aggregate_timing.workspace_setups);
     output.value("total_seconds", result.total_seconds);
     if (result.completed && result.solve.converged) {
-        if (hex_source != nullptr || hex20_source != nullptr) {
-            const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
-            for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact)
-                write_interface_summary(spatial.definition().contacts.at(contact).name,
-                    spatial.summarize_interface(contact, result.solve.state),
-                    output);
-        } else if (quad8_source) {
-            const auto& spatial = BackendAccess::quad8_spatial(problem);
-            for (std::size_t c = 0; c < definition.spatial.contacts.size(); ++c)
-                write_interface_summary(definition.spatial.contacts[c].name,
-                    spatial.summarize_interface(c, result.solve.state),
-                    output);
-        } else {
-            const rz::SpatialAssembly& spatial = BackendAccess::steady(problem).spatial;
-            for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact)
-                write_interface_summary(spatial.definition().contacts.at(contact).name,
-                    spatial.summarize_interface(contact, result.solve.state),
-                    output);
+        for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact) {
+            InterfaceSummary summary;
+            if (hex_source != nullptr || hex20_source != nullptr)
+                summary = BackendAccess::cartesian_spatial(problem).summarize_interface(contact, result.solve.state);
+            else if (quad8_source)
+                summary = BackendAccess::quad8_spatial(problem).summarize_interface(contact, result.solve.state);
+            else
+                summary = BackendAccess::steady(problem).spatial.summarize_interface(contact, result.solve.state);
+            write_interface_summary(definition.spatial.contacts[contact].name, summary, output);
         }
     }
     if (result.completed && result.solve.converged && !definition.outputs.exodus_file.empty())
@@ -571,24 +562,15 @@ bool run_transient(const FuelSimCaseDefinition& definition,
         output.value(prefix + "maximum_equivalent_plastic_strain", summary.maximum_equivalent_plastic_strain);
         output.value(prefix + "maximum_equivalent_creep_strain", summary.maximum_equivalent_creep_strain);
     }
-    if (hex_source != nullptr || hex20_source != nullptr) {
-        const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
-        for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact)
-            write_interface_summary(definition.spatial.contacts[contact].name,
-                spatial.summarize_interface(contact, result.committed_state),
-                output);
-    } else if (quad8_source) {
-        const auto& spatial = BackendAccess::quad8_spatial(problem);
-        for (std::size_t c = 0; c < definition.spatial.contacts.size(); ++c)
-            write_interface_summary(definition.spatial.contacts[c].name,
-                spatial.summarize_interface(c, result.committed_state),
-                output);
-    } else {
-        const rz::TransientBackendView backend = BackendAccess::transient(problem);
-        for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact)
-            write_interface_summary(definition.spatial.contacts[contact].name,
-                backend.spatial.summarize_interface(contact, result.committed_state),
-                output);
+    for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact) {
+        InterfaceSummary summary;
+        if (hex_source != nullptr || hex20_source != nullptr)
+            summary = BackendAccess::cartesian_spatial(problem).summarize_interface(contact, result.committed_state);
+        else if (quad8_source)
+            summary = BackendAccess::quad8_spatial(problem).summarize_interface(contact, result.committed_state);
+        else
+            summary = BackendAccess::transient(problem).spatial.summarize_interface(contact, result.committed_state);
+        write_interface_summary(definition.spatial.contacts[contact].name, summary, output);
     }
     return result.completed;
 }

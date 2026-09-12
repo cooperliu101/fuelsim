@@ -178,6 +178,14 @@ void read_material_point(BinaryCursor& payload, CartesianMaterialPointState& sta
     state.stress = {stress[0], stress[1], stress[2], stress[3], stress[4], stress[5]};
 }
 
+void read_contact_vector(BinaryCursor& payload, std::array<double, 3>& values, const char* error) {
+    for (double& value : values) {
+        value = payload.read_double();
+        if (!std::isfinite(value))
+            throw std::runtime_error(error);
+    }
+}
+
 void append_conservation(BinaryBuffer& payload, const TransientConservationSummary& summary) {
     for (const TransientConservationField& field : transient_conservation_fields)
         payload.append_double(summary.*field.member);
@@ -374,30 +382,22 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
             history.normal_multiplier = payload.read_double();
             if (!std::isfinite(history.normal_multiplier) || history.normal_multiplier < 0.0)
                 throw std::runtime_error("Checkpoint normal contact multiplier is invalid");
-            for (double& component : history.cartesian_elastic_tangential_slip) {
-                component = payload.read_double();
-                if (!std::isfinite(component))
-                    throw std::runtime_error("Checkpoint Cartesian friction state is invalid");
-            }
-            for (double& component : history.cartesian_total_tangential_slip) {
-                component = payload.read_double();
-                if (!std::isfinite(component))
-                    throw std::runtime_error("Checkpoint Cartesian total-slip state is invalid");
-            }
+            read_contact_vector(payload,
+                history.cartesian_elastic_tangential_slip,
+                "Checkpoint Cartesian friction state is invalid");
+            read_contact_vector(payload,
+                history.cartesian_total_tangential_slip,
+                "Checkpoint Cartesian total-slip state is invalid");
             const std::uint32_t basis_initialized = payload.read_u32();
             if (basis_initialized > 1U)
                 throw std::runtime_error("Checkpoint Cartesian tangent basis is invalid");
             history.cartesian_tangent_basis_initialized = basis_initialized == 1U;
-            for (double& component : history.cartesian_contact_normal) {
-                component = payload.read_double();
-                if (!std::isfinite(component))
-                    throw std::runtime_error("Checkpoint Cartesian contact normal is invalid");
-            }
-            for (double& component : history.cartesian_contact_tangent_first) {
-                component = payload.read_double();
-                if (!std::isfinite(component))
-                    throw std::runtime_error("Checkpoint Cartesian contact tangent is invalid");
-            }
+            read_contact_vector(payload,
+                history.cartesian_contact_normal,
+                "Checkpoint Cartesian contact normal is invalid");
+            read_contact_vector(payload,
+                history.cartesian_contact_tangent_first,
+                "Checkpoint Cartesian contact tangent is invalid");
             if (history.cartesian_tangent_basis_initialized) {
                 double normal_norm = 0.0, tangent_norm = 0.0, orthogonality = 0.0;
                 for (std::size_t component = 0; component < 3; ++component) {
@@ -427,34 +427,27 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
                     read_material_point(payload, point);
             }
         }
-        if (!payload.at_end())
-            throw std::runtime_error("Checkpoint payload contains trailing data");
-        BackendAccess::restore_committed_state(problem, std::move(state));
-        return next_time_step;
-    }
-    if (problem.uses_quad8()) {
+    } else if (problem.uses_quad8()) {
         const auto& spatial = BackendAccess::quad8_spatial(problem);
         state.quad8_material_histories = BackendAccess::quad8_material_histories(problem);
         for (std::size_t r = 0; r < state.quad8_material_histories.size(); ++r)
             for (std::size_t e = 0; e < state.quad8_material_histories[r].size(); ++e)
                 for (std::size_t q = 0; q < spatial.region_element_geometry(r, e).point_count; ++q)
                     read_material_point(payload, state.quad8_material_histories[r][e][q]);
-        if (!payload.at_end())
-            throw std::runtime_error("CAX8T checkpoint contains trailing data");
-        BackendAccess::restore_committed_state(problem, std::move(state));
-        return next_time_step;
-    }
-    const rz::TransientBackendView backend = BackendAccess::transient(problem);
-    state.material_histories.resize(backend.spatial.region_count());
-    for (std::size_t region = 0; region < backend.spatial.region_count(); ++region) {
-        const std::size_t elements = backend.spatial.region_mesh(region).elements().size();
-        state.material_histories[region].resize(elements);
-        for (std::size_t element = 0; element < elements; ++element)
-            for (std::size_t q = 0; q < 4; ++q)
-                read_material_point(payload, state.material_histories[region][element][q]);
+    } else {
+        const rz::TransientBackendView backend = BackendAccess::transient(problem);
+        state.material_histories.resize(backend.spatial.region_count());
+        for (std::size_t region = 0; region < backend.spatial.region_count(); ++region) {
+            const std::size_t elements = backend.spatial.region_mesh(region).elements().size();
+            state.material_histories[region].resize(elements);
+            for (std::size_t element = 0; element < elements; ++element)
+                for (std::size_t q = 0; q < 4; ++q)
+                    read_material_point(payload, state.material_histories[region][element][q]);
+        }
     }
     if (!payload.at_end())
-        throw std::runtime_error("Checkpoint payload contains trailing data");
+        throw std::runtime_error(!cartesian && problem.uses_quad8() ? "CAX8T checkpoint contains trailing data"
+                                                                    : "Checkpoint payload contains trailing data");
     BackendAccess::restore_committed_state(problem, std::move(state));
     return next_time_step;
 }

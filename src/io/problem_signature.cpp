@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace fuelsim {
 namespace {
@@ -27,6 +28,15 @@ void hash_string(std::uint64_t& hash, const std::string& value) {
     hashing::fnv1a_bytes(hash, value.data(), value.size());
 }
 
+void hash_cartesian_nodes(std::uint64_t& hash, const std::vector<CartesianPoint3>& nodes) {
+    hash_size(hash, nodes.size());
+    for (const CartesianPoint3& point : nodes) {
+        hash_double(hash, point.x);
+        hash_double(hash, point.y);
+        hash_double(hash, point.z);
+    }
+}
+
 void hash_thermoelastic(std::uint64_t& hash, const ThermoelasticProperties& material) {
     hash_double(hash, material.reference_young_modulus);
     const std::uint64_t signature = material.functions->signature();
@@ -45,6 +55,7 @@ void hash_region_definition(std::uint64_t& hash, const RegionDefinition& spatial
     hash_integer(hash, static_cast<std::int64_t>(spatial.hex8_element_formulation));
     hash_integer(hash, static_cast<std::int64_t>(spatial.hex20_element_formulation));
     hash_integer(hash, static_cast<std::int64_t>(spatial.rz_element_formulation));
+    hash_integer(hash, static_cast<std::int64_t>(spatial.strain_formulation));
 }
 
 void hash_boundaries(std::uint64_t& hash, const SpatialDefinition& definition, bool include_displaced_geometry) {
@@ -110,7 +121,6 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
         const auto& spatial = BackendAccess::quad8_spatial(problem);
         for (std::size_t r = 0; r < spatial.region_count(); ++r) {
             hash_region_definition(hash, spatial.region(r));
-            hash_integer(hash, static_cast<std::int64_t>(spatial.region(r).strain_formulation));
             const auto& mesh = spatial.region_mesh(r);
             hash_size(hash, mesh.nodes().size());
             for (std::size_t n = 0; n < mesh.nodes().size(); ++n) {
@@ -155,15 +165,9 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
         for (std::size_t region = 0; region < assembly.region_count(); ++region) {
             const RegionDefinition& spatial = definition.regions[region];
             hash_region_definition(hash, spatial);
-            hash_integer(hash, static_cast<std::int64_t>(spatial.strain_formulation));
             if (hex20) {
                 const Hex20RegionMesh& mesh = assembly.hex20_region_mesh(region);
-                hash_size(hash, mesh.nodes().size());
-                for (const CartesianPoint3& point : mesh.nodes()) {
-                    hash_double(hash, point.x);
-                    hash_double(hash, point.y);
-                    hash_double(hash, point.z);
-                }
+                hash_cartesian_nodes(hash, mesh.nodes());
                 hash_size(hash, mesh.elements().size());
                 for (const Hex20Element& element : mesh.elements())
                     for (const std::size_t node : element.nodes)
@@ -171,12 +175,7 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
                 continue;
             }
             const Hex8RegionMesh& mesh = assembly.region_mesh(region);
-            hash_size(hash, mesh.nodes().size());
-            for (const CartesianPoint3& point : mesh.nodes()) {
-                hash_double(hash, point.x);
-                hash_double(hash, point.y);
-                hash_double(hash, point.z);
-            }
+            hash_cartesian_nodes(hash, mesh.nodes());
             hash_size(hash, mesh.elements().size());
             for (const Hex8Element& element : mesh.elements())
                 for (const std::size_t node : element.nodes)
@@ -192,7 +191,6 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
     for (std::size_t region = 0; region < backend.spatial.region_count(); ++region) {
         const RegionDefinition& spatial = definition.regions[region];
         hash_region_definition(hash, spatial);
-        hash_integer(hash, static_cast<std::int64_t>(spatial.strain_formulation));
         const RegionMesh& mesh = backend.spatial.region_mesh(region);
         hash_size(hash, mesh.nodes().size());
         for (const RzPoint& point : mesh.nodes()) {

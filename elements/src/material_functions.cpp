@@ -78,7 +78,7 @@ void validate_registration(const std::string& name,
     }
 }
 
-void validate_bound_values(const std::string& function_name,
+std::vector<MaterialParameterValue> ordered_values(const std::string& function_name,
     const std::vector<MaterialParameterDefinition>& definitions,
     const std::vector<MaterialParameterValue>& values) {
     for (const MaterialParameterValue& value : values) {
@@ -89,6 +89,8 @@ void validate_bound_values(const std::string& function_name,
             throw std::invalid_argument(
                 "Material function '" + function_name + "' has unknown key '" + value.name + "'");
     }
+    std::vector<MaterialParameterValue> result;
+    result.reserve(definitions.size());
     for (const MaterialParameterDefinition& definition : definitions) {
         const auto found = std::find_if(values.begin(), values.end(), [&](const MaterialParameterValue& value) {
             return value.name == definition.name;
@@ -96,23 +98,10 @@ void validate_bound_values(const std::string& function_name,
         if (found == values.end())
             throw std::invalid_argument(
                 "Material function '" + function_name + "' is missing required key '" + definition.name + "'");
+        result.push_back(*found);
     }
     if (values.size() != definitions.size())
         throw std::invalid_argument("Material function '" + function_name + "' parameter count does not match");
-}
-
-std::vector<MaterialParameterValue> ordered_values(const std::string& function_name,
-    const std::vector<MaterialParameterDefinition>& definitions,
-    const std::vector<MaterialParameterValue>& values) {
-    validate_bound_values(function_name, definitions, values);
-    std::vector<MaterialParameterValue> result;
-    result.reserve(definitions.size());
-    for (const MaterialParameterDefinition& definition : definitions) {
-        const auto found = std::find_if(values.begin(), values.end(), [&](const MaterialParameterValue& value) {
-            return value.name == definition.name;
-        });
-        result.push_back(*found);
-    }
     return result;
 }
 
@@ -419,20 +408,18 @@ CreepFunctionInstance MaterialFunctionRegistry::bind_creep(const std::string& na
     const Registration& entry = find_registration(Category::creep, name, "creep");
     MaterialParameters bound(ordered_values(name, entry.parameters, values));
     CreepBuiltinParameters builtin;
-    if (name == "norton") {
-        builtin.kind = CreepBuiltinParameters::Kind::norton;
+    if (name == "norton" || name == "linear_temperature_norton") {
+        builtin.kind = name == "norton" ? CreepBuiltinParameters::Kind::norton
+                                        : CreepBuiltinParameters::Kind::linear_temperature_norton;
         builtin.coefficient = bound.value("coefficient");
         builtin.reference_stress = bound.value("reference_stress");
         builtin.stress_exponent = bound.value("stress_exponent");
-    } else if (name == "linear_temperature_norton") {
-        builtin.kind = CreepBuiltinParameters::Kind::linear_temperature_norton;
-        builtin.coefficient = bound.value("coefficient");
-        builtin.reference_stress = bound.value("reference_stress");
-        builtin.stress_exponent = bound.value("stress_exponent");
-        builtin.reference_temperature = bound.value("reference_temperature");
-        builtin.coefficient_temperature_coefficient = bound.value("coefficient_temperature_coefficient");
-        builtin.reference_stress_temperature_coefficient = bound.value("reference_stress_temperature_coefficient");
-        builtin.stress_exponent_temperature_coefficient = bound.value("stress_exponent_temperature_coefficient");
+        if (name == "linear_temperature_norton") {
+            builtin.reference_temperature = bound.value("reference_temperature");
+            builtin.coefficient_temperature_coefficient = bound.value("coefficient_temperature_coefficient");
+            builtin.reference_stress_temperature_coefficient = bound.value("reference_stress_temperature_coefficient");
+            builtin.stress_exponent_temperature_coefficient = bound.value("stress_exponent_temperature_coefficient");
+        }
     }
     return {name, entry.version, bound, std::get<CreepRateBinder>(entry.function)(bound), builtin};
 }
@@ -442,17 +429,17 @@ PlasticFunctionInstance MaterialFunctionRegistry::bind_plasticity(const std::str
     const Registration& entry = find_registration(Category::plasticity, name, "plasticity");
     MaterialParameters bound(ordered_values(name, entry.parameters, values));
     PlasticBuiltinParameters builtin;
-    if (name == "linear_isotropic_hardening") {
-        builtin.kind = PlasticBuiltinParameters::Kind::linear_isotropic_hardening;
+    if (name == "linear_isotropic_hardening" || name == "linear_temperature_isotropic_hardening") {
+        builtin.kind = name == "linear_isotropic_hardening"
+                           ? PlasticBuiltinParameters::Kind::linear_isotropic_hardening
+                           : PlasticBuiltinParameters::Kind::linear_temperature_isotropic_hardening;
         builtin.yield_stress = bound.value("yield_stress");
         builtin.hardening_modulus = bound.value("hardening_modulus");
-    } else if (name == "linear_temperature_isotropic_hardening") {
-        builtin.kind = PlasticBuiltinParameters::Kind::linear_temperature_isotropic_hardening;
-        builtin.yield_stress = bound.value("yield_stress");
-        builtin.hardening_modulus = bound.value("hardening_modulus");
-        builtin.reference_temperature = bound.value("reference_temperature");
-        builtin.yield_stress_temperature_coefficient = bound.value("yield_stress_temperature_coefficient");
-        builtin.hardening_temperature_coefficient = bound.value("hardening_temperature_coefficient");
+        if (name == "linear_temperature_isotropic_hardening") {
+            builtin.reference_temperature = bound.value("reference_temperature");
+            builtin.yield_stress_temperature_coefficient = bound.value("yield_stress_temperature_coefficient");
+            builtin.hardening_temperature_coefficient = bound.value("hardening_temperature_coefficient");
+        }
     }
     return {name, entry.version, bound, std::get<PlasticFlowStressBinder>(entry.function)(bound), builtin};
 }

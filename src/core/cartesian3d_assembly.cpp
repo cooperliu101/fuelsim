@@ -1419,25 +1419,17 @@ void SpatialAssembly::compute_contribution(std::size_t index,
             std::copy(state.begin(), state.end(), current.begin());
             const Hex20LocalValues committed =
                 committed_solution == nullptr ? Hex20LocalValues{} : hex20_volume_state(index, *committed_solution);
-            Hex20LocalJacobian local_jacobian{};
-            const Hex20LocalResidual result = committed_material == nullptr
-                                                  ? compute_c3d20_thermoelastic(_kernel_data[location.first],
-                                                        hex20_region_element_geometry(location.first, location.second),
-                                                        current,
-                                                        committed_solution == nullptr ? nullptr : &committed,
-                                                        time_step,
-                                                        jacobian == nullptr ? nullptr : &local_jacobian)
-                                                  : compute_c3d20_transient(_kernel_data[location.first],
-                                                        hex20_region_element_geometry(location.first, location.second),
-                                                        current,
-                                                        committed,
-                                                        *committed_material,
-                                                        time_step,
-                                                        jacobian == nullptr ? nullptr : &local_jacobian,
-                                                        include_thermal_time_term);
-            residual.assign(result.begin(), result.end());
+            const auto result = evaluate_c3d20(_kernel_data[location.first],
+                hex20_region_element_geometry(location.first, location.second),
+                current,
+                committed,
+                committed_material,
+                time_step,
+                committed_material == nullptr ? time_step > 0 : include_thermal_time_term,
+                {true, jacobian != nullptr, false, false});
+            residual.assign(result.residual.begin(), result.residual.end());
             if (jacobian != nullptr)
-                jacobian->assign(local_jacobian.begin(), local_jacobian.end());
+                jacobian->assign(result.jacobian.begin(), result.jacobian.end());
             return;
         }
         if (state.size() != hex8_local_dof_count)
@@ -1447,25 +1439,17 @@ void SpatialAssembly::compute_contribution(std::size_t index,
         std::copy(state.begin(), state.end(), current.begin());
         const Hex8LocalValues committed =
             committed_solution == nullptr ? Hex8LocalValues{} : volume_state(index, *committed_solution);
-        Hex8LocalJacobian local_jacobian{};
-        const Hex8LocalResidual result = committed_material == nullptr
-                                             ? compute_c3d8_thermoelastic(_kernel_data[location.first],
-                                                   region_element_geometry(location.first, location.second),
-                                                   current,
-                                                   committed_solution == nullptr ? nullptr : &committed,
-                                                   time_step,
-                                                   jacobian == nullptr ? nullptr : &local_jacobian)
-                                             : compute_c3d8_transient(_kernel_data[location.first],
-                                                   region_element_geometry(location.first, location.second),
-                                                   current,
-                                                   committed,
-                                                   *committed_material,
-                                                   time_step,
-                                                   jacobian == nullptr ? nullptr : &local_jacobian,
-                                                   include_thermal_time_term);
-        residual.assign(result.begin(), result.end());
+        const auto result = evaluate_c3d8(_kernel_data[location.first],
+            region_element_geometry(location.first, location.second),
+            current,
+            committed,
+            committed_material,
+            time_step,
+            committed_material == nullptr ? time_step > 0 : include_thermal_time_term,
+            {true, jacobian != nullptr, false, false});
+        residual.assign(result.residual.begin(), result.residual.end());
         if (jacobian != nullptr)
-            jacobian->assign(local_jacobian.begin(), local_jacobian.end());
+            jacobian->assign(result.jacobian.begin(), result.jacobian.end());
         return;
     }
     const ContributionRanges ranges = contribution_ranges();
@@ -1599,12 +1583,14 @@ elements::C3d8Result SpatialAssembly::transient_update(std::size_t region,
     const Hex8LocalValues& committed_state,
     const CartesianMaterialHistory& committed_material,
     double time_step) const {
-    return compute_c3d8_transient_update(_kernel_data.at(region),
+    return evaluate_c3d8(_kernel_data.at(region),
         region_element_geometry(region, element),
         state,
         committed_state,
-        committed_material,
-        time_step);
+        &committed_material,
+        time_step,
+        false,
+        {false, false, true, false});
 }
 
 CartesianMaterialHistory SpatialAssembly::transient_update(std::size_t region,
@@ -1613,12 +1599,15 @@ CartesianMaterialHistory SpatialAssembly::transient_update(std::size_t region,
     const Hex20LocalValues& committed_state,
     const CartesianMaterialHistory& committed_material,
     double time_step) const {
-    return compute_c3d20_transient_update(_kernel_data.at(region),
+    return evaluate_c3d20(_kernel_data.at(region),
         hex20_region_element_geometry(region, element),
         state,
         committed_state,
-        committed_material,
-        time_step);
+        &committed_material,
+        time_step,
+        false,
+        {false, false, true, false})
+        .history;
 }
 
 std::array<SymmetricTensor3Values, 8>
@@ -1630,9 +1619,15 @@ SpatialAssembly::stress(std::size_t region, std::size_t element, const std::vect
 
 std::vector<SymmetricTensor3Values>
 SpatialAssembly::hex20_stress(std::size_t region, std::size_t element, const std::vector<double>& state) const {
-    return compute_c3d20_stress(_kernel_data.at(region),
+    return evaluate_c3d20(_kernel_data.at(region),
         hex20_region_element_geometry(region, element),
-        hex20_volume_state(region_element_offset(region) + element, state));
+        hex20_volume_state(region_element_offset(region) + element, state),
+        {},
+        nullptr,
+        0,
+        false,
+        {false, false, false, true})
+        .stress;
 }
 
 double SpatialAssembly::heat_capacity(std::size_t region, double temperature, const CartesianPoint3& position) const {
