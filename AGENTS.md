@@ -35,7 +35,8 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
   `elements/src/c3d_common.cpp` 中的 `determinant_impl`、`inverse_impl`、`multiply_impl`、
   `central_increment_gradient_impl`、`reduced_hex8_metric_impl`、`hex8_hourglass_shape_impl`、
   `reduced_hex8_thermal_hourglass_coefficients_impl`；
-  `elements/src/material.cpp` 中的 `rotate_cartesian_tensor_impl`。
+  `elements/src/material.cpp` 中的 `rotate_cartesian_tensor_impl`；
+  `elements/src/quad8_face.cpp` 中的 `quad8_shape_impl`，仅计算固定八节点形函数及其一、二阶导数。
   标量类型仅允许 `double` 和 `adlite::Scalar`；矩阵运算固定为 3×3，
   HEX8 沙漏投影固定为八节点、四模态；张量旋转固定为六分量三维对称张量，不得扩展为通用矩阵库、材料模型模板、
   单元泛型接口或自动微分播种层。材料张量旋转实现不得依赖型号共用头文件。

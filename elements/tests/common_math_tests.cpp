@@ -1,5 +1,6 @@
 #include "c3d_common.hpp"
 #include "cax_common.hpp"
+#include "quad8_shape.hpp"
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -130,6 +131,83 @@ void hourglass() {
     rejects([&] { reduced_hex8_metric(gradient); });
 }
 
+void quad8_polynomials() {
+    using namespace fuelsim::quad8_face_detail;
+    const std::array<std::array<double, 2>, 8> nodes = {
+        {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}, {0, -1}, {1, 0}, {0, 1}, {-1, 0}}};
+    for (std::size_t node = 0; node < 8; ++node) {
+        DoubleQuad8ShapeValues values;
+        double_quad8_shape(nodes[node][0], nodes[node][1], values);
+        for (std::size_t i = 0; i < 8; ++i)
+            check(values.shape[i] == (i == node ? 1.0 : 0.0), "QUAD8 nodal interpolation is Kronecker delta");
+    }
+    for (const auto& point : std::array<std::array<double, 2>, 7>{
+             {{0, 0}, {0.23, -0.41}, {-0.67, 0.19}, {-1.0, 0.31}, {0.2, 1.0}, {1.2, -0.7}, {-1.3, 1.4}}}) {
+        const double xi = point[0], eta = point[1];
+        DoubleQuad8ShapeValues value;
+        Quad8ShapeValues active;
+        double_quad8_shape(xi, eta, value);
+        quad8_shape(Scalar::independent(xi, 0, 2), Scalar::independent(eta, 1, 2), active);
+        const std::array<const std::array<double, 8>*, 6> ordinary = {&value.shape,
+            &value.derivative_xi,
+            &value.derivative_eta,
+            &value.second_xi,
+            &value.second_xi_eta,
+            &value.second_eta};
+        const std::array<const std::array<Scalar, 8>*, 6> automatic = {&active.shape,
+            &active.derivative_xi,
+            &active.derivative_eta,
+            &active.second_xi,
+            &active.second_xi_eta,
+            &active.second_eta};
+        for (std::size_t field = 0; field < 6; ++field) {
+            double sum = 0.0;
+            for (std::size_t i = 0; i < 8; ++i) {
+                sum += (*ordinary[field])[i];
+                check((*ordinary[field])[i] == (*automatic[field])[i].value(),
+                    "QUAD8 double and AD polynomial values are identical");
+            }
+            check(near(sum, field == 0 ? 1.0 : 0.0, 1e-13), "QUAD8 partition of unity and derivative sums hold");
+        }
+        constexpr double first_step = 1e-6, second_step = 1e-3;
+        DoubleQuad8ShapeValues xp, xm, yp, ym, xxp, xxm, yyp, yym, pp, pm, mp, mm;
+        double_quad8_shape(xi + first_step, eta, xp);
+        double_quad8_shape(xi - first_step, eta, xm);
+        double_quad8_shape(xi, eta + first_step, yp);
+        double_quad8_shape(xi, eta - first_step, ym);
+        double_quad8_shape(xi + second_step, eta, xxp);
+        double_quad8_shape(xi - second_step, eta, xxm);
+        double_quad8_shape(xi, eta + second_step, yyp);
+        double_quad8_shape(xi, eta - second_step, yym);
+        double_quad8_shape(xi + second_step, eta + second_step, pp);
+        double_quad8_shape(xi + second_step, eta - second_step, pm);
+        double_quad8_shape(xi - second_step, eta + second_step, mp);
+        double_quad8_shape(xi - second_step, eta - second_step, mm);
+        for (std::size_t i = 0; i < 8; ++i) {
+            check(near(value.derivative_xi[i], (xp.shape[i] - xm.shape[i]) / (2 * first_step), 2e-9)
+                      && near(value.derivative_eta[i], (yp.shape[i] - ym.shape[i]) / (2 * first_step), 2e-9),
+                "QUAD8 first derivatives match independent differences of shape values");
+            check(near(value.second_xi[i],
+                      (xxp.shape[i] - 2 * value.shape[i] + xxm.shape[i]) / (second_step * second_step),
+                      2e-8)
+                      && near(value.second_eta[i],
+                          (yyp.shape[i] - 2 * value.shape[i] + yym.shape[i]) / (second_step * second_step),
+                          2e-8)
+                      && near(value.second_xi_eta[i],
+                          (pp.shape[i] - pm.shape[i] - mp.shape[i] + mm.shape[i]) / (4 * second_step * second_step),
+                          2e-8),
+                "QUAD8 second derivatives match independent differences of shape values");
+            check(near(active.shape[i].derivative(0), value.derivative_xi[i], 1e-13)
+                      && near(active.shape[i].derivative(1), value.derivative_eta[i], 1e-13)
+                      && near(active.derivative_xi[i].derivative(0), value.second_xi[i], 1e-13)
+                      && near(active.derivative_xi[i].derivative(1), value.second_xi_eta[i], 1e-13)
+                      && near(active.derivative_eta[i].derivative(0), value.second_xi_eta[i], 1e-13)
+                      && near(active.derivative_eta[i].derivative(1), value.second_eta[i], 1e-13),
+                "QUAD8 AD first and second derivatives agree with explicit polynomial derivatives");
+        }
+    }
+}
+
 void axisymmetric() {
     const std::array<Scalar, 4> sum = {2.2, 0.1, 0.04, 1.9}, difference = {0.2, 0.1, 0.04, -0.1};
     const auto result = evaluate_axisymmetric_midpoint_increment(sum, difference, 2.1, 0.1);
@@ -146,5 +224,6 @@ int main() {
     central_gradient();
     hourglass();
     axisymmetric();
+    quad8_polynomials();
     return failures == 0 ? 0 : 1;
 }

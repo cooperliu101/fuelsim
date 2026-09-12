@@ -3,6 +3,7 @@
 #include "contact_common.hpp"
 #include "contact_types.hpp"
 #include "quad4_face.hpp"
+#include "quad8_shape.hpp"
 #include "quadrature_constants.hpp"
 #include <algorithm>
 #include <array>
@@ -10,9 +11,90 @@
 #include <limits>
 #include <map>
 #include <stdexcept>
+#include <type_traits>
+
+namespace fuelsim::quad8_face_detail {
+namespace {
+// Fixed QUAD8 polynomials only; no geometry, iteration or state update enters this template.
+template <typename Scalar>
+void quad8_shape_impl(const Scalar& xi,
+    const Scalar& eta,
+    std::array<Scalar, 8>& shape,
+    std::array<Scalar, 8>& derivative_xi,
+    std::array<Scalar, 8>& derivative_eta,
+    std::array<Scalar, 8>& second_xi,
+    std::array<Scalar, 8>& second_xi_eta,
+    std::array<Scalar, 8>& second_eta) {
+    static_assert(std::is_same_v<Scalar, double> || std::is_same_v<Scalar, adlite::Scalar>);
+
+    const Scalar xm = 1.0 - xi, xp = 1.0 + xi, ym = 1.0 - eta, yp = 1.0 + eta;
+    shape = {0.25 * xm * ym * (-xi - eta - 1.0),
+        0.25 * xp * ym * (xi - eta - 1.0),
+        0.25 * xp * yp * (xi + eta - 1.0),
+        0.25 * xm * yp * (-xi + eta - 1.0),
+        0.5 * (1.0 - xi * xi) * ym,
+        0.5 * xp * (1.0 - eta * eta),
+        0.5 * (1.0 - xi * xi) * yp,
+        0.5 * xm * (1.0 - eta * eta)};
+    derivative_xi = {0.25 * ym * (2.0 * xi + eta),
+        0.25 * ym * (2.0 * xi - eta),
+        0.25 * yp * (2.0 * xi + eta),
+        0.25 * yp * (2.0 * xi - eta),
+        -xi * ym,
+        0.5 * (1.0 - eta * eta),
+        -xi * yp,
+        -0.5 * (1.0 - eta * eta)};
+    derivative_eta = {0.25 * xm * (xi + 2.0 * eta),
+        0.25 * xp * (-xi + 2.0 * eta),
+        0.25 * xp * (xi + 2.0 * eta),
+        0.25 * xm * (-xi + 2.0 * eta),
+        -0.5 * (1.0 - xi * xi),
+        -xp * eta,
+        0.5 * (1.0 - xi * xi),
+        -xm * eta};
+    second_xi = {0.5 * ym, 0.5 * ym, 0.5 * yp, 0.5 * yp, -ym, 0.0, -yp, 0.0};
+    second_xi_eta = {0.25 * (1.0 - 2.0 * xi - 2.0 * eta),
+        -0.25 * (1.0 + 2.0 * xi - 2.0 * eta),
+        0.25 * (1.0 + 2.0 * xi + 2.0 * eta),
+        0.25 * (-1.0 + 2.0 * xi - 2.0 * eta),
+        xi,
+        -eta,
+        -xi,
+        eta};
+    second_eta = {0.5 * xm, 0.5 * xp, 0.5 * xp, 0.5 * xm, 0.0, -xp, 0.0, -xm};
+}
+} // namespace
+
+void quad8_shape(const adlite::Scalar& xi, const adlite::Scalar& eta, Quad8ShapeValues& result) {
+    quad8_shape_impl(xi,
+        eta,
+        result.shape,
+        result.derivative_xi,
+        result.derivative_eta,
+        result.second_xi,
+        result.second_xi_eta,
+        result.second_eta);
+}
+
+void double_quad8_shape(double xi, double eta, DoubleQuad8ShapeValues& result) {
+    quad8_shape_impl(xi,
+        eta,
+        result.shape,
+        result.derivative_xi,
+        result.derivative_eta,
+        result.second_xi,
+        result.second_xi_eta,
+        result.second_eta);
+}
+} // namespace fuelsim::quad8_face_detail
 
 namespace fuelsim {
 namespace {
+using quad8_face_detail::double_quad8_shape;
+using quad8_face_detail::DoubleQuad8ShapeValues;
+using quad8_face_detail::quad8_shape;
+using quad8_face_detail::Quad8ShapeValues;
+
 using ActivePoint3 = std::array<adlite::Scalar, 3>;
 ActivePoint3 cross(const ActivePoint3&, const ActivePoint3&);
 adlite::Scalar norm(const ActivePoint3&);
@@ -185,11 +267,6 @@ namespace {
 adlite::Scalar quad8_disk_fraction_ad(const Quad8ToQuad8HeatGeometry& geometry,
     const std::array<ActivePoint3, 16>& nodes);
 
-struct Quad8ShapeValues final {
-    std::array<adlite::Scalar, 8> shape{}, derivative_xi{}, derivative_eta{};
-    std::array<adlite::Scalar, 8> second_xi{}, second_xi_eta{}, second_eta{};
-};
-
 struct SurfaceProjection8 final {
     bool projected = false;
     bool xi_clamped = false, eta_clamped = false;
@@ -210,11 +287,6 @@ struct SurfaceBasis final {
     ActivePoint3 first{}, second{};
 };
 
-struct DoubleQuad8ShapeValues final {
-    std::array<double, 8> shape{}, derivative_xi{}, derivative_eta{};
-    std::array<double, 8> second_xi{}, second_xi_eta{}, second_eta{};
-};
-
 Quad8SurfaceContactLocalAdValues make_ad_state(const Quad8SurfaceContactLocalValues& state, bool derivatives);
 
 ActivePoint3 subtract(const ActivePoint3& first, const ActivePoint3& second) {
@@ -233,82 +305,6 @@ ActivePoint3 cross(const ActivePoint3& first, const ActivePoint3& second) {
 
 adlite::Scalar norm(const ActivePoint3& value) {
     return adlite::hypot(adlite::hypot(value[0], value[1]), value[2]);
-}
-
-void quad8_shape(const adlite::Scalar& xi, const adlite::Scalar& eta, Quad8ShapeValues& result) {
-    const adlite::Scalar xm = 1.0 - xi, xp = 1.0 + xi, ym = 1.0 - eta, yp = 1.0 + eta;
-    result.shape = {0.25 * xm * ym * (-xi - eta - 1.0),
-        0.25 * xp * ym * (xi - eta - 1.0),
-        0.25 * xp * yp * (xi + eta - 1.0),
-        0.25 * xm * yp * (-xi + eta - 1.0),
-        0.5 * (1.0 - xi * xi) * ym,
-        0.5 * xp * (1.0 - eta * eta),
-        0.5 * (1.0 - xi * xi) * yp,
-        0.5 * xm * (1.0 - eta * eta)};
-    result.derivative_xi = {0.25 * ym * (2.0 * xi + eta),
-        0.25 * ym * (2.0 * xi - eta),
-        0.25 * yp * (2.0 * xi + eta),
-        0.25 * yp * (2.0 * xi - eta),
-        -xi * ym,
-        0.5 * (1.0 - eta * eta),
-        -xi * yp,
-        -0.5 * (1.0 - eta * eta)};
-    result.derivative_eta = {0.25 * xm * (xi + 2.0 * eta),
-        0.25 * xp * (-xi + 2.0 * eta),
-        0.25 * xp * (xi + 2.0 * eta),
-        0.25 * xm * (-xi + 2.0 * eta),
-        -0.5 * (1.0 - xi * xi),
-        -xp * eta,
-        0.5 * (1.0 - xi * xi),
-        -xm * eta};
-    result.second_xi = {0.5 * ym, 0.5 * ym, 0.5 * yp, 0.5 * yp, -ym, 0.0, -yp, 0.0};
-    result.second_xi_eta = {0.25 * (1.0 - 2.0 * xi - 2.0 * eta),
-        -0.25 * (1.0 + 2.0 * xi - 2.0 * eta),
-        0.25 * (1.0 + 2.0 * xi + 2.0 * eta),
-        0.25 * (-1.0 + 2.0 * xi - 2.0 * eta),
-        xi,
-        -eta,
-        -xi,
-        eta};
-    result.second_eta = {0.5 * xm, 0.5 * xp, 0.5 * xp, 0.5 * xm, 0.0, -xp, 0.0, -xm};
-}
-
-void double_quad8_shape(double xi, double eta, DoubleQuad8ShapeValues& result) {
-    const double xm = 1.0 - xi, xp = 1.0 + xi, ym = 1.0 - eta, yp = 1.0 + eta;
-    result.shape = {0.25 * xm * ym * (-xi - eta - 1.0),
-        0.25 * xp * ym * (xi - eta - 1.0),
-        0.25 * xp * yp * (xi + eta - 1.0),
-        0.25 * xm * yp * (-xi + eta - 1.0),
-        0.5 * (1.0 - xi * xi) * ym,
-        0.5 * xp * (1.0 - eta * eta),
-        0.5 * (1.0 - xi * xi) * yp,
-        0.5 * xm * (1.0 - eta * eta)};
-    result.derivative_xi = {0.25 * ym * (2.0 * xi + eta),
-        0.25 * ym * (2.0 * xi - eta),
-        0.25 * yp * (2.0 * xi + eta),
-        0.25 * yp * (2.0 * xi - eta),
-        -xi * ym,
-        0.5 * (1.0 - eta * eta),
-        -xi * yp,
-        -0.5 * (1.0 - eta * eta)};
-    result.derivative_eta = {0.25 * xm * (xi + 2.0 * eta),
-        0.25 * xp * (-xi + 2.0 * eta),
-        0.25 * xp * (xi + 2.0 * eta),
-        0.25 * xm * (-xi + 2.0 * eta),
-        -0.5 * (1.0 - xi * xi),
-        -xp * eta,
-        0.5 * (1.0 - xi * xi),
-        -xm * eta};
-    result.second_xi = {0.5 * ym, 0.5 * ym, 0.5 * yp, 0.5 * yp, -ym, 0.0, -yp, 0.0};
-    result.second_xi_eta = {0.25 * (1.0 - 2.0 * xi - 2.0 * eta),
-        -0.25 * (1.0 + 2.0 * xi - 2.0 * eta),
-        0.25 * (1.0 + 2.0 * xi + 2.0 * eta),
-        0.25 * (-1.0 + 2.0 * xi - 2.0 * eta),
-        xi,
-        -eta,
-        -xi,
-        eta};
-    result.second_eta = {0.5 * xm, 0.5 * xp, 0.5 * xp, 0.5 * xm, 0.0, -xp, 0.0, -xm};
 }
 
 CartesianPoint3 double_interpolate(const std::array<CartesianPoint3, 8>& coordinates,
