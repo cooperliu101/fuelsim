@@ -69,7 +69,7 @@ def main():
     if len(nodes) != 160 or len(points) != 160:
         raise RuntimeError('Expected all ten frames and sixteen native nodes/material points per frame')
     groups = {name: [] for name in ('stress', 'elastic', 'inner_stress', 'outer_stress',
-                                   'mean_temperature_only', 'mean_hoop_only', 'both_averages')}
+                                   'diagnostic_old_point_temperature', 'both_averages')}
     peak = None
     error = dict.fromkeys(('gps_stress', 'abaqus_stress', 'gps_elastic', 'abaqus_elastic',
                            'difference_decomposition', 'point_temperature'), 0.0)
@@ -113,7 +113,7 @@ def main():
                 abs(field('temperature'+suffix, time, element)-temperature))
             # In this rectangle the r-weighted average of u/r equals u/r_mid.
             hoop, mean_hoop = u/radius, u/((r0+r1)/2)
-            gps_elastic = elastic(hoop, temperature)
+            gps_elastic = elastic(hoop, mean_temperature)
             abaqus_elastic = elastic(mean_hoop, mean_temperature)
             gps_stress, abaqus_stress = stress(gps_elastic), stress(abaqus_elastic)
             actual_stress = [field('stress_'+c+suffix, time, element) for c in COMPONENTS]
@@ -126,15 +126,15 @@ def main():
                                ('abaqus_elastic', native_elastic, abaqus_elastic)]:
                 error[name] = max(error[name], max(abs(v) for v in difference(a, b)))
             mechanical = stress([0.0, 0.0, hoop-mean_hoop, 0.0])
-            thermal = stress([-ALPHA*(temperature-mean_temperature)]*3 + [0.0])
+            thermal = [0.0]*4
             observed = difference(actual_stress, native_stress)
             error['difference_decomposition'] = max(error['difference_decomposition'],
                 max(abs(observed[i]-mechanical[i]-thermal[i]) for i in range(4)))
             groups['stress'].append((actual_stress, native_stress))
             groups['elastic'].append((actual_elastic, native_elastic))
             groups['inner_stress' if element % 2 else 'outer_stress'].append((actual_stress, native_stress))
-            groups['mean_temperature_only'].append((stress(elastic(hoop, mean_temperature)), native_stress))
-            groups['mean_hoop_only'].append((stress(elastic(mean_hoop, temperature)), native_stress))
+            # This reconstructs the former rule only as an algebraic diagnostic.
+            groups['diagnostic_old_point_temperature'].append((stress(elastic(hoop, temperature)), native_stress))
             groups['both_averages'].append((abaqus_stress, native_stress))
             relative = norm(observed)/norm(native_stress)
             if peak is None or relative > peak[0]:
@@ -151,12 +151,13 @@ def main():
         print(name+'_maximum_absolute_component_error=%.17g' % value)
     print('peak_relative=%.17g' % peak[0])
     print('peak_time_element_point='+','.join(str(int(v)) for v in peak[1]))
-    print('peak_gps_expansion_temperature=%.17g' % peak[2])
+    print('peak_gps_expansion_temperature=%.17g' % peak[3])
+    print('peak_gps_material_point_temperature=%.17g' % peak[2])
     print('peak_abaqus_expansion_temperature=%.17g' % peak[3])
     for name, values in zip(('gps_stress', 'abaqus_stress', 'gps_elastic', 'abaqus_elastic',
                              'mechanical_stress_difference', 'thermal_stress_difference'), peak[4:]):
         print('peak_'+name+'='+','.join('%.17g' % v for v in values))
-    print('outer_exact_relative=%.17g' % (1/math.sqrt(3)))
+    print('former_point_temperature_rule_outer_exact_relative=%.17g' % (1/math.sqrt(3)))
     print('production_results_sha256='+hashlib.sha256(args.results.read_bytes()).hexdigest())
     for name in ('gps_two_slice_contact_nodes.csv', 'gps_two_slice_contact_points.csv'):
         print(name+'_sha256='+hashlib.sha256((ROOT/name).read_bytes()).hexdigest())

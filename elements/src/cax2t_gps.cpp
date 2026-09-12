@@ -76,6 +76,7 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
     const double radial_strain = gradient[0] * state[2] + gradient[1] * state[3];
     const double axial_strain = (state[5] - state[4]) / height;
     const double axial_coordinate = geometry.z_lower + 0.5 * height;
+    const double expansion_temperature = 0.5 * state[0] + 0.5 * state[1];
     const std::array<double, 2> stations = {-gauss, gauss};
     for (std::size_t q = 0; q < stations.size(); ++q) {
         const std::array<double, 2> shape = {0.5 * (1.0 - stations[q]), 0.5 * (1.0 + stations[q])};
@@ -133,10 +134,10 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
                     for (std::size_t component = 0; component < 3; ++component)
                         measure_derivative[column] += measure * reference_chain[component][column] / stretch[component];
             if (input.committed_history) {
-                const double old_temperature = shape[0] * old[0] + shape[1] * old[1];
+                const double old_expansion_temperature = 0.5 * old[0] + 0.5 * old[1];
                 auto old_context = context;
                 old_context.time -= input.time_step;
-                const auto old_eigenstrain = input.material.eigenstrain_rz(old_temperature, old_context);
+                const auto old_eigenstrain = input.material.eigenstrain_rz(old_expansion_temperature, old_context);
                 const std::array<double, 4> imposed = {old_eigenstrain.rr.value(),
                     old_eigenstrain.zz.value(),
                     old_eigenstrain.hoop.value(),
@@ -145,6 +146,36 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
                 for (std::size_t component = 0; component < 4; ++component)
                     strain[component] += old_history.elastic_strain[component] + old_history.plastic_strain[component]
                                          + old_history.creep_strain[component] + imposed[component];
+            }
+        }
+        // The material interface retains point temperature for elastic and inelastic
+        // properties. Correct its total-strain input so that it subtracts the
+        // eigenstrain at the arithmetic mean of the two radial-node temperatures.
+        // Only temperature is seeded here; the four-strain material seed stays width five.
+        const adlite::Scalar point_temperature =
+            request.jacobian ? adlite::Scalar::independent(temperature, 0, 1) : adlite::Scalar(temperature);
+        const adlite::Scalar mean_temperature = request.jacobian
+                                                    ? adlite::Scalar::independent(expansion_temperature, 0, 1)
+                                                    : adlite::Scalar(expansion_temperature);
+        const auto point_eigen = input.material.eigenstrain_rz(point_temperature, context);
+        const auto mean_eigen = input.material.eigenstrain_rz(mean_temperature, context);
+        const std::array<adlite::Scalar, 4> point_imposed = {point_eigen.rr,
+            point_eigen.zz,
+            point_eigen.hoop,
+            point_eigen.rz};
+        const std::array<adlite::Scalar, 4> mean_imposed = {mean_eigen.rr,
+            mean_eigen.zz,
+            mean_eigen.hoop,
+            mean_eigen.rz};
+        for (std::size_t component = 0; component < 4; ++component) {
+            strain[component] += point_imposed[component].value() - mean_imposed[component].value();
+            if (request.jacobian) {
+                const double point_derivative =
+                    point_imposed[component].derivative_size() == 0 ? 0.0 : point_imposed[component].derivative(0);
+                const double mean_derivative =
+                    mean_imposed[component].derivative_size() == 0 ? 0.0 : mean_imposed[component].derivative(0);
+                for (std::size_t column = 0; column < 2; ++column)
+                    strain_chain[component][column] += point_derivative * shape[column] - 0.5 * mean_derivative;
             }
         }
         const auto response = evaluate_axisymmetric_material_response(input.material,
@@ -159,13 +190,8 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
             result.history[q] = response.history;
             result.history[q].stress = response.stress;
             if (!input.committed_history) {
-                const auto eigenstrain = input.material.eigenstrain_rz(temperature, context);
-                const std::array<double, 4> imposed = {eigenstrain.rr.value(),
-                    eigenstrain.zz.value(),
-                    eigenstrain.hoop.value(),
-                    eigenstrain.rz.value()};
                 for (std::size_t component = 0; component < 4; ++component)
-                    result.history[q].elastic_strain[component] = strain[component] - imposed[component];
+                    result.history[q].elastic_strain[component] = strain[component] - point_imposed[component].value();
             }
         }
         if (request.stress)

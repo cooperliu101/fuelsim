@@ -157,13 +157,100 @@ void check_thermal_operators() {
 
     const Cax2tGpsLocalValues nonuniform{610.0, 650.0, 0.0, 0.0, 0.0, 0.0};
     const auto varying = evaluate_cax2t_gps({material, geometry, nonuniform, initial}, {true, true, false, true});
-    const double gauss = 1.0 / std::sqrt(3.0);
-    const std::array<double, 2> temperatures = {630.0 - 20.0 * gauss, 630.0 + 20.0 * gauss};
-    for (std::size_t q = 0; q < temperatures.size(); ++q) {
-        const double stress = -young * expansion * (temperatures[q] - 600.0) / (1.0 - 2.0 * poisson);
-        require(error(varying.stress[q].zz, stress) < 1e-13,
-            "Thermal expansion must use each radial integration-point temperature");
+    const double stress = -young * expansion * 30.0 / (1.0 - 2.0 * poisson);
+    for (const auto& point : varying.stress) {
+        require(error(point.zz, stress) < 1e-13,
+            "Thermal expansion must use the arithmetic mean of the two radial nodal temperatures");
     }
+}
+
+void check_mean_thermal_expansion(StrainFormulation formulation) {
+    const auto geometry = make_cax2t_gps_geometry({1.0, 2.0}, 0.0, 2.0);
+    const Cax2tGpsLocalValues initial{600.0, 600.0, 0.0, 0.0, 0.0, 0.0};
+    const Cax2tGpsLocalValues first{610.0, 630.0, 0.0, 0.0, 0.0, 0.0};
+    const Cax2tGpsLocalValues state{620.0, 700.0, 0.0, 0.0, 0.0, 0.0};
+    const Cax2tGpsMaterialHistory initial_history{};
+    double maximum_error = 0.0;
+    for (const bool temperature_dependent : {false, true}) {
+        const auto material = make_material(false, temperature_dependent);
+        const auto first_history =
+            evaluate_cax2t_gps({material, geometry, first, initial, &initial_history, 0.1, 0.1, 0.0, formulation})
+                .history;
+        const Cax2tGpsInput input{material, geometry, state, first, &first_history, 0.1, 0.2, 0.0, formulation};
+        const auto response = evaluate_cax2t_gps(input, {true, true, true, true});
+        const auto steady =
+            evaluate_cax2t_gps({material, geometry, state, initial, nullptr, 0.0, 0.2, 0.0, formulation},
+                {true, true, true, true});
+        auto redistributed = state;
+        redistributed[0] += 12.0;
+        redistributed[1] -= 12.0;
+        const auto same_mean =
+            evaluate_cax2t_gps({material, geometry, redistributed, first, &first_history, 0.1, 0.2, 0.0, formulation},
+                {true, true, true, true});
+        const double mean_change = 60.0;
+        const double eigenstrain = (expansion + (temperature_dependent ? 3.0e-9 * mean_change : 0.0)) * mean_change;
+        const double gauss = 1.0 / std::sqrt(3.0);
+        for (std::size_t q = 0; q < response.stress.size(); ++q) {
+            const double station = q == 0 ? -gauss : gauss;
+            for (const bool perturb_mean_preserving : {false, true}) {
+                const auto& checked = perturb_mean_preserving ? same_mean : response;
+                const double point_change = mean_change + (perturb_mean_preserving ? 28.0 : 40.0) * station;
+                const double modulus = young + (temperature_dependent ? -8.0e7 * point_change : 0.0);
+                const double ratio = poisson + (temperature_dependent ? 2.0e-5 * point_change : 0.0);
+                const double expected = -modulus * eigenstrain / (1.0 - 2.0 * ratio);
+                const auto& stress = checked.stress[q];
+                require(error(stress.rr, expected) < 1e-13 && error(stress.zz, expected) < 1e-13
+                            && error(stress.hoop, expected) < 1e-13 && stress.rz == 0.0,
+                    "Mean thermal expansion must coexist with integration-point elastic properties");
+                for (std::size_t component = 0; component < 3; ++component)
+                    require(std::abs(checked.history[q].elastic_strain[component] + eigenstrain) < 1e-15,
+                        "Nonuniform temperatures with the same arithmetic mean must give the same thermal strain");
+            }
+            require(error(steady.stress[q].rr, response.stress[q].rr) < 1e-13
+                        && error(steady.stress[q].zz, response.stress[q].zz) < 1e-13
+                        && error(steady.stress[q].hoop, response.stress[q].hoop) < 1e-13,
+                "Current and committed mean temperatures must recover the same constrained elastic stress as steady "
+                "loading");
+            for (std::size_t component = 0; component < 3; ++component)
+                require(std::abs(steady.history[q].elastic_strain[component] + eigenstrain) < 1e-15,
+                    "Steady elastic history must remove the mean-temperature eigenstrain");
+        }
+        if (temperature_dependent) {
+            require(std::abs(response.stress[0].rr - response.stress[1].rr) > 1.0e6,
+                "A mean temperature for expansion must not replace the local temperature for elasticity");
+        } else {
+            for (std::size_t row = 2; row < state.size(); ++row) {
+                require(error(response.residual[row], same_mean.residual[row]) < 1e-14,
+                    "A mean-preserving temperature redistribution must leave constant-material mechanical forces "
+                    "unchanged");
+                require(error(response.jacobian[6 * row], response.jacobian[6 * row + 1]) < 1e-14,
+                    "The mean thermal strain must contribute equal derivatives from both radial nodal temperatures");
+            }
+        }
+        const std::array<std::array<double, 2>, 3> directions = {{{1.0, 0.0}, {0.0, 1.0}, {1.0, -1.0}}};
+        for (const auto& direction : directions) {
+            constexpr double step = 1.0e-3;
+            auto plus = state, minus = state;
+            for (std::size_t column = 0; column < 2; ++column) {
+                plus[column] += step * direction[column];
+                minus[column] -= step * direction[column];
+            }
+            const auto rp =
+                evaluate_cax2t_gps({material, geometry, plus, first, &first_history, 0.1, 0.2, 0.0, formulation});
+            const auto rm =
+                evaluate_cax2t_gps({material, geometry, minus, first, &first_history, 0.1, 0.2, 0.0, formulation});
+            for (std::size_t row = 0; row < state.size(); ++row) {
+                const double tangent =
+                    response.jacobian[6 * row] * direction[0] + response.jacobian[6 * row + 1] * direction[1];
+                maximum_error =
+                    std::max(maximum_error, error(tangent, (rp.residual[row] - rm.residual[row]) / (2.0 * step)));
+            }
+        }
+    }
+    require(maximum_error < 2e-7,
+        "Mean expansion and local elastic/thermal property derivatives must match independent centered differences");
+    std::cout << "cax2t_gps_" << (formulation == StrainFormulation::finite ? "finite" : "small")
+              << "_mean_temperature_jacobian_error=" << maximum_error << '\n';
 }
 
 void check_nonlinear_transaction(StrainFormulation formulation) {
@@ -423,6 +510,8 @@ int main() {
         std::cout << std::scientific << std::setprecision(12);
         check_analytic_mechanics();
         check_thermal_operators();
+        check_mean_thermal_expansion(StrainFormulation::small);
+        check_mean_thermal_expansion(StrainFormulation::finite);
         check_nonlinear_transaction(StrainFormulation::small);
         check_nonlinear_transaction(StrainFormulation::finite);
         check_finite_mechanics_and_thermal_history();

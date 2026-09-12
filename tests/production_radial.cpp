@@ -563,7 +563,9 @@ bool contact_small(const std::string& output, const std::string& summary, const 
     FieldErrorMetrics normal_force, tangent_force, heat_reaction, zero_mechanism, native_force_balance;
     FieldErrorMetrics body_axial_reaction, production_axial_force_balance;
     FieldErrorMetrics prescribed_zero_displacement, midpoint_displacement;
+    FieldErrorMetrics outer_zero_stress_shear, outer_zero_elastic_shear;
     GroupedFieldErrorMetrics displacement, diagnostic_stress, diagnostic_elastic;
+    GroupedFieldErrorMetrics outer_stress, outer_elastic, diagnostic_inner_stress, diagnostic_inner_elastic;
     std::size_t positive_sliding = 0, negative_sliding = 0, sticking = 0, opening = 0;
     for (std::size_t step = 1; step < frames.size(); ++step) {
         const auto& frame = frames[step];
@@ -614,6 +616,22 @@ bool contact_small(const std::string& output, const std::string& summary, const 
             const std::size_t element = source_element[point / 4];
             add_tensor(diagnostic_stress, frame, reference, "stress", point % 2, element);
             add_tensor(diagnostic_elastic, frame, reference, "elastic", point % 2, element);
+            // Native elements 2 and 4 are the fully constrained outer bodies.
+            // Their zero mechanical strain removes the CAX4T hoop-averaging
+            // difference, so average-temperature expansion can be qualified
+            // against every native material point in both slices and all steps.
+            if ((point / 4) % 2 == 1) {
+                add_tensor(outer_stress, frame, reference, "stress", point % 2, element);
+                add_tensor(outer_elastic, frame, reference, "elastic", point % 2, element);
+                const std::string suffix = "_q" + std::to_string(point % 2);
+                outer_zero_stress_shear.add(frame.element("stress_rz" + suffix).at(element),
+                    constrained_zero(reference.at("stress_rz"), 1e-4));
+                outer_zero_elastic_shear.add(frame.element("elastic_rz" + suffix).at(element),
+                    constrained_zero(reference.at("elastic_rz"), 1e-13));
+            } else {
+                add_tensor(diagnostic_inner_stress, frame, reference, "stress", point % 2, element);
+                add_tensor(diagnostic_inner_elastic, frame, reference, "elastic", point % 2, element);
+            }
         }
         double total_reference_tangent = 0.0;
         for (std::size_t layer = 0; layer < 2; ++layer) {
@@ -710,6 +728,10 @@ bool contact_small(const std::string& output, const std::string& summary, const 
     }
     if (positive_sliding != 8 || negative_sliding != 4 || sticking != 20 || opening != 8)
         throw std::runtime_error("Required sticking, reverse sliding, opening and recontact samples are missing");
+    if (outer_stress.group_count != 80 || outer_elastic.group_count != 80 || diagnostic_inner_stress.group_count != 80
+        || diagnostic_inner_elastic.group_count != 80 || diagnostic_stress.group_count != 160
+        || diagnostic_elastic.group_count != 160)
+        throw std::runtime_error("Contact body comparison must retain every native material point in all ten steps");
     bool passed = true;
     passed = check("temperature", temperature, 1e-11) && passed;
     passed = check("prescribed_displacement", displacement, 1e-13) && passed;
@@ -730,12 +752,20 @@ bool contact_small(const std::string& output, const std::string& summary, const 
     passed = check("production_body_axial_reaction", body_axial_reaction, 1e-8) && passed;
     passed = check("production_axial_force_conservation", production_axial_force_balance, 1e-8) && passed;
     passed = check("inactive_inelastic_history", zero_mechanism, 1e-13) && passed;
+    passed = check("constrained_outer_body_stress", outer_stress, 1e-4) && passed;
+    passed = check("constrained_outer_body_elastic_strain", outer_elastic, 1e-13) && passed;
+    passed = check("constrained_outer_body_zero_stress_shear", outer_zero_stress_shear, 1e-4) && passed;
+    passed = check("constrained_outer_body_zero_elastic_shear", outer_zero_elastic_shear, 1e-13) && passed;
     fuelsim::test::print_grouped_relative_metrics("diagnostic_body_stress", diagnostic_stress);
     fuelsim::test::print_grouped_relative_metrics("diagnostic_body_elastic_strain", diagnostic_elastic);
-    std::cout << "positive_sliding_samples=" << positive_sliding << "\nnegative_sliding_samples=" << negative_sliding
-              << "\nsticking_samples=" << sticking << "\nopen_samples=" << opening
-              << "\nqualification_scope=prescribed_motion_contact_and_thermal_operators\n"
-              << "radial_gps_contact_abaqus_qualification=" << (passed ? "passed" : "failed") << '\n';
+    fuelsim::test::print_grouped_relative_metrics("diagnostic_inner_body_stress", diagnostic_inner_stress);
+    fuelsim::test::print_grouped_relative_metrics("diagnostic_inner_body_elastic_strain", diagnostic_inner_elastic);
+    std::cout
+        << "positive_sliding_samples=" << positive_sliding << "\nnegative_sliding_samples=" << negative_sliding
+        << "\nsticking_samples=" << sticking << "\nopen_samples=" << opening
+        << "\nqualification_scope=prescribed_motion_contact_and_thermal_operators_and_constrained_outer_body_fields\n"
+        << "inner_body_field_scope=diagnostic_cax4t_hoop_averaging_difference\n"
+        << "radial_gps_contact_abaqus_qualification=" << (passed ? "passed" : "failed") << '\n';
     return passed;
 }
 } // namespace

@@ -1,4 +1,8 @@
-# 两切片接触算例的体应力差异原因
+# 两切片接触算例的体应力差异原因（修改前记录）
+
+本文记录提交 `6e7f6dc` 时的积分点膨胀温度规则。随后按用户要求，CAX2T_GPS
+已经改为两个径向节点的算术平均膨胀温度；当前行为和验收见
+[平均温度更新记录](mean_temperature_update.md)。以下旧指标不代表当前程序。
 
 2026-09-12，重新运行原始 `fuelsim_gps_contact_abaqus` 生产测试，并从未修改的
 Fuelsim Exodus 与已追踪的 Abaqus 节点、材料点 CSV 重建全部十步、四单元、
@@ -118,7 +122,8 @@ delta_sigma_rr = delta_sigma_zz = lambda*d_hoop - 25000*d_T
 保证最大逐点相对误差降到 0.1%：对冷边界恰为无应力参考温度的完全约束单元，
 最后一个单元的上述温度比仍为 `1/sqrt(3)`，即使绝对应力差随网格加密减小。
 
-复现时先运行实际生产测试，再执行仅读取结果的 Python 脚本（需要 netCDF4 用于
+复现本历史记录需使用提交 `6e7f6dc` 的代码和诊断脚本。当前分支的同名脚本已
+改为重建平均膨胀温度规则。历史版本先运行实际生产测试，再执行仅读取结果的 Python 脚本（需要 netCDF4 用于
 Exodus 文件读取，不作为生产程序依赖）：
 
 ```bash
@@ -127,5 +132,5 @@ python verification/abaqus/gps_1d/analyze_contact_stress.py \
   build/blackbox/fuelsim_gps_contact_abaqus/verification/fuelsim/transient_gps_contact_small_results.e
 ```
 
-逐项数值及输入结果文件的 SHA256 见 [contact_stress_diagnosis.txt](contact_stress_diagnosis.txt)。
+逐项数值及输入结果文件的 SHA256 见 [contact_stress_diagnosis_before_mean.txt](contact_stress_diagnosis_before_mean.txt)。
 这些资料属于手动诊断，不添加重复自动测试，不改变现有验收门槛。
