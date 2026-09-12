@@ -1675,6 +1675,7 @@ std::vector<std::vector<double>> radial_elements(const radial::SpatialAssembly& 
             const double u1 =
                 state.at(spatial.dof(Field::radial_displacement, spatial.radial_node(connectivity.nodes[1])));
             const double radial_stretch = 1.0 + (u1 - u0) / (geometry.radii[1] - geometry.radii[0]);
+            const double mean_hoop_stretch = 1.0 + (u0 + u1) / (geometry.radii[0] + geometry.radii[1]);
             const double axial_strain = (state.at(spatial.axial_dof(connectivity.axial_nodes[1]))
                                             - state.at(spatial.axial_dof(connectivity.axial_nodes[0])))
                                         / height;
@@ -1718,7 +1719,7 @@ std::vector<std::vector<double>> radial_elements(const radial::SpatialAssembly& 
                 values[field++][source] = point.equivalent_plastic_strain;
                 values[field++][source] = point.equivalent_creep_strain;
                 const double area_ratio = spatial.region(region).strain_formulation == StrainFormulation::finite
-                                              ? radial_stretch * (radius + shape[0] * u0 + shape[1] * u1) / radius
+                                              ? radial_stretch * mean_hoop_stretch
                                               : 1.0;
                 values[3][source] += point.stress.zz * measure / height * area_ratio;
             }

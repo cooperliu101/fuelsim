@@ -1,4 +1,5 @@
 #include "cax2t_gps.hpp"
+#include "cax4t.hpp"
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
@@ -253,11 +254,267 @@ void check_mean_thermal_expansion(StrainFormulation formulation) {
               << "_mean_temperature_jacobian_error=" << maximum_error << '\n';
 }
 
+double small_mean_hoop_energy(const Cax2tGpsLocalValues& state) {
+    // Integrate the constant assumed strain over the independently known annulus.
+    const double thermal = expansion * (0.5 * (state[0] + state[1]) - 600.0);
+    const std::array<double, 3> elastic = {state[3] - state[2] - thermal,
+        0.5 * (state[5] - state[4]) - thermal,
+        (state[2] + state[3]) / 3.0 - thermal};
+    const double trace = elastic[0] + elastic[1] + elastic[2];
+    const double lambda = young * poisson / ((1.0 + poisson) * (1.0 - 2.0 * poisson));
+    const double shear = young / (2.0 * (1.0 + poisson));
+    return 6.0 * pi
+           * (0.5 * lambda * trace * trace
+               + shear * (elastic[0] * elastic[0] + elastic[1] * elastic[1] + elastic[2] * elastic[2]));
+}
+
+void check_small_mean_hoop_mechanics() {
+    const auto material = make_material();
+    const auto geometry = make_cax2t_gps_geometry({1.0, 2.0}, 0.0, 2.0);
+    const Cax2tGpsLocalValues initial{600.0, 600.0, 0.0, 0.0, 0.0, 0.0};
+    const Cax2tGpsLocalValues state{620.0, 700.0, 0.003, 0.008, 0.002, 0.014};
+    const auto response = evaluate_cax2t_gps({material, geometry, state, initial}, {true, true, true, true});
+    const auto passive = evaluate_cax2t_gps({material, geometry, state, initial});
+    require(response.residual == passive.residual && same_history(response.history, passive.history),
+        "Small mean-hoop mechanics must preserve residual-only and tangent-call agreement");
+    const double thermal = expansion * 60.0;
+    const std::array<double, 3> elastic = {0.005 - thermal, 0.006 - thermal, 0.011 / 3.0 - thermal};
+    const double lambda = young * poisson / ((1.0 + poisson) * (1.0 - 2.0 * poisson));
+    const double shear = young / (2.0 * (1.0 + poisson));
+    const double pressure = lambda * (elastic[0] + elastic[1] + elastic[2]);
+    const std::array<double, 3> stress = {pressure + 2.0 * shear * elastic[0],
+        pressure + 2.0 * shear * elastic[1],
+        pressure + 2.0 * shear * elastic[2]};
+    const std::array<double, 4> force = {6.0 * pi * (-stress[0] + stress[2] / 3.0),
+        6.0 * pi * (stress[0] + stress[2] / 3.0),
+        -3.0 * pi * stress[1],
+        3.0 * pi * stress[1]};
+    double integrated_energy = 0.0;
+    for (std::size_t q = 0; q < response.stress.size(); ++q) {
+        const auto& actual = response.stress[q];
+        require(error(actual.rr, stress[0]) < 1e-13 && error(actual.zz, stress[1]) < 1e-13
+                    && error(actual.hoop, stress[2]) < 1e-13 && actual.rz == 0.0,
+            "Nonuniform radial motion must use one volume-averaged hoop strain at both material points");
+        for (std::size_t component = 0; component < elastic.size(); ++component)
+            require(std::abs(response.history[q].elastic_strain[component] - elastic[component]) < 1e-15,
+                "Material history must contain the assumed hoop strain, not an averaged output stress");
+        integrated_energy += 1.5 * pi * (actual.rr * elastic[0] + actual.zz * elastic[1] + actual.hoop * elastic[2]);
+    }
+    require(error(integrated_energy, small_mean_hoop_energy(state)) < 1e-13,
+        "Assumed-strain elastic energy must not retain the pointwise hoop-strain variance energy");
+    for (std::size_t row = 2; row < state.size(); ++row) {
+        require(error(response.residual[row], force[row - 2]) < 1e-13,
+            "Both radial reactions and axial end forces must follow the assumed-strain virtual work");
+        auto plus = state, minus = state;
+        constexpr double step = 1e-7;
+        plus[row] += step;
+        minus[row] -= step;
+        const double energy_derivative = (small_mean_hoop_energy(plus) - small_mean_hoop_energy(minus)) / (2.0 * step);
+        require(error(response.residual[row], energy_derivative) < 2e-9,
+            "Every mechanical reaction must equal an independent energy derivative at fixed nodal temperature");
+        for (std::size_t column = 2; column < state.size(); ++column)
+            require(error(response.jacobian[6 * row + column], response.jacobian[6 * column + row]) < 1e-14,
+                "The elastic small-strain mechanical tangent must remain symmetric");
+    }
+    double maximum_error = 0.0;
+    for (std::size_t column = 0; column < state.size(); ++column) {
+        const double step = column < 2 ? 1e-3 : 1e-7;
+        auto plus = state, minus = state;
+        plus[column] += step;
+        minus[column] -= step;
+        const auto rp = evaluate_cax2t_gps({material, geometry, plus, initial});
+        const auto rm = evaluate_cax2t_gps({material, geometry, minus, initial});
+        for (std::size_t row = 0; row < state.size(); ++row)
+            maximum_error = std::max(maximum_error,
+                error(response.jacobian[6 * row + column], (rp.residual[row] - rm.residual[row]) / (2.0 * step)));
+    }
+    require(maximum_error < 2e-7,
+        "Every small-strain tangent column must differentiate the averaged hoop strain and virtual work");
+    std::cout << "cax2t_gps_small_mean_hoop_jacobian_error=" << maximum_error << '\n';
+}
+
+void check_finite_mean_hoop_history_and_geometry() {
+    const auto geometry = make_cax2t_gps_geometry({1.0, 2.0}, 0.0, 2.0);
+    const Cax2tGpsLocalValues initial{600.0, 600.0, 0.0, 0.0, 0.0, 0.0};
+    const Cax2tGpsLocalValues first{620.0, 660.0, 0.1, 0.15, 0.02, 0.10};
+    const Cax2tGpsLocalValues state{650.0, 730.0, 0.2, 0.27, 0.04, 0.22};
+    const Cax2tGpsMaterialHistory initial_history{};
+    const std::array<double, 3> first_stretch = {1.05, 1.04, 1.0 + 0.25 / 3.0};
+    const std::array<double, 3> current_stretch = {1.07, 1.09, 1.0 + 0.47 / 3.0};
+    double maximum_error = 0.0;
+    for (const bool temperature_dependent : {false, true}) {
+        const auto material = make_material(false, temperature_dependent);
+        const auto first_response = evaluate_cax2t_gps(
+            {material, geometry, first, initial, &initial_history, 0.1, 0.1, 0.0, StrainFormulation::finite},
+            {true, true, true, true});
+        const auto history = first_response.history;
+        const auto saved_history = history;
+        const Cax2tGpsInput
+            input{material, geometry, state, first, &history, 0.1, 0.2, 2.0e6, StrainFormulation::finite, true};
+        const auto response = evaluate_cax2t_gps(input, {true, true, true, true});
+        const auto passive = evaluate_cax2t_gps(input);
+        require(response.residual == passive.residual && same_history(response.history, passive.history),
+            "Nonuniform finite hoop averaging must preserve exact residual-only and tangent-call agreement");
+        Cax2tGpsLocalResidual expected{};
+        double stored = 0.0, generated = 0.0, wrong_mechanical_force = 0.0, wrong_thermal_residual = 0.0;
+        for (std::size_t q = 0; q < response.stress.size(); ++q) {
+            const double station = (q == 0 ? -1.0 : 1.0) / std::sqrt(3.0);
+            const std::array<double, 2> shape = {0.5 * (1.0 - station), 0.5 * (1.0 + station)};
+            const double reference_radius = 1.5 + 0.5 * station;
+            const double point_change = 90.0 + 40.0 * station;
+            const double point_temperature = 600.0 + point_change;
+            const double modulus = young + (temperature_dependent ? -8.0e7 * point_change : 0.0);
+            const double ratio = poisson + (temperature_dependent ? 2.0e-5 * point_change : 0.0);
+            const double thermal = (expansion + (temperature_dependent ? 3.0e-9 * 90.0 : 0.0)) * 90.0;
+            const double old_thermal = (expansion + (temperature_dependent ? 3.0e-9 * 40.0 : 0.0)) * 40.0;
+            std::array<double, 3> elastic{};
+            for (std::size_t component = 0; component < elastic.size(); ++component) {
+                const double first_increment =
+                    2.0 * (first_stretch[component] - 1.0) / (first_stretch[component] + 1.0);
+                elastic[component] = first_increment
+                                     + 2.0 * (current_stretch[component] - first_stretch[component])
+                                           / (current_stretch[component] + first_stretch[component])
+                                     - thermal;
+                require(std::abs(history[q].elastic_strain[component] - (first_increment - old_thermal)) < 1e-14
+                            && std::abs(response.history[q].elastic_strain[component] - elastic[component]) < 1e-14,
+                    "Two accepted nonuniform finite increments must accumulate midpoint increments of mean hoop "
+                    "stretch");
+            }
+            const double lambda = modulus * ratio / ((1.0 + ratio) * (1.0 - 2.0 * ratio));
+            const double shear = modulus / (2.0 * (1.0 + ratio));
+            const double pressure = lambda * (elastic[0] + elastic[1] + elastic[2]);
+            const std::array<double, 3> stress = {pressure + 2.0 * shear * elastic[0],
+                pressure + 2.0 * shear * elastic[1],
+                pressure + 2.0 * shear * elastic[2]};
+            require(error(response.stress[q].rr, stress[0]) < 1e-13 && error(response.stress[q].zz, stress[1]) < 1e-13
+                        && error(response.stress[q].hoop, stress[2]) < 1e-13 && response.stress[q].rz == 0.0,
+                "Finite mean hoop stretch must coexist with point-temperature elastic properties and mean expansion");
+            const double mechanical_measure =
+                2.0 * pi * reference_radius * current_stretch[0] * current_stretch[1] * current_stretch[2];
+            // Thermal integration uses the actual deformed annulus at each Gauss point.
+            const double current_radius = shape[0] * 1.2 + shape[1] * 2.27;
+            const double thermal_measure = pi * current_radius * (2.27 - 1.2) * (2.22 - 0.04);
+            const double conductivity = temperature_dependent ? 3.0 + 120.0 / point_temperature : 5.0;
+            const double density = temperature_dependent ? 1000.0 + 10.0 * reference_radius + 20.0 + 0.2 : 1000.0;
+            const double heat_capacity = density * (temperature_dependent ? 500.0 + 0.1 * point_change : 500.0);
+            const double storage = heat_capacity * (50.0 + 20.0 * station) / 0.1;
+            stored += thermal_measure * storage;
+            generated += thermal_measure * 2.0e6;
+            for (std::size_t node = 0; node < 2; ++node) {
+                const double radial_gradient = (node == 0 ? -1.0 : 1.0) / (2.27 - 1.2);
+                const double force_density = radial_gradient * stress[0] + stress[2] / (1.2 + 2.27);
+                expected[2 + node] += mechanical_measure * force_density;
+                expected[4 + node] += mechanical_measure * (node == 0 ? -1.0 : 1.0) * stress[1] / (2.22 - 0.04);
+                const double heat_density =
+                    conductivity * radial_gradient * (730.0 - 650.0) / (2.27 - 1.2) + shape[node] * (storage - 2.0e6);
+                expected[node] += thermal_measure * heat_density;
+                if (node == 0) {
+                    wrong_mechanical_force += thermal_measure * force_density;
+                    wrong_thermal_residual += mechanical_measure * heat_density;
+                }
+            }
+        }
+        for (std::size_t row = 0; row < state.size(); ++row)
+            require(error(response.residual[row], expected[row]) < 1e-13,
+                "Finite forces must use averaged mechanical measure while thermal operators retain the actual point "
+                "volume");
+        require(error(response.stored_heat_rate, stored) < 1e-13
+                    && error(response.generated_heat_rate, generated) < 1e-13,
+            "Finite mean hoop mechanics must preserve actual current-volume heat storage and source diagnostics");
+        require(std::abs(expected[0] - wrong_thermal_residual) > 1e6,
+            "The thermal geometry regression must distinguish actual point volumes from averaged mechanical weights");
+        if (temperature_dependent)
+            require(std::abs(expected[2] - wrong_mechanical_force) > 1e6,
+                "Point-dependent elasticity must distinguish averaged mechanical measure from thermal point volumes");
+        for (std::size_t column = 0; column < state.size(); ++column) {
+            const double step = column < 2 ? 1e-3 : 1e-6;
+            auto plus = state, minus = state;
+            plus[column] += step;
+            minus[column] -= step;
+            const auto rp = evaluate_cax2t_gps(
+                {material, geometry, plus, first, &history, 0.1, 0.2, 2.0e6, StrainFormulation::finite, true});
+            const auto rm = evaluate_cax2t_gps(
+                {material, geometry, minus, first, &history, 0.1, 0.2, 2.0e6, StrainFormulation::finite, true});
+            for (std::size_t row = 0; row < state.size(); ++row)
+                maximum_error = std::max(maximum_error,
+                    error(response.jacobian[6 * row + column], (rp.residual[row] - rm.residual[row]) / (2.0 * step)));
+        }
+        require(same_history(history, saved_history),
+            "All finite mean-hoop trial evaluations must leave the accepted material histories unchanged");
+    }
+    require(maximum_error < 2e-7,
+        "Every finite tangent column must differentiate mean hoop mechanics and actual thermal geometry consistently");
+    std::cout << "cax2t_gps_finite_mean_hoop_jacobian_error=" << maximum_error << '\n';
+}
+
+void check_cax4t_mechanical_projection(StrainFormulation formulation) {
+    const auto material = make_material(false, true);
+    const auto radial_geometry = make_cax2t_gps_geometry({1.0, 2.0}, 0.0, 2.0);
+    const auto quad_geometry = make_cax4t_geometry({{{1.0, 0.0}, {2.0, 0.0}, {2.0, 2.0}, {1.0, 2.0}}});
+    const Cax2tGpsLocalValues initial{600.0, 600.0, 0.0, 0.0, 0.0, 0.0};
+    const Cax2tGpsLocalValues first{620.0, 660.0, 0.1, 0.15, 0.02, 0.10};
+    const Cax2tGpsLocalValues state{650.0, 730.0, 0.2, 0.27, 0.04, 0.22};
+    // P expands the six radial/end-section values into the twelve rectangular CAX4T values.
+    const std::array<std::size_t, 12> radial_dof = {0, 1, 1, 0, 2, 3, 3, 2, 4, 4, 5, 5};
+    const std::array<std::size_t, 4> radial_point = {0, 1, 1, 0};
+    Cax4LocalValues quad_initial{}, quad_first{}, quad_state{};
+    for (std::size_t i = 0; i < radial_dof.size(); ++i) {
+        quad_initial[i] = initial[radial_dof[i]];
+        quad_first[i] = first[radial_dof[i]];
+        quad_state[i] = state[radial_dof[i]];
+    }
+    const Cax2tGpsMaterialHistory radial_initial_history{};
+    const Quad4MaterialHistory quad_initial_history{};
+    const auto radial_history = evaluate_cax2t_gps(
+        {material, radial_geometry, first, initial, &radial_initial_history, 0.1, 0.1, 0.0, formulation})
+                                    .history;
+    const auto quad_history = evaluate_cax4t(
+        {material, quad_geometry, quad_first, quad_initial, &quad_initial_history, 0.1, 0.1, 0.0, formulation})
+                                  .history;
+    const auto radial =
+        evaluate_cax2t_gps({material, radial_geometry, state, first, &radial_history, 0.1, 0.2, 0.0, formulation},
+            {true, true, true, true});
+    const auto quad =
+        evaluate_cax4t({material, quad_geometry, quad_state, quad_first, &quad_history, 0.1, 0.2, 0.0, formulation},
+            {true, true, true, true});
+    Cax2tGpsLocalResidual projected_force{};
+    Cax2tGpsLocalJacobian projected_tangent{};
+    for (std::size_t row = 4; row < radial_dof.size(); ++row) {
+        projected_force[radial_dof[row]] += quad.residual[row];
+        for (std::size_t column = 0; column < radial_dof.size(); ++column)
+            projected_tangent[6 * radial_dof[row] + radial_dof[column]] += quad.jacobian[12 * row + column];
+    }
+    double maximum_error = 0.0;
+    for (std::size_t q = 0; q < radial_point.size(); ++q) {
+        const auto& actual = radial.stress[radial_point[q]];
+        const auto& expected = quad.stress[q];
+        maximum_error = std::max({maximum_error,
+            error(actual.rr, expected.rr),
+            error(actual.zz, expected.zz),
+            error(actual.hoop, expected.hoop)});
+        for (std::size_t component = 0; component < 4; ++component)
+            require(std::abs(radial.history[radial_point[q]].elastic_strain[component]
+                             - quad.history[q].elastic_strain[component])
+                        < 1e-14,
+                "Reduced rectangular CAX4T and radial elements must accumulate the same material strain history");
+    }
+    for (std::size_t row = 2; row < state.size(); ++row) {
+        maximum_error = std::max(maximum_error, error(radial.residual[row], projected_force[row]));
+        for (std::size_t column = 0; column < state.size(); ++column)
+            maximum_error =
+                std::max(maximum_error, error(radial.jacobian[6 * row + column], projected_tangent[6 * row + column]));
+    }
+    require(maximum_error < 2e-11,
+        "Nonuniform CAX4T mechanical force and all tangent columns must reduce to the radial assumed-strain element");
+    std::cout << "cax2t_gps_" << (formulation == StrainFormulation::finite ? "finite" : "small")
+              << "_cax4t_mechanical_projection_error=" << maximum_error << '\n';
+}
+
 void check_nonlinear_transaction(StrainFormulation formulation) {
     const auto material = make_material(true, true);
     const auto geometry = make_cax2t_gps_geometry({1.0, 2.0}, 0.5, 2.0);
     const Cax2tGpsLocalValues initial{600.0, 600.0, 0.0, 0.0, 0.0, 0.0};
-    const Cax2tGpsLocalValues old{610.0, 630.0, 0.001, 0.002, 0.0, 0.0005};
+    const Cax2tGpsLocalValues old{610.0, 630.0, 0.0015, 0.002, 0.0, 0.0005};
     const Cax2tGpsLocalValues state{640.0, 680.0, 0.002, 0.006, 0.001, 0.015};
     const Cax2tGpsMaterialHistory initial_history{};
     const auto history =
@@ -512,6 +769,10 @@ int main() {
         check_thermal_operators();
         check_mean_thermal_expansion(StrainFormulation::small);
         check_mean_thermal_expansion(StrainFormulation::finite);
+        check_small_mean_hoop_mechanics();
+        check_finite_mean_hoop_history_and_geometry();
+        check_cax4t_mechanical_projection(StrainFormulation::small);
+        check_cax4t_mechanical_projection(StrainFormulation::finite);
         check_nonlinear_transaction(StrainFormulation::small);
         check_nonlinear_transaction(StrainFormulation::finite);
         check_finite_mechanics_and_thermal_history();

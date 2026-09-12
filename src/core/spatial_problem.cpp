@@ -1638,17 +1638,18 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     double current_measure = pi * radius * thickness * height;
                     double committed_measure = current_measure;
                     if (finite) {
-                        current_measure *= (1.0 + (current[3] - current[2]) / thickness)
-                                           * (1.0 + (current[5] - current[4]) / height)
-                                           * (1.0 + (shape[0] * current[2] + shape[1] * current[3]) / radius);
+                        current_measure *=
+                            (1.0 + (current[3] - current[2]) / thickness) * (1.0 + (current[5] - current[4]) / height)
+                            * (1.0 + (current[2] + current[3]) / (geometry.radii[0] + geometry.radii[1]));
                         committed_measure *= (1.0 + (old[3] - old[2]) / thickness) * (1.0 + (old[5] - old[4]) / height)
-                                             * (1.0 + (shape[0] * old[2] + shape[1] * old[3]) / radius);
+                                             * (1.0 + (old[2] + old[3]) / (geometry.radii[0] + geometry.radii[1]));
                     }
                     const auto& previous = _impl->_radial_material_histories[region][element][q];
                     rz::accumulate_material_conservation(conservation, previous, update.history[q], current_measure);
                     // The diagonal kinematics have no objective rotation. The
-                    // elastic energies belong to their respective volumes;
-                    // dissipation uses the current volume and trapezoidal stress.
+                    // elastic energies use their respective assumed-strain
+                    // mechanical measures; dissipation uses the current
+                    // mechanical measure and trapezoidal stress.
                     if (finite)
                         conservation.elastic_energy_change +=
                             0.5 * (current_measure - committed_measure)

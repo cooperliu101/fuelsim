@@ -1,7 +1,8 @@
 """Read-only inner-body force/energy audit for the prescribed GPS contact case.
 
-This checks a closed-form difference between two discretizations. It does not
-solve a refined mesh or qualify their pointwise stresses as equivalent.
+This compares actual radial reactions, axial sectional forces, mean stresses
+and elastic strain energy after the mean-hoop formulation change. It uses the
+complete ten-step production history and the unchanged native Abaqus reference.
 """
 import argparse
 import hashlib
@@ -10,7 +11,7 @@ from pathlib import Path
 
 import netCDF4
 
-from analyze_contact_stress import COMPONENTS, LAME, ROOT, SHEAR, read_csv
+from analyze_contact_stress import COMPONENTS, ROOT, metrics, read_csv
 
 
 def dot(a, b):
@@ -19,12 +20,12 @@ def dot(a, b):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('results')
+    parser.add_argument('results', type=Path)
     args = parser.parse_args()
     nodes = read_csv(ROOT/'gps_two_slice_contact_nodes.csv', ('time', 'node'))
     points = read_csv(ROOT/'gps_two_slice_contact_points.csv', ('time', 'element', 'point'))
-    errors = dict.fromkeys(('mean_stress', 'axial_force', 'radial_difference_formula',
-                            'energy_difference_formula', 'energy_reaction_work'), 0.0)
+    errors = dict.fromkeys(('mean_stress', 'axial_force', 'radial_reaction', 'elastic_energy'), 0.0)
+    groups = {name: [] for name in errors}
     samples = 0
     first = {}
     with netCDF4.Dataset(args.results) as data:
@@ -49,21 +50,18 @@ def main():
             for layer in range(2):
                 element = 1+2*layer
                 n = [nodes[(time, 8*layer+i)] for i in range(1, 5)]
-                r0, r1 = n[0]['r'], n[1]['r']
                 height = n[3]['z']-n[0]['z']
                 u = sum(v['ur'] for v in n)/4
                 if max(abs(v['ur']-u) for v in n) > 1e-13 or max(abs(v['uz']-n[0]['uz']) for v in n) > 1e-13:
                     raise RuntimeError('Audit requires constant prescribed displacements within each element')
                 volume = 0.0
                 gps_integral, native_integral = [0.0]*4, [0.0]*4
-                gps_energy, native_energy, expected_delta_energy = 0.0, 0.0, 0.0
-                expected_delta_reaction = [0.0, 0.0]
+                gps_energy, native_energy = 0.0, 0.0
                 for q in range(2):
                     suffix = '_q%d' % q
                     radius = field('reference_r'+suffix, time, layer)
                     weight = field('reference_measure'+suffix, time, layer)
                     volume += weight
-                    shape = [(r1-radius)/(r1-r0), (radius-r0)/(r1-r0)]
                     gps_stress = [field('stress_'+c+suffix, time, layer) for c in COMPONENTS]
                     gps_elastic = [field('elastic_'+c+suffix, time, layer) for c in COMPONENTS]
                     gps_energy += 0.5*dot(gps_stress, gps_elastic)*weight
@@ -82,10 +80,6 @@ def main():
                             native_integral[c] += native_stress[c]*p['volume']
                     if abs(native_weight-weight) > 1e-18:
                         raise RuntimeError('Native/production reference measures differ')
-                    delta_hoop = u/radius-2*u/(r0+r1)
-                    expected_delta_energy += 0.5*(LAME+2*SHEAR)*weight*delta_hoop**2
-                    for end in range(2):
-                        expected_delta_reaction[end] += (LAME+2*SHEAR)*weight*delta_hoop*(shape[end]/radius-1/(r0+r1))
                 mean_difference = max(abs(gps_integral[c]-native_integral[c])/volume for c in range(4))
                 axial_force = field('axial_force', time, layer)
                 errors['mean_stress'] = max(errors['mean_stress'], mean_difference)
@@ -93,13 +87,15 @@ def main():
                 gps_reaction = [reaction(time, layer, end) for end in range(2)]
                 native_reaction = [n[0]['rf_r']+n[3]['rf_r'], n[1]['rf_r']+n[2]['rf_r']]
                 delta_reaction = [a-b for a, b in zip(gps_reaction, native_reaction)]
-                errors['radial_difference_formula'] = max(errors['radial_difference_formula'],
-                    max(abs(a-b) for a, b in zip(delta_reaction, expected_delta_reaction)))
+                errors['radial_reaction'] = max(errors['radial_reaction'], max(abs(v) for v in delta_reaction))
                 delta_energy = gps_energy-native_energy
-                errors['energy_difference_formula'] = max(errors['energy_difference_formula'],
-                    abs(delta_energy-expected_delta_energy))
-                errors['energy_reaction_work'] = max(errors['energy_reaction_work'],
-                    abs(delta_energy-0.5*u*sum(delta_reaction)))
+                errors['elastic_energy'] = max(errors['elastic_energy'], abs(delta_energy))
+                groups['mean_stress'].append(([v/volume for v in gps_integral],
+                                               [v/volume for v in native_integral]))
+                groups['axial_force'].append(([axial_force], [native_integral[1]/height]))
+                for actual, reference in zip(gps_reaction, native_reaction):
+                    groups['radial_reaction'].append(([actual], [reference]))
+                groups['elastic_energy'].append(([gps_energy], [native_energy]))
                 samples += 1
                 if time == 1 and layer == 0:
                     first = {'mean_stress': [v/volume for v in gps_integral],
@@ -108,20 +104,30 @@ def main():
                              'gps_elastic_energy': gps_energy, 'abaqus_elastic_energy': native_energy,
                              'elastic_energy_difference': delta_energy,
                              'elastic_energy_relative_difference': delta_energy/native_energy}
-    print('scope=unchanged_prescribed_motion_outputs; force_difference_formula_audit')
+    print('scope=current_mean_hoop_production_outputs; native_force_and_energy_comparison')
     print('inner_slice_step_samples=%d' % samples)
     for name, value in first.items():
         values = value if isinstance(value, list) else [value]
         print('first_slice_closed_'+name+'='+','.join('%.17g' % v for v in values))
+    print('nonzero_field_metrics=relative_l2,relative_absolute_peak,maximum_pointwise_relative')
+    print('metric_units=fraction; multiply by 100 for percent')
+    for name, values in groups.items():
+        values_metrics = metrics(values)
+        print(name+'='+','.join('%.17g' % v for v in values_metrics))
+        if max(values_metrics) >= 0.001:
+            raise RuntimeError('Native force/energy comparison failed: '+name)
     for name, value in errors.items():
         print(name+'_maximum_absolute_error=%.17g' % value)
-        tolerance = 1e-4 if name == 'mean_stress' else (1e-12 if name.startswith('energy') else 1e-8)
+        tolerance = 1e-4 if name == 'mean_stress' else (1e-12 if name == 'elastic_energy' else 1e-8)
         if value > tolerance:
             raise RuntimeError('Independent audit failed: '+name)
     if samples != 20:
         raise RuntimeError('Incomplete slice-step coverage')
-    print('production_results_sha256='+hashlib.sha256(Path(args.results).read_bytes()).hexdigest())
-    print('inner_force_and_energy_difference_reconstruction=passed')
+    if len(groups['radial_reaction']) != 40 or any(len(groups[name]) != 20
+            for name in ('mean_stress', 'axial_force', 'elastic_energy')):
+        raise RuntimeError('Incomplete native field coverage')
+    print('production_results_sha256='+hashlib.sha256(args.results.read_bytes()).hexdigest())
+    print('inner_force_and_energy_comparison=passed')
 
 
 if __name__ == '__main__':

@@ -380,6 +380,150 @@ bool uniform(const std::string& output,
     return passed;
 }
 
+bool nonuniform_finite(const std::string& output, const std::string& summary, const std::filesystem::path& references) {
+    require_summary(summary, 1.0);
+    const auto frames = fuelsim::test::read_exodus_history(output);
+    const auto native_nodes = read_rows(references / "gps_nonuniform_finite_nodes.csv");
+    const auto native_points = read_rows(references / "gps_nonuniform_finite_points.csv");
+    if (frames.size() != 11 || frames.front().time != 0.0 || native_nodes.size() != 40 || native_points.size() != 40)
+        throw std::runtime_error("Nonuniform finite qualification requires all ten increments and every native sample");
+    constexpr std::array<std::size_t, 4> radial_node{0, 1, 1, 0};
+    constexpr std::array<std::size_t, 4> axial_node{2, 2, 3, 3};
+    FieldErrorMetrics temperature, radial_reaction, axial_reaction, axial_force, axial_strain;
+    FieldErrorMetrics midpoint_displacement, prescribed_zero_displacement, zero_stress_shear, zero_elastic_shear;
+    FieldErrorMetrics zero_mechanism, elastic_energy_change;
+    GroupedFieldErrorMetrics displacement, stress, elastic;
+    double previous_native_elastic_energy = 0.0;
+    for (std::size_t step = 1; step < frames.size(); ++step) {
+        const auto& frame = frames[step];
+        require_time(frame.time, static_cast<double>(step) / 10.0);
+        if (frame.nodes.size() != 4 || frame.element("material_point_count") != std::vector<double>{2.0})
+            throw std::runtime_error("Nonuniform finite geometry or active quadrature count changed");
+        const auto& t = frame.nodal("temperature");
+        const auto& ur = frame.nodal("displacement_r");
+        const auto& uz = frame.nodal("displacement_z");
+        const auto& role = frame.nodal("node_role");
+        const auto& rr = frame.nodal("reaction_force_r");
+        const auto& rz = frame.nodal("reaction_force_z");
+        for (std::size_t n = 0; n < 4; ++n) {
+            if (role.at(n) != (n < 2 ? 1.0 : 2.0))
+                throw std::runtime_error("Nonuniform finite radial and axial control node roles changed");
+            if ((n < 2 && !std::isnan(rz.at(n)))
+                || (n >= 2
+                    && (!std::isnan(t.at(n)) || !std::isnan(ur.at(n)) || !std::isnan(rr.at(n))
+                        || !std::isnan(frame.nodal("reaction_heat_flux").at(n)))))
+                throw std::runtime_error("Inactive nonuniform finite control-node fields must remain undefined");
+            const auto& reference = native_nodes[(step - 1) * 4 + n];
+            require_time(frame.time, reference.at("time"));
+            if (reference.at("node") != static_cast<double>(n + 1))
+                throw std::runtime_error("Native nonuniform finite node correspondence changed");
+            temperature.add(t.at(radial_node[n]), reference.at("temperature"));
+            const std::array<double, 2> actual{ur.at(radial_node[n]), uz.at(axial_node[n])};
+            const std::array<double, 2> expected{reference.at("ur"),
+                n < 2 ? constrained_zero(reference.at("uz"), 1e-13) : reference.at("uz")};
+            displacement.add(actual.data(), expected.data(), actual.size());
+            if (n < 2)
+                prescribed_zero_displacement.add(actual[1], expected[1]);
+        }
+        const auto& bottom_inner = native_nodes[(step - 1) * 4];
+        const auto& bottom_outer = native_nodes[(step - 1) * 4 + 1];
+        const auto& top_outer = native_nodes[(step - 1) * 4 + 2];
+        const auto& top_inner = native_nodes[(step - 1) * 4 + 3];
+        radial_reaction.add(rr.at(0), bottom_inner.at("rf_r") + top_inner.at("rf_r"));
+        radial_reaction.add(rr.at(1), bottom_outer.at("rf_r") + top_outer.at("rf_r"));
+        const double lower_force = bottom_inner.at("rf_z") + bottom_outer.at("rf_z");
+        const double upper_force = top_inner.at("rf_z") + top_outer.at("rf_z");
+        axial_reaction.add(rz.at(2), lower_force);
+        axial_reaction.add(rz.at(3), upper_force);
+        // Compare the actual native end force directly, without inferring
+        // material-point integration weights from deformed coordinates.
+        axial_force.add(frame.element("axial_force").at(0), upper_force);
+        const double reference_height = top_inner.at("z") - bottom_inner.at("z");
+        if (!(reference_height > 0.0))
+            throw std::runtime_error("Nonuniform finite reference slice height must be positive");
+        axial_strain.add(frame.element("axial_strain").at(0),
+            (top_inner.at("uz") - bottom_inner.at("uz")) / reference_height);
+        for (std::size_t n = 0; n < 2; ++n)
+            midpoint_displacement.add(uz.at(n), 0.5 * (uz.at(2) + uz.at(3)));
+        const double reference_inner_radius = bottom_inner.at("r");
+        const double reference_outer_radius = bottom_outer.at("r");
+        const double current_inner_radius = reference_inner_radius + bottom_inner.at("ur");
+        const double current_outer_radius = reference_outer_radius + bottom_outer.at("ur");
+        const double current_height = reference_height + top_inner.at("uz") - bottom_inner.at("uz");
+        if (!(reference_outer_radius > reference_inner_radius && reference_inner_radius > 0.0
+                && current_outer_radius > current_inner_radius && current_inner_radius > 0.0 && current_height > 0.0))
+            throw std::runtime_error("Nonuniform finite native annulus geometry is invalid");
+        const double current_volume =
+            std::acos(-1.0)
+            * (current_outer_radius * current_outer_radius - current_inner_radius * current_inner_radius)
+            * current_height;
+        double native_elastic_energy = 0.0;
+        for (std::size_t point = 0; point < 4; ++point) {
+            const auto& reference = native_points[(step - 1) * 4 + point];
+            require_time(frame.time, reference.at("time"));
+            if (reference.at("element") != 1.0 || reference.at("point") != static_cast<double>(point + 1))
+                throw std::runtime_error("Native nonuniform finite material-point correspondence changed");
+            const std::size_t q = point % 2;
+            add_tensor(stress, frame, reference, "stress", q);
+            add_tensor(elastic, frame, reference, "elastic", q);
+            zero_stress_shear.add(frame.element("stress_rz_q" + std::to_string(q)).at(0),
+                constrained_zero(reference.at("stress_rz"), 1e-4));
+            zero_elastic_shear.add(frame.element("elastic_rz_q" + std::to_string(q)).at(0),
+                constrained_zero(reference.at("elastic_rz"), 1e-13));
+            // Reconstruct energy from native fields using the same mechanical
+            // weights: each reference Gauss volume fraction times total current
+            // volume. This is not a comparison with native SENER or point IVOL.
+            const double eta = 0.5 * (1.0 + (q == 0 ? -1.0 : 1.0) / std::sqrt(3.0));
+            const double reference_radius = (1.0 - eta) * reference_inner_radius + eta * reference_outer_radius;
+            const double mechanical_measure =
+                current_volume * reference_radius / (2.0 * (reference_inner_radius + reference_outer_radius));
+            double stress_elastic_product = 0.0;
+            for (const char* component : {"rr", "zz", "hoop", "rz"})
+                stress_elastic_product += reference.at(std::string("stress_") + component)
+                                          * reference.at(std::string("elastic_") + component)
+                                          * (std::string(component) == "rz" ? 2.0 : 1.0);
+            native_elastic_energy += 0.5 * stress_elastic_product * mechanical_measure;
+        }
+        elastic_energy_change.add(frame.global("conservation_elastic_energy_change"),
+            native_elastic_energy - previous_native_elastic_energy);
+        previous_native_elastic_energy = native_elastic_energy;
+        for (std::size_t q = 0; q < 2; ++q) {
+            const std::string suffix = "_q" + std::to_string(q);
+            for (const char* prefix : {"plastic_", "creep_"})
+                for (const char* component : {"rr", "zz", "hoop", "rz"})
+                    zero_mechanism.add(frame.element(std::string(prefix) + component + suffix).at(0), 0.0);
+            zero_mechanism.add(frame.element("equiv_plastic" + suffix).at(0), 0.0);
+            zero_mechanism.add(frame.element("equiv_creep" + suffix).at(0), 0.0);
+        }
+    }
+    if (temperature.value_count != 40 || displacement.group_count != 40 || stress.group_count != 40
+        || elastic.group_count != 40 || zero_stress_shear.value_count != 40 || zero_elastic_shear.value_count != 40
+        || radial_reaction.value_count != 20 || axial_reaction.value_count != 20 || axial_force.value_count != 10
+        || axial_strain.value_count != 10 || elastic_energy_change.value_count != 10
+        || zero_mechanism.value_count != 200)
+        throw std::runtime_error("Nonuniform finite comparison lost native field or inactive-history samples");
+    bool passed = true;
+    passed = check("temperature", temperature, 1e-11) && passed;
+    passed = check("displacement", displacement, 1e-13) && passed;
+    passed = check("stress", stress, 1e-4) && passed;
+    passed = check("elastic_strain", elastic, 1e-13) && passed;
+    passed = check("radial_reaction", radial_reaction, 1e-8) && passed;
+    passed = check("axial_reaction", axial_reaction, 1e-8) && passed;
+    passed = check("axial_force", axial_force, 1e-8) && passed;
+    passed = check("axial_strain", axial_strain, 1e-13) && passed;
+    passed = check("mechanical_measure_elastic_energy_change", elastic_energy_change, 1e-12) && passed;
+    passed = check("radial_node_axial_interpolation", midpoint_displacement, 1e-13) && passed;
+    passed = check("prescribed_zero_displacement", prescribed_zero_displacement, 1e-13) && passed;
+    passed = check("analytical_zero_stress_shear", zero_stress_shear, 1e-4) && passed;
+    passed = check("analytical_zero_elastic_shear", zero_elastic_shear, 1e-13) && passed;
+    passed = check("inactive_inelastic_history", zero_mechanism, 1e-13) && passed;
+    std::cout << "native_node_samples=" << displacement.group_count
+              << "\nnative_material_point_samples=" << stress.group_count
+              << "\nqualification_scope=prescribed_nonuniform_finite_mechanics_with_constant_elasticity\n"
+              << "radial_gps_nonuniform_finite_abaqus_qualification=" << (passed ? "passed" : "failed") << '\n';
+    return passed;
+}
+
 using ContactKey = std::tuple<double, std::string, std::string, std::size_t, std::size_t>;
 
 std::map<ContactKey, double> read_contact(const std::filesystem::path& path) {
@@ -561,11 +705,12 @@ bool contact_small(const std::string& output, const std::string& summary, const 
     const std::array<std::array<std::size_t, 2>, 2> primary{{{5, 8}, {13, 16}}};
     FieldErrorMetrics temperature, pressure, gap, traction, slip, elastic_slip, area, heat_flux, heat_rate;
     FieldErrorMetrics normal_force, tangent_force, heat_reaction, zero_mechanism, native_force_balance;
+    FieldErrorMetrics radial_reaction, axial_control_reaction, axial_force;
     FieldErrorMetrics body_axial_reaction, production_axial_force_balance;
     FieldErrorMetrics prescribed_zero_displacement, midpoint_displacement;
-    FieldErrorMetrics outer_zero_stress_shear, outer_zero_elastic_shear;
-    GroupedFieldErrorMetrics displacement, diagnostic_stress, diagnostic_elastic;
-    GroupedFieldErrorMetrics outer_stress, outer_elastic, diagnostic_inner_stress, diagnostic_inner_elastic;
+    FieldErrorMetrics zero_stress_shear, zero_elastic_shear;
+    GroupedFieldErrorMetrics displacement, stress, elastic;
+    GroupedFieldErrorMetrics outer_stress, outer_elastic, inner_stress, inner_elastic;
     std::size_t positive_sliding = 0, negative_sliding = 0, sticking = 0, opening = 0;
     for (std::size_t step = 1; step < frames.size(); ++step) {
         const auto& frame = frames[step];
@@ -586,12 +731,16 @@ bool contact_small(const std::string& output, const std::string& summary, const 
                         || !std::isnan(frame.nodal("reaction_heat_flux").at(n)))))
                 throw std::runtime_error("Inactive contact control-node fields must remain explicitly undefined");
         }
+        std::array<double, 8> reference_radial_reaction{};
+        std::array<double, 6> reference_axial_reaction{};
         for (std::size_t n = 0; n < 16; ++n) {
             const auto& reference = native_nodes[(step - 1) * 16 + n];
             require_time(frame.time, reference.at("time"));
             if (reference.at("node") != static_cast<double>(n + 1))
                 throw std::runtime_error("Native contact node mapping changed");
             temperature.add(t.at(radial_node[n]), reference.at("temperature"));
+            reference_radial_reaction.at(radial_node[n]) += reference.at("rf_r");
+            reference_axial_reaction.at(axial_node[n] - 8) += reference.at("rf_z");
             const bool outer = (n / 4) % 2 == 1;
             const std::array<double, 2> actual{ur.at(radial_node[n]), uz.at(axial_node[n])};
             const std::array<double, 2> expected{
@@ -603,10 +752,20 @@ bool contact_small(const std::string& output, const std::string& summary, const 
             if (outer || step == 1)
                 prescribed_zero_displacement.add(actual[1], expected[1]);
         }
+        // A radial BAR2 node represents both native axial endpoints at the same
+        // radius. Shared axial controls collect both adjoining native end faces.
+        for (std::size_t n = 0; n < reference_radial_reaction.size(); ++n)
+            radial_reaction.add(frame.nodal("reaction_force_r").at(n), reference_radial_reaction[n]);
+        for (std::size_t n = 0; n < reference_axial_reaction.size(); ++n) {
+            const bool unloaded_middle = (n == 1 || n == 4) && (step == 1 || step == 6 || step == 7 || step == 8);
+            axial_control_reaction.add(frame.nodal("reaction_force_z").at(n + 8),
+                unloaded_middle ? constrained_zero(reference_axial_reaction[n], 1e-8) : reference_axial_reaction[n]);
+        }
         for (std::size_t n = 0; n < 8; ++n) {
             const std::size_t lower = 8 + n / 4 + ((n % 4) / 2) * 3;
             midpoint_displacement.add(uz.at(n), 0.5 * (uz.at(lower) + uz.at(lower + 1)));
         }
+        std::array<double, 4> reference_axial_force{};
         for (std::size_t point = 0; point < 16; ++point) {
             const auto& reference = native_points[(step - 1) * 16 + point];
             require_time(frame.time, reference.at("time"));
@@ -614,25 +773,25 @@ bool contact_small(const std::string& output, const std::string& summary, const 
                 || reference.at("point") != static_cast<double>(point % 4 + 1))
                 throw std::runtime_error("Native contact material-point mapping changed");
             const std::size_t element = source_element[point / 4];
-            add_tensor(diagnostic_stress, frame, reference, "stress", point % 2, element);
-            add_tensor(diagnostic_elastic, frame, reference, "elastic", point % 2, element);
-            // Native elements 2 and 4 are the fully constrained outer bodies.
-            // Their zero mechanical strain removes the CAX4T hoop-averaging
-            // difference, so average-temperature expansion can be qualified
-            // against every native material point in both slices and all steps.
+            add_tensor(stress, frame, reference, "stress", point % 2, element);
+            add_tensor(elastic, frame, reference, "elastic", point % 2, element);
             if ((point / 4) % 2 == 1) {
                 add_tensor(outer_stress, frame, reference, "stress", point % 2, element);
                 add_tensor(outer_elastic, frame, reference, "elastic", point % 2, element);
-                const std::string suffix = "_q" + std::to_string(point % 2);
-                outer_zero_stress_shear.add(frame.element("stress_rz" + suffix).at(element),
-                    constrained_zero(reference.at("stress_rz"), 1e-4));
-                outer_zero_elastic_shear.add(frame.element("elastic_rz" + suffix).at(element),
-                    constrained_zero(reference.at("elastic_rz"), 1e-13));
             } else {
-                add_tensor(diagnostic_inner_stress, frame, reference, "stress", point % 2, element);
-                add_tensor(diagnostic_inner_elastic, frame, reference, "elastic", point % 2, element);
+                add_tensor(inner_stress, frame, reference, "stress", point % 2, element);
+                add_tensor(inner_elastic, frame, reference, "elastic", point % 2, element);
             }
+            const std::string suffix = "_q" + std::to_string(point % 2);
+            zero_stress_shear.add(frame.element("stress_rz" + suffix).at(element),
+                constrained_zero(reference.at("stress_rz"), 1e-4));
+            zero_elastic_shear.add(frame.element("elastic_rz" + suffix).at(element),
+                constrained_zero(reference.at("elastic_rz"), 1e-13));
+            const double height = point < 8 ? 0.01 : 0.02;
+            reference_axial_force[element] += reference.at("stress_zz") * reference.at("volume") / height;
         }
+        for (std::size_t element = 0; element < reference_axial_force.size(); ++element)
+            axial_force.add(frame.element("axial_force").at(element), reference_axial_force[element]);
         double total_reference_tangent = 0.0;
         for (std::size_t layer = 0; layer < 2; ++layer) {
             const std::string suffix = "_layer" + std::to_string(layer + 1);
@@ -707,7 +866,6 @@ bool contact_small(const std::string& output, const std::string& summary, const 
         // Every axial control is prescribed, so its residual does not constrain
         // the solve. Check actual reactions on both bodies independently: each
         // body's internal axial forces cancel when its three controls are summed.
-        // This remains valid despite the different coarse body stress operators.
         double inner_axial_reaction = 0.0, outer_axial_reaction = 0.0;
         for (std::size_t station = 0; station < 3; ++station) {
             inner_axial_reaction += frame.nodal("reaction_force_z").at(8 + station);
@@ -728,10 +886,12 @@ bool contact_small(const std::string& output, const std::string& summary, const 
     }
     if (positive_sliding != 8 || negative_sliding != 4 || sticking != 20 || opening != 8)
         throw std::runtime_error("Required sticking, reverse sliding, opening and recontact samples are missing");
-    if (outer_stress.group_count != 80 || outer_elastic.group_count != 80 || diagnostic_inner_stress.group_count != 80
-        || diagnostic_inner_elastic.group_count != 80 || diagnostic_stress.group_count != 160
-        || diagnostic_elastic.group_count != 160)
+    if (outer_stress.group_count != 80 || outer_elastic.group_count != 80 || inner_stress.group_count != 80
+        || inner_elastic.group_count != 80 || stress.group_count != 160 || elastic.group_count != 160
+        || zero_stress_shear.value_count != 160 || zero_elastic_shear.value_count != 160)
         throw std::runtime_error("Contact body comparison must retain every native material point in all ten steps");
+    if (radial_reaction.value_count != 80 || axial_control_reaction.value_count != 60 || axial_force.value_count != 40)
+        throw std::runtime_error("Contact force comparison must retain every active node and section in all ten steps");
     bool passed = true;
     passed = check("temperature", temperature, 1e-11) && passed;
     passed = check("prescribed_displacement", displacement, 1e-13) && passed;
@@ -749,22 +909,28 @@ bool contact_small(const std::string& output, const std::string& summary, const 
     passed = check("contact_tangential_force", tangent_force, 1e-8) && passed;
     passed = check("thermal_boundary_reaction", heat_reaction, 1e-8) && passed;
     passed = check("native_contact_force_conservation", native_force_balance, 1e-8) && passed;
+    passed = check("body_radial_reaction", radial_reaction, 1e-8) && passed;
+    passed = check("body_axial_control_reaction", axial_control_reaction, 1e-8) && passed;
+    passed = check("body_axial_section_force", axial_force, 1e-8) && passed;
     passed = check("production_body_axial_reaction", body_axial_reaction, 1e-8) && passed;
     passed = check("production_axial_force_conservation", production_axial_force_balance, 1e-8) && passed;
     passed = check("inactive_inelastic_history", zero_mechanism, 1e-13) && passed;
+    passed = check("body_stress", stress, 1e-4) && passed;
+    passed = check("body_elastic_strain", elastic, 1e-13) && passed;
+    passed = check("inner_body_stress", inner_stress, 1e-4) && passed;
+    passed = check("inner_body_elastic_strain", inner_elastic, 1e-13) && passed;
     passed = check("constrained_outer_body_stress", outer_stress, 1e-4) && passed;
     passed = check("constrained_outer_body_elastic_strain", outer_elastic, 1e-13) && passed;
-    passed = check("constrained_outer_body_zero_stress_shear", outer_zero_stress_shear, 1e-4) && passed;
-    passed = check("constrained_outer_body_zero_elastic_shear", outer_zero_elastic_shear, 1e-13) && passed;
-    fuelsim::test::print_grouped_relative_metrics("diagnostic_body_stress", diagnostic_stress);
-    fuelsim::test::print_grouped_relative_metrics("diagnostic_body_elastic_strain", diagnostic_elastic);
-    fuelsim::test::print_grouped_relative_metrics("diagnostic_inner_body_stress", diagnostic_inner_stress);
-    fuelsim::test::print_grouped_relative_metrics("diagnostic_inner_body_elastic_strain", diagnostic_inner_elastic);
+    passed = check("body_zero_stress_shear", zero_stress_shear, 1e-4) && passed;
+    passed = check("body_zero_elastic_shear", zero_elastic_shear, 1e-13) && passed;
     std::cout
         << "positive_sliding_samples=" << positive_sliding << "\nnegative_sliding_samples=" << negative_sliding
         << "\nsticking_samples=" << sticking << "\nopen_samples=" << opening
-        << "\nqualification_scope=prescribed_motion_contact_and_thermal_operators_and_constrained_outer_body_fields\n"
-        << "inner_body_field_scope=diagnostic_cax4t_hoop_averaging_difference\n"
+        << "\nqualification_scope=prescribed_motion_contact_and_thermal_operators_and_all_body_fields_and_reactions\n"
+        << "native_body_material_point_samples=" << stress.group_count
+        << "\nradial_reaction_samples=" << radial_reaction.value_count
+        << "\naxial_control_reaction_samples=" << axial_control_reaction.value_count
+        << "\naxial_section_force_samples=" << axial_force.value_count << '\n'
         << "radial_gps_contact_abaqus_qualification=" << (passed ? "passed" : "failed") << '\n';
     return passed;
 }
@@ -772,7 +938,8 @@ bool contact_small(const std::string& output, const std::string& summary, const 
 
 int main(int argc, char** argv) {
     if (argc != 5) {
-        std::cerr << "usage: production_radial <uniform-small|uniform-finite|contact-small|chain-small|steady-finite> "
+        std::cerr << "usage: production_radial "
+                     "<uniform-small|uniform-finite|nonuniform-finite|contact-small|chain-small|steady-finite> "
                      "<results.e> "
                      "<summary.csv> "
                      "<reference_dir>\n";
@@ -782,6 +949,8 @@ int main(int argc, char** argv) {
         const std::string mode = argv[1];
         if (mode == "uniform-small" || mode == "uniform-finite")
             return uniform(argv[2], argv[3], argv[4], mode == "uniform-finite") ? 0 : 1;
+        if (mode == "nonuniform-finite")
+            return nonuniform_finite(argv[2], argv[3], argv[4]) ? 0 : 1;
         if (mode == "chain-small")
             return chain_small(argv[2], argv[3], argv[4]) ? 0 : 1;
         if (mode == "contact-small")

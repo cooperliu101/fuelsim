@@ -49,7 +49,9 @@ struct Cax2tGpsResult final {
 
 // Two radial Gauss points, consistent heat capacity, and integration-point
 // material temperature, except eigenstrain temperature uses the arithmetic mean
-// of the two radial nodes. Finite strain uses diagonal radial/axial/hoop stretches,
-// midpoint strain increments, and current-configuration mechanical and thermal measures.
+// of the two radial nodes. Mechanical hoop strain uses a reference-volume mean;
+// finite strain averages the hoop stretch before its midpoint increment. Mechanical
+// point weights scale with the whole-element volume ratio, while thermal measures
+// retain the actual pointwise current geometry.
 Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest request = {});
 } // namespace fuelsim::elements

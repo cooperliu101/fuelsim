@@ -1,5 +1,11 @@
 # 平均温度更新后，内体应力差异的原因
 
+本文保存环向平均算法实施前的诊断，对应提交 `0b12511`。文中的“当前”均指
+该历史状态；此后已按建议同步修改应变、内力与切线，最新结果见
+[环向平均更新记录](mean_hoop_update.md)。原数值逐字保存在
+[修改前应力](contact_stress_diagnosis_before_hoop.txt)和
+[修改前内力与能量](inner_resultants_before_hoop.txt)。
+
 ## 结论与证据范围
 
 当前双切片接触算例的内体应力差异来自环向机械应变的离散方式：
@@ -79,7 +85,7 @@ delta_sigma_hoop = (lambda+2*G)*delta_e
 使用两种应变公式及当前平均膨胀温度重建全部十步、四个单元、160 个原生
 材料点样本，应力差分解的最大剩余分量误差为 **3.260e-9 Pa**。
 因此，本例剩余应力差异已经由该机械应变离散差别解释。
-逐项结果见 [contact_stress_diagnosis.txt](contact_stress_diagnosis.txt)。
+逐项结果见 [contact_stress_diagnosis_before_hoop.txt](contact_stress_diagnosis_before_hoop.txt)。
 
 ## 平均应力相同，为什么反力仍可能不同
 
@@ -122,7 +128,7 @@ delta_energy = 0.5*u*(delta_R_0 + delta_R_1)
 这表明直接采用 `u/r` 的单元保留了一个正的环向应变变化能量项，也产生了不同
 的径向刚度。独立脚本检查全部 20 个切片与时间步组合，径向反力差公式的最大
 误差为 `2.803e-10 N`，能量差公式的最大误差为 `4.019e-18 J`。数据见
-[inner_resultants.txt](inner_resultants.txt)。上述能量关系针对本例的小应变、
+[inner_resultants_before_hoop.txt](inner_resultants_before_hoop.txt)。上述能量关系针对本例的小应变、
 常数线性材料、相同单元热应变与规定运动，不作为有限应变或非线性材料的通式。
 
 ## 径向网格与后续建议
@@ -161,7 +167,8 @@ delta_energy = 0.5*u*(delta_R_0 + delta_R_1)
 
 ## 复现本次只读分析
 
-以下脚本需要安装 `netCDF4` 的 Python 环境，只读取现有生产结果与原生 CSV：
+历史脚本版本和对应生产结果可重现本文数字。仓库最新脚本已改为检验平均环向
+应变后的结果；以下命令需要安装 `netCDF4` 的 Python 环境：
 
 ```bash
 python verification/abaqus/gps_1d/analyze_contact_stress.py \
@@ -170,7 +177,8 @@ python verification/abaqus/gps_1d/analyze_inner_resultants.py \
   build/blackbox/fuelsim_gps_contact_abaqus/verification/fuelsim/transient_gps_contact_small_results.e
 ```
 
-两份输出分别与 `contact_stress_diagnosis.txt`、`inner_resultants.txt` 一致。
+最新两份输出分别写入 `contact_stress_diagnosis.txt`、`inner_resultants.txt`，
+不再等于本文的修改前数字。
 需要重新生成生产结果时，运行现有 `fuelsim_gps_contact_abaqus` CTest，测试
 会执行显式输入卡对应的生产程序；本次没有新增重复求解的自动测试。
 平均温度实现时完成的 296/296 主程序回归和 17/17 独立单元库回归记录仍见

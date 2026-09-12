@@ -75,6 +75,10 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
     const double temperature_gradient = gradient[0] * state[0] + gradient[1] * state[1];
     const double radial_strain = gradient[0] * state[2] + gradient[1] * state[3];
     const double axial_strain = (state[5] - state[4]) / height;
+    // Reference-volume averaging cancels R in u/R. For a linear radial
+    // displacement, both nodal derivatives of the mean are 1/(R0+R1).
+    const double hoop_gradient = 1.0 / (geometry.radii[0] + geometry.radii[1]);
+    const double hoop_strain = hoop_gradient * (state[2] + state[3]);
     const double axial_coordinate = geometry.z_lower + 0.5 * height;
     const double expansion_temperature = 0.5 * state[0] + 0.5 * state[1];
     const std::array<double, 2> stations = {-gauss, gauss};
@@ -84,28 +88,37 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
         double measure = pi * radius * thickness * height;
         const double temperature = shape[0] * state[0] + shape[1] * state[1];
         const double radial_displacement = shape[0] * state[2] + shape[1] * state[3];
-        std::array<double, 4> strain = {radial_strain, axial_strain, radial_displacement / radius, 0.0};
+        std::array<double, 4> strain = {radial_strain, axial_strain, hoop_strain, 0.0};
         const MaterialFunctionContext context{input.time, radius, 0.0, axial_coordinate};
-        // All geometry chains are explicit functions of three point-local
-        // stretches; only the existing width-five material tangent uses AD.
+        // The assumed mechanical strain and the actual point geometry have
+        // distinct hoop chains. Only the width-five material tangent uses AD.
         const std::array<Cax2tGpsLocalValues, 4> reference_chain = {{
             {{0.0, 0.0, gradient[0], gradient[1], 0.0, 0.0}},
             {{0.0, 0.0, 0.0, 0.0, -1.0 / height, 1.0 / height}},
-            {{0.0, 0.0, shape[0] / radius, shape[1] / radius, 0.0, 0.0}},
+            {{0.0, 0.0, hoop_gradient, hoop_gradient, 0.0, 0.0}},
             {{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}},
         }};
         auto strain_chain = reference_chain;
         auto virtual_strain = reference_chain;
+        auto geometry_chain = reference_chain;
+        geometry_chain[2][2] = shape[0] / radius;
+        geometry_chain[2][3] = shape[1] / radius;
         std::array<double, 4> stretch{1.0, 1.0, 1.0, 1.0};
+        std::array<double, 4> mechanical_stretch{1.0, 1.0, 1.0, 1.0};
+        double mechanical_measure = measure;
         Cax2tGpsLocalValues measure_derivative{};
+        Cax2tGpsLocalValues mechanical_measure_derivative{};
         if (finite) {
             const auto& old = input.committed_state;
             const std::array<double, 3> committed_stretch{1.0 + gradient[0] * old[2] + gradient[1] * old[3],
                 1.0 + (old[5] - old[4]) / height,
                 1.0 + (shape[0] * old[2] + shape[1] * old[3]) / radius};
+            const std::array<double, 3> committed_mechanical_stretch{committed_stretch[0],
+                committed_stretch[1],
+                1.0 + hoop_gradient * (old[2] + old[3])};
+            stretch = {1.0 + radial_strain, 1.0 + axial_strain, 1.0 + radial_displacement / radius, 1.0};
             double committed_measure = measure, midpoint_measure = measure;
             for (std::size_t component = 0; component < 3; ++component) {
-                stretch[component] = 1.0 + strain[component];
                 const double midpoint = 0.5 * (stretch[component] + committed_stretch[component]);
                 if (!(stretch[component] > 0.0) || !std::isfinite(stretch[component])
                     || !(committed_stretch[component] > 0.0) || !std::isfinite(committed_stretch[component])
@@ -113,26 +126,46 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
                     throw std::domain_error("CAX2T_GPS current, committed and midpoint stretches must remain positive");
                 committed_measure *= committed_stretch[component];
                 midpoint_measure *= midpoint;
+                mechanical_stretch[component] = 1.0 + strain[component];
+                const double mechanical_midpoint =
+                    0.5 * (mechanical_stretch[component] + committed_mechanical_stretch[component]);
+                if (!(mechanical_stretch[component] > 0.0) || !std::isfinite(mechanical_stretch[component])
+                    || !(committed_mechanical_stretch[component] > 0.0)
+                    || !std::isfinite(committed_mechanical_stretch[component]) || !(mechanical_midpoint > 0.0)
+                    || !std::isfinite(mechanical_midpoint))
+                    throw std::domain_error(
+                        "CAX2T_GPS mean current, committed and midpoint stretches must be positive");
                 // With diagonal F there is no spin. This is the diagonal
-                // Hughes-Winget midpoint increment, not an accumulated log strain.
-                strain[component] = (stretch[component] - committed_stretch[component]) / midpoint;
-                const double increment_derivative = committed_stretch[component] / (midpoint * midpoint);
+                // Hughes-Winget increment of the mean hoop stretch, not the
+                // average of point increments or an accumulated log strain.
+                strain[component] =
+                    (mechanical_stretch[component] - committed_mechanical_stretch[component]) / mechanical_midpoint;
+                const double increment_derivative =
+                    committed_mechanical_stretch[component] / (mechanical_midpoint * mechanical_midpoint);
                 for (std::size_t column = 0; column < state.size(); ++column) {
                     strain_chain[component][column] *= increment_derivative;
-                    virtual_strain[component][column] /= stretch[component];
+                    virtual_strain[component][column] /= mechanical_stretch[component];
                 }
             }
             measure *= stretch[0] * stretch[1] * stretch[2];
+            // The GPS restriction of CAX4T virtual work uses reference point
+            // weights times the whole-element current/reference volume ratio.
+            // Thermal operators below retain the actual pointwise current volume.
+            mechanical_measure *= mechanical_stretch[0] * mechanical_stretch[1] * mechanical_stretch[2];
             if (!std::isfinite(measure) || !(measure > 0.0) || !std::isfinite(committed_measure)
                 || !(committed_measure > 0.0) || !std::isfinite(midpoint_measure) || !(midpoint_measure > 0.0)
+                || !std::isfinite(mechanical_measure) || !(mechanical_measure > 0.0)
                 || !std::isfinite(radius * stretch[2]) || !std::isfinite(radius * committed_stretch[2])
                 || !std::isfinite(radius * (0.5 * stretch[2] + 0.5 * committed_stretch[2])))
                 throw std::domain_error(
                     "CAX2T_GPS current, committed and midpoint radii and volumes must be finite and positive");
             if (request.jacobian)
                 for (std::size_t column = 0; column < state.size(); ++column)
-                    for (std::size_t component = 0; component < 3; ++component)
-                        measure_derivative[column] += measure * reference_chain[component][column] / stretch[component];
+                    for (std::size_t component = 0; component < 3; ++component) {
+                        measure_derivative[column] += measure * geometry_chain[component][column] / stretch[component];
+                        mechanical_measure_derivative[column] +=
+                            mechanical_measure * reference_chain[component][column] / mechanical_stretch[component];
+                    }
             if (input.committed_history) {
                 const double old_expansion_temperature = 0.5 * old[0] + 0.5 * old[1];
                 auto old_context = context;
@@ -207,7 +240,7 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
             double force = 0.0;
             for (std::size_t component = 0; component < 4; ++component)
                 force += virtual_strain[component][row] * stress[component];
-            result.residual[row] += measure * force;
+            result.residual[row] += mechanical_measure * force;
             if (request.jacobian)
                 for (std::size_t column = 0; column < state.size(); ++column) {
                     double tangent = 0.0;
@@ -219,10 +252,10 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
                         tangent += virtual_strain[component][row] * derivative;
                         if (finite)
                             tangent -= virtual_strain[component][row] * reference_chain[component][column]
-                                       / stretch[component] * stress[component];
+                                       / mechanical_stretch[component] * stress[component];
                     }
                     result.jacobian[row * state.size() + column] +=
-                        measure * tangent + measure_derivative[column] * force;
+                        mechanical_measure * tangent + mechanical_measure_derivative[column] * force;
                 }
         }
 

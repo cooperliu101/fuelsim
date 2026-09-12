@@ -54,7 +54,7 @@ def metrics(pairs):
     reference = [norm(b) for a, b in pairs]
     delta = [norm(difference(a, b)) for a, b in pairs]
     if not all(math.isfinite(x) and x > 0 for x in reference):
-        raise RuntimeError('This prescribed hot case requires nonzero tensor references')
+        raise RuntimeError('This prescribed hot case requires nonzero field references')
     return (math.sqrt(sum(d*d for d in delta)/sum(r*r for r in reference)),
             max(delta)/max(reference),
             max(d/r for d, r in zip(delta, reference)))
@@ -68,11 +68,12 @@ def main():
     points = read_csv(ROOT/'gps_two_slice_contact_points.csv', ('time', 'element', 'point'))
     if len(nodes) != 160 or len(points) != 160:
         raise RuntimeError('Expected all ten frames and sixteen native nodes/material points per frame')
-    groups = {name: [] for name in ('stress', 'elastic', 'inner_stress', 'outer_stress',
-                                   'diagnostic_old_point_temperature', 'both_averages')}
+    current_groups = ('stress', 'elastic', 'inner_stress', 'outer_stress')
+    groups = {name: [] for name in current_groups + ('diagnostic_direct_hoop_mean_temperature',
+                                                   'diagnostic_direct_hoop_point_temperature')}
     peak = None
     error = dict.fromkeys(('gps_stress', 'abaqus_stress', 'gps_elastic', 'abaqus_elastic',
-                           'difference_decomposition', 'point_temperature'), 0.0)
+                           'current_stress_difference', 'point_temperature'), 0.0)
     with netCDF4.Dataset(args.results) as data:
         times = data['time_whole'][:].tolist()
         if times != list(range(11)):
@@ -98,7 +99,7 @@ def main():
             u = sum(v['ur'] for v in n)/4
             # Every mechanical displacement is uniform within this native element.
             if max(abs(v['ur']-u) for v in n) > 1e-13 or max(abs(v['uz']-n[0]['uz']) for v in n) > 1e-13:
-                raise RuntimeError('This diagnostic is restricted to the prescribed-translation case')
+                raise RuntimeError('This diagnostic requires uniform prescribed displacements within each element')
             q = (point-1) % 2
             eta = 0.5*(1 + (-1 if q == 0 else 1)/math.sqrt(3))
             radius = (1-eta)*r0 + eta*r1
@@ -112,8 +113,8 @@ def main():
             error['point_temperature'] = max(error['point_temperature'],
                 abs(field('temperature'+suffix, time, element)-temperature))
             # In this rectangle the r-weighted average of u/r equals u/r_mid.
-            hoop, mean_hoop = u/radius, u/((r0+r1)/2)
-            gps_elastic = elastic(hoop, mean_temperature)
+            direct_hoop, mean_hoop = u/radius, u/((r0+r1)/2)
+            gps_elastic = elastic(mean_hoop, mean_temperature)
             abaqus_elastic = elastic(mean_hoop, mean_temperature)
             gps_stress, abaqus_stress = stress(gps_elastic), stress(abaqus_elastic)
             actual_stress = [field('stress_'+c+suffix, time, element) for c in COMPONENTS]
@@ -125,28 +126,33 @@ def main():
                                ('gps_elastic', actual_elastic, gps_elastic),
                                ('abaqus_elastic', native_elastic, abaqus_elastic)]:
                 error[name] = max(error[name], max(abs(v) for v in difference(a, b)))
-            mechanical = stress([0.0, 0.0, hoop-mean_hoop, 0.0])
-            thermal = [0.0]*4
             observed = difference(actual_stress, native_stress)
-            error['difference_decomposition'] = max(error['difference_decomposition'],
-                max(abs(observed[i]-mechanical[i]-thermal[i]) for i in range(4)))
+            predicted_difference = difference(gps_stress, abaqus_stress)
+            error['current_stress_difference'] = max(error['current_stress_difference'],
+                max(abs(v) for v in difference(observed, predicted_difference)))
             groups['stress'].append((actual_stress, native_stress))
             groups['elastic'].append((actual_elastic, native_elastic))
             groups['inner_stress' if element % 2 else 'outer_stress'].append((actual_stress, native_stress))
-            # This reconstructs the former rule only as an algebraic diagnostic.
-            groups['diagnostic_old_point_temperature'].append((stress(elastic(hoop, temperature)), native_stress))
-            groups['both_averages'].append((abaqus_stress, native_stress))
+            # Former direct-hoop rules are algebraic diagnostics, never current
+            # production expectations or acceptance references.
+            groups['diagnostic_direct_hoop_mean_temperature'].append(
+                (stress(elastic(direct_hoop, mean_temperature)), native_stress))
+            groups['diagnostic_direct_hoop_point_temperature'].append(
+                (stress(elastic(direct_hoop, temperature)), native_stress))
             relative = norm(observed)/norm(native_stress)
             if peak is None or relative > peak[0]:
                 peak = (relative, key, temperature, mean_temperature, actual_stress, native_stress,
-                        actual_elastic, native_elastic, mechanical, thermal)
+                        actual_elastic, native_elastic, predicted_difference)
 
-    print('scope=postprocessing_of_unmodified_production_and_native_outputs')
+    print('scope=current_mean_temperature_and_mean_hoop_reconstruction_of_production_and_native_outputs')
     print('sample_count=160')
     print('nonzero_tensor_metrics=relative_l2,relative_absolute_peak,maximum_pointwise_relative')
     print('metric_units=fraction; multiply by 100 for percent')
     for name, values in groups.items():
-        print(name+'='+','.join('%.17g' % v for v in metrics(values)))
+        values_metrics = metrics(values)
+        print(name+'='+','.join('%.17g' % v for v in values_metrics))
+        if name in current_groups and max(values_metrics) >= 0.001:
+            raise RuntimeError('Current body-field comparison failed: '+name)
     for name, value in error.items():
         print(name+'_maximum_absolute_component_error=%.17g' % value)
     print('peak_relative=%.17g' % peak[0])
@@ -155,9 +161,9 @@ def main():
     print('peak_gps_material_point_temperature=%.17g' % peak[2])
     print('peak_abaqus_expansion_temperature=%.17g' % peak[3])
     for name, values in zip(('gps_stress', 'abaqus_stress', 'gps_elastic', 'abaqus_elastic',
-                             'mechanical_stress_difference', 'thermal_stress_difference'), peak[4:]):
+                             'predicted_stress_difference'), peak[4:]):
         print('peak_'+name+'='+','.join('%.17g' % v for v in values))
-    print('former_point_temperature_rule_outer_exact_relative=%.17g' % (1/math.sqrt(3)))
+    print('diagnostic_former_point_temperature_rule_outer_exact_relative=%.17g' % (1/math.sqrt(3)))
     print('production_results_sha256='+hashlib.sha256(args.results.read_bytes()).hexdigest())
     for name in ('gps_two_slice_contact_nodes.csv', 'gps_two_slice_contact_points.csv'):
         print(name+'_sha256='+hashlib.sha256((ROOT/name).read_bytes()).hexdigest())
@@ -165,7 +171,7 @@ def main():
         gate = 1e-9 if name == 'point_temperature' else (1e-13 if 'elastic' in name else 1e-4)
         if value > gate:
             raise RuntimeError('Independent reconstruction failed: '+name)
-    print('stress_difference_reconstruction=passed')
+    print('mean_hoop_stress_and_elastic_strain_reconstruction=passed')
 
 
 if __name__ == '__main__':
