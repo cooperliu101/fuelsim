@@ -53,6 +53,8 @@
 当前 `analyze_contact_stress.py` 默认检查平均膨胀温度规则，其中旧积分点温度
 公式只作为明确标注的代数诊断，不再作为生产接受条件。旧原因分析见
 [历史报告](contact_stress_diagnosis.md)，其建议不代表更新后的单元定义。
+平均温度更新后剩余内体误差的逐点应变、径向反力与弹性应变能分析见
+[内体差异诊断](inner_stress_diagnosis.md)。
 
 ## 完成的回归
 
