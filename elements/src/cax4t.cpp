@@ -126,7 +126,6 @@ struct Cax4tPointSystem final {
     adlite::Scalar temperature;
     AxisymmetricStress stress;
     std::array<Cax4LocalValues, 4> stress_derivatives{};
-    MaterialPointState history;
 };
 
 struct Cax4tKinematicAverages final {
@@ -231,6 +230,8 @@ Cax4tStressAverages evaluate_cax4t_material(const Cax4Input& data,
     const bool finite_strain = data.strain_formulation == StrainFormulation::finite;
     const auto* old_history = data.committed_history;
     const double time_step = data.time_step;
+    const double center_temperature = (state[0] + state[1] + state[2] + state[3]) / 4.0;
+    const double old_center_temperature = (old_state[0] + old_state[1] + old_state[2] + old_state[3]) / 4.0;
     double pressure = 0.0, hoop_stress = 0.0;
     Cax4LocalValues pressure_derivatives{}, hoop_stress_derivatives{};
     for (std::size_t q = 0; q < 4; ++q) {
@@ -246,7 +247,6 @@ Cax4tStressAverages evaluate_cax4t_material(const Cax4Input& data,
         const MaterialFunctionContext context = {data.time, point.radius, 0.0, point.axial_coordinate};
         // CAX4T uses the arithmetic corner temperature for expansion, while
         // constitutive properties retain the point temperature. CAX4RT differs.
-        const double center_temperature = (state[0] + state[1] + state[2] + state[3]) / 4.0;
         const auto point_eigen = data.material.eigenstrain_rz(s.temperature, context);
         const auto center_eigen = data.material.eigenstrain_rz(
             jacobian ? adlite::Scalar::independent(center_temperature, 0, 1) : adlite::Scalar(center_temperature),
@@ -265,9 +265,7 @@ Cax4tStressAverages evaluate_cax4t_material(const Cax4Input& data,
             old_context.time -= time_step;
             const auto op =
                 data.material.eigenstrain_rz(adlite::Scalar(interpolate(point.shape, old_state, 0)), old_context);
-            const auto oc = data.material.eigenstrain_rz(
-                adlite::Scalar((old_state[0] + old_state[1] + old_state[2] + old_state[3]) / 4.0),
-                old_context);
+            const auto oc = data.material.eigenstrain_rz(adlite::Scalar(old_center_temperature), old_context);
             old_imposed = {op.rr.value(), op.zz.value(), op.hoop.value(), op.rz.value()};
             const std::array<double, 4> difference = {op.rr.value() - oc.rr.value(),
                 op.zz.value() - oc.zz.value(),
@@ -293,10 +291,7 @@ Cax4tStressAverages evaluate_cax4t_material(const Cax4Input& data,
         s.stress = compose_axisymmetric_stress(tangent, inputs, jacobian);
         std::array<double, 4> trace_response{}, hoop_response{}, center_response{};
         for (std::size_t i = 0; i < 4; ++i) {
-            std::array<double, 5> partials{};
-            for (std::size_t j = 0; j < 4; ++j)
-                partials[j] = tangent.tangent[i][j];
-            partials[4] = tangent.thermal[i];
+            const auto& partials = tangent.tangent[i];
             trace_response[i] = (partials[0] + partials[1]) / 2.0;
             hoop_response[i] = partials[2] - trace_response[i];
             for (std::size_t j = 0; j < 4; ++j)
@@ -354,12 +349,14 @@ Cax4tStressAverages evaluate_cax4t_material(const Cax4Input& data,
                 hoop_stress_derivatives[j] += weight * s.stress_derivatives[2][j];
             }
         if (old_history && request.history) {
-            s.history = tangent.history;
+            result.history[q] = tangent.history;
             if (finite_strain)
-                rotate_axisymmetric_strain_history(s.history, k.rotation);
+                rotate_axisymmetric_strain_history(result.history[q], k.rotation);
         }
-        s.history.stress = {s.stress.rr.value(), s.stress.zz.value(), s.stress.hoop.value(), s.stress.rz.value()};
-        result.history[q] = s.history;
+        result.history[q].stress = {s.stress.rr.value(),
+            s.stress.zz.value(),
+            s.stress.hoop.value(),
+            s.stress.rz.value()};
     }
     return {pressure, hoop_stress, pressure_derivatives, hoop_stress_derivatives};
 }
@@ -377,6 +374,19 @@ void assemble_cax4t(const Cax4Input& data,
     const auto* old_history = data.committed_history;
     const double time_step = data.time_step;
     const bool thermal_time = data.include_thermal_time_term;
+    // Nodal material values are independent of the integration point. Keep the
+    // geometric weighting and its derivatives in the original quadrature loop.
+    std::array<double, 4> capacity_rates{}, capacity_derivatives{};
+    if (thermal_time && old_history)
+        for (std::size_t n = 0; n < 4; ++n) {
+            const auto temperature = jacobian ? adlite::Scalar::independent(state[n], 0, 1) : adlite::Scalar(state[n]);
+            const auto& coordinate = geometry.coordinates[n];
+            const auto rate = data.material.heat_capacity(temperature, {data.time, coordinate.r, 0.0, coordinate.z})
+                              * (temperature - old_state[n]) / time_step;
+            capacity_rates[n] = rate.value();
+            if (jacobian)
+                rate.copy_derivatives(&capacity_derivatives[n], 1);
+        }
     for (std::size_t q = 0; q < 4; ++q) {
         const auto& point = geometry.points[q];
         const auto& s = systems[q];
@@ -476,18 +486,10 @@ void assemble_cax4t(const Cax4Input& data,
             // CAX4T capacity is row-sum lumped: integrate N_i over the
             // selected volume, then evaluate rho*cp and temperature rate at i.
             if (thermal_time && old_history) {
-                const auto temperature =
-                    jacobian ? adlite::Scalar::independent(state[n], 0, 1) : adlite::Scalar(state[n]);
-                const auto& coordinate = geometry.coordinates[n];
-                const auto rate = data.material.heat_capacity(temperature, {data.time, coordinate.r, 0.0, coordinate.z})
-                                  * (temperature - old_state[n]) / time_step;
-                thermal += thermal_measure * point.shape[n] * rate.value();
-                result.stored_heat_rate += thermal_measure.value() * point.shape[n] * rate.value();
-                if (jacobian) {
-                    double derivative = 0.0;
-                    rate.copy_derivatives(&derivative, 1);
-                    result.jacobian[n * 12 + n] += thermal_measure.value() * point.shape[n] * derivative;
-                }
+                thermal += thermal_measure * point.shape[n] * capacity_rates[n];
+                result.stored_heat_rate += thermal_measure.value() * point.shape[n] * capacity_rates[n];
+                if (jacobian)
+                    result.jacobian[n * 12 + n] += thermal_measure.value() * point.shape[n] * capacity_derivatives[n];
             }
             result.residual[n] += thermal.value();
             if (jacobian) {

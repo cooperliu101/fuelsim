@@ -64,6 +64,13 @@ IsotropicThermoelasticMaterial material(bool inelastic) {
             {"reference_temperature", 600.0},
             {"thermal_expansion_temperature_coefficient", 0.0}}));
     if (inelastic) {
+        // Exercise nodal capacity with distinct spatial values and a nonzero
+        // temperature derivative in the existing nonlinear transaction test.
+        functions->thermal.function = [](const ThermoelasticFunctionInput& input, ThermalPropertyOutput& output) {
+            output.conductivity = 120.0 / input.temperature + 3.0;
+            output.density = 1000.0 + 10.0 * input.context.x + 20.0 * input.context.z + input.context.time;
+            output.specific_heat = 500.0 + 0.1 * (input.temperature - 600.0);
+        };
         functions->creep = registry.bind_creep("linear_temperature_norton",
             {{"coefficient", 1e-5},
                 {"reference_stress", 1e8},
@@ -193,6 +200,25 @@ void check_nonlinear_transaction(StrainFormulation form) {
     require(std::abs(heat_sum - active.stored_heat_rate + active.generated_heat_rate)
                 < 1e-12 * std::abs(active.stored_heat_rate),
         "Thermal diagnostics must match summed residual");
+    auto without_capacity = input;
+    without_capacity.include_thermal_time_term = false;
+    const auto stationary = evaluate_cax4t(without_capacity, {true, false, false, false});
+    auto thermal_coordinates = g.coordinates;
+    if (form == StrainFormulation::finite)
+        for (std::size_t n = 0; n < 4; ++n) {
+            thermal_coordinates[n].r += state[4 + n];
+            thermal_coordinates[n].z += state[8 + n];
+        }
+    const auto thermal_geometry = make_cax4t_geometry(thermal_coordinates);
+    for (std::size_t n = 0; n < 4; ++n) {
+        double weight = 0.0;
+        for (const auto& point : thermal_geometry.points)
+            weight += point.shape[n] * point.weighted_measure;
+        const double density = 1000.0 + 10.0 * g.coordinates[n].r + 20.0 * g.coordinates[n].z + input.time;
+        const double rate = density * (500.0 + 0.1 * (state[n] - 600.0)) * (state[n] - old[n]) / input.time_step;
+        require(scaled_error(active.residual[n] - stationary.residual[n], weight * rate) < 1e-12,
+            "Capacity must use each node's temperature and reference material coordinates");
+    }
     const Cax4LocalValues direction = {0.2, -0.3, 0.4, -0.1, 0.3, -0.5, 0.2, 0.4, -0.2, 0.35, -0.45, 0.25};
     // Two resolved step sizes avoid cancellation in the large thermal residual.
     double error = 0.0;

@@ -76,7 +76,6 @@ Quad8RzPoint evaluate_quad8_rz_point(const Quad8RzCoordinates& coordinates, doub
 
 struct PointKinematics final {
     std::array<adlite::Scalar, 6> active;
-    std::array<Quad8RzValues, 6> chain{};
     std::array<double, 6> old{};
     std::array<adlite::Scalar, 4> strain;
     AxisymmetricRotation rotation;
@@ -110,17 +109,13 @@ PointKinematics evaluate_kinematics(const Quad8RzPoint& p,
             value[2 * c + 1] += state[index] * p.gradient_z[n];
             k.old[2 * c] += committed[index] * p.gradient_r[n];
             k.old[2 * c + 1] += committed[index] * p.gradient_z[n];
-            k.chain[2 * c][index] = p.gradient_r[n];
-            k.chain[2 * c + 1][index] = p.gradient_z[n];
         }
         value[4] += state[4 + n] * p.shape[n];
         k.old[4] += committed[4 + n] * p.shape[n];
-        k.chain[4][4 + n] = p.shape[n];
     }
     for (std::size_t n = 0; n < 4; ++n) {
         value[5] += state[n] * p.temperature_shape[n];
         k.old[5] += committed[n] * p.temperature_shape[n];
-        k.chain[5][n] = p.temperature_shape[n];
     }
     for (std::size_t i = 0; i < 6; ++i)
         k.active[i] = jacobian ? adlite::Scalar::independent(value[i], i, 6) : adlite::Scalar(value[i]);
@@ -170,7 +165,7 @@ ThermalGeometry thermal_geometry(const Quad8RzPoint& p, const PointKinematics& k
     return {gr, gz};
 }
 
-SourceGeometry source_geometry(const Quad8RzPoint& p, const Quad8RzValues& state, bool finite) {
+SourceGeometry source_geometry(const Quad8RzPoint& p, const Quad8RzValues& state, bool finite, bool jacobian) {
     double source_measure = p.weighted_measure;
     Quad8RzValues source_derivative{};
     if (finite) {
@@ -186,30 +181,38 @@ SourceGeometry source_geometry(const Quad8RzPoint& p, const Quad8RzValues& state
         if (!(determinant > 0) || !(radius > 0))
             throw std::domain_error("CAX8 current linear source geometry must be positive");
         source_measure = p.source_measure * determinant * radius / p.source_radius;
-        for (std::size_t n = 0; n < 4; ++n) {
-            source_derivative[4 + n] = source_measure
-                                       * ((fd * p.source_gradient_r[n] - fc * p.source_gradient_z[n]) / determinant
-                                           + p.temperature_shape[n] / radius);
-            source_derivative[12 + n] =
-                source_measure * ((fa * p.source_gradient_z[n] - fb * p.source_gradient_r[n]) / determinant);
-        }
+        if (jacobian)
+            for (std::size_t n = 0; n < 4; ++n) {
+                source_derivative[4 + n] = source_measure
+                                           * ((fd * p.source_gradient_r[n] - fc * p.source_gradient_z[n]) / determinant
+                                               + p.temperature_shape[n] / radius);
+                source_derivative[12 + n] =
+                    source_measure * ((fa * p.source_gradient_z[n] - fb * p.source_gradient_r[n]) / determinant);
+            }
     }
     return {source_measure, source_derivative};
 }
 
-void add_row(elements::Cax8Result& result,
+// Chain the six point-local derivatives directly to the mixed-order nodal fields.
+void add_row(Cax8Result& result,
     std::size_t row,
     const adlite::Scalar& value,
-    const PointKinematics& k,
+    const Quad8RzPoint& point,
     bool jacobian) {
     result.residual[row] += value.value();
     if (!jacobian)
         return;
     std::array<double, 6> d{};
-    value.copy_derivatives(d.data(), 6);
-    for (std::size_t j = 0; j < 20; ++j)
-        for (std::size_t a = 0; a < 6; ++a)
-            result.jacobian[20 * row + j] += d[a] * k.chain[a][j];
+    value.copy_derivatives(d.data(), d.size());
+    for (std::size_t n = 0; n < 4; ++n)
+        result.jacobian[20 * row + n] += d[5] * point.temperature_shape[n];
+    for (std::size_t n = 0; n < 8; ++n) {
+        result.jacobian[20 * row + 4 + n] += d[0] * point.gradient_r[n];
+        result.jacobian[20 * row + 4 + n] += d[1] * point.gradient_z[n];
+        result.jacobian[20 * row + 4 + n] += d[4] * point.shape[n];
+        result.jacobian[20 * row + 12 + n] += d[2] * point.gradient_r[n];
+        result.jacobian[20 * row + 12 + n] += d[3] * point.gradient_z[n];
+    }
 }
 
 } // namespace
@@ -275,8 +278,8 @@ Cax8Result evaluate_cax8t(const Cax8Input& data, ElementRequest request, Cax8Qua
             const auto& br = gradient.radial;
             const auto& bz = gradient.axial;
             const auto& bh = gradient.hoop;
-            add_row(result, 4 + n, k.measure * (br * stress.rr + bz * stress.rz + bh * stress.hoop), k, jacobian);
-            add_row(result, 12 + n, k.measure * (bz * stress.zz + br * stress.rz), k, jacobian);
+            add_row(result, 4 + n, k.measure * (br * stress.rr + bz * stress.rz + bh * stress.hoop), p, jacobian);
+            add_row(result, 12 + n, k.measure * (bz * stress.zz + br * stress.rz), p, jacobian);
         }
         // Four temperature shape functions share the full quadratic geometric map.
         const auto thermal_map = thermal_geometry(p, k, finite);
@@ -290,12 +293,12 @@ Cax8Result evaluate_cax8t(const Cax8Input& data, ElementRequest request, Cax8Qua
         const auto conductivity = data.material.conductivity(t, context);
         const adlite::Scalar capacity =
             history && thermal_time ? data.material.heat_capacity(t, context) * (t - k.old[5]) / dt : adlite::Scalar(0);
-        const auto source_map = source_geometry(p, state, finite);
+        const auto source_map = source_geometry(p, state, finite, jacobian);
         const double source_measure = source_map.measure;
         const auto& source_derivative = source_map.derivative;
         for (std::size_t n = 0; n < 4; ++n) {
             const auto row = k.measure * (conductivity * (gr[n] * tr + gz[n] * tz) + p.temperature_shape[n] * capacity);
-            add_row(result, n, row, k, jacobian);
+            add_row(result, n, row, p, jacobian);
             const double source = p.temperature_shape[n] * data.volumetric_heat_source;
             result.residual[n] -= source * source_measure;
             if (jacobian)

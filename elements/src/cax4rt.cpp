@@ -68,13 +68,15 @@ ReducedGeometry reduce_geometry(const Quad4RzGeometry& reference, const Cax4Loca
         result.hoop[n] /= result.volume;
         for (std::size_t d = 0; d < 2; ++d)
             result.gradient[n][d] /= result.volume;
-        for (std::size_t j = 0; j < 12; ++j) {
-            result.hoop_derivative[n][j] =
-                (result.hoop_derivative[n][j] - result.hoop[n] * result.volume_derivative[j]) / result.volume;
-            for (std::size_t d = 0; d < 2; ++d)
-                result.gradient_derivative[n][d][j] =
-                    (result.gradient_derivative[n][d][j] - result.gradient[n][d] * result.volume_derivative[j])
-                    / result.volume;
+        if (chain_scale != 0.0) {
+            for (std::size_t j = 0; j < 12; ++j) {
+                result.hoop_derivative[n][j] =
+                    (result.hoop_derivative[n][j] - result.hoop[n] * result.volume_derivative[j]) / result.volume;
+                for (std::size_t d = 0; d < 2; ++d)
+                    result.gradient_derivative[n][d][j] =
+                        (result.gradient_derivative[n][d][j] - result.gradient[n][d] * result.volume_derivative[j])
+                        / result.volume;
+            }
         }
     }
     std::array<double, 2> projected{}, center{};
@@ -95,11 +97,13 @@ ReducedGeometry reduce_geometry(const Quad4RzGeometry& reference, const Cax4Loca
         throw std::domain_error("CAX4RT center geometry must be positive");
     for (std::size_t n = 0; n < 4; ++n) {
         result.gamma[n] = mode[n] - result.gradient[n][0] * projected[0] - result.gradient[n][1] * projected[1];
-        for (std::size_t j = 4; j < 12; ++j) {
-            const auto a = (j - 4) % 4, c = (j - 4) / 4;
-            result.gamma_derivative[n][j] = -chain_scale * result.gradient[n][c] * mode[a];
-            for (std::size_t d = 0; d < 2; ++d)
-                result.gamma_derivative[n][j] -= result.gradient_derivative[n][d][j] * projected[d];
+        if (chain_scale != 0.0) {
+            for (std::size_t j = 4; j < 12; ++j) {
+                const auto a = (j - 4) % 4, c = (j - 4) / 4;
+                result.gamma_derivative[n][j] = -chain_scale * result.gradient[n][c] * mode[a];
+                for (std::size_t d = 0; d < 2; ++d)
+                    result.gamma_derivative[n][j] -= result.gradient_derivative[n][d][j] * projected[d];
+            }
         }
     }
     // Abaqus/Standard CAX4RT thermal stabilization uses the first two local-node
@@ -111,12 +115,14 @@ ReducedGeometry reduce_geometry(const Quad4RzGeometry& reference, const Cax4Loca
             norm += g * g;
     const double denominator = 12.0 * std::acos(-1.0);
     result.thermal_coefficient = result.volume * norm / denominator;
-    for (std::size_t j = 4; j < 12; ++j) {
-        double dnorm = 0.0;
-        for (std::size_t n = 0; n < 2; ++n)
-            for (std::size_t d = 0; d < 2; ++d)
-                dnorm += 2.0 * result.gradient[n][d] * result.gradient_derivative[n][d][j];
-        result.thermal_derivative[j] = (result.volume_derivative[j] * norm + result.volume * dnorm) / denominator;
+    if (chain_scale != 0.0) {
+        for (std::size_t j = 4; j < 12; ++j) {
+            double dnorm = 0.0;
+            for (std::size_t n = 0; n < 2; ++n)
+                for (std::size_t d = 0; d < 2; ++d)
+                    dnorm += 2.0 * result.gradient[n][d] * result.gradient_derivative[n][d][j];
+            result.thermal_derivative[j] = (result.volume_derivative[j] * norm + result.volume * dnorm) / denominator;
+        }
     }
     return result;
 }
@@ -168,20 +174,28 @@ HourglassState hourglass_state(const elements::Cax4Input& data,
             result.transported[d] += result.deformation[c][d] * result.amplitude[c];
     return result;
 }
-} // namespace
 
-Cax4Result evaluate_cax4rt(const Cax4Input& data, ElementRequest request) {
+struct Cax4rtPointSystem final {
+    std::array<Cax4LocalValues, 6> seeds;
+    adlite::Scalar frr, frz, fzr, fzz, fh, fd;
+    AxisymmetricStress sigma;
+    std::array<Cax4LocalValues, 4> stress_derivative;
+    MaterialFunctionContext context;
+    double temperature;
+};
+
+Cax4rtPointSystem evaluate_material_point(const Cax4Input& data,
+    ElementRequest request,
+    const ReducedGeometry& reference,
+    const ReducedGeometry& current,
+    Cax4Result& result) {
     const auto& geometry = data.geometry;
     const auto& state = data.state;
     const auto& committed = data.committed_state;
     const auto* history = data.committed_history;
     const double time_step = data.time_step;
     const bool jacobian = request.jacobian;
-    const bool thermal_time = data.include_thermal_time_term;
-    validate_cax_time_input(history != nullptr, time_step, thermal_time);
     const bool finite = data.strain_formulation == StrainFormulation::finite;
-    const auto reference = reduce_geometry(geometry, {}, 0.0);
-    const auto current = finite ? reduce_geometry(geometry, state, jacobian ? 1.0 : 0.0) : reference;
     const auto old = finite ? reduce_geometry(geometry, committed, 0.0) : reference;
     Cax4LocalValues midpoint_state{};
     for (std::size_t j = 0; j < 12; ++j)
@@ -194,19 +208,24 @@ Cax4Result evaluate_cax4rt(const Cax4Input& data, ElementRequest request) {
             for (std::size_t d = 0; d < 2; ++d) {
                 values[2 * c + d] += reference.gradient[n][d] * state[4 + 4 * c + n];
                 old_values[2 * c + d] += reference.gradient[n][d] * committed[4 + 4 * c + n];
-                seeds[2 * c + d][4 + 4 * c + n] = reference.gradient[n][d];
+                if (jacobian)
+                    seeds[2 * c + d][4 + 4 * c + n] = reference.gradient[n][d];
             }
         values[4] += reference.hoop[n] * state[4 + n];
         old_values[4] += reference.hoop[n] * committed[4 + n];
-        seeds[4][4 + n] = reference.hoop[n];
+        if (jacobian)
+            seeds[4][4 + n] = reference.hoop[n];
         values[5] += current.measures[n] * state[n] / current.volume;
         old_values[5] += old.measures[n] * committed[n] / old.volume;
-        seeds[5][n] = current.measures[n] / current.volume;
+        if (jacobian)
+            seeds[5][n] = current.measures[n] / current.volume;
     }
-    for (std::size_t j = 4; j < 12; ++j) {
-        for (std::size_t n = 0; n < 4; ++n)
-            seeds[5][j] += current.measure_derivative[n][j] * state[n] / current.volume;
-        seeds[5][j] -= values[5] * current.volume_derivative[j] / current.volume;
+    if (jacobian) {
+        for (std::size_t j = 4; j < 12; ++j) {
+            for (std::size_t n = 0; n < 4; ++n)
+                seeds[5][j] += current.measure_derivative[n][j] * state[n] / current.volume;
+            seeds[5][j] -= values[5] * current.volume_derivative[j] / current.volume;
+        }
     }
     double trace = 0.0;
     Cax4LocalValues trace_derivative{};
@@ -214,11 +233,13 @@ Cax4Result evaluate_cax4rt(const Cax4Input& data, ElementRequest request) {
         const double ur = state[4 + n] - (finite ? committed[4 + n] : 0.0),
                      uz = state[8 + n] - (finite ? committed[8 + n] : 0.0);
         trace += ur * (midpoint.gradient[n][0] + midpoint.hoop[n]) + uz * midpoint.gradient[n][1];
-        trace_derivative[4 + n] += midpoint.gradient[n][0] + midpoint.hoop[n];
-        trace_derivative[8 + n] += midpoint.gradient[n][1];
-        for (std::size_t j = 4; j < 12; ++j)
-            trace_derivative[j] += ur * (midpoint.gradient_derivative[n][0][j] + midpoint.hoop_derivative[n][j])
-                                   + uz * midpoint.gradient_derivative[n][1][j];
+        if (jacobian) {
+            trace_derivative[4 + n] += midpoint.gradient[n][0] + midpoint.hoop[n];
+            trace_derivative[8 + n] += midpoint.gradient[n][1];
+            for (std::size_t j = 4; j < 12; ++j)
+                trace_derivative[j] += ur * (midpoint.gradient_derivative[n][0][j] + midpoint.hoop_derivative[n][j])
+                                       + uz * midpoint.gradient_derivative[n][1][j];
+        }
     }
     std::array<adlite::Scalar, 6> active;
     for (std::size_t i = 0; i < 6; ++i)
@@ -280,69 +301,96 @@ Cax4Result evaluate_cax4rt(const Cax4Input& data, ElementRequest request) {
         jacobian,
         request.history);
     AxisymmetricStress sigma = compose_axisymmetric_stress(tangent, inputs, jacobian);
-    std::array<double, 4> trace_response{};
-    for (std::size_t i = 0; i < 4; ++i)
-        trace_response[i] = (tangent.tangent[i][0] + tangent.tangent[i][1]) / 2.0;
-    AxisymmetricStress ds = {trace_response[0], trace_response[1], trace_response[2], trace_response[3]};
-    if (finite) {
+    if (finite)
         sigma = rotate_axisymmetric_tensor(sigma, rotation);
-        if (jacobian) {
+    std::array<Cax4LocalValues, 4> stress_derivative{};
+    if (jacobian) {
+        AxisymmetricStress trace_stress;
+        std::array<double, 4> trace_response{};
+        for (std::size_t i = 0; i < 4; ++i)
+            trace_response[i] = (tangent.tangent[i][0] + tangent.tangent[i][1]) / 2.0;
+        trace_stress = {trace_response[0], trace_response[1], trace_response[2], trace_response[3]};
+        if (finite) {
             const AxisymmetricRotation passive_rotation = {rotation.rr.value(),
                 rotation.rz.value(),
                 rotation.zr.value(),
                 rotation.zz.value(),
                 rotation.hoop.value()};
-            ds = rotate_axisymmetric_tensor(ds, passive_rotation);
+            trace_stress = rotate_axisymmetric_tensor(trace_stress, passive_rotation);
         }
-    }
-    const std::array<adlite::Scalar, 4> stress = {sigma.rr, sigma.zz, sigma.hoop, sigma.rz};
-    trace_response = {ds.rr.value(), ds.zz.value(), ds.hoop.value(), ds.rz.value()};
-    std::array<Cax4LocalValues, 4> stress_derivative{};
-    if (jacobian)
+        trace_response = {trace_stress.rr.value(),
+            trace_stress.zz.value(),
+            trace_stress.hoop.value(),
+            trace_stress.rz.value()};
+        const std::array<adlite::Scalar, 4> stress = {sigma.rr, sigma.zz, sigma.hoop, sigma.rz};
         for (std::size_t i = 0; i < 4; ++i) {
             stress_derivative[i] = chain(stress[i], seeds);
             for (std::size_t j = 0; j < 12; ++j)
                 stress_derivative[i][j] += trace_response[i] * trace_derivative[j];
         }
-    elements::Cax4Result result;
+    }
     if (history && request.history) {
         result.history[0] = tangent.history;
         if (finite)
             rotate_axisymmetric_strain_history(result.history[0], rotation);
     }
     result.history[0].stress = {sigma.rr.value(), sigma.zz.value(), sigma.hoop.value(), sigma.rz.value()};
-    const double p = (sigma.rr.value() + sigma.zz.value()) / 2.0;
+    return {seeds, frr, frz, fzr, fzz, fh, fd, sigma, stress_derivative, context, values[5]};
+}
+
+void assemble_mechanics(const ReducedGeometry& reference,
+    const ReducedGeometry& current,
+    const Cax4rtPointSystem& point,
+    bool finite,
+    bool jacobian,
+    Cax4Result& result) {
+    const std::array<double, 2> normal = {point.sigma.rr.value(), point.sigma.zz.value()};
+    const double p = (point.sigma.rr.value() + point.sigma.zz.value()) / 2.0;
     Cax4LocalValues dp{};
     if (jacobian)
         for (std::size_t j = 0; j < 12; ++j)
-            dp[j] = (stress_derivative[0][j] + stress_derivative[1][j]) / 2.0;
+            dp[j] = (point.stress_derivative[0][j] + point.stress_derivative[1][j]) / 2.0;
     for (std::size_t n = 0; n < 4; ++n) {
-        const adlite::Scalar br = finite ? (reference.gradient[n][0] * fzz - reference.gradient[n][1] * fzr) / fd
-                                         : adlite::Scalar(reference.gradient[n][0]);
-        const adlite::Scalar bz = finite ? (-reference.gradient[n][0] * frz + reference.gradient[n][1] * frr) / fd
-                                         : adlite::Scalar(reference.gradient[n][1]);
-        const adlite::Scalar bh = finite ? reference.hoop[n] / fh : adlite::Scalar(reference.hoop[n]);
-        const auto dr = chain(br, seeds), dz = chain(bz, seeds), dh = chain(bh, seeds);
+        const adlite::Scalar br =
+            finite ? (reference.gradient[n][0] * point.fzz - reference.gradient[n][1] * point.fzr) / point.fd
+                   : adlite::Scalar(reference.gradient[n][0]);
+        const adlite::Scalar bz =
+            finite ? (-reference.gradient[n][0] * point.frz + reference.gradient[n][1] * point.frr) / point.fd
+                   : adlite::Scalar(reference.gradient[n][1]);
+        const adlite::Scalar bh = finite ? reference.hoop[n] / point.fh : adlite::Scalar(reference.hoop[n]);
+        Cax4LocalValues dr{}, dz{}, dh{};
+        if (jacobian) {
+            dr = chain(br, point.seeds);
+            dz = chain(bz, point.seeds);
+            dh = chain(bh, point.seeds);
+        }
         for (std::size_t c = 0; c < 2; ++c) {
             const auto row = 4 + 4 * c + n;
-            const double dev = stress[c].value() - p;
+            const double dev = normal[c] - p;
             const double bmain = c == 0 ? br.value() : bz.value(), bcross = c == 0 ? bz.value() : br.value();
-            const double value = dev * bmain + sigma.rz.value() * bcross + p * current.gradient[n][c]
-                                 + (c == 0 ? p * current.hoop[n] + (sigma.hoop.value() - p) * bh.value() : 0.0);
+            const double value = dev * bmain + point.sigma.rz.value() * bcross + p * current.gradient[n][c]
+                                 + (c == 0 ? p * current.hoop[n] + (point.sigma.hoop.value() - p) * bh.value() : 0.0);
             result.residual[row] = current.volume * value;
             if (!jacobian)
                 continue;
             for (std::size_t j = 0; j < 12; ++j) {
-                double dv = (stress_derivative[c][j] - dp[j]) * bmain + dev * (c == 0 ? dr[j] : dz[j])
-                            + stress_derivative[3][j] * bcross + sigma.rz.value() * (c == 0 ? dz[j] : dr[j])
+                double dv = (point.stress_derivative[c][j] - dp[j]) * bmain + dev * (c == 0 ? dr[j] : dz[j])
+                            + point.stress_derivative[3][j] * bcross + point.sigma.rz.value() * (c == 0 ? dz[j] : dr[j])
                             + dp[j] * current.gradient[n][c] + p * current.gradient_derivative[n][c][j];
                 if (c == 0)
                     dv += dp[j] * current.hoop[n] + p * current.hoop_derivative[n][j]
-                          + (stress_derivative[2][j] - dp[j]) * bh.value() + (sigma.hoop.value() - p) * dh[j];
+                          + (point.stress_derivative[2][j] - dp[j]) * bh.value()
+                          + (point.sigma.hoop.value() - p) * dh[j];
                 result.jacobian[row * 12 + j] = current.volume_derivative[j] * value + current.volume * dv;
             }
         }
     }
+}
+
+void add_hourglass(const Cax4Input& data, const ReducedGeometry& reference, bool jacobian, Cax4Result& result) {
+    const auto& geometry = data.geometry;
+    const auto& state = data.state;
+    const bool finite = data.strain_formulation == StrainFormulation::finite;
     // Total-stiffness hourglass energy: 0.5*C*|F^T*a|^2, including both derivatives of F.
     const auto hourglass = hourglass_state(data, geometry, reference, state);
     const double coefficient = hourglass.coefficient;
@@ -375,9 +423,22 @@ Cax4Result evaluate_cax4rt(const Cax4Input& data, ElementRequest request) {
                         + (finite ? (c == q ? reference.gamma[a] * gnb : 0.0) + amplitude[c] * gn_derivative : 0.0));
             }
         }
-    const auto k =
-        data.material.conductivity(jacobian ? adlite::Scalar::independent(values[5], 0, 1) : adlite::Scalar(values[5]),
-            context);
+}
+
+void assemble_thermal(const Cax4Input& data,
+    const ReducedGeometry& current,
+    const Cax4rtPointSystem& point,
+    bool jacobian,
+    Cax4Result& result) {
+    const auto& geometry = data.geometry;
+    const auto& state = data.state;
+    const auto& committed = data.committed_state;
+    const auto* history = data.committed_history;
+    const double time_step = data.time_step;
+    const bool thermal_time = data.include_thermal_time_term;
+    const auto k = data.material.conductivity(jacobian ? adlite::Scalar::independent(point.temperature, 0, 1)
+                                                       : adlite::Scalar(point.temperature),
+        point.context);
     const double dk = k.is_active() ? k.derivative(0) : 0.0;
     std::array<double, 2> gradT{};
     double modalT = 0.0;
@@ -407,7 +468,7 @@ Cax4Result evaluate_cax4rt(const Cax4Input& data, ElementRequest request) {
                     current.volume_derivative[j] * uniform + current.volume * du
                     + current.thermal_derivative[j] * current.gamma[n] * modalT
                     + current.thermal_coefficient * (current.gamma_derivative[n][j] * modalT + current.gamma[n] * dm);
-                result.jacobian[n * 12 + j] += dk * seeds[5][j] * conduction + k.value() * dc
+                result.jacobian[n * 12 + j] += dk * point.seeds[5][j] * conduction + k.value() * dc
                                                - data.volumetric_heat_source * current.measure_derivative[n][j];
             }
         if (history && thermal_time) {
@@ -427,6 +488,19 @@ Cax4Result evaluate_cax4rt(const Cax4Input& data, ElementRequest request) {
         }
     }
     result.generated_heat_rate = data.volumetric_heat_source * current.volume;
+}
+} // namespace
+
+Cax4Result evaluate_cax4rt(const Cax4Input& data, ElementRequest request) {
+    validate_cax_time_input(data.committed_history != nullptr, data.time_step, data.include_thermal_time_term);
+    const bool finite = data.strain_formulation == StrainFormulation::finite;
+    const auto reference = reduce_geometry(data.geometry, {}, 0.0);
+    const auto current = finite ? reduce_geometry(data.geometry, data.state, request.jacobian ? 1.0 : 0.0) : reference;
+    Cax4Result result;
+    const auto point = evaluate_material_point(data, request, reference, current, result);
+    assemble_mechanics(reference, current, point, finite, request.jacobian, result);
+    add_hourglass(data, reference, request.jacobian, result);
+    assemble_thermal(data, current, point, request.jacobian, result);
     finish_cax4_result(result, request);
     return result;
 }
