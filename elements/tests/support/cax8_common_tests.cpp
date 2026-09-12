@@ -7,6 +7,7 @@
 #include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 
 int run_cax8_tests(fuelsim::RzElementFormulation selected) {
@@ -113,6 +114,30 @@ int run_cax8_tests(fuelsim::RzElementFormulation selected) {
             auto heated = affine;
             for (std::size_t n = 0; n < 4; ++n)
                 heated[n] = 630;
+            fuelsim::elements::Cax8Input input{data.material, geometry, heated, affine};
+            input.include_thermal_time_term = true;
+            for (double step : {0.1, 0.0, std::numeric_limits<double>::quiet_NaN()}) {
+                input.time_step = step;
+                for (bool jacobian : {false, true}) {
+                    bool rejected = false;
+                    try {
+                        if (geometry.point_count == 4)
+                            (void)fuelsim::elements::evaluate_cax8rt(input, {true, jacobian, false, false});
+                        else
+                            (void)fuelsim::elements::evaluate_cax8t(input, {true, jacobian, false, false});
+                    } catch (const std::invalid_argument&) {
+                        rejected = true;
+                    }
+                    if (!rejected)
+                        throw std::runtime_error("CAX8 heat capacity must reject missing committed history");
+                }
+            }
+            input.include_thermal_time_term = false;
+            input.time_step = 0.0;
+            const auto steady = geometry.point_count == 4 ? fuelsim::elements::evaluate_cax8rt(input)
+                                                          : fuelsim::elements::evaluate_cax8t(input);
+            if (steady.stored_heat_rate != 0.0)
+                throw std::runtime_error("CAX8 steady evaluation without history must have zero stored heat rate");
             const fuelsim::Quad8MaterialHistory history{};
             const auto transient = fuelsim::compute_cax8(data, geometry, heated, affine, &history, .1, false);
             const double capacity = 3 * std::acos(-1.0) * 1000 * 100 * 30 / .1;

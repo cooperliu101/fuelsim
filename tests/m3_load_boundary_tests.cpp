@@ -148,6 +148,63 @@ std::array<ConvergenceMetric, 9> compare_committed_states(const fuelsim::Transie
     return result;
 }
 
+bool test_active_material_point_time_error(const std::string& input_path) {
+    const auto input = fuelsim::read_case_input(input_path);
+    const auto mesh = fuelsim::read_exodus_quad4(input.mesh_file);
+    bool passed = true;
+    // Compare full integration, reduced integration, and a mixture of both.
+    for (int arrangement = 0; arrangement < 3; ++arrangement) {
+        auto definition = input.spatial;
+        for (std::size_t r = 0; r < definition.regions.size(); ++r)
+            definition.regions[r].rz_element_formulation = arrangement == 1 || (arrangement == 2 && r % 2 == 0)
+                                                               ? fuelsim::RzElementFormulation::cax4rt
+                                                               : fuelsim::RzElementFormulation::cax4t;
+        fuelsim::TransientProblem problem(definition, mesh);
+        const auto full = problem.capture_state();
+        auto changed = fuelsim::rz::ProblemAccess::committed_state(problem);
+        constexpr double difference = 1.5e-10;
+        for (std::size_t r = 0; r < changed.material_histories.size(); ++r) {
+            const std::size_t points =
+                definition.regions[r].rz_element_formulation == fuelsim::RzElementFormulation::cax4rt ? 1 : 4;
+            for (auto& element : changed.material_histories[r])
+                for (std::size_t q = 0; q < points; ++q) {
+                    auto& point = element[q];
+                    point.elastic_strain.fill(difference);
+                    point.plastic_strain = {difference, -difference, 0.0, 0.0};
+                    point.creep_strain = point.plastic_strain;
+                    point.stress = {difference, difference, difference, difference};
+                    point.equivalent_plastic_strain = difference;
+                    point.equivalent_creep_strain = difference;
+                }
+        }
+        fuelsim::rz::ProblemAccess::restore_committed_state(problem, changed);
+        const auto half = problem.capture_state();
+        for (double relative : {0.0, 0.2}) {
+            fuelsim::TransientTimeOptions options;
+            options.time_error_relative_tolerance = relative;
+            options.strain_history_time_absolute_tolerance = 1e-10;
+            options.stress_history_time_absolute_tolerance = 1e-10;
+            const auto error = problem.step_doubling_error(full, half, options);
+            const double expected = difference / (1e-10 + relative * difference);
+            const double deviator = difference / (std::sqrt(2.0) * 1e-10 + relative * difference);
+            passed =
+                check(std::abs(error.elastic_strain - expected) < 1e-13 && std::abs(error.stress - expected) < 1e-13
+                          && std::abs(error.plastic_strain - deviator) < 1e-13
+                          && std::abs(error.creep_strain - deviator) < 1e-13
+                          && std::abs(error.equivalent_plastic_strain - expected) < 1e-13
+                          && std::abs(error.equivalent_creep_strain - expected) < 1e-13
+                          && std::abs(error.maximum - expected) < 1e-13 && error.maximum > 1.0,
+                    "CAX material time error counts only active points and rejects an excessive error")
+                && passed;
+        }
+        problem.restore_state(full);
+        passed = check(problem.step_doubling_error(full, problem.capture_state(), {}).maximum == 0.0,
+                     "Restoring the accepted CAX history removes the trial time error")
+                 && passed;
+    }
+    return passed;
+}
+
 bool test_opaque_state_snapshot(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
@@ -530,9 +587,9 @@ int main(int argc, char** argv) {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(argc, argv, "fuelsim M3.1 time loads and boundary test\n");
         if (!test_time_event_alignment(argv[1]) || !test_opaque_state_snapshot(argv[1])
-            || !test_time_error_control(argv[1]) || !test_history_time_error_control(argv[1])
-            || !test_long_transient_diagnostics(argv[1]) || !test_failure_diagnostics(argv[1])
-            || !test_steady_load_cutback(argv[1]))
+            || !test_active_material_point_time_error(argv[1]) || !test_time_error_control(argv[1])
+            || !test_history_time_error_control(argv[1]) || !test_long_transient_diagnostics(argv[1])
+            || !test_failure_diagnostics(argv[1]) || !test_steady_load_cutback(argv[1]))
             return 1;
         std::cout << "[PASS] fuelsim M3.1 time loads and boundary test\n";
         return 0;

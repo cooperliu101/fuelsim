@@ -1244,6 +1244,7 @@ TransientTimeErrorEstimate compare_step_doubling_states(const TransientCommitted
     const std::vector<FieldDescriptor>& fields,
     std::size_t expected_dof_count,
     const TransientTimeOptions& options,
+    const SpatialDefinition& definition,
     const rz8::SpatialAssembly* quad8) {
     if (full_step.solution.size() != two_half_steps.solution.size() || full_step.solution.size() != expected_dof_count)
         throw std::logic_error("step-doubling nodal-state layouts differ");
@@ -1284,8 +1285,10 @@ TransientTimeErrorEstimate compare_step_doubling_states(const TransientCommitted
                    &half_history = two_half_steps.material_histories[region];
         if (full_history.size() != half_history.size())
             throw std::logic_error("step-doubling material-state element layouts differ");
+        const std::size_t point_count =
+            definition.regions.at(region).rz_element_formulation == RzElementFormulation::cax4rt ? 1 : 4;
         for (std::size_t element = 0; element < full_history.size(); ++element) {
-            for (std::size_t q = 0; q < 4; ++q) {
+            for (std::size_t q = 0; q < point_count; ++q) {
                 const MaterialPointState &full_point = full_history[element][q], &half_point = half_history[element][q];
                 const AxisymmetricStressValues &full_value = full_point.stress, &half_value = half_point.stress;
                 const double full_stress[] = {full_value.rr, full_value.zz, full_value.hoop, full_value.rz},
@@ -1416,7 +1419,13 @@ TransientTimeErrorEstimate TransientProblem::step_doubling_error(const ProblemSt
         rz::assign_material_time_errors(result, material, options);
         return result;
     }
-    return rz::compare_step_doubling_states(full, half, field_layout(), dof_count(), options, _impl->rz8.get());
+    return rz::compare_step_doubling_states(full,
+        half,
+        field_layout(),
+        dof_count(),
+        options,
+        definition(),
+        _impl->rz8.get());
 }
 
 void TransientProblem::combine_last_half_step_conservation(const TransientConservationSummary& first_half) {

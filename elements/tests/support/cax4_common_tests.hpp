@@ -48,6 +48,35 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
     data.element_formulation = reduced ? fuelsim::RzElementFormulation::cax4rt : fuelsim::RzElementFormulation::cax4t;
     const fuelsim::Cax4LocalValues direction = {0.2, -0.3, 0.4, -0.1, 0.3, -0.5, 0.2, 0.4, -0.2, 0.35, -0.45, 0.25};
     bool passed = true;
+    {
+        fuelsim::Cax4LocalValues heated{}, committed{};
+        for (std::size_t n = 0; n < 4; ++n) {
+            heated[n] = 610.0;
+            committed[n] = 600.0;
+        }
+        fuelsim::elements::Cax4Input input{data.material, geometry, heated, committed};
+        input.include_thermal_time_term = true;
+        for (double step : {0.1, 0.0, std::numeric_limits<double>::quiet_NaN()}) {
+            input.time_step = step;
+            for (bool jacobian : {false, true}) {
+                bool rejected = false;
+                try {
+                    if (reduced)
+                        (void)fuelsim::elements::evaluate_cax4rt(input, {true, jacobian, false, false});
+                    else
+                        (void)fuelsim::elements::evaluate_cax4t(input, {true, jacobian, false, false});
+                } catch (const std::invalid_argument&) {
+                    rejected = true;
+                }
+                passed = check(rejected, name + " heat capacity rejects missing committed history") && passed;
+            }
+        }
+        input.include_thermal_time_term = false;
+        input.time_step = 0.0;
+        const auto steady =
+            reduced ? fuelsim::elements::evaluate_cax4rt(input) : fuelsim::elements::evaluate_cax4t(input);
+        passed = check(steady.stored_heat_rate == 0.0, name + " steady evaluation permits missing history") && passed;
+    }
     if (!reduced) {
         // Fully restrained heating has the same hydrostatic stress at every
         // point, even on a distorted element with nonuniform corner temperatures.

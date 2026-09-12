@@ -478,6 +478,8 @@ Cax4Result evaluate_cax4rt(const Cax4Input& input, ElementRequest request) {
     const bool jacobian = request.jacobian;
     if (input.committed_history && (!std::isfinite(input.time_step) || !(input.time_step > 0)))
         throw std::invalid_argument("CAX4RT history update requires a positive finite time step");
+    if (!input.committed_history && input.include_thermal_time_term)
+        throw std::invalid_argument("CAX4RT heat capacity requires committed material history");
     const auto& data = input;
     auto result = compute_cax4rt(data,
         input.geometry,

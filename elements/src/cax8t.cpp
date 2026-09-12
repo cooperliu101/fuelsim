@@ -281,6 +281,8 @@ Cax8Result evaluate_cax8t(const Cax8Input& data, ElementRequest request, Cax8Qua
     const bool thermal_time = data.include_thermal_time_term;
     if (history && (!(dt > 0) || !std::isfinite(dt)))
         throw std::invalid_argument("CAX8 material update requires positive finite time step");
+    if (!history && thermal_time)
+        throw std::invalid_argument("CAX8 heat capacity requires committed material history");
     const bool finite = data.strain_formulation == StrainFormulation::finite;
     elements::Cax8Result result;
     for (std::size_t q = 0; q < geometry.point_count; ++q) {
