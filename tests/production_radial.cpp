@@ -414,6 +414,137 @@ std::map<ContactKey, double> read_contact(const std::filesystem::path& path) {
     return result;
 }
 
+// Native CAX4T chain has shared middle nodes and one axial displacement per section.
+bool chain_small(const std::string& output, const std::string& summary, const std::filesystem::path& references) {
+    require_summary(summary, 1.0);
+    const auto frames = fuelsim::test::read_exodus_history(output);
+    const auto nodes = read_rows(references / "gps_two_slice_chain_nodes.csv");
+    const auto points = read_rows(references / "gps_two_slice_chain_points.csv");
+    const auto contacts = read_contact(references / "gps_two_slice_chain_contact.csv");
+    if (frames.size() != 11 || nodes.size() != 120 || points.size() != 160)
+        throw std::runtime_error("Continuous chain requires all ten frames, twelve nodes and sixteen material points");
+    constexpr std::array<std::size_t, 12> labels{1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 15, 16};
+    constexpr std::array<std::size_t, 12> radial{0, 1, 1, 0, 2, 3, 3, 2, 5, 4, 7, 6};
+    constexpr std::array<std::size_t, 12> axial{8, 8, 9, 9, 11, 11, 12, 12, 10, 10, 13, 13};
+    constexpr std::array<std::size_t, 4> elements{0, 2, 1, 3};
+    constexpr std::array<std::array<std::size_t, 2>, 2> secondary{{{2, 3}, {3, 11}}};
+    constexpr std::array<std::array<std::size_t, 2>, 2> primary{{{5, 8}, {8, 16}}};
+    const std::array<std::string, 2> pairs{"SECONDARY_ONE/PRIMARY_ONE", "SECONDARY_TWO/PRIMARY_TWO"};
+    FieldErrorMetrics temperature, displacement, middle, reaction, axial_strain, axial_force;
+    FieldErrorMetrics pressure, traction, gap, normal_force, tangent_force, balance, slip;
+    GroupedFieldErrorMetrics stress, elastic;
+    for (std::size_t step = 1; step < frames.size(); ++step) {
+        const auto& f = frames[step];
+        const double time = nodes[(step - 1) * 12].at("time");
+        require_time(f.time, time);
+        if (f.nodes.size() != 14 || f.element("material_point_count") != std::vector<double>(4, 2.0))
+            throw std::runtime_error("Continuous chain production layout changed");
+        std::map<std::size_t, Row> by_label;
+        std::array<double, 6> native_reactions{};
+        for (std::size_t n = 0; n < 12; ++n) {
+            const auto& r = nodes[(step - 1) * 12 + n];
+            require_time(f.time, r.at("time"));
+            if (r.at("node") != static_cast<double>(labels[n]))
+                throw std::runtime_error("Continuous chain native node mapping changed");
+            by_label.emplace(labels[n], r);
+            temperature.add(f.nodal("temperature").at(radial[n]), r.at("temperature"));
+            const bool outer = axial[n] >= 11;
+            displacement.add(f.nodal("displacement_r").at(radial[n]),
+                outer ? constrained_zero(r.at("ur"), 1e-13) : r.at("ur"));
+            const bool zero = axial[n] == 8 || axial[n] == 11 || axial[n] == 13 || (outer && step <= 5);
+            const double expected = zero ? constrained_zero(r.at("uz"), 1e-13) : r.at("uz");
+            displacement.add(f.nodal("displacement_z").at(axial[n]), expected);
+            if (axial[n] == 9 || axial[n] == 12)
+                middle.add(f.nodal("displacement_z").at(axial[n]), expected);
+            native_reactions[axial[n] - 8] += r.at("rf_z");
+        }
+        double total_reaction = 0;
+        for (std::size_t n = 0; n < 6; ++n) {
+            const double expected = n == 1 || n == 4 || (n >= 3 && step <= 5)
+                                        ? constrained_zero(native_reactions[n], 1e-8)
+                                        : native_reactions[n];
+            reaction.add(f.nodal("reaction_force_z").at(8 + n), expected);
+            total_reaction += f.nodal("reaction_force_z").at(8 + n);
+        }
+        balance.add(total_reaction, 0.0);
+        for (std::size_t e = 0; e < 4; ++e) {
+            double force = 0;
+            for (std::size_t q = 0; q < 4; ++q) {
+                Row r = points[(step - 1) * 16 + e * 4 + q];
+                require_time(f.time, r.at("time"));
+                if (r.at("element") != static_cast<double>(e + 1) || r.at("point") != static_cast<double>(q + 1))
+                    throw std::runtime_error("Continuous chain material point mapping changed");
+                r["stress_rz"] = constrained_zero(r.at("stress_rz"), 1e-4);
+                r["elastic_rz"] = constrained_zero(r.at("elastic_rz"), 1e-13);
+                if (e % 2 == 1 && step <= 5)
+                    for (const char* c : {"rr", "zz", "hoop"}) {
+                        r[std::string("stress_") + c] = constrained_zero(r.at(std::string("stress_") + c), 1e-4);
+                        r[std::string("elastic_") + c] = constrained_zero(r.at(std::string("elastic_") + c), 1e-13);
+                    }
+                add_tensor(stress, f, r, "stress", q % 2, elements[e]);
+                add_tensor(elastic, f, r, "elastic", q % 2, elements[e]);
+                force += r.at("stress_zz") * r.at("volume") / (e < 2 ? 0.01 : 0.02);
+                axial_strain.add(f.element("axial_strain").at(elements[e]), r.at("elastic_zz"));
+            }
+            axial_force.add(f.element("axial_force").at(elements[e]), force);
+        }
+        double normal = 0, tangent = 0;
+        for (std::size_t layer = 0; layer < 2; ++layer) {
+            const auto native = [&](const std::string& field, std::size_t node, std::size_t component = 0) {
+                return contacts.at({time, pairs[layer], field, node, component});
+            };
+            for (std::size_t q = 0; q < 2; ++q) {
+                const auto node = secondary[layer][q];
+                const std::string suffix = "_interface_q" + std::to_string(q);
+                const auto zero_contact = [&](double v) {
+                    return step <= 5 ? constrained_zero(v, 1e-4) : v;
+                };
+                pressure.add(f.element("contact_pressure" + suffix).at(layer), zero_contact(native("CPRESS", node)));
+                traction.add(f.element("contact_tangential_traction" + suffix).at(layer),
+                    zero_contact(native("CSHEAR1", node)));
+                const double g = native("COPEN", node);
+                gap.add(f.element("contact_gap" + suffix).at(layer), step == 5 ? constrained_zero(g, 1e-13) : g);
+                normal -= native("CNORMF", node, 0);
+                tangent -= native("CSHEARF", node, 1);
+                // Compare total relative motion at the actual Gauss locations from native U.
+                // Native CSLIP1 is a recovered contact-history field, not this kinematic quantity.
+                const double eta = 0.5 * (1.0 + (q == 0 ? -1.0 : 1.0) / std::sqrt(3.0));
+                double expected = 0;
+                for (std::size_t end = 0; end < 2; ++end)
+                    expected +=
+                        (end == 0 ? 1.0 - eta : eta)
+                        * (by_label.at(secondary[layer][end]).at("uz") - by_label.at(primary[layer][end]).at("uz"));
+                const auto& uz = f.nodal("displacement_z");
+                const double actual =
+                    (1.0 - eta) * (uz.at(8 + layer) - uz.at(11 + layer)) + eta * (uz.at(9 + layer) - uz.at(12 + layer));
+                slip.add(actual, expected);
+            }
+        }
+        normal_force.add(f.global("contact_force_interface"), step <= 5 ? constrained_zero(normal, 1e-8) : normal);
+        tangent_force.add(f.global("contact_tangential_force_interface"),
+            step <= 5 ? constrained_zero(tangent, 1e-8) : tangent);
+    }
+    bool passed = true;
+    for (const auto& entry : std::vector<std::tuple<std::string, const FieldErrorMetrics*, double>>{
+             {"chain_temperature", &temperature, 1e-11},
+             {"chain_displacement", &displacement, 1e-13},
+             {"chain_free_middle_displacement", &middle, 1e-13},
+             {"chain_axial_reaction", &reaction, 1e-8},
+             {"chain_axial_strain", &axial_strain, 1e-13},
+             {"chain_axial_force", &axial_force, 1e-8},
+             {"chain_pressure", &pressure, 1e-4},
+             {"chain_traction", &traction, 1e-4},
+             {"chain_gap", &gap, 1e-13},
+             {"chain_normal_force", &normal_force, 1e-8},
+             {"chain_tangent_force", &tangent_force, 1e-8},
+             {"chain_axial_balance", &balance, 1e-8},
+             {"chain_relative_axial_motion", &slip, 1e-13}})
+        passed = check(std::get<0>(entry), *std::get<1>(entry), std::get<2>(entry)) && passed;
+    passed = check("chain_stress", stress, 1e-4) && passed;
+    passed = check("chain_elastic_strain", elastic, 1e-13) && passed;
+    return passed;
+}
+
 bool contact_small(const std::string& output, const std::string& summary, const std::filesystem::path& references) {
     require_summary(summary, 10.0);
     const auto frames = fuelsim::test::read_exodus_history(output);
@@ -611,7 +742,8 @@ bool contact_small(const std::string& output, const std::string& summary, const 
 
 int main(int argc, char** argv) {
     if (argc != 5) {
-        std::cerr << "usage: production_radial <uniform-small|uniform-finite|contact-small|steady-finite> <results.e> "
+        std::cerr << "usage: production_radial <uniform-small|uniform-finite|contact-small|chain-small|steady-finite> "
+                     "<results.e> "
                      "<summary.csv> "
                      "<reference_dir>\n";
         return 2;
@@ -620,6 +752,8 @@ int main(int argc, char** argv) {
         const std::string mode = argv[1];
         if (mode == "uniform-small" || mode == "uniform-finite")
             return uniform(argv[2], argv[3], argv[4], mode == "uniform-finite") ? 0 : 1;
+        if (mode == "chain-small")
+            return chain_small(argv[2], argv[3], argv[4]) ? 0 : 1;
         if (mode == "contact-small")
             return contact_small(argv[2], argv[3], argv[4]) ? 0 : 1;
         if (mode == "steady-finite")

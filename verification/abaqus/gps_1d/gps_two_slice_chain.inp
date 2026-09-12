@@ -1,0 +1,130 @@
+*Heading
+** Continuous two-slice chain; shared middle nodes and free middle axial displacement.
+** Matches transient_gps_chain_small.fsi; prescribed affine radial expansion, isothermal.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Node
+1, 0.004, 0
+2, 0.005, 0
+3, 0.005, 0.01
+4, 0.004, 0.01
+5, 0.00501, 0
+6, 0.006, 0
+7, 0.006, 0.01
+8, 0.00501, 0.01
+11, 0.005, 0.03
+12, 0.004, 0.03
+15, 0.006, 0.03
+16, 0.00501, 0.03
+*Element, type=CAX4T, elset=INNER_ONE
+1, 1, 2, 3, 4
+*Element, type=CAX4T, elset=OUTER_ONE
+2, 5, 6, 7, 8
+*Element, type=CAX4T, elset=INNER_TWO
+3, 4, 3, 11, 12
+*Element, type=CAX4T, elset=OUTER_TWO
+4, 8, 7, 15, 16
+*Elset, elset=ALL_ELEMENTS
+1, 2, 3, 4
+*Nset, nset=ALL
+1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 15, 16
+*Nset, nset=OUTER
+5, 6, 7, 8, 15, 16
+*Nset, nset=INNER_INSIDE
+1, 4, 12
+*Nset, nset=INNER_INTERFACE
+2, 3, 11
+** One retained axial displacement per cross section and body.
+*Equation
+2
+2, 2, 1, 1, 2, -1
+*Equation
+2
+4, 2, 1, 3, 2, -1
+*Equation
+2
+12, 2, 1, 11, 2, -1
+*Equation
+2
+6, 2, 1, 5, 2, -1
+*Equation
+2
+8, 2, 1, 7, 2, -1
+*Equation
+2
+16, 2, 1, 15, 2, -1
+*Surface, type=ELEMENT, name=SECONDARY_ONE
+INNER_ONE, S2
+*Surface, type=ELEMENT, name=PRIMARY_ONE
+OUTER_ONE, S4
+*Surface, type=ELEMENT, name=SECONDARY_TWO
+INNER_TWO, S2
+*Surface, type=ELEMENT, name=PRIMARY_TWO
+OUTER_TWO, S4
+*Material, name=SOLID
+*Elastic
+1e9, 0.3
+*Expansion, zero=600
+1e-5
+*Conductivity
+10
+*Density
+1000
+*Specific Heat
+1000
+*Solid Section, elset=ALL_ELEMENTS, material=SOLID
+,
+*Initial Conditions, type=TEMPERATURE
+ALL, 600
+*Surface Interaction, name=CONTACT_ONE
+*Surface Behavior, pressure-overclosure=LINEAR
+1e10
+*Friction, slip tolerance=1.5e-6
+0.3
+*Gap Conductance
+1e4, 0
+1e4, 0.0001
+0, 0.001
+*Gap Heat Generation
+0
+*Surface Interaction, name=CONTACT_TWO
+*Surface Behavior, pressure-overclosure=LINEAR
+1e10
+*Friction, slip tolerance=7.5e-7
+0.3
+*Gap Conductance
+1e4, 0
+1e4, 0.0001
+0, 0.001
+*Gap Heat Generation
+0
+*Contact Pair, interaction=CONTACT_ONE, type=SURFACE TO SURFACE, small sliding, adjust=0
+SECONDARY_ONE, PRIMARY_ONE
+*Contact Pair, interaction=CONTACT_TWO, type=SURFACE TO SURFACE, small sliding, adjust=0
+SECONDARY_TWO, PRIMARY_TWO
+*Amplitude, name=LOADING, time=TOTAL TIME
+0, 0, 1, 1
+*Step, name=CHAIN, nlgeom=NO, inc=10
+*Coupled Temperature-Displacement, steady state
+0.1, 1, 0.1, 0.1
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1e-10, 1e-10, , , , 1e-10
+*Boundary
+ALL, 11, 11, 600
+OUTER, 1, 1, 0
+1, 2, 2, 0
+5, 2, 2, 0
+15, 2, 2, 0
+*Boundary, amplitude=LOADING
+INNER_INSIDE, 1, 1, 16e-6
+INNER_INTERFACE, 1, 1, 20e-6
+11, 2, 2, 1e-4
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output
+S, EE
+COORD, IVOL, HFL
+*Contact Output
+CSTRESS, CDISP, CFORCE, HFL
+*Output, history, frequency=0
+*End Step

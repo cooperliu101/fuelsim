@@ -338,6 +338,12 @@ if(BUILD_TESTING)
             "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_radial_chain>"
             "-DCHECK_ARGUMENTS=${formulation};${results};${summary}"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
+        if(formulation STREQUAL "small")
+            set_tests_properties(fuelsim_gps_chain_small PROPERTIES FIXTURES_SETUP gps_small_chain_reference)
+            add_test(NAME fuelsim_gps_chain_abaqus COMMAND "$<TARGET_FILE:fuelsim_production_radial>"
+                chain-small "${results}" "${summary}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/gps_1d")
+            set_tests_properties(fuelsim_gps_chain_abaqus PROPERTIES FIXTURES_REQUIRED gps_small_chain_reference)
+        endif()
     endforeach()
     set_tests_properties(fuelsim_gps_chain_finite PROPERTIES FIXTURES_SETUP gps_finite_reference)
     fuelsim_stage_blackbox_case(gps_inelastic_input gps_inelastic transient_gps_inelastic_finite.fsi)
