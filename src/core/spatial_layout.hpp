@@ -63,23 +63,16 @@ class ContactSearchTree final {
 };
 
 std::vector<std::int64_t> resolve_block_ids(const SpatialDefinition& definition,
-    const UnstructuredMeshMetadata& source_mesh,
-    bool allow_contacts,
-    bool allow_finite_strain);
+    const UnstructuredMeshMetadata& source_mesh);
 void validate_dirichlet_conditions(std::vector<DirichletCondition>& conditions,
     const char* conflict_message,
     const char* duplicate_message);
-double function_value(const SpatialDefinition& definition, double time, const std::string& name);
 double controlled_value(const SpatialDefinition& definition,
     double time,
     double load_factor,
     double value,
     bool scale_with_load,
     const std::string& function);
-double function_average_value(const SpatialDefinition& definition,
-    double begin_time,
-    double end_time,
-    const std::string& name);
 
 class SpatialLayout {
   public:

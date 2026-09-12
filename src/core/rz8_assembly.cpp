@@ -10,7 +10,7 @@
 namespace fuelsim::rz8 {
 SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredQuad8Mesh& source)
     : SpatialLayout(definition,
-          spatial_detail::resolve_block_ids(definition, source, true, true),
+          spatial_detail::resolve_block_ids(definition, source),
           spatial_detail::DofLayout::axisymmetric_rz) {
     std::vector<std::size_t> nodes, elements;
     std::vector<std::vector<std::size_t>> source_nodes;

@@ -1549,30 +1549,14 @@ void EngineeringHistoryWriter::append(const TransientProblem& problem,
         _stream << ',' << summary.maximum_temperature << ',' << summary.maximum_equivalent_plastic_strain << ','
                 << summary.maximum_equivalent_creep_strain;
     }
-    if (problem.is_cartesian_3d()) {
-        const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
-        for (std::size_t contact = 0; contact < problem.definition().contacts.size(); ++contact) {
-            const InterfaceSummary summary = spatial.summarize_interface(contact, state);
-            _stream << ',' << summary.minimum_gap << ',' << summary.maximum_contact_pressure << ','
-                    << summary.total_heat_rate << ',' << summary.total_contact_force << ','
-                    << summary.total_tangential_force;
-        }
-    } else if (problem.uses_quad8()) {
-        const auto& spatial = BackendAccess::quad8_spatial(problem);
-        for (std::size_t c = 0; c < problem.definition().contacts.size(); ++c) {
-            const auto summary = spatial.summarize_interface(c, state);
-            _stream << ',' << summary.minimum_gap << ',' << summary.maximum_contact_pressure << ','
-                    << summary.total_heat_rate << ',' << summary.total_contact_force << ','
-                    << summary.total_tangential_force;
-        }
-    } else {
-        const rz::TransientBackendView backend = BackendAccess::transient(problem);
-        for (std::size_t contact = 0; contact < problem.definition().contacts.size(); ++contact) {
-            const InterfaceSummary summary = backend.spatial.summarize_interface(contact, state);
-            _stream << ',' << summary.minimum_gap << ',' << summary.maximum_contact_pressure << ','
-                    << summary.total_heat_rate << ',' << summary.total_contact_force << ','
-                    << summary.total_tangential_force;
-        }
+    for (std::size_t contact = 0; contact < problem.definition().contacts.size(); ++contact) {
+        const InterfaceSummary summary =
+            problem.is_cartesian_3d() ? BackendAccess::cartesian_spatial(problem).summarize_interface(contact, state)
+            : problem.uses_quad8()    ? BackendAccess::quad8_spatial(problem).summarize_interface(contact, state)
+                                      : BackendAccess::transient(problem).spatial.summarize_interface(contact, state);
+        _stream << ',' << summary.minimum_gap << ',' << summary.maximum_contact_pressure << ','
+                << summary.total_heat_rate << ',' << summary.total_contact_force << ','
+                << summary.total_tangential_force;
     }
     _stream << '\n';
     _stream.flush();
@@ -1758,37 +1742,29 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
             quad8_nodal(*_quad8_mesh, spatial, state, &BackendAccess::committed_raw_residual(problem)),
             quad8_elements(*_quad8_mesh, spatial, state, &BackendAccess::quad8_material_histories(problem), nullptr),
             transient_globals(quad8_globals(spatial, state, problem.committed_load_factor()), problem));
-    } else if (_hex20_mesh) {
+    } else if (_hex20_mesh || _hex_mesh) {
         const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
-        fill_cartesian_nodal(*_hex20_mesh, spatial, problem.committed_solution(), nodal_values);
+        const auto& state = problem.committed_solution();
+        if (_hex20_mesh)
+            fill_cartesian_nodal(*_hex20_mesh, spatial, state, nodal_values);
+        else
+            fill_cartesian_nodal(*_hex_mesh, spatial, state, nodal_values);
         append_cartesian_reactions(spatial, problem, nodal_values);
         write_result_step(_path,
-            results_mesh_view(*_hex20_mesh),
+            _hex20_mesh ? results_mesh_view(*_hex20_mesh) : results_mesh_view(*_hex_mesh),
             _step_count,
             problem.committed_time(),
             nodal_values,
-            cartesian_elements(*_hex20_mesh,
-                spatial,
-                &problem.committed_solution(),
-                &BackendAccess::cartesian_material_histories(problem)),
-            transient_globals(cartesian_globals(spatial, problem.committed_solution(), problem.committed_load_factor()),
-                problem));
-    } else if (_hex_mesh) {
-        const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
-        fill_cartesian_nodal(*_hex_mesh, spatial, problem.committed_solution(), nodal_values);
-        append_cartesian_reactions(spatial, problem, nodal_values);
-        write_result_step(_path,
-            results_mesh_view(*_hex_mesh),
-            _step_count,
-            problem.committed_time(),
-            nodal_values,
-            cartesian_elements(*_hex_mesh,
-                spatial,
-                &problem.committed_solution(),
-                &BackendAccess::cartesian_material_histories(problem),
-                problem.committed_time()),
-            transient_globals(cartesian_globals(spatial, problem.committed_solution(), problem.committed_load_factor()),
-                problem));
+            _hex20_mesh ? cartesian_elements(*_hex20_mesh,
+                              spatial,
+                              &state,
+                              &BackendAccess::cartesian_material_histories(problem))
+                        : cartesian_elements(*_hex_mesh,
+                              spatial,
+                              &state,
+                              &BackendAccess::cartesian_material_histories(problem),
+                              problem.committed_time()),
+            transient_globals(cartesian_globals(spatial, state, problem.committed_load_factor()), problem));
     } else {
         const rz::SpatialAssembly& spatial = BackendAccess::transient(problem).spatial;
         fill_rz_nodal(*_rz_mesh, spatial, problem.committed_solution(), nodal_values);

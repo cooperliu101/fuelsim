@@ -68,6 +68,12 @@ MemorySnapshot memory_snapshot() {
     return {checked_memory_bytes(resident), checked_memory_bytes(maximum)};
 }
 
+void record_memory_snapshot(const MemorySnapshot& snapshot, std::size_t& resident_bytes, SolveTiming& timing) {
+    resident_bytes = static_cast<std::size_t>(snapshot.resident_bytes);
+    timing.maximum_peak_resident_bytes =
+        std::max(timing.maximum_peak_resident_bytes, static_cast<std::size_t>(snapshot.maximum_resident_bytes));
+}
+
 PetscErrorCode collective_timing(const SolveTiming& local, SolveTiming& result) {
     PetscFunctionBeginUser;
     std::array<double, 5> local_seconds = {
@@ -617,6 +623,21 @@ PetscErrorCode field_norms(Vec vector, SolverContext& context, std::vector<doubl
     PetscFunctionReturn(PETSC_SUCCESS);
 }
 
+void initialize_field_scaling(SolverContext& context, FieldCategory category, double norm) {
+    bool& initialized = category == FieldCategory::thermal ? context.thermal_scaling_initialized
+                                                           : context.mechanics_scaling_initialized;
+    if (initialized || !(norm > context.residual_scaling_floor))
+        return;
+    const double scaling = 1.0 / norm;
+    for (std::size_t field = 0; field < context.problem->field_layout().size(); ++field) {
+        if (context.problem->field_layout()[field].category == category) {
+            context.field_residual_scalings[field] = scaling;
+            context.initial_field_residual_norms[field] = context.latest_unscaled_field_residual_norms[field];
+        }
+    }
+    initialized = true;
+}
+
 PetscErrorCode scale_residual(Vec residual, SolverContext& context) {
     PetscFunctionBeginUser;
     PetscCall(field_norms(residual, context, context.latest_unscaled_field_residual_norms));
@@ -633,25 +654,8 @@ PetscErrorCode scale_residual(Vec residual, SolverContext& context) {
                 thermal_norm = std::hypot(thermal_norm, context.latest_unscaled_field_residual_norms[field]);
             else
                 mechanics_norm = std::hypot(mechanics_norm, context.latest_unscaled_field_residual_norms[field]);
-        if (!context.thermal_scaling_initialized && thermal_norm > context.residual_scaling_floor) {
-            for (std::size_t field = 0; field < context.problem->field_layout().size(); ++field) {
-                if (context.problem->field_layout()[field].category == FieldCategory::thermal) {
-                    context.field_residual_scalings[field] = 1.0 / thermal_norm;
-                    context.initial_field_residual_norms[field] = context.latest_unscaled_field_residual_norms[field];
-                }
-            }
-            context.thermal_scaling_initialized = true;
-        }
-        if (!context.mechanics_scaling_initialized && mechanics_norm > context.residual_scaling_floor) {
-            const double mechanics_scaling = 1.0 / mechanics_norm;
-            for (std::size_t field = 0; field < context.problem->field_layout().size(); ++field) {
-                if (context.problem->field_layout()[field].category == FieldCategory::mechanical) {
-                    context.field_residual_scalings[field] = mechanics_scaling;
-                    context.initial_field_residual_norms[field] = context.latest_unscaled_field_residual_norms[field];
-                }
-            }
-            context.mechanics_scaling_initialized = true;
-        }
+        initialize_field_scaling(context, FieldCategory::thermal, thermal_norm);
+        initialize_field_scaling(context, FieldCategory::mechanical, mechanics_norm);
         PetscInt ownership_begin = 0;
         PetscInt ownership_end = 0;
         PetscCall(VecGetOwnershipRange(residual, &ownership_begin, &ownership_end));
@@ -859,7 +863,6 @@ class PetscSolver::Implementation final {
         problem.validate_discretization();
         _problem_identity.reset();
         _objects = std::make_unique<PetscObjects>();
-        _count = requested_count;
         _context = SolverContext{};
         _context.problem = &problem;
         _context.rank = PetscGlobalRank;
@@ -871,13 +874,6 @@ class PetscSolver::Implementation final {
         _context.contribution_end = contribution_partition.second;
         _context.constrained.assign(problem.dof_count(), false);
         const std::size_t field_count = problem.field_layout().size();
-        _context.initial_field_residual_norms.resize(field_count);
-        _context.field_residual_reference_norms.resize(field_count);
-        _context.latest_unscaled_field_residual_norms.resize(field_count);
-        _context.latest_field_residual_norms.resize(field_count);
-        _context.field_residual_scalings.resize(field_count, 1.0);
-        _context.local_field_squared_norms.resize(field_count);
-        _context.global_field_squared_norms.resize(field_count);
         _context.dof_fields.resize(problem.dof_count());
         for (std::size_t field = 0; field < field_count; ++field) {
             const FieldDescriptor& descriptor = problem.field_layout()[field];
@@ -932,7 +928,7 @@ class PetscSolver::Implementation final {
             interleave_fields
                 ? checked_petsc_int(field_count * (field_size * (rank + 1U) / size - field_size * rank / size))
                 : PETSC_DECIDE;
-        check_petsc(VecCreateMPI(PETSC_COMM_WORLD, requested_local_count, _count, &_objects->state),
+        check_petsc(VecCreateMPI(PETSC_COMM_WORLD, requested_local_count, requested_count, &_objects->state),
             "VecCreateMPI state");
         check_petsc(VecDuplicate(_objects->state, &_objects->residual), "VecDuplicate residual");
         PetscInt local_count = 0;
@@ -949,7 +945,7 @@ class PetscSolver::Implementation final {
         Mat preallocator = nullptr;
         try {
             check_petsc(MatCreate(PETSC_COMM_WORLD, &preallocator), "MatCreate sparsity preallocator");
-            check_petsc(MatSetSizes(preallocator, local_count, local_count, _count, _count),
+            check_petsc(MatSetSizes(preallocator, local_count, local_count, requested_count, requested_count),
                 "MatSetSizes sparsity preallocator");
             check_petsc(MatSetType(preallocator, MATPREALLOCATOR), "MatSetType sparsity preallocator");
             check_petsc(MatSetUp(preallocator), "MatSetUp sparsity preallocator");
@@ -977,7 +973,7 @@ class PetscSolver::Implementation final {
             check_petsc(MatAssemblyBegin(preallocator, MAT_FINAL_ASSEMBLY), "MatAssemblyBegin sparsity preallocator");
             check_petsc(MatAssemblyEnd(preallocator, MAT_FINAL_ASSEMBLY), "MatAssemblyEnd sparsity preallocator");
             check_petsc(MatCreate(PETSC_COMM_WORLD, &_objects->jacobian), "MatCreate Jacobian");
-            check_petsc(MatSetSizes(_objects->jacobian, local_count, local_count, _count, _count),
+            check_petsc(MatSetSizes(_objects->jacobian, local_count, local_count, requested_count, requested_count),
                 "MatSetSizes Jacobian");
             check_petsc(MatSetType(_objects->jacobian, MATAIJ), "MatSetType Jacobian");
             check_petsc(MatPreallocatorPreallocate(preallocator,
@@ -1074,7 +1070,6 @@ class PetscSolver::Implementation final {
 
   private:
     std::shared_ptr<const void> _problem_identity;
-    PetscInt _count = 0;
     SolverContext _context;
     std::unique_ptr<PetscObjects> _objects;
 };
@@ -1276,16 +1271,12 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem,
                     nullptr),
         "SNESSetConvergenceTest");
     const MemorySnapshot setup_memory = memory_snapshot();
-    context.timing.setup_resident_bytes = static_cast<std::size_t>(setup_memory.resident_bytes);
-    context.timing.maximum_peak_resident_bytes = std::max(context.timing.maximum_peak_resident_bytes,
-        static_cast<std::size_t>(setup_memory.maximum_resident_bytes));
+    record_memory_snapshot(setup_memory, context.timing.setup_resident_bytes, context.timing);
     context.timing.setup_seconds = seconds_since(setup_start);
     const SteadyClock::time_point solve_start = SteadyClock::now();
     check_petsc(SNESSolve(objects.snes, nullptr, objects.state), "SNESSolve");
     const MemorySnapshot solve_memory = memory_snapshot();
-    context.timing.solve_resident_bytes = static_cast<std::size_t>(solve_memory.resident_bytes);
-    context.timing.maximum_peak_resident_bytes = std::max(context.timing.maximum_peak_resident_bytes,
-        static_cast<std::size_t>(solve_memory.maximum_resident_bytes));
+    record_memory_snapshot(solve_memory, context.timing.solve_resident_bytes, context.timing);
     context.timing.nonlinear_solve_seconds = seconds_since(solve_start);
     SNESConvergedReason reason = SNES_CONVERGED_ITERATING;
     PetscInt iterations = 0;
@@ -1305,9 +1296,7 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem,
     const bool final_domain_error = context.last_function_domain_error;
     std::vector<double> solution = gather_complete_state(objects.state, problem.dof_count(), context.petsc_to_problem);
     const MemorySnapshot final_memory = memory_snapshot();
-    context.timing.final_resident_bytes = static_cast<std::size_t>(final_memory.resident_bytes);
-    context.timing.maximum_peak_resident_bytes = std::max(context.timing.maximum_peak_resident_bytes,
-        static_cast<std::size_t>(final_memory.maximum_resident_bytes));
+    record_memory_snapshot(final_memory, context.timing.final_resident_bytes, context.timing);
     SolveResult result;
     result.state = std::move(solution);
     result.nonlinear_iterations = static_cast<int>(iterations);

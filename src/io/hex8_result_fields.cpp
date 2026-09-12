@@ -8,13 +8,7 @@ namespace fuelsim::io_detail {
 namespace {
 using Matrix3 = std::array<std::array<double, 3>, 3>;
 
-SymmetricTensor3Values logarithmic_strain(const Hex8QuadraturePoint& point, const Hex8LocalValues& state) {
-    Matrix3 deformation = {{{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}}};
-    for (std::size_t component = 0; component < 3; ++component)
-        for (std::size_t direction = 0; direction < 3; ++direction)
-            for (std::size_t node = 0; node < 8; ++node)
-                deformation[component][direction] +=
-                    state[8 * (component + 1) + node] * point.gradient[node][direction];
+SymmetricTensor3Values logarithmic_strain(const Matrix3& deformation) {
     Matrix3 left{};
     for (std::size_t row = 0; row < 3; ++row)
         for (std::size_t column = 0; column < 3; ++column)
@@ -173,8 +167,9 @@ std::array<std::array<double, 24>, 8> hex8_derived_results(const Hex8Geometry& g
             for (std::size_t component = 0; component < 3; ++component)
                 values[8 + component] -= conductivity * gradient[node][component] * state[node];
         std::array<double, 6> logarithmic{};
+        const auto f = deformation_gradient(point, state);
         try {
-            logarithmic = components(logarithmic_strain(point, state));
+            logarithmic = components(logarithmic_strain(f));
         } catch (const std::domain_error&) {
             if (finite)
                 throw;
@@ -189,7 +184,6 @@ std::array<std::array<double, 24>, 8> hex8_derived_results(const Hex8Geometry& g
             for (std::size_t component = 0; component < 3; ++component)
                 logarithmic[component] += correction;
         }
-        const auto f = deformation_gradient(point, state);
         std::array<double, 6> infinitesimal = {f[0][0] - 1,
             f[1][1] - 1,
             f[2][2] - 1,

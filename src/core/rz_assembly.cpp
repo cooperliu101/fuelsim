@@ -15,18 +15,14 @@
 
 namespace fuelsim::spatial_detail {
 namespace {
-void validate_definition(const SpatialDefinition& definition, bool allow_contacts, bool allow_finite_strain) {
+void validate_definition(const SpatialDefinition& definition) {
     if (definition.regions.empty())
         throw std::invalid_argument("SpatialAssembly requires at least one region");
-    if (!allow_contacts && !definition.contacts.empty())
-        throw std::invalid_argument("Cartesian three-dimensional stage B does not support contact");
     for (std::size_t region = 0; region < definition.regions.size(); ++region) {
         const RegionDefinition& value = definition.regions[region];
         if (value.name.empty() || (value.block.empty() && value.block_id < 0)
             || (!value.block.empty() && value.block_id >= 0))
             throw std::invalid_argument("SpatialAssembly regions require a name and exactly one block selector");
-        if (!allow_finite_strain && value.strain_formulation != StrainFormulation::small)
-            throw std::invalid_argument("Cartesian three-dimensional stage B supports only small strain");
         for (std::size_t previous = 0; previous < region; ++previous) {
             if (definition.regions[previous].name == value.name)
                 throw std::invalid_argument("Duplicate region name: " + value.name);
@@ -57,13 +53,20 @@ void validate_definition(const SpatialDefinition& definition, bool allow_contact
         }
     }
 }
+
+const PiecewiseLinearTimeTable& time_table(const SpatialDefinition& definition, const std::string& name) {
+    const auto found = std::find_if(definition.time_tables.begin(),
+        definition.time_tables.end(),
+        [&name](const PiecewiseLinearTimeTable& table) { return table.name() == name; });
+    if (found == definition.time_tables.end())
+        throw std::invalid_argument("Unknown time-table function: " + name);
+    return *found;
+}
 } // namespace
 
 std::vector<std::int64_t> resolve_block_ids(const SpatialDefinition& definition,
-    const UnstructuredMeshMetadata& source_mesh,
-    bool allow_contacts,
-    bool allow_finite_strain) {
-    validate_definition(definition, allow_contacts, allow_finite_strain);
+    const UnstructuredMeshMetadata& source_mesh) {
+    validate_definition(definition);
     std::vector<std::int64_t> result;
     result.reserve(definition.regions.size());
     for (const RegionDefinition& region : definition.regions) {
@@ -95,27 +98,6 @@ void validate_dirichlet_conditions(std::vector<DirichletCondition>& conditions,
     }
 }
 
-double function_value(const SpatialDefinition& definition, double time, const std::string& name) {
-    const auto found = std::find_if(definition.time_tables.begin(),
-        definition.time_tables.end(),
-        [&name](const PiecewiseLinearTimeTable& table) { return table.name() == name; });
-    if (found == definition.time_tables.end())
-        throw std::invalid_argument("Unknown time-table function: " + name);
-    return found->value(time);
-}
-
-double function_average_value(const SpatialDefinition& definition,
-    double begin_time,
-    double end_time,
-    const std::string& name) {
-    const auto found = std::find_if(definition.time_tables.begin(),
-        definition.time_tables.end(),
-        [&name](const PiecewiseLinearTimeTable& table) { return table.name() == name; });
-    if (found == definition.time_tables.end())
-        throw std::invalid_argument("Unknown time-table function: " + name);
-    return found->average_value(begin_time, end_time);
-}
-
 double controlled_value(const SpatialDefinition& definition,
     double time,
     double load_factor,
@@ -123,7 +105,7 @@ double controlled_value(const SpatialDefinition& definition,
     bool scale_with_load,
     const std::string& function) {
     if (!function.empty())
-        return value * function_value(definition, time, function);
+        return value * time_table(definition, function).value(time);
     return value * (scale_with_load ? load_factor : 1.0);
 }
 
@@ -289,7 +271,7 @@ double SpatialLayout::region_heat_source_average(std::size_t index, double begin
     if (value.heat_source_time_evaluation == HeatSourceTimeEvaluation::end_time)
         return region_heat_source(index);
     return value.volumetric_heat_source
-           * function_average_value(_definition, begin_time, end_time, value.heat_source_function);
+           * time_table(_definition, value.heat_source_function).average_value(begin_time, end_time);
 }
 
 std::vector<double> SpatialLayout::initial_state() const {
@@ -422,11 +404,11 @@ ConvectionValues SpatialLayout::convection_values(const BoundaryConditionDefinit
     const double coefficient =
         boundary.heat_transfer_coefficient
         * (boundary.coefficient_function.empty() ? 1.0
-                                                 : function_value(_definition, _time, boundary.coefficient_function));
+                                                 : time_table(_definition, boundary.coefficient_function).value(_time));
     const double ambient = boundary.ambient_temperature
                            * (boundary.ambient_temperature_function.empty()
                                    ? 1.0
-                                   : function_value(_definition, _time, boundary.ambient_temperature_function));
+                                   : time_table(_definition, boundary.ambient_temperature_function).value(_time));
     return {coefficient, ambient};
 }
 
@@ -1486,7 +1468,7 @@ void SpatialAssembly::update_contact_search_trees(const std::vector<double>& sta
 
 SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
     : SpatialLayout(definition,
-          spatial_detail::resolve_block_ids(definition, source_mesh, true, true),
+          spatial_detail::resolve_block_ids(definition, source_mesh),
           spatial_detail::DofLayout::axisymmetric_rz) {
     for (const auto& value : _definition.regions)
         if (value.rz_element_formulation == RzElementFormulation::cax8t
