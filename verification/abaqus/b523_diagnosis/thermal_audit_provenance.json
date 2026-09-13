@@ -1,0 +1,12 @@
+{
+  "build/blackbox/b523/verification/fuelsim/transient_b523_integrated_contact_results.e": "32cd20900017261cb6d30f9d84f415b76f2c70a7b35acbf5aa0f74cd93a0aa63",
+  "verification/abaqus/b523_diagnosis/analyze_thermal_weights.py": "6667b5fdf99ec912e311b42bc7215f550cffdc3bb869a221d081da201c760aae",
+  "verification/abaqus/b523_hex8_c3d8t_integrated_path.inp": "be3767f6d10532ca2fbef7d9f385c193d74b6a3a71a584975e2bc90a8e845df7",
+  "verification/abaqus/b523_hex8_c3d8t_integrated_path_nodal.csv": "af8bc2b2c494b9af6f9e757a9c0bef134d83d5290980b9a802d87d2ade186273",
+  "verification/abaqus/b523_hex8_c3d8t_integrated_path_integration.csv": "ad8e4b82b46540eeb53680486a8981a6ed79d0a14e91533c6686351bbb8c4e79",
+  "verification/abaqus/b523_hex8_c3d8t_integrated_path_energy.csv": "d0d469d5e29ed373126fcdf0588adb38330b4313a34f352fe5dbd97bbe84cb8e",
+  "verification/abaqus/b523_diagnosis/b523_integrated_no_friction_heat.inp": "a19d5c87517177511192bf123d6628b81aba6346aaafd915be46291c158a81f0",
+  "verification/abaqus/b523_diagnosis/b523_integrated_no_friction_heat_nodal.csv": "eaa912003f36ace00ba75a469e496428e62c759a76622be5c5bb82a63335fdca",
+  "verification/abaqus/b523_diagnosis/b523_integrated_no_friction_heat_integration.csv": "a4038231bc3939de392a7ec4b83ae3679fd6b1a6d3100758b17bf3d87d0613d5",
+  "verification/abaqus/b523_diagnosis/b523_integrated_no_friction_heat_energy.csv": "a5ff8a83c9423c330435c8b9a949f1b62430b5831e329efd52947e44a6e1e160"
+}

@@ -1,0 +1,124 @@
+*Heading
+** B5.44 connected distorted C3D8RT cantilever with temperature-dependent properties.
+** The physical coefficients are prescribed independently of the comparison results.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Node
+1, 0, 0, 0
+2, 1.06, -0.04, -0.025
+3, 2.06, 0.04, 0.025
+4, 3.06, -0.04, -0.025
+5, 4, 0, 0
+6, 0, 1, 0
+7, 0.9399999999999999, 0.96, 0.025
+8, 1.94, 1.04, -0.025
+9, 2.94, 0.96, 0.025
+10, 4, 1, 0
+11, 0, 0, 0.5
+12, 1, 0, 0.475
+13, 2, 0, 0.525
+14, 3, 0, 0.475
+15, 4, 0, 0.5
+16, 0, 1, 0.5
+17, 1, 1, 0.525
+18, 2, 1, 0.475
+19, 3, 1, 0.525
+20, 4, 1, 0.5
+21, 0, 0, 1
+22, 0.9399999999999999, 0.04, 0.975
+23, 1.94, -0.04, 1.025
+24, 2.94, 0.04, 0.975
+25, 4, 0, 1
+26, 0, 1, 1
+27, 1.06, 1.04, 1.025
+28, 2.06, 0.96, 0.975
+29, 3.06, 1.04, 1.025
+30, 4, 1, 1
+*Element, type=C3D8RT, elset=VOLUME
+1, 1, 2, 7, 6, 11, 12, 17, 16
+2, 2, 3, 8, 7, 12, 13, 18, 17
+3, 3, 4, 9, 8, 13, 14, 19, 18
+4, 4, 5, 10, 9, 14, 15, 20, 19
+5, 11, 12, 17, 16, 21, 22, 27, 26
+6, 12, 13, 18, 17, 22, 23, 28, 27
+7, 13, 14, 19, 18, 23, 24, 29, 28
+8, 14, 15, 20, 19, 24, 25, 30, 29
+*Nset, nset=ALL_NODES, generate
+1, 30, 1
+*Nset, nset=LEFT
+1, 6, 11, 16, 21, 26
+*Nset, nset=RIGHT
+5, 10, 15, 20, 25, 30
+*Surface, type=ELEMENT, name=RIGHT_SURFACE
+4, S4
+8, S4
+*Surface, type=ELEMENT, name=TOP_SURFACE
+5, S2
+6, S2
+7, S2
+8, S2
+*Surface, type=ELEMENT, name=Y_HIGH_SURFACE
+1, S5
+2, S5
+3, S5
+4, S5
+5, S5
+6, S5
+7, S5
+8, S5
+*Material, name=TEMPERATURE_DEPENDENT
+*Elastic
+2.0e8, 0.25, 300.0
+1.2e8, 0.25, 700.0
+*Expansion, zero=300.0
+1.0e-5
+*Conductivity
+10.0, 300.0
+18.0, 700.0
+*Density
+2000.0
+*Specific Heat
+500.0, 300.0
+1000.0, 700.0
+*Solid Section, elset=VOLUME, material=TEMPERATURE_DEPENDENT
+,
+*Initial Conditions, type=TEMPERATURE
+ALL_NODES, 300.0
+*Amplitude, name=CONSTANT_LOAD, definition=TABULAR, time=TOTAL TIME
+0.0, 1.0, 1.0e6, 1.0
+*Amplitude, name=RIGHT_TEMPERATURE, definition=TABULAR, time=TOTAL TIME
+0.0, 0.4285714285714286, 1.0e6, 1.0
+*Step, name=PATH, nlgeom=YES, inc=10
+*Coupled Temperature-Displacement, deltmx=1000.0
+1.0e5, 1.0e6, 1.0e5, 1.0e5
+*Boundary
+LEFT, 11, 11, 300.0
+*Boundary, amplitude=RIGHT_TEMPERATURE
+RIGHT, 11, 11, 700.0
+*Boundary
+LEFT, 1, 3, 0.0
+*Dflux, amplitude=CONSTANT_LOAD
+VOLUME, BF, 0.5
+5, S2, 50.0
+6, S2, 50.0
+7, S2, 50.0
+8, S2, 50.0
+*Film, amplitude=CONSTANT_LOAD
+1, F5, 280.0, 5.0
+2, F5, 280.0, 5.0
+3, F5, 280.0, 5.0
+4, F5, 280.0, 5.0
+5, F5, 280.0, 5.0
+6, F5, 280.0, 5.0
+7, F5, 280.0, 5.0
+8, F5, 280.0, 5.0
+*Dsload, follower=NO, amplitude=CONSTANT_LOAD
+RIGHT_SURFACE, TRVEC, 2.0e4, 0.0, 0.0, -1.0
+*Output, field, frequency=1
+*Node Output
+COORD, NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, EE, HFL, IVOL, LE, PE, PEEQ, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLAE, ALLCD, ALLFD, ALLIE, ALLPD, ALLSE, ALLWK
+*End Step

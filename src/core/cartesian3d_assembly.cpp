@@ -1630,13 +1630,9 @@ SpatialAssembly::hex20_stress(std::size_t region, std::size_t element, const std
         .stress;
 }
 
-double SpatialAssembly::reference_heat_capacity(std::size_t region,
-    double temperature,
-    const CartesianPoint3& position) const {
+double SpatialAssembly::heat_capacity(std::size_t region, double temperature, const CartesianPoint3& position) const {
     const CartesianRegionData& data = _kernel_data.at(region);
-    return data.material
-        .reference_heat_capacity(temperature, data.initial_temperature, {data.time, position.x, position.y, position.z})
-        .value();
+    return data.material.heat_capacity(temperature, {data.time, position.x, position.y, position.z}).value();
 }
 
 double SpatialAssembly::mechanical_hourglass_energy(std::size_t region,

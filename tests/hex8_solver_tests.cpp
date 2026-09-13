@@ -238,16 +238,16 @@ fuelsim::ThermoelasticProperties material() {
     return fuelsim::test::thermoelastic(0.0, 10.0, 1.0e9, 0.25, 1.0e-5, 300.0, 0.0, 0.0, 0.0, 6000.0, 1000.0);
 }
 
-bool test_reference_mass_conservation() {
+bool test_current_volume_heat_diagnostics() {
     const auto registry = fuelsim::make_builtin_material_function_registry();
     auto functions = std::make_shared<fuelsim::MaterialFunctionSet>();
-    functions->name = "hex8_reference_mass_conservation";
+    functions->name = "hex8_current_volume_heat_diagnostics";
     functions->thermal = registry.bind_thermal("constant_thermophysical",
         {{"conductivity", 4.0}, {"density", 2.0}, {"specific_heat", 3.0}});
     functions->thermal.function = [](const fuelsim::ThermoelasticFunctionInput& input,
                                       fuelsim::ThermalPropertyOutput& output) {
         output.conductivity = 4.0;
-        output.density = 2.0 + 0.01 * (input.temperature - 300.0) + 5.0 * input.context.time + 0.2 * input.context.x;
+        output.density = 2.0 + 0.01 * (input.temperature - 300.0) + 5.0 * input.context.time;
         output.specific_heat = 3.0 + 0.02 * (input.temperature - 300.0);
     };
     functions->elasticity =
@@ -287,9 +287,10 @@ bool test_reference_mass_conservation() {
             const double current_source_volume = reduced ? 5.28 + 0.00048 - 0.024 - 0.0036 - 0.0044
                                                          : 5.28 + 0.00048 - 0.0256 - 0.0048 - 0.0088 * 2.0 / 3.0;
             const double expected_generated = 2.0 * (finite ? current_source_volume : 2.0);
-            const double expected_stored = 4.4 * 4.2 * 60.0 / 0.5;
+            const double current_capacity_volume = 5.28 + 0.00048 - 0.0256 - 0.0048 - 0.0088 * 2.0 / 3.0;
+            const double expected_stored = (finite ? current_capacity_volume : 2.0) * 5.1 * 4.2 * 60.0 / 0.5;
             passed = check(std::abs(conservation.stored_heat_rate - expected_stored) < 1e-9,
-                         "HEX8 committed storage preserves initial mass under nonuniform finite deformation")
+                         "HEX8 committed storage uses current density and its complete capacity volume")
                      && check(std::abs(conservation.generated_heat_rate - expected_generated) < 1e-11,
                          "HEX8 committed source preserves its full or center current-volume integration rule")
                      && check(std::abs(conservation.global_thermal_balance) < 1e-9,
@@ -1183,7 +1184,7 @@ int main(int argc, char** argv) {
     passed = test_finite_sliding_end_to_end() && passed;
     if (!mpi_only) {
         passed = test_small_strain_steady_predictor(mesh) && passed;
-        passed = test_reference_mass_conservation() && passed;
+        passed = test_current_volume_heat_diagnostics() && passed;
         passed = test_convection_boundary(mesh) && passed;
         passed = test_multiple_regions() && passed;
         passed = test_contact_projection_transfer() && passed;

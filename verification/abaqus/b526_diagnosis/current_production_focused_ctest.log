@@ -1,0 +1,38 @@
+Internal ctest changing into directory: /home/cooper/ai_project/fuelsim/build
+Test project /home/cooper/ai_project/fuelsim/build
+    Start  77: fuelsim_b526_hex8_c3d8t_friction_reversal_abaqus_tests
+    Start  81: fuelsim_b544_hex8_c3d8rt_distorted_bending_abaqus_tests
+    Start  66: fuelsim_hex8_solver_tests
+    Start 125: fuelsim_hex20_solver_tests
+1/5 Test  #66: fuelsim_hex8_solver_tests .................................   Passed    1.81 sec
+    Start  10: fuelsim_c3d8rt_tests
+2/5 Test  #10: fuelsim_c3d8rt_tests ......................................   Passed    0.00 sec
+3/5 Test  #81: fuelsim_b544_hex8_c3d8rt_distorted_bending_abaqus_tests ...   Passed    2.54 sec
+4/5 Test #125: fuelsim_hex20_solver_tests ................................   Passed    2.94 sec
+5/5 Test  #77: fuelsim_b526_hex8_c3d8t_friction_reversal_abaqus_tests ....   Passed    5.39 sec
+
+100% tests passed, 0 tests failed out of 5
+
+Label Time Summary:
+abaqus                   =   7.93 sec*proc (2 tests)
+acceptance               =   7.93 sec*proc (2 tests)
+bending                  =   2.54 sec*proc (1 test)
+c3d8rt                   =   2.54 sec*proc (1 test)
+checkpoint               =   2.94 sec*proc (1 test)
+contact                  =   8.34 sec*proc (2 tests)
+distorted-mesh           =   2.54 sec*proc (1 test)
+finite-strain            =   7.93 sec*proc (2 tests)
+friction                 =   5.39 sec*proc (1 test)
+hex8                     =   7.93 sec*proc (2 tests)
+integration              =   4.76 sec*proc (2 tests)
+mechanical               =   7.93 sec*proc (2 tests)
+multiblock               =   2.94 sec*proc (1 test)
+quadratic                =   2.94 sec*proc (1 test)
+reduced-integration      =   2.54 sec*proc (1 test)
+temperature-dependent    =   2.54 sec*proc (1 test)
+thermal                  =   7.93 sec*proc (2 tests)
+three-dimensional        =  12.69 sec*proc (4 tests)
+transient                =   7.93 sec*proc (2 tests)
+transition               =   5.39 sec*proc (1 test)
+
+Total Test time (real) =   5.40 sec

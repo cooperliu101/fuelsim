@@ -1,0 +1,1514 @@
+1
+
+   Abaqus 3DEXPERIENCE R2018x                                  Date 13-9ÔÂ-2026   Time 15:15:55
+   For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
+
+
+
+                         The Abaqus Software is a product of:
+
+                           Dassault Systemes SIMULIA Corp.
+                           1301 Atwood Avenue, Suite 101W
+                              Johnston, RI 02919, USA
+ 
+
+
+                   The Abaqus Software is available only under license
+                   from Dassault Systemes or its subsidiary and may be
+                   used or reproduced only in accordance with the terms
+                   of such license.
+ 
+                          On machine MSI 
+                          you are authorized to run
+                          Abaqus/Standard until 31-Dec-2055
+
+                          Your site id is:  
+
+
+ 
+                    For assistance or any other information you may
+                    obtain contact information for your local office
+                    from the world wide web at:
+
+                      http://www.3ds.com/products/simulia/locations/
+
+ 
+                * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+                *                                                         * 
+                *                   *****************                     * 
+                *                   *  N O T I C E  *                     * 
+                *                   *****************                     * 
+                *                                                         * 
+                *                                                         * 
+                *               Abaqus 3DEXPERIENCE R2018x                * 
+                *                                                         * 
+                *          BUILD ID: 2017_11_08-01.21.41 127140           * 
+                *                                                         * 
+                *                                                         * 
+                *  Please make sure you are using                         * 
+                *  release 3DEXPERIENCE R2018x manuals                    * 
+                *  plus the notes accompanying this release.              * 
+                *                                                         * 
+                *                                                         * 
+                *                                                         * 
+                *                                                         * 
+                * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+
+
+ 
+
+
+
+     PROCESSING PART, INSTANCE, AND ASSEMBLY INFORMATION
+   *******************************************************
+
+
+     END PROCESSING PART, INSTANCE, AND ASSEMBLY INFORMATION
+   ***********************************************************
+
+  *Initial Conditions, type=TEMPERATURE
+
+
+
+     OPTIONS BEING PROCESSED
+   ***************************
+
+
+  *Heading
+  *Node
+  *Element, type=C3D8RT, elset=VOLUME
+  *Nset, nset=ALL_NODES, generate
+  *Material, name=TEMPERATURE_DEPENDENT
+  *Elastic
+  *Expansion, zero=300.0
+  *Conductivity
+  *Density
+  *Specific Heat
+  *Initial Conditions, type=TEMPERATURE
+  *Solid Section, elset=VOLUME, material=TEMPERATURE_DEPENDENT
+  *Solid Section, elset=VOLUME, material=TEMPERATURE_DEPENDENT
+  *Hourglass Stiffness
+
+ ***WARNING: THE *HOURGLASS STIFFNESS OPTION IS RELEVANT FOR THESE ELEMENTS 
+             ONLY: C3D4H, C3D8R, C3D8RH, EC3D8R, EC3D8RT, C3D10M, C3D10MH, 
+             CAX4R, CAX4RH, CAX6M, CAX6MH, CPEG4R, CPEG4RH, CPE4R, CPE4RH, 
+             CPE6M, CPE6MH, CPS4R, CPS6M, M3D4R, M3D9R, S3/S3R, S4/S4R, 
+             S4R5,S8R, S8R5, S9R5, SC6R, SC8R, STRI3, AND SAXA ELEMENTS. FOR 
+             THESE ELEMENTS ONLY THE DRILL SCALE FACTOR IS RELEVANT: STRI3, 
+             S3/S3R, S4, S8R, AND SAXA ELEMENTS.
+  *Initial Conditions, type=TEMPERATURE
+  *Boundary, amplitude=N001_U1
+  *Boundary, amplitude=N001_U2
+  *Boundary, amplitude=N001_U3
+  *Boundary, amplitude=N001_T
+  *Boundary, amplitude=N002_U1
+  *Boundary, amplitude=N002_U2
+  *Boundary, amplitude=N002_U3
+  *Boundary, amplitude=N002_T
+  *Boundary, amplitude=N003_U1
+  *Boundary, amplitude=N003_U2
+  *Boundary, amplitude=N003_U3
+  *Boundary, amplitude=N003_T
+  *Boundary, amplitude=N004_U1
+  *Boundary, amplitude=N004_U2
+  *Boundary, amplitude=N004_U3
+  *Boundary, amplitude=N004_T
+  *Boundary, amplitude=N005_U1
+  *Boundary, amplitude=N005_U2
+  *Boundary, amplitude=N005_U3
+  *Boundary, amplitude=N005_T
+  *Boundary, amplitude=N006_U1
+  *Boundary, amplitude=N006_U2
+  *Boundary, amplitude=N006_U3
+  *Boundary, amplitude=N006_T
+  *Boundary, amplitude=N007_U1
+  *Boundary, amplitude=N007_U2
+  *Boundary, amplitude=N007_U3
+  *Boundary, amplitude=N007_T
+  *Boundary, amplitude=N008_U1
+  *Boundary, amplitude=N008_U2
+  *Boundary, amplitude=N008_U3
+  *Boundary, amplitude=N008_T
+  *Boundary, amplitude=N009_U1
+  *Boundary, amplitude=N009_U2
+  *Boundary, amplitude=N009_U3
+  *Boundary, amplitude=N009_T
+  *Boundary, amplitude=N010_U1
+  *Boundary, amplitude=N010_U2
+  *Boundary, amplitude=N010_U3
+  *Boundary, amplitude=N010_T
+  *Boundary, amplitude=N011_U1
+  *Boundary, amplitude=N011_U2
+  *Boundary, amplitude=N011_U3
+  *Boundary, amplitude=N011_T
+  *Boundary, amplitude=N012_U1
+  *Boundary, amplitude=N012_U2
+  *Boundary, amplitude=N012_U3
+  *Boundary, amplitude=N012_T
+  *Boundary, amplitude=N013_U1
+  *Boundary, amplitude=N013_U2
+  *Boundary, amplitude=N013_U3
+  *Boundary, amplitude=N013_T
+  *Boundary, amplitude=N014_U1
+  *Boundary, amplitude=N014_U2
+  *Boundary, amplitude=N014_U3
+  *Boundary, amplitude=N014_T
+  *Boundary, amplitude=N015_U1
+  *Boundary, amplitude=N015_U2
+  *Boundary, amplitude=N015_U3
+  *Boundary, amplitude=N015_T
+  *Boundary, amplitude=N016_U1
+  *Boundary, amplitude=N016_U2
+  *Boundary, amplitude=N016_U3
+  *Boundary, amplitude=N016_T
+  *Boundary, amplitude=N017_U1
+  *Boundary, amplitude=N017_U2
+  *Boundary, amplitude=N017_U3
+  *Boundary, amplitude=N017_T
+  *Boundary, amplitude=N018_U1
+  *Boundary, amplitude=N018_U2
+  *Boundary, amplitude=N018_U3
+  *Boundary, amplitude=N018_T
+  *Boundary, amplitude=N019_U1
+  *Boundary, amplitude=N019_U2
+  *Boundary, amplitude=N019_U3
+  *Boundary, amplitude=N019_T
+  *Boundary, amplitude=N020_U1
+  *Boundary, amplitude=N020_U2
+  *Boundary, amplitude=N020_U3
+  *Boundary, amplitude=N020_T
+  *Boundary, amplitude=N021_U1
+  *Boundary, amplitude=N021_U2
+  *Boundary, amplitude=N021_U3
+  *Boundary, amplitude=N021_T
+  *Boundary, amplitude=N022_U1
+  *Boundary, amplitude=N022_U2
+  *Boundary, amplitude=N022_U3
+  *Boundary, amplitude=N022_T
+  *Boundary, amplitude=N023_U1
+  *Boundary, amplitude=N023_U2
+  *Boundary, amplitude=N023_U3
+  *Boundary, amplitude=N023_T
+  *Boundary, amplitude=N024_U1
+  *Boundary, amplitude=N024_U2
+  *Boundary, amplitude=N024_U3
+  *Boundary, amplitude=N024_T
+  *Boundary, amplitude=N025_U1
+  *Boundary, amplitude=N025_U2
+  *Boundary, amplitude=N025_U3
+  *Boundary, amplitude=N025_T
+  *Boundary, amplitude=N026_U1
+  *Boundary, amplitude=N026_U2
+  *Boundary, amplitude=N026_U3
+  *Boundary, amplitude=N026_T
+  *Boundary, amplitude=N027_U1
+  *Boundary, amplitude=N027_U2
+  *Boundary, amplitude=N027_U3
+  *Boundary, amplitude=N027_T
+  *Boundary, amplitude=N028_U1
+  *Boundary, amplitude=N028_U2
+  *Boundary, amplitude=N028_U3
+  *Boundary, amplitude=N028_T
+  *Boundary, amplitude=N029_U1
+  *Boundary, amplitude=N029_U2
+  *Boundary, amplitude=N029_U3
+  *Boundary, amplitude=N029_T
+  *Boundary, amplitude=N030_U1
+  *Boundary, amplitude=N030_U2
+  *Boundary, amplitude=N030_U3
+  *Boundary, amplitude=N030_T
+  *Boundary, amplitude=N031_U1
+  *Boundary, amplitude=N031_U2
+  *Boundary, amplitude=N031_U3
+  *Boundary, amplitude=N031_T
+  *Boundary, amplitude=N032_U1
+  *Boundary, amplitude=N032_U2
+  *Boundary, amplitude=N032_U3
+  *Boundary, amplitude=N032_T
+  *Boundary, amplitude=N033_U1
+  *Boundary, amplitude=N033_U2
+  *Boundary, amplitude=N033_U3
+  *Boundary, amplitude=N033_T
+  *Boundary, amplitude=N034_U1
+  *Boundary, amplitude=N034_U2
+  *Boundary, amplitude=N034_U3
+  *Boundary, amplitude=N034_T
+  *Boundary, amplitude=N035_U1
+  *Boundary, amplitude=N035_U2
+  *Boundary, amplitude=N035_U3
+  *Boundary, amplitude=N035_T
+  *Boundary, amplitude=N036_U1
+  *Boundary, amplitude=N036_U2
+  *Boundary, amplitude=N036_U3
+  *Boundary, amplitude=N036_T
+  *Boundary, amplitude=N037_U1
+  *Boundary, amplitude=N037_U2
+  *Boundary, amplitude=N037_U3
+  *Boundary, amplitude=N037_T
+  *Boundary, amplitude=N038_U1
+  *Boundary, amplitude=N038_U2
+  *Boundary, amplitude=N038_U3
+  *Boundary, amplitude=N038_T
+  *Boundary, amplitude=N039_U1
+  *Boundary, amplitude=N039_U2
+  *Boundary, amplitude=N039_U3
+  *Boundary, amplitude=N039_T
+  *Boundary, amplitude=N040_U1
+  *Boundary, amplitude=N040_U2
+  *Boundary, amplitude=N040_U3
+  *Boundary, amplitude=N040_T
+  *Boundary, amplitude=N041_U1
+  *Boundary, amplitude=N041_U2
+  *Boundary, amplitude=N041_U3
+  *Boundary, amplitude=N041_T
+  *Boundary, amplitude=N042_U1
+  *Boundary, amplitude=N042_U2
+  *Boundary, amplitude=N042_U3
+  *Boundary, amplitude=N042_T
+  *Boundary, amplitude=N043_U1
+  *Boundary, amplitude=N043_U2
+  *Boundary, amplitude=N043_U3
+  *Boundary, amplitude=N043_T
+  *Boundary, amplitude=N044_U1
+  *Boundary, amplitude=N044_U2
+  *Boundary, amplitude=N044_U3
+  *Boundary, amplitude=N044_T
+  *Boundary, amplitude=N045_U1
+  *Boundary, amplitude=N045_U2
+  *Boundary, amplitude=N045_U3
+  *Boundary, amplitude=N045_T
+  *Boundary, amplitude=N046_U1
+  *Boundary, amplitude=N046_U2
+  *Boundary, amplitude=N046_U3
+  *Boundary, amplitude=N046_T
+  *Boundary, amplitude=N047_U1
+  *Boundary, amplitude=N047_U2
+  *Boundary, amplitude=N047_U3
+  *Boundary, amplitude=N047_T
+  *Boundary, amplitude=N048_U1
+  *Boundary, amplitude=N048_U2
+  *Boundary, amplitude=N048_U3
+  *Boundary, amplitude=N048_T
+  *Boundary, amplitude=N049_U1
+  *Boundary, amplitude=N049_U2
+  *Boundary, amplitude=N049_U3
+  *Boundary, amplitude=N049_T
+  *Boundary, amplitude=N050_U1
+  *Boundary, amplitude=N050_U2
+  *Boundary, amplitude=N050_U3
+  *Boundary, amplitude=N050_T
+  *Boundary, amplitude=N051_U1
+  *Boundary, amplitude=N051_U2
+  *Boundary, amplitude=N051_U3
+  *Boundary, amplitude=N051_T
+  *Boundary, amplitude=N052_U1
+  *Boundary, amplitude=N052_U2
+  *Boundary, amplitude=N052_U3
+  *Boundary, amplitude=N052_T
+  *Boundary, amplitude=N053_U1
+  *Boundary, amplitude=N053_U2
+  *Boundary, amplitude=N053_U3
+  *Boundary, amplitude=N053_T
+  *Boundary, amplitude=N054_U1
+  *Boundary, amplitude=N054_U2
+  *Boundary, amplitude=N054_U3
+  *Boundary, amplitude=N054_T
+  *Boundary, amplitude=N055_U1
+  *Boundary, amplitude=N055_U2
+  *Boundary, amplitude=N055_U3
+  *Boundary, amplitude=N055_T
+  *Boundary, amplitude=N056_U1
+  *Boundary, amplitude=N056_U2
+  *Boundary, amplitude=N056_U3
+  *Boundary, amplitude=N056_T
+  *Boundary, amplitude=N057_U1
+  *Boundary, amplitude=N057_U2
+  *Boundary, amplitude=N057_U3
+  *Boundary, amplitude=N057_T
+  *Boundary, amplitude=N058_U1
+  *Boundary, amplitude=N058_U2
+  *Boundary, amplitude=N058_U3
+  *Boundary, amplitude=N058_T
+  *Boundary, amplitude=N059_U1
+  *Boundary, amplitude=N059_U2
+  *Boundary, amplitude=N059_U3
+  *Boundary, amplitude=N059_T
+  *Boundary, amplitude=N060_U1
+  *Boundary, amplitude=N060_U2
+  *Boundary, amplitude=N060_U3
+  *Boundary, amplitude=N060_T
+  *Boundary, amplitude=N061_U1
+  *Boundary, amplitude=N061_U2
+  *Boundary, amplitude=N061_U3
+  *Boundary, amplitude=N061_T
+  *Boundary, amplitude=N062_U1
+  *Boundary, amplitude=N062_U2
+  *Boundary, amplitude=N062_U3
+  *Boundary, amplitude=N062_T
+  *Boundary, amplitude=N063_U1
+  *Boundary, amplitude=N063_U2
+  *Boundary, amplitude=N063_U3
+  *Boundary, amplitude=N063_T
+  *Boundary, amplitude=N064_U1
+  *Boundary, amplitude=N064_U2
+  *Boundary, amplitude=N064_U3
+  *Boundary, amplitude=N064_T
+  *Boundary, amplitude=N001_U1
+  *Boundary, amplitude=N001_U2
+  *Boundary, amplitude=N001_U3
+  *Boundary, amplitude=N001_T
+  *Boundary, amplitude=N002_U1
+  *Boundary, amplitude=N002_U2
+  *Boundary, amplitude=N002_U3
+  *Boundary, amplitude=N002_T
+  *Boundary, amplitude=N003_U1
+  *Boundary, amplitude=N003_U2
+  *Boundary, amplitude=N003_U3
+  *Boundary, amplitude=N003_T
+  *Boundary, amplitude=N004_U1
+  *Boundary, amplitude=N004_U2
+  *Boundary, amplitude=N004_U3
+  *Boundary, amplitude=N004_T
+  *Boundary, amplitude=N005_U1
+  *Boundary, amplitude=N005_U2
+  *Boundary, amplitude=N005_U3
+  *Boundary, amplitude=N005_T
+  *Boundary, amplitude=N006_U1
+  *Boundary, amplitude=N006_U2
+  *Boundary, amplitude=N006_U3
+  *Boundary, amplitude=N006_T
+  *Boundary, amplitude=N007_U1
+  *Boundary, amplitude=N007_U2
+  *Boundary, amplitude=N007_U3
+  *Boundary, amplitude=N007_T
+  *Boundary, amplitude=N008_U1
+  *Boundary, amplitude=N008_U2
+  *Boundary, amplitude=N008_U3
+  *Boundary, amplitude=N008_T
+  *Boundary, amplitude=N009_U1
+  *Boundary, amplitude=N009_U2
+  *Boundary, amplitude=N009_U3
+  *Boundary, amplitude=N009_T
+  *Boundary, amplitude=N010_U1
+  *Boundary, amplitude=N010_U2
+  *Boundary, amplitude=N010_U3
+  *Boundary, amplitude=N010_T
+  *Boundary, amplitude=N011_U1
+  *Boundary, amplitude=N011_U2
+  *Boundary, amplitude=N011_U3
+  *Boundary, amplitude=N011_T
+  *Boundary, amplitude=N012_U1
+  *Boundary, amplitude=N012_U2
+  *Boundary, amplitude=N012_U3
+  *Boundary, amplitude=N012_T
+  *Boundary, amplitude=N013_U1
+  *Boundary, amplitude=N013_U2
+  *Boundary, amplitude=N013_U3
+  *Boundary, amplitude=N013_T
+  *Boundary, amplitude=N014_U1
+  *Boundary, amplitude=N014_U2
+  *Boundary, amplitude=N014_U3
+  *Boundary, amplitude=N014_T
+  *Boundary, amplitude=N015_U1
+  *Boundary, amplitude=N015_U2
+  *Boundary, amplitude=N015_U3
+  *Boundary, amplitude=N015_T
+  *Boundary, amplitude=N016_U1
+  *Boundary, amplitude=N016_U2
+  *Boundary, amplitude=N016_U3
+  *Boundary, amplitude=N016_T
+  *Boundary, amplitude=N017_U1
+  *Boundary, amplitude=N017_U2
+  *Boundary, amplitude=N017_U3
+  *Boundary, amplitude=N017_T
+  *Boundary, amplitude=N018_U1
+  *Boundary, amplitude=N018_U2
+  *Boundary, amplitude=N018_U3
+  *Boundary, amplitude=N018_T
+  *Boundary, amplitude=N019_U1
+  *Boundary, amplitude=N019_U2
+  *Boundary, amplitude=N019_U3
+  *Boundary, amplitude=N019_T
+  *Boundary, amplitude=N020_U1
+  *Boundary, amplitude=N020_U2
+  *Boundary, amplitude=N020_U3
+  *Boundary, amplitude=N020_T
+  *Boundary, amplitude=N021_U1
+  *Boundary, amplitude=N021_U2
+  *Boundary, amplitude=N021_U3
+  *Boundary, amplitude=N021_T
+  *Boundary, amplitude=N022_U1
+  *Boundary, amplitude=N022_U2
+  *Boundary, amplitude=N022_U3
+  *Boundary, amplitude=N022_T
+  *Boundary, amplitude=N023_U1
+  *Boundary, amplitude=N023_U2
+  *Boundary, amplitude=N023_U3
+  *Boundary, amplitude=N023_T
+  *Boundary, amplitude=N024_U1
+  *Boundary, amplitude=N024_U2
+  *Boundary, amplitude=N024_U3
+  *Boundary, amplitude=N024_T
+  *Boundary, amplitude=N025_U1
+  *Boundary, amplitude=N025_U2
+  *Boundary, amplitude=N025_U3
+  *Boundary, amplitude=N025_T
+  *Boundary, amplitude=N026_U1
+  *Boundary, amplitude=N026_U2
+  *Boundary, amplitude=N026_U3
+  *Boundary, amplitude=N026_T
+  *Boundary, amplitude=N027_U1
+  *Boundary, amplitude=N027_U2
+  *Boundary, amplitude=N027_U3
+  *Boundary, amplitude=N027_T
+  *Boundary, amplitude=N028_U1
+  *Boundary, amplitude=N028_U2
+  *Boundary, amplitude=N028_U3
+  *Boundary, amplitude=N028_T
+  *Boundary, amplitude=N029_U1
+  *Boundary, amplitude=N029_U2
+  *Boundary, amplitude=N029_U3
+  *Boundary, amplitude=N029_T
+  *Boundary, amplitude=N030_U1
+  *Boundary, amplitude=N030_U2
+  *Boundary, amplitude=N030_U3
+  *Boundary, amplitude=N030_T
+  *Boundary, amplitude=N031_U1
+  *Boundary, amplitude=N031_U2
+  *Boundary, amplitude=N031_U3
+  *Boundary, amplitude=N031_T
+  *Boundary, amplitude=N032_U1
+  *Boundary, amplitude=N032_U2
+  *Boundary, amplitude=N032_U3
+  *Boundary, amplitude=N032_T
+  *Boundary, amplitude=N033_U1
+  *Boundary, amplitude=N033_U2
+  *Boundary, amplitude=N033_U3
+  *Boundary, amplitude=N033_T
+  *Boundary, amplitude=N034_U1
+  *Boundary, amplitude=N034_U2
+  *Boundary, amplitude=N034_U3
+  *Boundary, amplitude=N034_T
+  *Boundary, amplitude=N035_U1
+  *Boundary, amplitude=N035_U2
+  *Boundary, amplitude=N035_U3
+  *Boundary, amplitude=N035_T
+  *Boundary, amplitude=N036_U1
+  *Boundary, amplitude=N036_U2
+  *Boundary, amplitude=N036_U3
+  *Boundary, amplitude=N036_T
+  *Boundary, amplitude=N037_U1
+  *Boundary, amplitude=N037_U2
+  *Boundary, amplitude=N037_U3
+  *Boundary, amplitude=N037_T
+  *Boundary, amplitude=N038_U1
+  *Boundary, amplitude=N038_U2
+  *Boundary, amplitude=N038_U3
+  *Boundary, amplitude=N038_T
+  *Boundary, amplitude=N039_U1
+  *Boundary, amplitude=N039_U2
+  *Boundary, amplitude=N039_U3
+  *Boundary, amplitude=N039_T
+  *Boundary, amplitude=N040_U1
+  *Boundary, amplitude=N040_U2
+  *Boundary, amplitude=N040_U3
+  *Boundary, amplitude=N040_T
+  *Boundary, amplitude=N041_U1
+  *Boundary, amplitude=N041_U2
+  *Boundary, amplitude=N041_U3
+  *Boundary, amplitude=N041_T
+  *Boundary, amplitude=N042_U1
+  *Boundary, amplitude=N042_U2
+  *Boundary, amplitude=N042_U3
+  *Boundary, amplitude=N042_T
+  *Boundary, amplitude=N043_U1
+  *Boundary, amplitude=N043_U2
+  *Boundary, amplitude=N043_U3
+  *Boundary, amplitude=N043_T
+  *Boundary, amplitude=N044_U1
+  *Boundary, amplitude=N044_U2
+  *Boundary, amplitude=N044_U3
+  *Boundary, amplitude=N044_T
+  *Boundary, amplitude=N045_U1
+  *Boundary, amplitude=N045_U2
+  *Boundary, amplitude=N045_U3
+  *Boundary, amplitude=N045_T
+  *Boundary, amplitude=N046_U1
+  *Boundary, amplitude=N046_U2
+  *Boundary, amplitude=N046_U3
+  *Boundary, amplitude=N046_T
+  *Boundary, amplitude=N047_U1
+  *Boundary, amplitude=N047_U2
+  *Boundary, amplitude=N047_U3
+  *Boundary, amplitude=N047_T
+  *Boundary, amplitude=N048_U1
+  *Boundary, amplitude=N048_U2
+  *Boundary, amplitude=N048_U3
+  *Boundary, amplitude=N048_T
+  *Boundary, amplitude=N049_U1
+  *Boundary, amplitude=N049_U2
+  *Boundary, amplitude=N049_U3
+  *Boundary, amplitude=N049_T
+  *Boundary, amplitude=N050_U1
+  *Boundary, amplitude=N050_U2
+  *Boundary, amplitude=N050_U3
+  *Boundary, amplitude=N050_T
+  *Boundary, amplitude=N051_U1
+  *Boundary, amplitude=N051_U2
+  *Boundary, amplitude=N051_U3
+  *Boundary, amplitude=N051_T
+  *Boundary, amplitude=N052_U1
+  *Boundary, amplitude=N052_U2
+  *Boundary, amplitude=N052_U3
+  *Boundary, amplitude=N052_T
+  *Boundary, amplitude=N053_U1
+  *Boundary, amplitude=N053_U2
+  *Boundary, amplitude=N053_U3
+  *Boundary, amplitude=N053_T
+  *Boundary, amplitude=N054_U1
+  *Boundary, amplitude=N054_U2
+  *Boundary, amplitude=N054_U3
+  *Boundary, amplitude=N054_T
+  *Boundary, amplitude=N055_U1
+  *Boundary, amplitude=N055_U2
+  *Boundary, amplitude=N055_U3
+  *Boundary, amplitude=N055_T
+  *Boundary, amplitude=N056_U1
+  *Boundary, amplitude=N056_U2
+  *Boundary, amplitude=N056_U3
+  *Boundary, amplitude=N056_T
+  *Boundary, amplitude=N057_U1
+  *Boundary, amplitude=N057_U2
+  *Boundary, amplitude=N057_U3
+  *Boundary, amplitude=N057_T
+  *Boundary, amplitude=N058_U1
+  *Boundary, amplitude=N058_U2
+  *Boundary, amplitude=N058_U3
+  *Boundary, amplitude=N058_T
+  *Boundary, amplitude=N059_U1
+  *Boundary, amplitude=N059_U2
+  *Boundary, amplitude=N059_U3
+  *Boundary, amplitude=N059_T
+  *Boundary, amplitude=N060_U1
+  *Boundary, amplitude=N060_U2
+  *Boundary, amplitude=N060_U3
+  *Boundary, amplitude=N060_T
+  *Boundary, amplitude=N061_U1
+  *Boundary, amplitude=N061_U2
+  *Boundary, amplitude=N061_U3
+  *Boundary, amplitude=N061_T
+  *Boundary, amplitude=N062_U1
+  *Boundary, amplitude=N062_U2
+  *Boundary, amplitude=N062_U3
+  *Boundary, amplitude=N062_T
+  *Boundary, amplitude=N063_U1
+  *Boundary, amplitude=N063_U2
+  *Boundary, amplitude=N063_U3
+  *Boundary, amplitude=N063_T
+  *Boundary, amplitude=N064_U1
+  *Boundary, amplitude=N064_U2
+  *Boundary, amplitude=N064_U3
+  *Boundary, amplitude=N064_T
+  *Output, field, frequency=1
+  *Output, history, frequency=1
+  *Element Output, directions=YES
+  *Initial Conditions, type=TEMPERATURE
+  *Output, field, frequency=1
+  *Output, history, frequency=1
+  *Element Output, directions=YES
+  *Initial Conditions, type=TEMPERATURE
+  *Output, field, frequency=1
+  *Output, history, frequency=1
+  *Element Output, directions=YES
+  *Amplitude, name=N001_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N001_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N001_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N001_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N002_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N002_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N002_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N002_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N003_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N003_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N003_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N003_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N004_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N004_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N004_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N004_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N005_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N005_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N005_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N005_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N006_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N006_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N006_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N006_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N007_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N007_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N007_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N007_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N008_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N008_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N008_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N008_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N009_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N009_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N009_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N009_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N010_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N010_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N010_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N010_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N011_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N011_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N011_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N011_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N012_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N012_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N012_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N012_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N013_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N013_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N013_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N013_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N014_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N014_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N014_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N014_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N015_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N015_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N015_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N015_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N016_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N016_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N016_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N016_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N017_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N017_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N017_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N017_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N018_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N018_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N018_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N018_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N019_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N019_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N019_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N019_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N020_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N020_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N020_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N020_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N021_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N021_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N021_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N021_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N022_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N022_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N022_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N022_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N023_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N023_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N023_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N023_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N024_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N024_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N024_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N024_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N025_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N025_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N025_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N025_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N026_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N026_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N026_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N026_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N027_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N027_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N027_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N027_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N028_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N028_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N028_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N028_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N029_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N029_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N029_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N029_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N030_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N030_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N030_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N030_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N031_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N031_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N031_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N031_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N032_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N032_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N032_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N032_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N033_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N033_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N033_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N033_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N034_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N034_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N034_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N034_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N035_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N035_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N035_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N035_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N036_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N036_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N036_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N036_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N037_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N037_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N037_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N037_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N038_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N038_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N038_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N038_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N039_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N039_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N039_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N039_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N040_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N040_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N040_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N040_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N041_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N041_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N041_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N041_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N042_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N042_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N042_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N042_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N043_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N043_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N043_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N043_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N044_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N044_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N044_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N044_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N045_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N045_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N045_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N045_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N046_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N046_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N046_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N046_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N047_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N047_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N047_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N047_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N048_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N048_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N048_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N048_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N049_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N049_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N049_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N049_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N050_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N050_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N050_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N050_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N051_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N051_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N051_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N051_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N052_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N052_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N052_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N052_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N053_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N053_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N053_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N053_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N054_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N054_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N054_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N054_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N055_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N055_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N055_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N055_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N056_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N056_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N056_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N056_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N057_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N057_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N057_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N057_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N058_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N058_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N058_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N058_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N059_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N059_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N059_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N059_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N060_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N060_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N060_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N060_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N061_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N061_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N061_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N061_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N062_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N062_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N062_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N062_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N063_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N063_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N063_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N063_T, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N064_U1, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N064_U2, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N064_U3, definition=TABULAR, time=TOTAL TIME
+  *Amplitude, name=N064_T, definition=TABULAR, time=TOTAL TIME
+  *Step, name=PATH, nlgeom=YES, inc=10
+  *Output, field, frequency=1
+  *Output, history, frequency=1
+  *Step, name=PATH, nlgeom=YES, inc=10
+  *Step, name=PATH, nlgeom=YES, inc=10
+  *Coupled Temperature-Displacement, deltmx=1000.0
+  *Boundary, amplitude=N001_U1
+  *Boundary, amplitude=N001_U2
+  *Boundary, amplitude=N001_U3
+  *Boundary, amplitude=N001_T
+  *Boundary, amplitude=N002_U1
+  *Boundary, amplitude=N002_U2
+  *Boundary, amplitude=N002_U3
+  *Boundary, amplitude=N002_T
+  *Boundary, amplitude=N003_U1
+  *Boundary, amplitude=N003_U2
+  *Boundary, amplitude=N003_U3
+  *Boundary, amplitude=N003_T
+  *Boundary, amplitude=N004_U1
+  *Boundary, amplitude=N004_U2
+  *Boundary, amplitude=N004_U3
+  *Boundary, amplitude=N004_T
+  *Boundary, amplitude=N005_U1
+  *Boundary, amplitude=N005_U2
+  *Boundary, amplitude=N005_U3
+  *Boundary, amplitude=N005_T
+  *Boundary, amplitude=N006_U1
+  *Boundary, amplitude=N006_U2
+  *Boundary, amplitude=N006_U3
+  *Boundary, amplitude=N006_T
+  *Boundary, amplitude=N007_U1
+  *Boundary, amplitude=N007_U2
+  *Boundary, amplitude=N007_U3
+  *Boundary, amplitude=N007_T
+  *Boundary, amplitude=N008_U1
+  *Boundary, amplitude=N008_U2
+  *Boundary, amplitude=N008_U3
+  *Boundary, amplitude=N008_T
+  *Boundary, amplitude=N009_U1
+  *Boundary, amplitude=N009_U2
+  *Boundary, amplitude=N009_U3
+  *Boundary, amplitude=N009_T
+  *Boundary, amplitude=N010_U1
+  *Boundary, amplitude=N010_U2
+  *Boundary, amplitude=N010_U3
+  *Boundary, amplitude=N010_T
+  *Boundary, amplitude=N011_U1
+  *Boundary, amplitude=N011_U2
+  *Boundary, amplitude=N011_U3
+  *Boundary, amplitude=N011_T
+  *Boundary, amplitude=N012_U1
+  *Boundary, amplitude=N012_U2
+  *Boundary, amplitude=N012_U3
+  *Boundary, amplitude=N012_T
+  *Boundary, amplitude=N013_U1
+  *Boundary, amplitude=N013_U2
+  *Boundary, amplitude=N013_U3
+  *Boundary, amplitude=N013_T
+  *Boundary, amplitude=N014_U1
+  *Boundary, amplitude=N014_U2
+  *Boundary, amplitude=N014_U3
+  *Boundary, amplitude=N014_T
+  *Boundary, amplitude=N015_U1
+  *Boundary, amplitude=N015_U2
+  *Boundary, amplitude=N015_U3
+  *Boundary, amplitude=N015_T
+  *Boundary, amplitude=N016_U1
+  *Boundary, amplitude=N016_U2
+  *Boundary, amplitude=N016_U3
+  *Boundary, amplitude=N016_T
+  *Boundary, amplitude=N017_U1
+  *Boundary, amplitude=N017_U2
+  *Boundary, amplitude=N017_U3
+  *Boundary, amplitude=N017_T
+  *Boundary, amplitude=N018_U1
+  *Boundary, amplitude=N018_U2
+  *Boundary, amplitude=N018_U3
+  *Boundary, amplitude=N018_T
+  *Boundary, amplitude=N019_U1
+  *Boundary, amplitude=N019_U2
+  *Boundary, amplitude=N019_U3
+  *Boundary, amplitude=N019_T
+  *Boundary, amplitude=N020_U1
+  *Boundary, amplitude=N020_U2
+  *Boundary, amplitude=N020_U3
+  *Boundary, amplitude=N020_T
+  *Boundary, amplitude=N021_U1
+  *Boundary, amplitude=N021_U2
+  *Boundary, amplitude=N021_U3
+  *Boundary, amplitude=N021_T
+  *Boundary, amplitude=N022_U1
+  *Boundary, amplitude=N022_U2
+  *Boundary, amplitude=N022_U3
+  *Boundary, amplitude=N022_T
+  *Boundary, amplitude=N023_U1
+  *Boundary, amplitude=N023_U2
+  *Boundary, amplitude=N023_U3
+  *Boundary, amplitude=N023_T
+  *Boundary, amplitude=N024_U1
+  *Boundary, amplitude=N024_U2
+  *Boundary, amplitude=N024_U3
+  *Boundary, amplitude=N024_T
+  *Boundary, amplitude=N025_U1
+  *Boundary, amplitude=N025_U2
+  *Boundary, amplitude=N025_U3
+  *Boundary, amplitude=N025_T
+  *Boundary, amplitude=N026_U1
+  *Boundary, amplitude=N026_U2
+  *Boundary, amplitude=N026_U3
+  *Boundary, amplitude=N026_T
+  *Boundary, amplitude=N027_U1
+  *Boundary, amplitude=N027_U2
+  *Boundary, amplitude=N027_U3
+  *Boundary, amplitude=N027_T
+  *Boundary, amplitude=N028_U1
+  *Boundary, amplitude=N028_U2
+  *Boundary, amplitude=N028_U3
+  *Boundary, amplitude=N028_T
+  *Boundary, amplitude=N029_U1
+  *Boundary, amplitude=N029_U2
+  *Boundary, amplitude=N029_U3
+  *Boundary, amplitude=N029_T
+  *Boundary, amplitude=N030_U1
+  *Boundary, amplitude=N030_U2
+  *Boundary, amplitude=N030_U3
+  *Boundary, amplitude=N030_T
+  *Boundary, amplitude=N031_U1
+  *Boundary, amplitude=N031_U2
+  *Boundary, amplitude=N031_U3
+  *Boundary, amplitude=N031_T
+  *Boundary, amplitude=N032_U1
+  *Boundary, amplitude=N032_U2
+  *Boundary, amplitude=N032_U3
+  *Boundary, amplitude=N032_T
+  *Boundary, amplitude=N033_U1
+  *Boundary, amplitude=N033_U2
+  *Boundary, amplitude=N033_U3
+  *Boundary, amplitude=N033_T
+  *Boundary, amplitude=N034_U1
+  *Boundary, amplitude=N034_U2
+  *Boundary, amplitude=N034_U3
+  *Boundary, amplitude=N034_T
+  *Boundary, amplitude=N035_U1
+  *Boundary, amplitude=N035_U2
+  *Boundary, amplitude=N035_U3
+  *Boundary, amplitude=N035_T
+  *Boundary, amplitude=N036_U1
+  *Boundary, amplitude=N036_U2
+  *Boundary, amplitude=N036_U3
+  *Boundary, amplitude=N036_T
+  *Boundary, amplitude=N037_U1
+  *Boundary, amplitude=N037_U2
+  *Boundary, amplitude=N037_U3
+  *Boundary, amplitude=N037_T
+  *Boundary, amplitude=N038_U1
+  *Boundary, amplitude=N038_U2
+  *Boundary, amplitude=N038_U3
+  *Boundary, amplitude=N038_T
+  *Boundary, amplitude=N039_U1
+  *Boundary, amplitude=N039_U2
+  *Boundary, amplitude=N039_U3
+  *Boundary, amplitude=N039_T
+  *Boundary, amplitude=N040_U1
+  *Boundary, amplitude=N040_U2
+  *Boundary, amplitude=N040_U3
+  *Boundary, amplitude=N040_T
+  *Boundary, amplitude=N041_U1
+  *Boundary, amplitude=N041_U2
+  *Boundary, amplitude=N041_U3
+  *Boundary, amplitude=N041_T
+  *Boundary, amplitude=N042_U1
+  *Boundary, amplitude=N042_U2
+  *Boundary, amplitude=N042_U3
+  *Boundary, amplitude=N042_T
+  *Boundary, amplitude=N043_U1
+  *Boundary, amplitude=N043_U2
+  *Boundary, amplitude=N043_U3
+  *Boundary, amplitude=N043_T
+  *Boundary, amplitude=N044_U1
+  *Boundary, amplitude=N044_U2
+  *Boundary, amplitude=N044_U3
+  *Boundary, amplitude=N044_T
+  *Boundary, amplitude=N045_U1
+  *Boundary, amplitude=N045_U2
+  *Boundary, amplitude=N045_U3
+  *Boundary, amplitude=N045_T
+  *Boundary, amplitude=N046_U1
+  *Boundary, amplitude=N046_U2
+  *Boundary, amplitude=N046_U3
+  *Boundary, amplitude=N046_T
+  *Boundary, amplitude=N047_U1
+  *Boundary, amplitude=N047_U2
+  *Boundary, amplitude=N047_U3
+  *Boundary, amplitude=N047_T
+  *Boundary, amplitude=N048_U1
+  *Boundary, amplitude=N048_U2
+  *Boundary, amplitude=N048_U3
+  *Boundary, amplitude=N048_T
+  *Boundary, amplitude=N049_U1
+  *Boundary, amplitude=N049_U2
+  *Boundary, amplitude=N049_U3
+  *Boundary, amplitude=N049_T
+  *Boundary, amplitude=N050_U1
+  *Boundary, amplitude=N050_U2
+  *Boundary, amplitude=N050_U3
+  *Boundary, amplitude=N050_T
+  *Boundary, amplitude=N051_U1
+  *Boundary, amplitude=N051_U2
+  *Boundary, amplitude=N051_U3
+  *Boundary, amplitude=N051_T
+  *Boundary, amplitude=N052_U1
+  *Boundary, amplitude=N052_U2
+  *Boundary, amplitude=N052_U3
+  *Boundary, amplitude=N052_T
+  *Boundary, amplitude=N053_U1
+  *Boundary, amplitude=N053_U2
+  *Boundary, amplitude=N053_U3
+  *Boundary, amplitude=N053_T
+  *Boundary, amplitude=N054_U1
+  *Boundary, amplitude=N054_U2
+  *Boundary, amplitude=N054_U3
+  *Boundary, amplitude=N054_T
+  *Boundary, amplitude=N055_U1
+  *Boundary, amplitude=N055_U2
+  *Boundary, amplitude=N055_U3
+  *Boundary, amplitude=N055_T
+  *Boundary, amplitude=N056_U1
+  *Boundary, amplitude=N056_U2
+  *Boundary, amplitude=N056_U3
+  *Boundary, amplitude=N056_T
+  *Boundary, amplitude=N057_U1
+  *Boundary, amplitude=N057_U2
+  *Boundary, amplitude=N057_U3
+  *Boundary, amplitude=N057_T
+  *Boundary, amplitude=N058_U1
+  *Boundary, amplitude=N058_U2
+  *Boundary, amplitude=N058_U3
+  *Boundary, amplitude=N058_T
+  *Boundary, amplitude=N059_U1
+  *Boundary, amplitude=N059_U2
+  *Boundary, amplitude=N059_U3
+  *Boundary, amplitude=N059_T
+  *Boundary, amplitude=N060_U1
+  *Boundary, amplitude=N060_U2
+  *Boundary, amplitude=N060_U3
+  *Boundary, amplitude=N060_T
+  *Boundary, amplitude=N061_U1
+  *Boundary, amplitude=N061_U2
+  *Boundary, amplitude=N061_U3
+  *Boundary, amplitude=N061_T
+  *Boundary, amplitude=N062_U1
+  *Boundary, amplitude=N062_U2
+  *Boundary, amplitude=N062_U3
+  *Boundary, amplitude=N062_T
+  *Boundary, amplitude=N063_U1
+  *Boundary, amplitude=N063_U2
+  *Boundary, amplitude=N063_U3
+  *Boundary, amplitude=N063_T
+  *Boundary, amplitude=N064_U1
+  *Boundary, amplitude=N064_U2
+  *Boundary, amplitude=N064_U3
+  *Boundary, amplitude=N064_T
+  *Output, field, frequency=1
+  *Node Output
+  *Element Output, directions=YES
+  *Output, history, frequency=1
+  *Energy Output
+  *End Step
+  *Step, name=PATH, nlgeom=YES, inc=10
+  *Coupled Temperature-Displacement, deltmx=1000.0
+  *Boundary, amplitude=N001_U1
+  *Boundary, amplitude=N001_U2
+  *Boundary, amplitude=N001_U3
+  *Boundary, amplitude=N001_T
+  *Boundary, amplitude=N002_U1
+  *Boundary, amplitude=N002_U2
+  *Boundary, amplitude=N002_U3
+  *Boundary, amplitude=N002_T
+  *Boundary, amplitude=N003_U1
+  *Boundary, amplitude=N003_U2
+  *Boundary, amplitude=N003_U3
+  *Boundary, amplitude=N003_T
+  *Boundary, amplitude=N004_U1
+  *Boundary, amplitude=N004_U2
+  *Boundary, amplitude=N004_U3
+  *Boundary, amplitude=N004_T
+  *Boundary, amplitude=N005_U1
+  *Boundary, amplitude=N005_U2
+  *Boundary, amplitude=N005_U3
+  *Boundary, amplitude=N005_T
+  *Boundary, amplitude=N006_U1
+  *Boundary, amplitude=N006_U2
+  *Boundary, amplitude=N006_U3
+  *Boundary, amplitude=N006_T
+  *Boundary, amplitude=N007_U1
+  *Boundary, amplitude=N007_U2
+  *Boundary, amplitude=N007_U3
+  *Boundary, amplitude=N007_T
+  *Boundary, amplitude=N008_U1
+  *Boundary, amplitude=N008_U2
+  *Boundary, amplitude=N008_U3
+  *Boundary, amplitude=N008_T
+  *Boundary, amplitude=N009_U1
+  *Boundary, amplitude=N009_U2
+  *Boundary, amplitude=N009_U3
+  *Boundary, amplitude=N009_T
+  *Boundary, amplitude=N010_U1
+  *Boundary, amplitude=N010_U2
+  *Boundary, amplitude=N010_U3
+  *Boundary, amplitude=N010_T
+  *Boundary, amplitude=N011_U1
+  *Boundary, amplitude=N011_U2
+  *Boundary, amplitude=N011_U3
+  *Boundary, amplitude=N011_T
+  *Boundary, amplitude=N012_U1
+  *Boundary, amplitude=N012_U2
+  *Boundary, amplitude=N012_U3
+  *Boundary, amplitude=N012_T
+  *Boundary, amplitude=N013_U1
+  *Boundary, amplitude=N013_U2
+  *Boundary, amplitude=N013_U3
+  *Boundary, amplitude=N013_T
+  *Boundary, amplitude=N014_U1
+  *Boundary, amplitude=N014_U2
+  *Boundary, amplitude=N014_U3
+  *Boundary, amplitude=N014_T
+  *Boundary, amplitude=N015_U1
+  *Boundary, amplitude=N015_U2
+  *Boundary, amplitude=N015_U3
+  *Boundary, amplitude=N015_T
+  *Boundary, amplitude=N016_U1
+  *Boundary, amplitude=N016_U2
+  *Boundary, amplitude=N016_U3
+  *Boundary, amplitude=N016_T
+  *Boundary, amplitude=N017_U1
+  *Boundary, amplitude=N017_U2
+  *Boundary, amplitude=N017_U3
+  *Boundary, amplitude=N017_T
+  *Boundary, amplitude=N018_U1
+  *Boundary, amplitude=N018_U2
+  *Boundary, amplitude=N018_U3
+  *Boundary, amplitude=N018_T
+  *Boundary, amplitude=N019_U1
+  *Boundary, amplitude=N019_U2
+  *Boundary, amplitude=N019_U3
+  *Boundary, amplitude=N019_T
+  *Boundary, amplitude=N020_U1
+  *Boundary, amplitude=N020_U2
+  *Boundary, amplitude=N020_U3
+  *Boundary, amplitude=N020_T
+  *Boundary, amplitude=N021_U1
+  *Boundary, amplitude=N021_U2
+  *Boundary, amplitude=N021_U3
+  *Boundary, amplitude=N021_T
+  *Boundary, amplitude=N022_U1
+  *Boundary, amplitude=N022_U2
+  *Boundary, amplitude=N022_U3
+  *Boundary, amplitude=N022_T
+  *Boundary, amplitude=N023_U1
+  *Boundary, amplitude=N023_U2
+  *Boundary, amplitude=N023_U3
+  *Boundary, amplitude=N023_T
+  *Boundary, amplitude=N024_U1
+  *Boundary, amplitude=N024_U2
+  *Boundary, amplitude=N024_U3
+  *Boundary, amplitude=N024_T
+  *Boundary, amplitude=N025_U1
+  *Boundary, amplitude=N025_U2
+  *Boundary, amplitude=N025_U3
+  *Boundary, amplitude=N025_T
+  *Boundary, amplitude=N026_U1
+  *Boundary, amplitude=N026_U2
+  *Boundary, amplitude=N026_U3
+  *Boundary, amplitude=N026_T
+  *Boundary, amplitude=N027_U1
+  *Boundary, amplitude=N027_U2
+  *Boundary, amplitude=N027_U3
+  *Boundary, amplitude=N027_T
+  *Boundary, amplitude=N028_U1
+  *Boundary, amplitude=N028_U2
+  *Boundary, amplitude=N028_U3
+  *Boundary, amplitude=N028_T
+  *Boundary, amplitude=N029_U1
+  *Boundary, amplitude=N029_U2
+  *Boundary, amplitude=N029_U3
+  *Boundary, amplitude=N029_T
+  *Boundary, amplitude=N030_U1
+  *Boundary, amplitude=N030_U2
+  *Boundary, amplitude=N030_U3
+  *Boundary, amplitude=N030_T
+  *Boundary, amplitude=N031_U1
+  *Boundary, amplitude=N031_U2
+  *Boundary, amplitude=N031_U3
+  *Boundary, amplitude=N031_T
+  *Boundary, amplitude=N032_U1
+  *Boundary, amplitude=N032_U2
+  *Boundary, amplitude=N032_U3
+  *Boundary, amplitude=N032_T
+  *Boundary, amplitude=N033_U1
+  *Boundary, amplitude=N033_U2
+  *Boundary, amplitude=N033_U3
+  *Boundary, amplitude=N033_T
+  *Boundary, amplitude=N034_U1
+  *Boundary, amplitude=N034_U2
+  *Boundary, amplitude=N034_U3
+  *Boundary, amplitude=N034_T
+  *Boundary, amplitude=N035_U1
+  *Boundary, amplitude=N035_U2
+  *Boundary, amplitude=N035_U3
+  *Boundary, amplitude=N035_T
+  *Boundary, amplitude=N036_U1
+  *Boundary, amplitude=N036_U2
+  *Boundary, amplitude=N036_U3
+  *Boundary, amplitude=N036_T
+  *Boundary, amplitude=N037_U1
+  *Boundary, amplitude=N037_U2
+  *Boundary, amplitude=N037_U3
+  *Boundary, amplitude=N037_T
+  *Boundary, amplitude=N038_U1
+  *Boundary, amplitude=N038_U2
+  *Boundary, amplitude=N038_U3
+  *Boundary, amplitude=N038_T
+  *Boundary, amplitude=N039_U1
+  *Boundary, amplitude=N039_U2
+  *Boundary, amplitude=N039_U3
+  *Boundary, amplitude=N039_T
+  *Boundary, amplitude=N040_U1
+  *Boundary, amplitude=N040_U2
+  *Boundary, amplitude=N040_U3
+  *Boundary, amplitude=N040_T
+  *Boundary, amplitude=N041_U1
+  *Boundary, amplitude=N041_U2
+  *Boundary, amplitude=N041_U3
+  *Boundary, amplitude=N041_T
+  *Boundary, amplitude=N042_U1
+  *Boundary, amplitude=N042_U2
+  *Boundary, amplitude=N042_U3
+  *Boundary, amplitude=N042_T
+  *Boundary, amplitude=N043_U1
+  *Boundary, amplitude=N043_U2
+  *Boundary, amplitude=N043_U3
+  *Boundary, amplitude=N043_T
+  *Boundary, amplitude=N044_U1
+  *Boundary, amplitude=N044_U2
+  *Boundary, amplitude=N044_U3
+  *Boundary, amplitude=N044_T
+  *Boundary, amplitude=N045_U1
+  *Boundary, amplitude=N045_U2
+  *Boundary, amplitude=N045_U3
+  *Boundary, amplitude=N045_T
+  *Boundary, amplitude=N046_U1
+  *Boundary, amplitude=N046_U2
+  *Boundary, amplitude=N046_U3
+  *Boundary, amplitude=N046_T
+  *Boundary, amplitude=N047_U1
+  *Boundary, amplitude=N047_U2
+  *Boundary, amplitude=N047_U3
+  *Boundary, amplitude=N047_T
+  *Boundary, amplitude=N048_U1
+  *Boundary, amplitude=N048_U2
+  *Boundary, amplitude=N048_U3
+  *Boundary, amplitude=N048_T
+  *Boundary, amplitude=N049_U1
+  *Boundary, amplitude=N049_U2
+  *Boundary, amplitude=N049_U3
+  *Boundary, amplitude=N049_T
+  *Boundary, amplitude=N050_U1
+  *Boundary, amplitude=N050_U2
+  *Boundary, amplitude=N050_U3
+  *Boundary, amplitude=N050_T
+  *Boundary, amplitude=N051_U1
+  *Boundary, amplitude=N051_U2
+  *Boundary, amplitude=N051_U3
+  *Boundary, amplitude=N051_T
+  *Boundary, amplitude=N052_U1
+  *Boundary, amplitude=N052_U2
+  *Boundary, amplitude=N052_U3
+  *Boundary, amplitude=N052_T
+  *Boundary, amplitude=N053_U1
+  *Boundary, amplitude=N053_U2
+  *Boundary, amplitude=N053_U3
+  *Boundary, amplitude=N053_T
+  *Boundary, amplitude=N054_U1
+  *Boundary, amplitude=N054_U2
+  *Boundary, amplitude=N054_U3
+  *Boundary, amplitude=N054_T
+  *Boundary, amplitude=N055_U1
+  *Boundary, amplitude=N055_U2
+  *Boundary, amplitude=N055_U3
+  *Boundary, amplitude=N055_T
+  *Boundary, amplitude=N056_U1
+  *Boundary, amplitude=N056_U2
+  *Boundary, amplitude=N056_U3
+  *Boundary, amplitude=N056_T
+  *Boundary, amplitude=N057_U1
+  *Boundary, amplitude=N057_U2
+  *Boundary, amplitude=N057_U3
+  *Boundary, amplitude=N057_T
+  *Boundary, amplitude=N058_U1
+  *Boundary, amplitude=N058_U2
+  *Boundary, amplitude=N058_U3
+  *Boundary, amplitude=N058_T
+  *Boundary, amplitude=N059_U1
+  *Boundary, amplitude=N059_U2
+  *Boundary, amplitude=N059_U3
+  *Boundary, amplitude=N059_T
+  *Boundary, amplitude=N060_U1
+  *Boundary, amplitude=N060_U2
+  *Boundary, amplitude=N060_U3
+  *Boundary, amplitude=N060_T
+  *Boundary, amplitude=N061_U1
+  *Boundary, amplitude=N061_U2
+  *Boundary, amplitude=N061_U3
+  *Boundary, amplitude=N061_T
+  *Boundary, amplitude=N062_U1
+  *Boundary, amplitude=N062_U2
+  *Boundary, amplitude=N062_U3
+  *Boundary, amplitude=N062_T
+  *Boundary, amplitude=N063_U1
+  *Boundary, amplitude=N063_U2
+  *Boundary, amplitude=N063_U3
+  *Boundary, amplitude=N063_T
+  *Boundary, amplitude=N064_U1
+  *Boundary, amplitude=N064_U2
+  *Boundary, amplitude=N064_U3
+  *Boundary, amplitude=N064_T
+  *End Step
+
+
+
+                            P R O B L E M   S I Z E
+
+
+          NUMBER OF ELEMENTS IS                                     8
+          NUMBER OF NODES IS                                       64
+          NUMBER OF NODES DEFINED BY THE USER                      64
+          TOTAL NUMBER OF VARIABLES IN THE MODEL                  256
+          (DEGREES OF FREEDOM PLUS MAX NO. OF ANY LAGRANGE MULTIPLIER
+           VARIABLES. INCLUDE *PRINT,SOLVE=YES TO GET THE ACTUAL NUMBER.)
+
+
+
+                              END OF USER INPUT PROCESSING
+
+
+
+     JOB TIME SUMMARY
+       USER TIME (SEC)      =  0.10000    
+       SYSTEM TIME (SEC)    =  0.10000    
+       TOTAL CPU TIME (SEC) =  0.20000    
+       WALLCLOCK TIME (SEC) =          0
+1
+
+   Abaqus 3DEXPERIENCE R2018x                                  Date 13-9ÔÂ-2026   Time 15:15:55
+   For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
+
+                                                                                               STEP    1  INCREMENT    1
+                                                                                          TIME COMPLETED IN THIS STEP   0.00    
+
+
+                        S T E P       1     C O U P L E D - T E M P E R A T U R E - D I S P L A C E M E N T   A N A L Y S I S
+
+
+                                                                                          
+
+     AUTOMATIC TIME CONTROL WITH -
+          A SUGGESTED INITIAL TIME INCREMENT OF                1.000E+05
+          AND A TOTAL TIME PERIOD OF                           1.000E+06
+          THE MINIMUM TIME INCREMENT ALLOWED IS                1.000E+05
+          THE MAXIMUM TIME INCREMENT ALLOWED IS                1.000E+05
+
+          CREEP AND SWELLING EFFECTS ARE OMITTED IN THIS STEP
+
+     THE SIZE OF THE TIME INCREMENT IS CONTROLLED BY -
+          THE TEMPERATURE CHANGE PER INCREMENT NOT EXCEEDING           1.000E+03
+
+          CREEP AND SWELLING EFFECTS WILL BE IGNORED.
+
+          LARGE DISPLACEMENT THEORY WILL BE USED
+
+          UNSYMMETRIC MATRIX STORAGE AND SOLUTION WILL BE USED
+  
+                   M E M O R Y   E S T I M A T E
+  
+ PROCESS      FLOATING PT       MINIMUM MEMORY        MEMORY TO
+              OPERATIONS           REQUIRED          MINIMIZE I/O
+             PER ITERATION           (MB)               (MB)
+  
+     1          1.75E+05               17                 24
+  
+ NOTE:
+      (1) SINCE ABAQUS DOES NOT PRE-ALLOCATE MEMORY AND ONLY ALLOCATES MEMORY AS NEEDED DURING THE ANALYSIS,
+          THE MEMORY REQUIREMENT PRINTED HERE CAN ONLY BE VIEWED AS A GENERAL GUIDELINE BASED ON THE BEST
+          KNOWLEDGE AVAILABLE AT THE BEGINNING OF A STEP BEFORE THE SOLUTION PROCESS HAS BEGUN.
+      (2) THE ESTIMATE IS NORMALLY UPDATED AT THE BEGINNING OF EVERY STEP. IT IS THE MAXIMUM VALUE OF THE
+          ESTIMATE FROM THE CURRENT STEP TO THE LAST STEP OF THE ANALYSIS, WITH UNSYMMETRIC SOLUTION TAKEN
+          INTO ACCOUNT IF APPLICABLE. 
+      (3) SINCE THE ESTIMATE IS BASED ON THE ACTIVE DEGREES OF FREEDOM IN THE FIRST ITERATION OF THE 
+          CURRENT STEP, THE MEMORY ESTIMATE MIGHT BE SIGNIFICANTLY DIFFERENT THAN ACTUAL USAGE FOR 
+          PROBLEMS WITH SUBSTANTIAL CHANGES IN ACTIVE DEGREES OF FREEDOM BETWEEN STEPS (OR EVEN WITHIN
+          THE SAME STEP). EXAMPLES ARE: PROBLEMS WITH SIGNIFICANT CONTACT CHANGES, PROBLEMS WITH MODEL
+          CHANGE, PROBLEMS WITH BOTH STATIC STEP AND STEADY STATE DYNAMIC PROCEDURES WHERE ACOUSTIC 
+          ELEMENTS WILL ONLY BE ACTIVATED IN THE STEADY STATE DYNAMIC STEPS.
+      (4) FOR MULTI-PROCESS EXECUTION, THE ESTIMATED VALUE OF FLOATING POINT OPERATIONS FOR EACH PROCESS
+          IS BASED ON AN INITIAL SCHEDULING OF OPERATIONS AND MIGHT NOT REFLECT THE ACTUAL FLOATING 
+          POINT OPERATIONS COMPLETED ON EACH PROCESS. OPERATIONS ARE DYNAMICALLY BALANCED DURING EXECUTION, 
+          SO THE ACTUAL BALANCE OF OPERATIONS BETWEEN PROCESSES IS EXPECTED TO BE BETTER THAN THE ESTIMATE
+          PRINTED HERE.
+      (5) THE UPPER LIMIT OF MEMORY THAT CAN BE ALLOCATED BY ABAQUS WILL IN GENERAL DEPEND ON THE VALUE OF
+          THE "MEMORY" PARAMETER AND THE AMOUNT OF PHYSICAL MEMORY AVAILABLE ON THE MACHINE. PLEASE SEE
+          THE "ABAQUS ANALYSIS USER'S MANUAL" FOR MORE DETAILS. THE ACTUAL USAGE OF MEMORY AND OF DISK
+          SPACE FOR SCRATCH DATA WILL DEPEND ON THIS UPPER LIMIT AS WELL AS THE MEMORY REQUIRED TO MINIMIZE
+          I/O. IF THE MEMORY UPPER LIMIT IS GREATER THAN THE MEMORY REQUIRED TO MINIMIZE I/O, THEN THE ACTUAL
+          MEMORY USAGE WILL BE CLOSE TO THE ESTIMATED "MEMORY TO MINIMIZE I/O" VALUE, AND THE SCRATCH DISK
+          USAGE WILL BE CLOSE-TO-ZERO; OTHERWISE, THE ACTUAL MEMORY USED WILL BE CLOSE TO THE PREVIOUSLY
+          MENTIONED MEMORY LIMIT, AND THE SCRATCH DISK USAGE WILL BE ROUGHLY PROPORTIONAL TO THE DIFFERENCE
+          BETWEEN THE ESTIMATED "MEMORY TO MINIMIZE I/O" AND THE MEMORY UPPER LIMIT. HOWEVER ACCURATE
+          ESTIMATE OF THE SCRATCH DISK SPACE IS NOT POSSIBLE.
+      (6) USING "*RESTART, WRITE" CAN GENERATE A LARGE AMOUNT OF DATA WRITTEN IN THE WORK DIRECTORY.
+
+
+          THE ANALYSIS HAS BEEN COMPLETED
+
+
+
+                              ANALYSIS COMPLETE
+                              WITH      1 WARNING MESSAGES ON THE DAT FILE
+                              AND      11 WARNING MESSAGES ON THE MSG FILE
+
+
+
+     JOB TIME SUMMARY
+       USER TIME (SEC)      =  0.10000    
+       SYSTEM TIME (SEC)    =  0.10000    
+       TOTAL CPU TIME (SEC) =  0.20000    
+       WALLCLOCK TIME (SEC) =          1

@@ -1,0 +1,59 @@
+case	source_log	evidence
+b544_old_density	/tmp/fuelsim-before-b544_old_density-comparison.log	[PASS] b544 Abaqus full-field comparison
+b544_initial_density_before	/tmp/fuelsim-before-b544_initial_density-comparison.log	[PASS] b544 Abaqus full-field comparison
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.28 node=1 relative_error=0.726205 absolute_error_W=0.211031 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.28 node=4 relative_error=0.72619 absolute_error_W=0.211062 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.28 node=7 relative_error=0.726205 absolute_error_W=0.211031 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.28 node=10 relative_error=0.72619 absolute_error_W=0.211062 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.3 node=1 relative_error=0.725961 absolute_error_W=0.26871 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.3 node=4 relative_error=0.725935 absolute_error_W=0.268711 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.3 node=7 relative_error=0.725961 absolute_error_W=0.26871 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.3 node=10 relative_error=0.725935 absolute_error_W=0.268711 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.32 node=1 relative_error=0.718236 absolute_error_W=0.323781 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.32 node=4 relative_error=0.718211 absolute_error_W=0.323755 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.32 node=7 relative_error=0.718236 absolute_error_W=0.323781 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.32 node=10 relative_error=0.718211 absolute_error_W=0.323755 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.34 node=1 relative_error=0.706195 absolute_error_W=0.376364 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.34 node=4 relative_error=0.706173 absolute_error_W=0.37631 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.34 node=7 relative_error=0.706195 absolute_error_W=0.376364 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.34 node=10 relative_error=0.706173 absolute_error_W=0.37631 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.36 node=1 relative_error=0.691425 absolute_error_W=0.426566 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.36 node=4 relative_error=0.691408 absolute_error_W=0.426486 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.36 node=7 relative_error=0.691425 absolute_error_W=0.426566 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.36 node=10 relative_error=0.691408 absolute_error_W=0.426486 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.38 node=1 relative_error=0.674842 absolute_error_W=0.474491 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.38 node=4 relative_error=0.674831 absolute_error_W=0.474384 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.38 node=7 relative_error=0.674842 absolute_error_W=0.474491 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.38 node=10 relative_error=0.674831 absolute_error_W=0.474384 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.4 node=1 relative_error=0.657032 absolute_error_W=0.520234 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.4 node=4 relative_error=0.657026 absolute_error_W=0.520099 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.4 node=7 relative_error=0.657032 absolute_error_W=0.520234 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_before	/tmp/fuelsim-before-b526_current_card-comparison.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.4 node=10 relative_error=0.657026 absolute_error_W=0.520099 relative_tolerance=0.01 absolute_tolerance_W=0.2
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.28 node=1
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.28 node=4
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.28 node=7
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.28 node=10
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.3 node=1
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.3 node=4
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.3 node=7
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.3 node=10
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.32 node=1
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.32 node=4
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.32 node=7
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.32 node=10
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.34 node=1
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.34 node=4
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.34 node=7
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.34 node=10
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.36 node=1
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.36 node=4
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.36 node=7
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.36 node=10
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.38 node=1
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.38 node=4
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.38 node=7
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.38 node=10
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.4 node=1
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.4 node=4
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.4 node=7
+b526_current_card_current	/tmp/fuelsim-b544-initial-density-ctest.log	[FAIL] b526_friction_reversal_reaction_heat_flux sample time_s=0.4 node=10

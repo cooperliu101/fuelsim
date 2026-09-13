@@ -660,6 +660,35 @@ bool test_global_newton_safeguards() {
                        && field_converged.residual_norm > field_convergence_options.absolute_tolerance,
                  "field residual convergence stops when every physical field meets its configured tolerance")
              && passed;
+    fuelsim::PetscSolver overshoot_solver;
+    fuelsim::SolverOptions overshoot_options;
+    overshoot_options.line_search = fuelsim::SolverOptions::LineSearch::basic;
+    overshoot_options.backtracking_fallback = false;
+    overshoot_options.field_residual_scaling = true;
+    overshoot_options.field_residual_convergence = true;
+    overshoot_options.absolute_tolerance = 1.0e-14;
+    overshoot_options.relative_tolerance = 1.0e-14;
+    overshoot_options.temperature_residual_absolute_tolerance = 1.0e-14;
+    overshoot_options.mechanical_residual_absolute_tolerance = 1.0e-14;
+    overshoot_options.residual_reduction_tolerance = 1.0e-6;
+    overshoot_options.maximum_iterations = 20;
+    // Newton's first full step from 0.01 reaches 100.005. The enlarged
+    // field reference then permits the ninth iterate, whose global norm
+    // is still about 0.00406. The original global limit is sqrt(2)*1e-6.
+    const fuelsim::SolveResult overshoot = overshoot_solver.solve(quadratic_problem,
+        std::vector<double>(quadratic_problem.dof_count(), 0.01),
+        overshoot_options);
+    const double overshoot_global_threshold = std::sqrt(2.0) * overshoot_options.residual_reduction_tolerance;
+    passed = check(overshoot.converged && overshoot.nonlinear_iterations > 9
+                       && overshoot.field_residual_reference_norms[0] > 1000.0
+                       && overshoot.residual_norm <= overshoot_global_threshold
+                       && overshoot.failure_category == fuelsim::SolveFailureCategory::none,
+                 "field residual convergence retains the initial global reduction requirement after Newton overshoot")
+             && passed;
+    for (const double value : overshoot.state)
+        passed = check(std::abs(value - std::sqrt(2.0)) < 1.0e-10,
+                     "Newton overshoot converges to the quadratic root after the global residual check")
+                 && passed;
     return passed;
 }
 

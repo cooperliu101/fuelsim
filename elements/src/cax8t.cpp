@@ -292,15 +292,12 @@ Cax8Result evaluate_cax8t(const Cax8Input& data, ElementRequest request, Cax8Qua
         }
         const auto conductivity = data.material.conductivity(t, context);
         const adlite::Scalar capacity =
-            history && thermal_time
-                ? data.material.reference_heat_capacity(t, data.initial_temperature, context) * (t - k.old[5]) / dt
-                : adlite::Scalar(0);
+            history && thermal_time ? data.material.heat_capacity(t, context) * (t - k.old[5]) / dt : adlite::Scalar(0);
         const auto source_map = source_geometry(p, state, finite, jacobian);
         const double source_measure = source_map.measure;
         const auto& source_derivative = source_map.derivative;
         for (std::size_t n = 0; n < 4; ++n) {
-            const auto row = k.measure * conductivity * (gr[n] * tr + gz[n] * tz)
-                             + p.weighted_measure * p.temperature_shape[n] * capacity;
+            const auto row = k.measure * (conductivity * (gr[n] * tr + gz[n] * tz) + p.temperature_shape[n] * capacity);
             add_row(result, n, row, p, jacobian);
             const double source = p.temperature_shape[n] * data.volumetric_heat_source;
             result.residual[n] -= source * source_measure;
@@ -313,7 +310,7 @@ Cax8Result evaluate_cax8t(const Cax8Input& data, ElementRequest request, Cax8Qua
                                                    * (gr[n].value() * gr[j].value() + gz[n].value() * gz[j].value());
         }
         result.generated_heat_rate += source_measure * data.volumetric_heat_source;
-        result.stored_heat_rate += p.weighted_measure * capacity.value();
+        result.stored_heat_rate += k.measure.value() * capacity.value();
     }
     if (request.stress)
         for (std::size_t q = 0; q < result.history.size(); ++q)

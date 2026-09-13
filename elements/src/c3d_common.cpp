@@ -277,9 +277,18 @@ Hex8Geometry c3d8_detail::make_hex8_geometry(const Hex8Coordinates& coordinates)
         nodal_coordinates[node] = {coordinates[node].x, coordinates[node].y, coordinates[node].z};
     geometry.hourglass_shape = hex8_hourglass_shape(nodal_coordinates, geometry.average_shape_gradient);
 
+    const cartesian_detail::Matrix3 center_inverse =
+        cartesian_detail::inverse(center_jacobian, geometry.reduced_body_source_measure / 8.0);
+    std::array<std::array<double, 3>, hex8_node_count> center_gradient{};
+    for (std::size_t node = 0; node < hex8_node_count; ++node)
+        for (std::size_t physical = 0; physical < 3; ++physical)
+            for (std::size_t natural = 0; natural < 3; ++natural)
+                center_gradient[node][physical] += hex8_signs[node][natural] * center_inverse[natural][physical] / 8.0;
     try {
+        // Thermal stabilization uses the center metric and center measure;
+        // its projection and the mechanical metrics retain volume averages.
         geometry.thermal_hourglass_coefficients =
-            reduced_hex8_thermal_hourglass_coefficients(geometry.average_shape_gradient, geometry.reference_volume);
+            reduced_hex8_thermal_hourglass_coefficients(center_gradient, geometry.reduced_body_source_measure);
     } catch (const std::domain_error& error) {
         throw std::invalid_argument(std::string("Reduced HEX8 ") + error.what());
     }

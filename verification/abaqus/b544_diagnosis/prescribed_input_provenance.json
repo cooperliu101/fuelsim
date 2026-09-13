@@ -1,0 +1,15 @@
+{
+  "purpose": "Prescribed U/T diagnostic pair; not a production replacement or acceptance reference.",
+  "native_input": "verification/abaqus/b544_hex8_c3d8rt_distorted_bending.inp",
+  "native_input_sha256": "bac1748be73b822def32ac191dc3518135c115c9707cff98c5ecdc217902e9f1",
+  "native_nodal_csv": "verification/abaqus/b544_hex8_c3d8rt_distorted_bending_nodal.csv",
+  "native_nodal_sha256": "4b4d508d06f2054e1e0dc672e2e413ff8e880386e31b4268b1df66073a8019c2",
+  "native_increments": 10,
+  "nodes": 30,
+  "amplitude_count": 120,
+  "initial_time": 0,
+  "initial_temperature_K": 300,
+  "only_pair_difference": "*Hourglass Stiffness followed by 1.0 in the weak file",
+  "default_input_sha256": "d97b43ce12a4fc0e3c463558d54bb3386294d6295080c3642595d7e4aad52a15",
+  "weak_input_sha256": "819cdfbc28c4968d256b1881853bd50d25ea7a2138dcbaac454b82c47ea32259"
+}

@@ -216,14 +216,14 @@ bool test_friction_history_checkpoint(const std::string& input_path, const std::
         std::fstream file(checkpoint_path, std::ios::binary | std::ios::in | std::ios::out);
         if (!file)
             return check(false, "friction checkpoint opens for version test");
-        const std::array<unsigned char, 4> old_version = {19U, 0U, 0U, 0U};
+        const std::array<unsigned char, 4> old_version = {20U, 0U, 0U, 0U};
         file.seekp(16, std::ios::beg);
         file.write(reinterpret_cast<const char*>(old_version.data()), static_cast<std::streamsize>(old_version.size()));
     }
     fuelsim::TransientProblem old_version_target(input.spatial, mesh);
     passed = expect_failure([&]() { (void)fuelsim::restore_transient_checkpoint(checkpoint_path, old_version_target); },
                  "version is not supported",
-                 "checkpoint version 20 rejects the previous format")
+                 "checkpoint version 21 rejects the initial-mass heat-capacity format")
              && passed;
     return check(std::remove(checkpoint_path.c_str()) == 0, "friction checkpoint artifact is removed") && passed;
 }

@@ -157,21 +157,8 @@ int main(int argc, char** argv) {
         return 2;
     }
     try {
-        const CapacityMatrix native_capacity_reference = read_capacity(argv[1]);
+        const CapacityMatrix capacity_reference = read_capacity(argv[1]);
         const LoadValues load_reference = read_loads(argv[2]);
-        // The unchanged native BODY stage independently identifies each current
-        // nodal measure: RFL_i = -80 * V_i. The prescribed affine deformation
-        // has det(F) = 1.5 * 1.25 * 0.8 + 0.1 * 0.05 * 0.08 = 1.5004.
-        // Replace only rho*cp*(V_current-V_reference)*DeltaT/dt. Native
-        // conduction and every source/surface/convection reference stay intact.
-        constexpr double volume_ratio = 1.5 * 1.25 * 0.8 + 0.1 * 0.05 * 0.08;
-        CapacityMatrix derived_reference_mass = native_capacity_reference;
-        for (std::size_t node = 0; node < 8; ++node) {
-            const double current_measure = -load_reference.at("BODY")[node] / 80.0;
-            if (!std::isfinite(current_measure) || !(current_measure > 0.0))
-                throw std::invalid_argument("Native B5.4 body source must identify positive nodal measures");
-            derived_reference_mass[node][node] -= current_measure * (1.0 - 1.0 / volume_ratio) * 2000.0 * 3000.0;
-        }
         const fuelsim::Hex8Coordinates coordinates = distorted_coordinates();
         const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(coordinates);
         const fuelsim::ThermoelasticProperties properties =
@@ -181,20 +168,19 @@ int main(int argc, char** argv) {
         const fuelsim::Hex8LocalValues committed = volume_state(coordinates, uniform);
         const fuelsim::CartesianMaterialHistory history(8);
 
-        CapacityMatrix capacity{};
+        CapacityMatrix capacity{}, reference_capacity{};
         for (std::size_t input = 0; input < 8; ++input) {
             NodalValues temperature = uniform;
             temperature[input] = 301.0;
             const fuelsim::Hex8LocalValues state = volume_state(coordinates, temperature);
-            const fuelsim::CartesianRegionData current_data{material,
-                0.0,
-                1.0,
-                fuelsim::StrainFormulation::finite,
-                fuelsim::Hex8ElementFormulation::c3d8t,
-                300.0};
+            const fuelsim::CartesianRegionData current_data{material, 0.0, 1.0, fuelsim::StrainFormulation::finite};
+            const fuelsim::CartesianRegionData reference_data{material, 0.0, 1.0, fuelsim::StrainFormulation::small};
             const fuelsim::Hex8LocalResidual current_residual =
                 fuelsim::compute_c3d8_transient(current_data, geometry, state, committed, history, 1.0);
+            const fuelsim::Hex8LocalResidual reference_residual =
+                fuelsim::compute_c3d8_transient(reference_data, geometry, state, committed, history, 1.0);
             std::copy(current_residual.begin(), current_residual.begin() + 8, capacity[input].begin());
+            std::copy(reference_residual.begin(), reference_residual.begin() + 8, reference_capacity[input].begin());
         }
 
         const fuelsim::CartesianRegionData current_body_data{material, 80.0, 1.0, fuelsim::StrainFormulation::finite};
@@ -250,17 +236,16 @@ int main(int argc, char** argv) {
         for (std::size_t node = 0; node < 8; ++node)
             abaqus_film[node] = load_reference.at("FILM_ACTIVE")[node] - load_reference.at("FILM_BASE")[node];
 
-        const double capacity_error = relative_error(capacity, derived_reference_mass);
-        const double native_capacity_difference = relative_error(capacity, native_capacity_reference);
+        const double capacity_error = relative_error(capacity, capacity_reference);
+        const double reference_capacity_error = relative_error(reference_capacity, capacity_reference);
         const double body_error = relative_error(body, load_reference.at("BODY"));
         const double reference_body_error = relative_error(reference_body, load_reference.at("BODY"));
         const double surface_error = relative_error(surface, load_reference.at("SURFACE"));
         const double reference_surface_error = relative_error(reference_surface, load_reference.at("SURFACE"));
         const double film_error = relative_error(film, abaqus_film);
         const double reference_film_error = relative_error(reference_film_values, abaqus_film);
-        std::cout << "b54_derived_reference_mass_capacity_relative_error=" << capacity_error << '\n'
-                  << "b54_legacy_native_current_mass_capacity_relative_difference=" << native_capacity_difference
-                  << '\n'
+        std::cout << "b54_current_capacity_relative_error=" << capacity_error << '\n'
+                  << "b54_reference_capacity_relative_error=" << reference_capacity_error << '\n'
                   << "b54_current_body_source_relative_error=" << body_error << '\n'
                   << "b54_reference_body_source_relative_error=" << reference_body_error << '\n'
                   << "b54_current_surface_heat_flux_relative_error=" << surface_error << '\n'
@@ -268,12 +253,12 @@ int main(int argc, char** argv) {
                   << "b54_current_convection_relative_error=" << film_error << '\n'
                   << "b54_reference_convection_relative_error=" << reference_film_error << '\n';
         const bool passed =
-            check(capacity_error < 5.0e-7, "Fuelsim agrees with the B5.4 derived reference-mass thermal matrix")
+            check(capacity_error < 5.0e-7, "Abaqus and fuelsim finite-deformation capacity matrices agree")
             && check(body_error < 5.0e-7, "Abaqus and fuelsim finite-deformation body-source vectors agree")
             && check(surface_error < 5.0e-7, "Abaqus and fuelsim finite-deformation surface-flux vectors agree")
             && check(film_error < 5.0e-7, "Abaqus and fuelsim finite-deformation convection vectors agree")
-            && check(native_capacity_difference > 1.0e-2,
-                "the finite-deformation probe distinguishes fixed initial mass from the unchanged native capacity")
+            && check(reference_capacity_error > 1.0e-2,
+                "the finite-deformation capacity probe distinguishes reference integration")
             && check(reference_body_error > 1.0e-2,
                 "the finite-deformation body-source probe distinguishes reference integration")
             && check(reference_surface_error > 1.0e-2,
@@ -281,7 +266,7 @@ int main(int argc, char** argv) {
             && check(reference_film_error > 1.0e-2,
                 "the finite-deformation convection probe distinguishes reference integration");
         if (passed)
-            std::cout << "[PASS] B5.4 derived reference-mass capacity and unchanged Abaqus thermal loads\n";
+            std::cout << "[PASS] B5.4 Abaqus C3D8T finite-deformation thermal integration\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] B5.4 Abaqus C3D8T finite-deformation thermal integration raised: " << error.what() << '\n';

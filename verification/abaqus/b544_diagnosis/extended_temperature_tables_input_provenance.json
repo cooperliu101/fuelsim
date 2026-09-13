@@ -1,0 +1,74 @@
+{
+  "scope": "Definition alignment diagnostic only. No fitting; original E/k/cp lines extended without changing slopes.",
+  "performed": "Read existing 10-step outputs and documentation; create complete static diagnostic input. No solver run.",
+  "source_snapshot_note": "The recorded c3d8rt.cpp hash matches commit a3c22bc98b18758c025bde4e5aa8cfc854d0ce4d, before concurrent mechanical edits. Source hashes describe the inspected snapshot; result and native CSV hashes identify the analyzed data.",
+  "source_input": "/home/cooper/ai_project/fuelsim/verification/abaqus/b544_hex8_c3d8rt_distorted_bending.inp",
+  "diagnostic_input": "/home/cooper/ai_project/fuelsim/verification/abaqus/b544_diagnosis/b544_extended_temperature_tables.inp",
+  "unchanged_original_lines": true,
+  "inserted_material_data_rows": [
+    "2.04e8, 0.25, 280.0",
+    "1.0e8, 0.25, 800.0",
+    "9.6, 280.0",
+    "20.0, 800.0",
+    "475.0, 280.0",
+    "1125.0, 800.0"
+  ],
+  "density_kg_m3": 2000,
+  "initial_temperature_K": 300,
+  "table_temperatures_K": [
+    280,
+    300,
+    700,
+    800
+  ],
+  "original_temperature_range_K": [
+    300,
+    700
+  ],
+  "young_modulus_formula_Pa": "2e8 - 2e5*(T-300)",
+  "conductivity_formula_W_m_K": "10 + 0.02*(T-300)",
+  "specific_heat_formula_J_kg_K": "500 + 1.25*(T-300)",
+  "local_document_lines": [
+    169,
+    172
+  ],
+  "official_online_document": "https://docs.software.vt.edu/abaqusv2025/English/SIMACAEMATRefMap/simamat-c-materialdata.htm",
+  "sources": [
+    {
+      "path": "/home/cooper/ai_project/fuelsim/verification/abaqus/b544_hex8_c3d8rt_distorted_bending.inp",
+      "sha256": "bac1748be73b822def32ac191dc3518135c115c9707cff98c5ecdc217902e9f1"
+    },
+    {
+      "path": "/home/cooper/ai_project/fuelsim/verification/abaqus/b544_diagnosis/b544_extended_temperature_tables.inp",
+      "sha256": "7ca056025743c99b39a855a7976c027ec60d9c7d3059b9d263b837f94ffd24d6"
+    },
+    {
+      "path": "/home/cooper/ai_project/fuelsim/build/blackbox/b544/verification/fuelsim/transient_b544_distorted_bending_results.e",
+      "sha256": "d5157c4501c8b02e1205c267334477de61ca2253860fefc8d06e2828f0755f3d"
+    },
+    {
+      "path": "/home/cooper/ai_project/fuelsim/verification/abaqus/b544_hex8_c3d8rt_distorted_bending_nodal.csv",
+      "sha256": "4b4d508d06f2054e1e0dc672e2e413ff8e880386e31b4268b1df66073a8019c2"
+    },
+    {
+      "path": "/home/cooper/ai_project/fuelsim/verification/abaqus/b544_hex8_c3d8rt_distorted_bending_integration.csv",
+      "sha256": "9c632541df7f9950a970058a5ab3beda8bde81ecb126b5624e49a1daca20993c"
+    },
+    {
+      "path": "/mnt/c/Program Files/Dassault Systemes/SIMULIA2018doc/English/SIMACAEMATRefMap/simamat-c-materialdata.htm",
+      "sha256": "c9261c0ded94876dfd552542fa155015055d03e59e7f1dfe9455d99bff6e0489"
+    },
+    {
+      "path": "/home/cooper/ai_project/fuelsim/elements/src/material_functions.cpp",
+      "sha256": "ba491123fb65556cbd0142879988e047f36b37c57871772ca7b4546bad5af3fc"
+    },
+    {
+      "path": "/home/cooper/ai_project/fuelsim/elements/src/c3d8rt.cpp",
+      "sha256": "63b4880f03aa1cfe2e197444e25b4fd950140fc22fbaef579ac1036bb18f216c"
+    },
+    {
+      "path": "/home/cooper/ai_project/fuelsim/verification/abaqus/b544_diagnosis/run_extended_temperature_tables.ps1",
+      "sha256": "480022900e57397638e50423dedc337b6f6c2f7abef46d7577d2b30d7b2dd6b5"
+    }
+  ]
+}

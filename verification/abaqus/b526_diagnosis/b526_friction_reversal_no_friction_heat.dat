@@ -1,0 +1,404 @@
+1
+
+   Abaqus 3DEXPERIENCE R2018x                                  Date 13-9ÔÂ-2026   Time 15:46:20
+   For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
+
+
+
+                         The Abaqus Software is a product of:
+
+                           Dassault Systemes SIMULIA Corp.
+                           1301 Atwood Avenue, Suite 101W
+                              Johnston, RI 02919, USA
+ 
+
+
+                   The Abaqus Software is available only under license
+                   from Dassault Systemes or its subsidiary and may be
+                   used or reproduced only in accordance with the terms
+                   of such license.
+ 
+                          On machine MSI 
+                          you are authorized to run
+                          Abaqus/Standard until 31-Dec-2055
+
+                          Your site id is:  
+
+
+ 
+                    For assistance or any other information you may
+                    obtain contact information for your local office
+                    from the world wide web at:
+
+                      http://www.3ds.com/products/simulia/locations/
+
+ 
+                * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+                *                                                         * 
+                *                   *****************                     * 
+                *                   *  N O T I C E  *                     * 
+                *                   *****************                     * 
+                *                                                         * 
+                *                                                         * 
+                *               Abaqus 3DEXPERIENCE R2018x                * 
+                *                                                         * 
+                *          BUILD ID: 2017_11_08-01.21.41 127140           * 
+                *                                                         * 
+                *                                                         * 
+                *  Please make sure you are using                         * 
+                *  release 3DEXPERIENCE R2018x manuals                    * 
+                *  plus the notes accompanying this release.              * 
+                *                                                         * 
+                *                                                         * 
+                *                                                         * 
+                *                                                         * 
+                * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+
+
+ 
+
+
+
+     PROCESSING PART, INSTANCE, AND ASSEMBLY INFORMATION
+   *******************************************************
+
+
+     END PROCESSING PART, INSTANCE, AND ASSEMBLY INFORMATION
+   ***********************************************************
+
+  *Initial Conditions, type=TEMPERATURE
+
+
+
+     OPTIONS BEING PROCESSED
+   ***************************
+
+
+  *Heading
+  *Node
+  *Element, type=C3D8T, elset=PRIMARY
+  *Element, type=C3D8T, elset=SECONDARY
+  *Elset, elset=PRIMARY_CONTACT_ELEMENTS
+  *Elset, elset=SECONDARY_CONTACT_ELEMENTS
+  *Elset, elset=SECONDARY_OUTER_ELEMENTS
+  *Nset, nset=ALL_NODES
+  *Nset, nset=PRIMARY_OUTER_NODES
+  *Nset, nset=SECONDARY_OUTER_NODES
+  *Nset, nset=SECONDARY_CONTACT_NODES
+  *Diagnostics, nonhybrid=WARNING
+  *Material, name=PRIMARY_MATERIAL
+  *Elastic
+  *Expansion, zero=3.0000000000000000e2
+  *Conductivity
+  *Density
+  *Specific Heat
+  *Material, name=SECONDARY_MATERIAL
+  *Elastic
+  *Expansion, zero=3.0000000000000000e2
+  *Conductivity
+  *Density
+  *Specific Heat
+  *Initial Conditions, type=TEMPERATURE
+  *Solid Section, elset=PRIMARY, material=PRIMARY_MATERIAL
+  *Solid Section, elset=SECONDARY, material=SECONDARY_MATERIAL
+  *Solid Section, elset=PRIMARY, material=PRIMARY_MATERIAL
+  *Solid Section, elset=SECONDARY, material=SECONDARY_MATERIAL
+  *Contact Pair, interaction=COUPLED_CONTACT, type=SURFACE TO SURFACE, adjust=0.
+  *Surface, type=ELEMENT, name=PRIMARY_CONTACT
+  *Surface, type=ELEMENT, name=SECONDARY_CONTACT
+  *Surface, type=ELEMENT, name=SECONDARY_OUTER
+  *Contact Pair, interaction=COUPLED_CONTACT, type=SURFACE TO SURFACE, adjust=0.
+  *Surface, type=ELEMENT, name=PRIMARY_CONTACT
+  *Surface, type=ELEMENT, name=SECONDARY_CONTACT
+  *Surface, type=ELEMENT, name=SECONDARY_OUTER
+  *Surface, type=ELEMENT, name=PRIMARY_CONTACT
+  *Surface, type=ELEMENT, name=SECONDARY_CONTACT
+  *Surface, type=ELEMENT, name=SECONDARY_OUTER
+  *Contact Pair, interaction=COUPLED_CONTACT, type=SURFACE TO SURFACE, adjust=0.
+  *Surface Interaction, name=COUPLED_CONTACT
+  *Surface Behavior, pressure-overclosure=LINEAR
+  *Contact Pair, interaction=COUPLED_CONTACT, type=SURFACE TO SURFACE, adjust=0.
+  *Contact Pair, interaction=COUPLED_CONTACT, type=SURFACE TO SURFACE, adjust=0.
+  *Surface Interaction, name=COUPLED_CONTACT
+  *Surface Behavior, pressure-overclosure=LINEAR
+  *Friction, slip tolerance=5.0000000000000001e-03
+  *Gap Conductance, pressure
+  *Initial Conditions, type=TEMPERATURE
+  *Surface Interaction, name=COUPLED_CONTACT
+  *Boundary
+  *Boundary, amplitude=TEMPERATURE_PATH
+  *Boundary, amplitude=NORMAL_PATH
+  *Boundary, amplitude=TANGENTIAL_Y_PATH
+  *Boundary, amplitude=TANGENTIAL_Z_PATH
+  *Boundary
+  *Boundary, amplitude=TEMPERATURE_PATH
+  *Boundary, amplitude=NORMAL_PATH
+  *Boundary, amplitude=TANGENTIAL_Y_PATH
+  *Boundary, amplitude=TANGENTIAL_Z_PATH
+  *Contact Pair, interaction=COUPLED_CONTACT, type=SURFACE TO SURFACE, adjust=0.
+
+
+  SLAVE : SECONDARY_CONTACT                                                               
+  MASTER: PRIMARY_CONTACT                                                                 
+              DISTANCE
+   NODE       ADJUSTED    REMARKS/WARNINGS
+
+        13    0.0000      ADJUSTED TO (  1.0000    ,  0.0000    ,  0.0000    ).
+        16    0.0000      ADJUSTED TO (  1.0000    ,  1.0000    ,  0.0000    ).
+        19    0.0000      ADJUSTED TO (  1.0000    ,  0.0000    ,  1.0000    ).
+        22    0.0000      ADJUSTED TO (  1.0000    ,  1.0000    ,  1.0000    ).
+
+ ***WARNING: FOR CONTACT PAIR (SECONDARY_CONTACT-PRIMARY_CONTACT), ADJUSTMENT 
+             WAS SPECIFIED BUT NO NODE WAS ADJUSTED MORE THAN THE ADJUSTMENT 
+             DISTANCE = 2.22000E-16.
+  *Surface Interaction, name=COUPLED_CONTACT
+  *Contact Pair, interaction=COUPLED_CONTACT, type=SURFACE TO SURFACE, adjust=0.
+  *Surface, type=ELEMENT, name=PRIMARY_CONTACT
+  *Surface, type=ELEMENT, name=SECONDARY_CONTACT
+  *Surface, type=ELEMENT, name=SECONDARY_OUTER
+  *Output, field, frequency=1
+  *Output, history, frequency=1
+  *Element Output, directions=YES
+  *Initial Conditions, type=TEMPERATURE
+  *Output, field, frequency=1
+  *Output, history, frequency=1
+  *Element Output, directions=YES
+  *Initial Conditions, type=TEMPERATURE
+  *Output, field, frequency=1
+  *Output, history, frequency=1
+  *Element Output, directions=YES
+  *Amplitude, name=TEMPERATURE_PATH, time=TOTAL TIME
+  *Amplitude, name=PRESSURE_PATH, time=TOTAL TIME
+  *Amplitude, name=NORMAL_PATH, time=TOTAL TIME
+  *Amplitude, name=TANGENTIAL_Y_PATH, time=TOTAL TIME
+  *Amplitude, name=TANGENTIAL_Z_PATH, time=TOTAL TIME
+  *Amplitude, name=BENDING_PATH, time=TOTAL TIME
+  *Step, name=PATH, nlgeom=YES, inc=160
+  *Output, field, frequency=1
+  *Output, history, frequency=1
+  *Step, name=PATH, nlgeom=YES, inc=160
+  *Step, name=PATH, nlgeom=YES, inc=160
+  *Coupled Temperature-Displacement
+  *Controls, parameters=FIELD, field=DISPLACEMENT
+  *Boundary
+  *Boundary, amplitude=TEMPERATURE_PATH
+  *Boundary, amplitude=NORMAL_PATH
+  *Boundary, amplitude=TANGENTIAL_Y_PATH
+  *Boundary, amplitude=TANGENTIAL_Z_PATH
+  *Output, field, frequency=1
+  *Node Output
+  *Element Output, directions=YES
+  *Contact Output
+  *Output, history, frequency=1
+  *Energy Output
+  *End Step
+
+ ***WARNING: OUTPUT REQUEST CE IS NOT AVAILABLE FOR THE MATERIAL FOR ELEMENT 
+             TYPE C3D8T
+
+ ***WARNING: OUTPUT REQUEST CEEQ IS NOT AVAILABLE FOR THE MATERIAL FOR ELEMENT 
+             TYPE C3D8T
+
+ ***WARNING: OUTPUT REQUEST PE IS NOT AVAILABLE FOR THE MATERIAL FOR ELEMENT 
+             TYPE C3D8T
+
+ ***WARNING: OUTPUT REQUEST PEEQ IS NOT AVAILABLE FOR THE MATERIAL FOR ELEMENT 
+             TYPE C3D8T
+  *Step, name=PATH, nlgeom=YES, inc=160
+  *Coupled Temperature-Displacement
+  *Boundary
+  *Boundary, amplitude=TEMPERATURE_PATH
+  *Boundary, amplitude=NORMAL_PATH
+  *Boundary, amplitude=TANGENTIAL_Y_PATH
+  *Boundary, amplitude=TANGENTIAL_Z_PATH
+  *End Step
+
+
+          FINITE SLIDING NON-RIGID  3D ELEMENT(S) 
+          GENERATED INTERNALLY
+          SLAVE  SURFACE : SECONDARY_CONTACT                                                               
+          MASTER SURFACE : PRIMARY_CONTACT                                                                 
+          SURFACE INTERACTION : COUPLED_CONTACT                                                                 
+
+    ELEMENT  SLAVE
+    NUMBER   NODE(S)
+
+       9974         13
+       9975         16
+       9976         19
+       9977         22
+
+
+
+
+
+                         S U R F A C E   I N T E R A C T I O N S
+
+
+
+
+  NAME COUPLED_CONTACT                                                                 
+
+  THICKNESS / AREA:               1.0000    
+
+
+  LINEAR PRESSURE-CLEARANCE RELATIONSHIP, STIFFNESS =     1.00000E+09
+
+
+
+
+
+
+                         C O N T A C T   P A I R (S)
+
+                                               FILLET RADIUS  CHARACTERISTIC  EXTENSION
+  SLAVE     MASTER    INTERACTION     HCRIT       OR SMOOTH      LENGTH         RATIO      NOTE
+
+    -2-       -1-        -14-                                    1.0000                    FINITE SLIDING WITH ADJUST =  2.22000E-16
+                                                                                           SURFACE TO SURFACE WITH THICKNESS
+                                                                                           CONSTRAINT POSITION IS AT NODE 
+                                                                                           MINIMUM DISTANCE = YES
+                                                                                           ADAPTIVE INTEGRATION = FIXED
+                                                                                           SUPPLEMENTARY CONSTRAINTS = NO
+
+
+     LABELS REFERENCED IN THE ABOVE TABLE
+
+      -1-      PRIMARY_CONTACT                                                                 
+      -2-      SECONDARY_CONTACT                                                               
+      -14-     COUPLED_CONTACT                                                                 
+
+
+
+                                 I N I T I A L   C O N T A C T   S T A T U S
+
+
+
+ ***NOTE: The following initial contact status information will reflect some 
+          but not all types of automated nodal position adjustments. Output 
+          variables such as CSTATUS and COPEN written to the output database 
+          (.odb) at the initial output frame (if the CSTATUS and CDISP output 
+          variables are requested) will reflect all types of automated nodal 
+          position adjustments. Viewing CSTATUS and COPEN in a post-processor 
+          is the recommended way to determine the initial contact status. 
+          Initial contact status information may not be available in the .dat 
+          file in a future version.
+
+
+    SLAVE SURFACE:         SECONDARY_CONTACT                                                               
+    MASTER SURFACE:        PRIMARY_CONTACT                                                                 
+
+
+       NODE        STATUS            CLEARANCE            NOTE
+       NUMBER
+
+         13       CLOSED             0.000                             
+         16       CLOSED             0.000                             
+         19       CLOSED             0.000                             
+         22       CLOSED             0.000                             
+
+
+
+                            P R O B L E M   S I Z E
+
+
+          NUMBER OF ELEMENTS IS                                     8
+          NUMBER OF ELEMENTS DEFINED BY THE USER AND *TIE           4
+          NUMBER OF INTERNAL ELEMENTS GENERATED FOR CONTACT         4
+          NUMBER OF NODES IS                                       36
+          NUMBER OF NODES DEFINED BY THE USER                      24
+          NUMBER OF INTERNAL NODES GENERATED BY THE PROGRAM        12
+          TOTAL NUMBER OF VARIABLES IN THE MODEL                  112
+          (DEGREES OF FREEDOM PLUS MAX NO. OF ANY LAGRANGE MULTIPLIER
+           VARIABLES. INCLUDE *PRINT,SOLVE=YES TO GET THE ACTUAL NUMBER.)
+
+
+
+                              END OF USER INPUT PROCESSING
+
+
+
+     JOB TIME SUMMARY
+       USER TIME (SEC)      =  0.10000    
+       SYSTEM TIME (SEC)    =   0.0000    
+       TOTAL CPU TIME (SEC) =  0.10000    
+       WALLCLOCK TIME (SEC) =          0
+1
+
+   Abaqus 3DEXPERIENCE R2018x                                  Date 13-9ÔÂ-2026   Time 15:46:21
+   For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
+
+                                                                                               STEP    1  INCREMENT    1
+                                                                                          TIME COMPLETED IN THIS STEP   0.00    
+
+
+                        S T E P       1     C O U P L E D - T E M P E R A T U R E - D I S P L A C E M E N T   A N A L Y S I S
+
+
+                                                                                          
+
+          FIXED TIME INCREMENTS
+          TIME INCREMENT IS                                    2.000E-02
+          TIME PERIOD IS                                       0.400    
+
+          CREEP AND SWELLING EFFECTS ARE OMITTED IN THIS STEP
+
+          CREEP AND SWELLING EFFECTS WILL BE IGNORED.
+
+          LARGE DISPLACEMENT THEORY WILL BE USED
+
+          UNSYMMETRIC MATRIX STORAGE AND SOLUTION WILL BE USED
+  
+                   M E M O R Y   E S T I M A T E
+  
+ PROCESS      FLOATING PT       MINIMUM MEMORY        MEMORY TO
+              OPERATIONS           REQUIRED          MINIMIZE I/O
+             PER ITERATION           (MB)               (MB)
+  
+     1          1.64E+05               17                 24
+  
+ NOTE:
+      (1) SINCE ABAQUS DOES NOT PRE-ALLOCATE MEMORY AND ONLY ALLOCATES MEMORY AS NEEDED DURING THE ANALYSIS,
+          THE MEMORY REQUIREMENT PRINTED HERE CAN ONLY BE VIEWED AS A GENERAL GUIDELINE BASED ON THE BEST
+          KNOWLEDGE AVAILABLE AT THE BEGINNING OF A STEP BEFORE THE SOLUTION PROCESS HAS BEGUN.
+      (2) THE ESTIMATE IS NORMALLY UPDATED AT THE BEGINNING OF EVERY STEP. IT IS THE MAXIMUM VALUE OF THE
+          ESTIMATE FROM THE CURRENT STEP TO THE LAST STEP OF THE ANALYSIS, WITH UNSYMMETRIC SOLUTION TAKEN
+          INTO ACCOUNT IF APPLICABLE. 
+      (3) SINCE THE ESTIMATE IS BASED ON THE ACTIVE DEGREES OF FREEDOM IN THE FIRST ITERATION OF THE 
+          CURRENT STEP, THE MEMORY ESTIMATE MIGHT BE SIGNIFICANTLY DIFFERENT THAN ACTUAL USAGE FOR 
+          PROBLEMS WITH SUBSTANTIAL CHANGES IN ACTIVE DEGREES OF FREEDOM BETWEEN STEPS (OR EVEN WITHIN
+          THE SAME STEP). EXAMPLES ARE: PROBLEMS WITH SIGNIFICANT CONTACT CHANGES, PROBLEMS WITH MODEL
+          CHANGE, PROBLEMS WITH BOTH STATIC STEP AND STEADY STATE DYNAMIC PROCEDURES WHERE ACOUSTIC 
+          ELEMENTS WILL ONLY BE ACTIVATED IN THE STEADY STATE DYNAMIC STEPS.
+      (4) FOR MULTI-PROCESS EXECUTION, THE ESTIMATED VALUE OF FLOATING POINT OPERATIONS FOR EACH PROCESS
+          IS BASED ON AN INITIAL SCHEDULING OF OPERATIONS AND MIGHT NOT REFLECT THE ACTUAL FLOATING 
+          POINT OPERATIONS COMPLETED ON EACH PROCESS. OPERATIONS ARE DYNAMICALLY BALANCED DURING EXECUTION, 
+          SO THE ACTUAL BALANCE OF OPERATIONS BETWEEN PROCESSES IS EXPECTED TO BE BETTER THAN THE ESTIMATE
+          PRINTED HERE.
+      (5) THE UPPER LIMIT OF MEMORY THAT CAN BE ALLOCATED BY ABAQUS WILL IN GENERAL DEPEND ON THE VALUE OF
+          THE "MEMORY" PARAMETER AND THE AMOUNT OF PHYSICAL MEMORY AVAILABLE ON THE MACHINE. PLEASE SEE
+          THE "ABAQUS ANALYSIS USER'S MANUAL" FOR MORE DETAILS. THE ACTUAL USAGE OF MEMORY AND OF DISK
+          SPACE FOR SCRATCH DATA WILL DEPEND ON THIS UPPER LIMIT AS WELL AS THE MEMORY REQUIRED TO MINIMIZE
+          I/O. IF THE MEMORY UPPER LIMIT IS GREATER THAN THE MEMORY REQUIRED TO MINIMIZE I/O, THEN THE ACTUAL
+          MEMORY USAGE WILL BE CLOSE TO THE ESTIMATED "MEMORY TO MINIMIZE I/O" VALUE, AND THE SCRATCH DISK
+          USAGE WILL BE CLOSE-TO-ZERO; OTHERWISE, THE ACTUAL MEMORY USED WILL BE CLOSE TO THE PREVIOUSLY
+          MENTIONED MEMORY LIMIT, AND THE SCRATCH DISK USAGE WILL BE ROUGHLY PROPORTIONAL TO THE DIFFERENCE
+          BETWEEN THE ESTIMATED "MEMORY TO MINIMIZE I/O" AND THE MEMORY UPPER LIMIT. HOWEVER ACCURATE
+          ESTIMATE OF THE SCRATCH DISK SPACE IS NOT POSSIBLE.
+      (6) USING "*RESTART, WRITE" CAN GENERATE A LARGE AMOUNT OF DATA WRITTEN IN THE WORK DIRECTORY.
+
+
+          THE ANALYSIS HAS BEEN COMPLETED
+
+
+
+                              ANALYSIS COMPLETE
+                              WITH      5 WARNING MESSAGES ON THE DAT FILE
+
+
+
+     JOB TIME SUMMARY
+       USER TIME (SEC)      =  0.60000    
+       SYSTEM TIME (SEC)    =  0.10000    
+       TOTAL CPU TIME (SEC) =  0.70000    
+       WALLCLOCK TIME (SEC) =          0

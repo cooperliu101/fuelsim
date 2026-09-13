@@ -1,0 +1,67 @@
+{
+  "scope": "Read-only diagnosis of the archived original friction-heated native history versus the initial-mass Fuelsim output and e495bb8 isolated output.",
+  "native_heat_balance": "sum(IVOL*100*cp(TEMP)*(TEMP_new-TEMP_old)/0.02)-sum(RFL11)-delta(ALLFD)/0.02",
+  "max_native_balance_residual_W": 5.7478253268072876e-05,
+  "integrated_native_generated_heat_J": 39.020321544445004,
+  "native_final_ALLFD_J": 39.02032089233398,
+  "output_thermal_history": "20 fixed increments, dt=0.02s; all 480 nodes and 640 active material-point records",
+  "sources": [
+    {
+      "path": "/home/cooper/ai_project/fuelsim/verification/abaqus/b526_friction_heat_history/b526_friction_reversal_nodal.csv",
+      "sha256": "dad250852ae081d11634806c60229b790cb17087d20edf5a22edd5987032d762"
+    },
+    {
+      "path": "/home/cooper/ai_project/fuelsim/verification/abaqus/b526_friction_heat_history/b526_friction_reversal_integration.csv",
+      "sha256": "49ed6705bad020ed3654c3fb600d361424fbf4b9bf2a9314409f496bc60b0e92"
+    },
+    {
+      "path": "/home/cooper/ai_project/fuelsim/verification/abaqus/b526_friction_heat_history/b526_friction_reversal_contact.csv",
+      "sha256": "fb676d3bfa7f04b129a7ba790c5a822509f51ab11d7f2a27b74349994ab6ca86"
+    },
+    {
+      "path": "/home/cooper/ai_project/fuelsim/verification/abaqus/b526_friction_heat_history/b526_friction_reversal_energy.csv",
+      "sha256": "ca1c55634b77a205159b5c1074e40556b57104d9746159e4815b8b92f34bcd1f"
+    },
+    {
+      "path": "/home/cooper/ai_project/fuelsim/verification/abaqus/b526_friction_heat_history/b526_friction_reversal.inp",
+      "sha256": "c819b2dfb7f433aca789cd305e730717f73135648bbb8937c28d57da9dfef2da"
+    },
+    {
+      "path": "/home/cooper/ai_project/fuelsim/build/blackbox/b526_friction_reversal/verification/fuelsim/transient_b526_friction_reversal_results.e",
+      "sha256": "0b723e400a81d13024e5146d56e94b50f3226b129d2132f5bc20a117d38721a3"
+    },
+    {
+      "path": "/tmp/fuelsim-b544-before-initial-mass/comparison/b526_current_card/verification/fuelsim/transient_b526_friction_reversal_results.e",
+      "sha256": "34abcc6266ed6e3d3b5876c56e0217de47fcb6a93e6e780f082e2db4a8bd43f1"
+    },
+    {
+      "path": "/home/cooper/ai_project/fuelsim/verification/abaqus/b526_diagnosis/friction_heat_energy_audit.tsv",
+      "sha256": "e2c7f089e899b95e587b32bec5dddd4a76e67d4a43cf18432e4b102f8e50134d"
+    },
+    {
+      "path": "/tmp/fuelsim-b526-thermal-audit.py",
+      "sha256": "952606987f58bab6927fb8eb5270efa839e23d30c0e54be6974c0d82d8c0fbff"
+    },
+    {
+      "path": "/mnt/c/Program Files/Dassault Systemes/SIMULIA2018doc/English/SIMACAEITNRefMap/simaitn-c-thermalinteraction.htm",
+      "sha256": "f9c20ef0eb6817be6a7a224399a49dae18fe504a486121133a15ebf41c320970"
+    },
+    {
+      "path": "/mnt/c/Program Files/Dassault Systemes/SIMULIA2018doc/English/SIMACAEKEYRefMap/simakey-r-gapheatgeneration.htm",
+      "sha256": "c1b297605879ddcc1cdcdd9a3e57f345f646bc21b446b02ee99cec2d9c2a7472"
+    },
+    {
+      "path": "/home/cooper/ai_project/fuelsim/verification/abaqus/extract_b524_b525.py",
+      "sha256": "88e27bf75440d062d2866248f71163f0062c6cdab11ab6e9acc066bec6f00968"
+    },
+    {
+      "path": "/home/cooper/ai_project/fuelsim/tests/support/production_hex8_full_field.cpp",
+      "sha256": "0efc94810f1a43b0d67c760b696224a0d1a3e7cc2972a3f7d04e1dca0934a39c"
+    },
+    {
+      "path": "/home/cooper/ai_project/fuelsim/elements/src/quad4_face.cpp",
+      "sha256": "2a2a16339979d7d4b620f9411698a5cd9a701140d214ede93283e5302b0751b9"
+    }
+  ],
+  "output_snapshot_note": "The recorded initial-mass Fuelsim output hash matches rollback_provenance.tsv. Subsequent production reruns replaced that path; the audit TSV retains the original snapshot. The audit helper now rejects a replaced output rather than silently mixing versions."
+}

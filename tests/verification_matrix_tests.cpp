@@ -164,7 +164,6 @@ int main(int argc, char** argv) {
         if (!std::getline(matrix, line) || line != "id\tstatus\tcapability\tctest\tevidence\tacceptance")
             throw std::runtime_error("Verification matrix header does not match schema");
         const std::set<std::string> required_ids = {
-            "gps.initial_mass",
             "gps.local",
             "gps.uniform_small",
             "gps.uniform_finite",
@@ -204,9 +203,7 @@ int main(int argc, char** argv) {
             "b14_nts_cax8rt",
             "b13_small",
             "b13_finite",
-            "b13_finite_initial_mass_storage",
             "b13_integrated",
-            "b13_integrated_initial_mass_storage",
             "b100.cax8t_small_probe",
             "b101.cax8t_finite_probe",
             "b102.cax8t_small_contact",
@@ -335,19 +332,16 @@ int main(int argc, char** argv) {
             "b532.hex8_c3d8rt_finite_operator",
             "b533.hex8_c3d8rt_finite_hourglass",
             "b534.hex8_c3d8rt_finite_transient_full_field",
-            "b534.hex8_c3d8rt_initial_mass_storage",
             "b535.hex8_c3d8rt_finite_j2",
             "b536.hex8_c3d8rt_finite_norton",
             "b537.hex8_c3d8rt_finite_coupled",
             "b538.hex8_c3d8rt_contact_cycle",
             "b539.hex8_c3d8rt_friction_reversal",
-            "b539.hex8_c3d8rt_initial_mass_storage",
             "b540.hex8_c3d8rt_nonmatching_contact_cycle",
             "b541.hex8_c3d8rt_small_j2",
             "b542.hex8_c3d8rt_small_norton",
             "b543.hex8_c3d8rt_small_coupled",
             "b544.hex8_c3d8rt_distorted_bending",
-            "b544.hex8_c3d8rt_initial_mass_storage",
             "b545.hex8_c3d8rt_finite_noncoaxial",
             "b546.m58_c3d8t_abaqus",
             "b547.m58_c3d8rt_abaqus",
@@ -366,7 +360,6 @@ int main(int argc, char** argv) {
             "b60.c3d20t_finite_ramped_bending",
             "b61.c3d20t_finite_inelastic_bending",
             "b61.c3d8rt_finite_inelastic_bending",
-            "b61.c3d8rt_initial_mass_storage",
             "io.exodus",
             "m0.steady",
             "m51.friction",
@@ -456,7 +449,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 192 || qualified != 12 || measured != 12 || limitations != 11)
+        if (verified != 190 || qualified != 13 || measured != 12 || limitations != 5)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         check_c3d8t_contract(argv[4], registered_tests);
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'

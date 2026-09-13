@@ -650,6 +650,22 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
             if (f >= 4 && frame.nodal(constraints[f - 4]).at(reference.node - 1) == 0)
                 value = 0;
             nodal_metrics[f].add(value, reference.fields[f]);
+            if (f == 4 && options.gate_reaction_heat_flux
+                && options.reaction_heat_flux_pointwise_absolute_tolerance > 0.0 && reference.fields[f] != 0.0) {
+                // Apply the original relative-or-absolute qualification to every nonzero sample.
+                const double absolute_difference = std::abs(value - reference.fields[f]);
+                const double relative_difference = absolute_difference / std::abs(reference.fields[f]);
+                if (!(relative_difference < reaction_heat_flux_pointwise_tolerance
+                        || absolute_difference < options.reaction_heat_flux_pointwise_absolute_tolerance)) {
+                    std::cerr << "[FAIL] " << prefix << "reaction_heat_flux sample time_s=" << reference.time
+                              << " node=" << reference.node << " relative_error=" << relative_difference
+                              << " absolute_error_W=" << absolute_difference
+                              << " relative_tolerance=" << reaction_heat_flux_pointwise_tolerance
+                              << " absolute_tolerance_W=" << options.reaction_heat_flux_pointwise_absolute_tolerance
+                              << '\n';
+                    passed = false;
+                }
+            }
             if (f >= 1 && f < 4) {
                 actual_displacement[f - 1] = value;
                 expected_displacement[f - 1] = reference.fields[f];

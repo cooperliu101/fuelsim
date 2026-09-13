@@ -474,8 +474,7 @@ elements::Cax2tGpsResult SpatialAssembly::evaluate_volume(std::size_t r,
         time,
         _heat_sources.at(r),
         region(r).strain_formulation,
-        include_thermal,
-        region(r).initial_temperature};
+        include_thermal};
     return elements::evaluate_cax2t_gps(input, {true, linearize, true, true});
 }
 

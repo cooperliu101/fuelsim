@@ -321,6 +321,12 @@ def deck(name, parameters):
             "%.16e, 0.0" % parameters["conductance"],
             "%.16e, 5.0e5"
             % (parameters["conductance"] + 5.0e5 * parameters["pressure_conductance"]),
+        ]
+    )
+    if name == "b526_friction_reversal":
+        lines.extend(["*Gap Heat Generation", "0.0, 0.5"])
+    lines.extend(
+        [
             "*Contact Pair, interaction=COUPLED_CONTACT, type=SURFACE TO SURFACE, adjust=0.",
             "SECONDARY_CONTACT, PRIMARY_CONTACT",
         ]

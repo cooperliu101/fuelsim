@@ -1,0 +1,12 @@
+{
+  "source_input": "verification/abaqus/b523_hex8_c3d8t_integrated_path.inp",
+  "source_sha256": "be3767f6d10532ca2fbef7d9f385c193d74b6a3a71a584975e2bc90a8e845df7",
+  "diagnostic_input": "b523_integrated_no_friction_heat.inp",
+  "diagnostic_sha256": "a19d5c87517177511192bf123d6628b81aba6346aaafd915be46291c158a81f0",
+  "only_added_lines": [
+    "*Gap Heat Generation",
+    "0.0, 0.5"
+  ],
+  "physical_change": "Friction remains active, but no dissipated friction energy is converted to heat.",
+  "active_reference_replaced": false
+}

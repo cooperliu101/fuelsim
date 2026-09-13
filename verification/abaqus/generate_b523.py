@@ -179,6 +179,8 @@ def deck():
             "*Gap Conductance, pressure",
             "5.0000000000000000e1, 0.0",
             "5.5000000000000000e2, 5.0000000000000000e5",
+            "*Gap Heat Generation",
+            "0.0, 0.5",
             "*Contact Pair, interaction=COUPLED_CONTACT, type=SURFACE TO SURFACE, adjust=0.",
             "SECONDARY_CONTACT, PRIMARY_CONTACT",
             "*Amplitude, name=TEMPERATURE_PATH, time=TOTAL TIME",

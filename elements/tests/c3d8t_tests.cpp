@@ -624,6 +624,119 @@ bool test_cartesian_inelastic_material() {
     return passed;
 }
 
+bool test_nonaffine_finite_capacity_weights() {
+    // Native one-node temperature bases on these two geometries independently identify all eight weights.
+    // See verification/abaqus/b523_diagnosis/c3d8t_nonaffine_capacity_probe.inp and its nodal CSV.
+    const std::array<fuelsim::Hex8Coordinates, 2> coordinates{{{{{0.0, 0.0, 0.0},
+                                                                   {0.5, 0.0, 0.0},
+                                                                   {0.5, 1.0, 0.0},
+                                                                   {0.0, 1.0, 0.0},
+                                                                   {0.0, 0.0, 1.0},
+                                                                   {0.5, 0.0, 1.0},
+                                                                   {0.5, 1.0, 1.0},
+                                                                   {0.0, 1.0, 1.0}}},
+        {{{0.0, 0.0, 0.0},
+            {1.2, 0.1, -0.05},
+            {1.1, 1.0, 0.1},
+            {-0.1, 0.9, 0.0},
+            {0.05, -0.1, 1.0},
+            {1.3, 0.0, 1.1},
+            {1.0, 1.2, 0.9},
+            {-0.2, 1.0, 1.2}}}}};
+    const fuelsim::Hex8Coordinates displacement{{{0.0, 0.0, 0.0},
+        {0.12, 0.025, 0.04},
+        {0.06, 0.10, -0.035},
+        {-0.015, 0.03, 0.01},
+        {0.03, -0.02, 0.08},
+        {0.14, 0.015, 0.02},
+        {0.09, 0.045, 0.15},
+        {-0.04, 0.11, 0.025}}};
+    const std::array<std::array<double, 8>, 2> native_weights{{{{0.086492977864583376,
+                                                                   0.086492977864583334,
+                                                                   0.086492977864583459,
+                                                                   0.086492977864583362,
+                                                                   0.086492977864583487,
+                                                                   0.086492977864583265,
+                                                                   0.086492977864583598,
+                                                                   0.086492977864583293}},
+        {{0.18864893529100263,
+            0.19480021222107047,
+            0.16747108788622089,
+            0.19539472837019323,
+            0.22017845529702804,
+            0.23231297342535384,
+            0.20217395708244326,
+            0.22403243167668968}}}};
+    const fuelsim::CartesianTestData data{
+        fuelsim::IsotropicThermoelasticMaterial(
+            fuelsim::test::thermoelastic(0.0, 1.0e-20, 2.0e11, 0.25, 0.0, 300.0, 0.0, 0.0, 0.0, 2000.0, 3000.0)),
+        0.0,
+        1.0,
+        fuelsim::StrainFormulation::finite};
+    constexpr double volumetric_capacity = 2000.0 * 3000.0;
+    double maximum_native_relative_error = 0.0, maximum_tangent_relative_error = 0.0;
+    double maximum_temperature_block_error = 0.0, maximum_residual_path_error = 0.0;
+    double maximum_displacement_coupling = 0.0;
+    for (std::size_t shape = 0; shape < coordinates.size(); ++shape) {
+        const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(coordinates[shape]);
+        const fuelsim::CartesianMaterialHistory history(8);
+        fuelsim::Hex8LocalValues state{}, old_state{};
+        for (std::size_t node = 0; node < 8; ++node) {
+            old_state[node] = 300.0;
+            state[node] = 301.0 + 0.25 * static_cast<double>(node);
+            state[8 + node] = displacement[node].x;
+            state[16 + node] = displacement[node].y;
+            state[24 + node] = displacement[node].z;
+        }
+        fuelsim::Hex8LocalJacobian jacobian{};
+        const auto residual =
+            fuelsim::compute_c3d8_transient(data, geometry, state, old_state, history, 1.0, &jacobian);
+        const auto ordinary = fuelsim::compute_c3d8_transient(data, geometry, state, old_state, history, 1.0);
+        for (std::size_t row = 0; row < 8; ++row) {
+            const double expected = native_weights[shape][row] * volumetric_capacity * (state[row] - old_state[row]);
+            maximum_native_relative_error =
+                std::max(maximum_native_relative_error, std::abs(residual[row] - expected) / expected);
+            maximum_residual_path_error =
+                std::max(maximum_residual_path_error, std::abs(residual[row] - ordinary[row]) / expected);
+            for (std::size_t column = 0; column < 8; ++column) {
+                const double expected_tangent = row == column ? native_weights[shape][row] * volumetric_capacity : 0.0;
+                maximum_temperature_block_error = std::max(maximum_temperature_block_error,
+                    std::abs(jacobian[row * 32 + column] - expected_tangent)
+                        / (native_weights[shape][row] * volumetric_capacity));
+            }
+        }
+        constexpr double difference_step = 2.0e-7;
+        for (std::size_t column = 0; column < 32; ++column) {
+            fuelsim::Hex8LocalValues plus = state, minus = state;
+            plus[column] += difference_step;
+            minus[column] -= difference_step;
+            const auto plus_residual = fuelsim::compute_c3d8_transient(data, geometry, plus, old_state, history, 1.0);
+            const auto minus_residual = fuelsim::compute_c3d8_transient(data, geometry, minus, old_state, history, 1.0);
+            double column_error = 0.0, column_scale = 0.0;
+            for (std::size_t row = 0; row < 8; ++row) {
+                const double numerical = (plus_residual[row] - minus_residual[row]) / (2.0 * difference_step);
+                const double exact = jacobian[row * 32 + column];
+                column_error = std::max(column_error, std::abs(exact - numerical));
+                column_scale = std::max({column_scale, std::abs(exact), std::abs(numerical)});
+                if (column >= 8)
+                    maximum_displacement_coupling = std::max(maximum_displacement_coupling, std::abs(exact));
+            }
+            maximum_tangent_relative_error = std::max(maximum_tangent_relative_error, column_error / column_scale);
+        }
+    }
+    std::cout << "hex8_nonaffine_capacity_native_maximum_relative_error=" << maximum_native_relative_error << '\n'
+              << "hex8_nonaffine_capacity_tangent_maximum_relative_error=" << maximum_tangent_relative_error << '\n'
+              << "hex8_nonaffine_capacity_temperature_block_error=" << maximum_temperature_block_error << '\n';
+    return check(maximum_native_relative_error < 2.0e-13,
+               "all nonaffine finite capacity weights agree with the independently measured native nodal bases")
+           && check(maximum_temperature_block_error < 2.0e-13,
+               "nonaffine finite capacity retains the native diagonal temperature block")
+           && check(maximum_residual_path_error < 2.0e-14,
+               "ordinary and tangent residual paths agree for nonaffine finite capacity")
+           && check(maximum_tangent_relative_error < 2.0e-6 && maximum_displacement_coupling > 1.0e4,
+               "all nonaffine capacity temperature and displacement columns agree with centered differences");
+}
+
 bool test_finite_strain_kinematics_and_coupled_jacobian() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
     const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(coordinates);
@@ -831,7 +944,7 @@ int run_c3d8t_tests() {
     passed = test_free_thermal_expansion_and_jacobian() && passed;
     passed = test_element_average_thermal_expansion_temperature() && passed;
     passed = test_transient_capacity_and_faces() && passed;
-    passed = test_fixed_initial_mass_capacity(false) && passed;
+    passed = test_nonaffine_finite_capacity_weights() && passed;
     passed = test_cartesian_inelastic_material() && passed;
     passed = test_finite_strain_kinematics_and_coupled_jacobian() && passed;
     if (!passed)

@@ -38,65 +38,6 @@ inline fuelsim::ThermoelasticProperties properties() {
     return fuelsim::test::thermoelastic(3824.0, 0.61, 2.0e11, 0.316, 1.0e-5, 600.0);
 }
 
-inline bool test_reference_nodal_heat_capacity(bool reduced) {
-    auto parameters = properties();
-    auto functions = std::make_shared<fuelsim::MaterialFunctionSet>(*parameters.functions);
-    functions->thermal.function = [](const fuelsim::ThermoelasticFunctionInput& input,
-                                      fuelsim::ThermalPropertyOutput& output) {
-        output.conductivity = 3.0;
-        output.density = 1000.0 + 2.0 * (input.temperature - 600.0) + 5.0 * input.context.time + 10.0 * input.context.x
-                         + 20.0 * input.context.z;
-        output.specific_heat = 200.0 + 0.3 * (input.temperature - 600.0) + 0.5 * input.context.time;
-    };
-    parameters.functions = functions;
-    const fuelsim::IsotropicThermoelasticMaterial material(parameters);
-    const fuelsim::Quad4Coordinates coordinates = {{{1.0, 0.0}, {2.0, 0.0}, {2.0, 1.0}, {1.0, 1.0}}};
-    const auto geometry = reduced ? fuelsim::elements::make_cax4rt_geometry(coordinates)
-                                  : fuelsim::elements::make_cax4t_geometry(coordinates);
-    const std::array<double, 4> volumes = {2.0 * pi / 3.0, 5.0 * pi / 6.0, 5.0 * pi / 6.0, 2.0 * pi / 3.0};
-    const fuelsim::Cax4LocalValues old{680.0, 700.0, 720.0, 740.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    fuelsim::Cax4LocalValues state{700.0, 740.0, 760.0, 790.0, 0.2, 0.4, 0.4, 0.2, 0.0, 0.0, 0.1, 0.1};
-    const fuelsim::Quad4MaterialHistory history{};
-    const auto evaluate = [reduced](const fuelsim::elements::Cax4Input& input) {
-        return reduced ? fuelsim::elements::evaluate_cax4rt(input, {true, true, true, false})
-                       : fuelsim::elements::evaluate_cax4t(input, {true, true, true, false});
-    };
-    bool passed = true;
-    for (const auto form : {fuelsim::StrainFormulation::small, fuelsim::StrainFormulation::finite})
-        for (const double time : {2.0, 5.0}) {
-            const fuelsim::elements::Cax4Input
-                input{material, geometry, state, old, &history, 0.25, time, 0.0, form, true, 650.0};
-            auto without_capacity = input;
-            without_capacity.include_thermal_time_term = false;
-            const auto active = evaluate(input), stationary = evaluate(without_capacity);
-            double expected_storage = 0.0, inferred_mass = 0.0;
-            for (std::size_t n = 0; n < 4; ++n) {
-                const double density = 1100.0 + 10.0 * coordinates[n].r + 20.0 * coordinates[n].z;
-                const double cp = 200.0 + 0.3 * (state[n] - 600.0) + 0.5 * time;
-                const double rate = (state[n] - old[n]) / input.time_step;
-                const double stored = active.residual[n] - stationary.residual[n];
-                expected_storage += volumes[n] * density * cp * rate;
-                inferred_mass += stored / (cp * rate);
-                passed = check(scaled_error(stored, volumes[n] * density * cp * rate) < 1e-12,
-                             "CAX4 capacity freezes initial density and reference nodal mass")
-                         && passed;
-                for (std::size_t j = 0; j < 12; ++j) {
-                    const double capacity = active.jacobian[12 * n + j] - stationary.jacobian[12 * n + j];
-                    const double expected = j == n ? volumes[n] * density * (cp / input.time_step + 0.3 * rate) : 0.0;
-                    passed = check(scaled_error(capacity, expected) < 1e-12,
-                                 "CAX4 capacity differentiates current cp only and has no displacement derivative")
-                             && passed;
-                }
-            }
-            const double exact_mass = 3.0 * pi * (1100.0 + 140.0 / 9.0 + 10.0);
-            passed = check(scaled_error(active.stored_heat_rate, expected_storage) < 1e-12
-                               && scaled_error(inferred_mass, exact_mass) < 1e-12,
-                         "CAX4 integrated initial mass and stored heat remain fixed under finite deformation")
-                     && passed;
-        }
-    return passed;
-}
-
 inline bool test_cax_kinematics_and_jacobian(bool reduced) {
     const std::string name = reduced ? "CAX4RT" : "CAX4T";
     const std::size_t points = reduced ? 1 : 4;
@@ -106,7 +47,7 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
     fuelsim::AxisymmetricTestData data{fuelsim::IsotropicThermoelasticMaterial(properties())};
     data.element_formulation = reduced ? fuelsim::RzElementFormulation::cax4rt : fuelsim::RzElementFormulation::cax4t;
     const fuelsim::Cax4LocalValues direction = {0.2, -0.3, 0.4, -0.1, 0.3, -0.5, 0.2, 0.4, -0.2, 0.35, -0.45, 0.25};
-    bool passed = test_reference_nodal_heat_capacity(reduced);
+    bool passed = true;
     const auto evaluate = [&](const fuelsim::Cax4LocalValues& state,
                               const fuelsim::Cax4LocalValues& committed,
                               const fuelsim::Quad4MaterialHistory& history,
@@ -241,27 +182,12 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
                 heated[n] = 601.0;
             }
             const double saved_source = data.volumetric_heat_source;
-            data.volumetric_heat_source =
-                data.material.reference_heat_capacity(601.0, data.initial_temperature, {}).value() / 0.1;
+            data.volumetric_heat_source = data.material.heat_capacity(601.0, {}).value() / 0.1;
             const auto residual = evaluate(heated, unheated, {}, {true, false, false, false}).residual;
-            auto source_coordinates = coordinates;
-            if (finite)
-                for (std::size_t n = 0; n < 4; ++n) {
-                    source_coordinates[n].r += heated[4 + n];
-                    source_coordinates[n].z += heated[8 + n];
-                }
-            const auto source_geometry = fuelsim::elements::make_cax4rt_geometry(source_coordinates);
-            for (std::size_t n = 0; n < 4; ++n) {
-                double reference_weight = 0.0, source_weight = 0.0;
-                for (std::size_t q = 0; q < 4; ++q) {
-                    reference_weight += geometry.points[q].weighted_measure * geometry.points[q].shape[n];
-                    source_weight += source_geometry.points[q].weighted_measure * source_geometry.points[q].shape[n];
-                }
-                passed = check(std::abs(residual[n] - (reference_weight - source_weight) * data.volumetric_heat_source)
-                                   < 1e-10 * data.volumetric_heat_source,
-                             "CAX4RT heating uses fixed reference mass while the source keeps its selected volume")
+            for (std::size_t n = 0; n < 4; ++n)
+                passed = check(std::abs(residual[n]) < 1e-10 * data.volumetric_heat_source,
+                             "CAX4RT uniform heating balances uniform source on a distorted element")
                          && passed;
-            }
             data.volumetric_heat_source = saved_source;
         }
         state[0] += 3.0;
@@ -271,21 +197,25 @@ inline bool test_cax_kinematics_and_jacobian(bool reduced) {
         const auto& active = active_result.residual;
         jacobian = active_result.jacobian;
         const auto passive = evaluate(state, old, old_history, {true, false, false, false}).residual;
-        {
+        if (!reduced) {
             const auto no_capacity = evaluate(state, old, old_history, {true, false, false, false}, false).residual;
+            auto thermal_coordinates = coordinates;
+            if (finite)
+                for (std::size_t n = 0; n < 4; ++n) {
+                    thermal_coordinates[n].r += state[4 + n];
+                    thermal_coordinates[n].z += state[8 + n];
+                }
+            const auto thermal_geometry = (reduced ? fuelsim::elements::make_cax4rt_geometry(thermal_coordinates)
+                                                   : fuelsim::elements::make_cax4t_geometry(thermal_coordinates));
             for (std::size_t n = 0; n < 4; ++n) {
                 double weight = 0.0;
-                for (const auto& p : geometry.points)
+                for (const auto& p : thermal_geometry.points)
                     weight += p.weighted_measure * p.shape[n];
                 const auto& x = coordinates[n];
-                const double expected =
-                    weight
-                    * data.material
-                          .reference_heat_capacity(state[n], data.initial_temperature, {data.time, x.r, 0, x.z})
-                          .value()
-                    * (state[n] - old[n]) / 0.1;
+                const double expected = weight * data.material.heat_capacity(state[n], {data.time, x.r, 0, x.z}).value()
+                                        * (state[n] - old[n]) / 0.1;
                 passed = check(scaled_error(active[n] - no_capacity[n], expected) < 1e-11,
-                             name + " nodal capacity uses fixed reference row-sum mass and current nodal heat rate")
+                             "CAX4T nodal capacity uses row-sum weight and each node's temperature rate")
                          && passed;
             }
         }

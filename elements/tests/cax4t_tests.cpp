@@ -371,19 +371,24 @@ void check_nonlinear_transaction(StrainFormulation form) {
     auto without_capacity = input;
     without_capacity.include_thermal_time_term = false;
     const auto stationary = evaluate_cax4t(without_capacity, {true, false, false, false});
+    auto thermal_coordinates = g.coordinates;
+    if (form == StrainFormulation::finite)
+        for (std::size_t n = 0; n < 4; ++n) {
+            thermal_coordinates[n].r += state[4 + n];
+            thermal_coordinates[n].z += state[8 + n];
+        }
+    const auto thermal_geometry = make_cax4t_geometry(thermal_coordinates);
     for (std::size_t n = 0; n < 4; ++n) {
         double weight = 0.0;
-        for (const auto& point : g.points)
+        for (const auto& point : thermal_geometry.points)
             weight += point.shape[n] * point.weighted_measure;
-        const double density = 1000.0 + 10.0 * g.coordinates[n].r + 20.0 * g.coordinates[n].z;
+        const double density = 1000.0 + 10.0 * g.coordinates[n].r + 20.0 * g.coordinates[n].z + input.time;
         const double rate = density * (500.0 + 0.1 * (state[n] - 600.0)) * (state[n] - old[n]) / input.time_step;
         require(scaled_error(active.residual[n] - stationary.residual[n], weight * rate) < 1e-12,
-            "Capacity must use initial density at time zero, reference nodal mass and current temperature");
+            "Capacity must use each node's temperature and reference material coordinates");
     }
-    // Resolve the fixed-mass thermal derivative independently of its opposing
-    // current-volume source contribution. All thermal and mechanical entries
-    // remain active in this mixed direction and both difference step sizes.
-    const Cax4LocalValues direction = {2.0, -3.0, 4.0, -1.0, 0.3, -0.5, 0.2, 0.4, -0.2, 0.35, -0.45, 0.25};
+    const Cax4LocalValues direction = {0.2, -0.3, 0.4, -0.1, 0.3, -0.5, 0.2, 0.4, -0.2, 0.35, -0.45, 0.25};
+    // Two resolved step sizes avoid cancellation in the large thermal residual.
     double error = 0.0;
     for (const double step : {1e-5, 3e-6}) {
         auto plus = state, minus = state;
@@ -398,15 +403,11 @@ void check_nonlinear_transaction(StrainFormulation form) {
             for (std::size_t j = 0; j < 12; ++j)
                 derivative += active.jacobian[12 * i + j] * direction[j];
             const double numerical = (rp.residual[i] - rm.residual[i]) / (2.0 * step);
-            const double row_error =
-                std::abs(derivative - numerical) / std::max({1.0, std::abs(derivative), std::abs(numerical)});
-            error = std::max(error, row_error);
-            if (row_error >= 2e-7)
-                std::cerr << "coupled capacity derivative step=" << step << " row=" << i << " analytic=" << derivative
-                          << " numerical=" << numerical << " error=" << row_error << '\n';
+            error = std::max(error,
+                std::abs(derivative - numerical) / std::max({1.0, std::abs(derivative), std::abs(numerical)}));
         }
+        require(error < 2e-7, "Coupled inelastic tangent must agree with centered differences");
     }
-    require(error < 2e-7, "Coupled inelastic tangent must agree with centered differences");
     auto invalid = state;
     if (form == StrainFormulation::finite)
         for (std::size_t n = 0; n < 4; ++n)

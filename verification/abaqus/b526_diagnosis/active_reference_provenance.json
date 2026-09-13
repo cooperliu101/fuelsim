@@ -1,0 +1,48 @@
+{
+  "scope": "B526 friction reversal reference alignment: disable Abaqus default friction-to-heat conversion to match Fuelsim.",
+  "archived_original_directory": "verification/abaqus/b526_friction_heat_history",
+  "inserted_input_lines": [
+    "*Gap Heat Generation",
+    "0.0, 0.5"
+  ],
+  "active_input": "verification/abaqus/b526_friction_reversal.inp",
+  "active_input_sha256": "5f2d51a9cfb05e9b56f4f199870a85a8d60e93a1ab73fa60e393fdbb49cb055e",
+  "diagnostic_input": "verification/abaqus/b526_diagnosis/b526_friction_reversal_no_friction_heat.inp",
+  "native_provenance": "verification/abaqus/b526_diagnosis/b526_friction_reversal_no_friction_heat_provenance.txt",
+  "native_provenance_sha256": "9efb4b3edd046a46500b949946b92c07e1f43777637f4c344cc006a62a795314",
+  "completed_utc": "2026-09-13T07:46:23.4847114Z",
+  "native_work_directory": "C:\\Users\\TcroM\\AppData\\Local\\Temp\\fuelsim_b526_no_friction_heat_54cad9dcf656439dbd743e79c7188faa",
+  "abaqus_version": "3DEXPERIENCE R2018x",
+  "comparison_log": "/tmp/fuelsim-b526-no-frictionheat-comparison.log",
+  "comparison_log_sha256": "621a6bb986ea33087cee1207a765cab90482b058409e413baf5fe8db8eb05505",
+  "comparison_production_revision": "e495bb821fbc039f2a1adff314d8ec0c9106582f",
+  "current_production_comparison_status": "PASS: fuelsim_b526_hex8_c3d8t_friction_reversal_abaqus_tests; current production after reverting fixed initial-mass heat capacity",
+  "rename_only_mapping": [
+    {
+      "source": "verification/abaqus/b526_diagnosis/b526_friction_reversal_no_friction_heat_nodal.csv",
+      "active": "verification/abaqus/b526_friction_reversal_nodal.csv",
+      "sha256": "1c5df9652d9fdf934c7f39b4dc5e71228d7f2ef100c3a5fb669a80551374505a",
+      "byte_equal": true
+    },
+    {
+      "source": "verification/abaqus/b526_diagnosis/b526_friction_reversal_no_friction_heat_integration.csv",
+      "active": "verification/abaqus/b526_friction_reversal_integration.csv",
+      "sha256": "b375459a2a0a4d786583193a05ea92d9943727ef79d99d77b886bea23dd1fd55",
+      "byte_equal": true
+    },
+    {
+      "source": "verification/abaqus/b526_diagnosis/b526_friction_reversal_no_friction_heat_contact.csv",
+      "active": "verification/abaqus/b526_friction_reversal_contact.csv",
+      "sha256": "0eb78bd9e8fe4448dd6113c58044b21d6c1e756d0b0d189fb101f939c4122cbe",
+      "byte_equal": true
+    },
+    {
+      "source": "verification/abaqus/b526_diagnosis/b526_friction_reversal_no_friction_heat_energy.csv",
+      "active": "verification/abaqus/b526_friction_reversal_energy.csv",
+      "sha256": "6ba26c1a7d013a207c771a066c7c06b565ad02b033665a44f2580194f482c735",
+      "byte_equal": true
+    }
+  ],
+  "current_production_ctest_log": "verification/abaqus/b526_diagnosis/current_production_focused_ctest.log",
+  "current_production_ctest_log_sha256": "a57b1cd62118016d173ef60c4e21a53470a4550248aa813f7df697a9f56c6032"
+}

@@ -1,0 +1,7 @@
+{
+  "c3d8t_nonaffine_capacity_probe.inp": "4b143f525e5d7bf3797195df219dbff6a1539e3b282c22ccc9a7cf124d4278b4",
+  "c3d8t_nonaffine_capacity_probe_nodal.csv": "9aa77db30bc9c454cbd44c8756d43bebeafc98188e9b734a3f32f8c3a19e7dc1",
+  "c3d8t_nonaffine_capacity_probe_integration.csv": "8d870f6fdc8e1a7f20be93c8ab00ded3e896750f4377d26bab3a082de0dddaa0",
+  "analyze_nonaffine_capacity.py": "f60e50dbd97dcb948c3e79bbdafda9c47ab09b9057539dace398693370b30eea",
+  "maximum_inactive_reaction_w": 1.5057009057222854e-21
+}

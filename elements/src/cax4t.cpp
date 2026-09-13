@@ -371,16 +371,14 @@ void assemble_cax4t(const Cax4Input& data,
     const auto* old_history = data.committed_history;
     const double time_step = data.time_step;
     const bool thermal_time = data.include_thermal_time_term;
-    // Each nodal heat capacity uses its fixed initial density and current cp.
-    // The reference nodal mass has no displacement derivative.
+    // Nodal material values are independent of the integration point. Keep the
+    // geometric weighting and its derivatives in the original quadrature loop.
     std::array<double, 4> capacity_rates{}, capacity_derivatives{};
     if (thermal_time && old_history)
         for (std::size_t n = 0; n < 4; ++n) {
             const auto temperature = jacobian ? adlite::Scalar::independent(state[n], 0, 1) : adlite::Scalar(state[n]);
             const auto& coordinate = geometry.coordinates[n];
-            const auto rate = data.material.reference_heat_capacity(temperature,
-                                  data.initial_temperature,
-                                  {data.time, coordinate.r, 0.0, coordinate.z})
+            const auto rate = data.material.heat_capacity(temperature, {data.time, coordinate.r, 0.0, coordinate.z})
                               * (temperature - old_state[n]) / time_step;
             capacity_rates[n] = rate.value();
             if (jacobian)
@@ -461,12 +459,13 @@ void assemble_cax4t(const Cax4Input& data,
             const auto conduction = thermal_gr[n] * tr + thermal_gz[n] * tz;
             auto thermal = conduction_measure * conductivity.value() * conduction
                            - thermal_measure * data.volumetric_heat_source * point.shape[n];
-            // Retain nodal row-sum lumping on the fixed reference volume.
+            // CAX4T capacity is row-sum lumped: integrate N_i over the
+            // selected volume, then evaluate rho*cp and temperature rate at i.
             if (thermal_time && old_history) {
-                thermal += point.weighted_measure * point.shape[n] * capacity_rates[n];
-                result.stored_heat_rate += point.weighted_measure * point.shape[n] * capacity_rates[n];
+                thermal += thermal_measure * point.shape[n] * capacity_rates[n];
+                result.stored_heat_rate += thermal_measure.value() * point.shape[n] * capacity_rates[n];
                 if (jacobian)
-                    result.jacobian[n * 12 + n] += point.weighted_measure * point.shape[n] * capacity_derivatives[n];
+                    result.jacobian[n * 12 + n] += thermal_measure.value() * point.shape[n] * capacity_derivatives[n];
             }
             result.residual[n] += thermal.value();
             if (jacobian) {

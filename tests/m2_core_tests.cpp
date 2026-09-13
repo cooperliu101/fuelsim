@@ -170,7 +170,7 @@ bool test_builtin_material_parameter_order() {
     const fuelsim::IsotropicThermoelasticMaterial material({std::move(functions), 1000.0});
     const adlite::Scalar temperature = adlite::Scalar::independent(110.0, 0, 1);
     const adlite::Scalar conductivity = material.conductivity(temperature);
-    const adlite::Scalar heat_capacity = material.reference_heat_capacity(temperature, 100.0);
+    const adlite::Scalar heat_capacity = material.heat_capacity(temperature);
     const fuelsim::ActiveThermoelasticProperties elasticity = material.active_properties(temperature);
     const fuelsim::AxisymmetricStrain eigenstrain = material.eigenstrain_rz(temperature);
     constexpr double young_modulus = 990.0, poisson_ratio = 0.21;
@@ -211,12 +211,11 @@ bool test_builtin_material_parameter_order() {
             {"conductivity_temperature_coefficient", 0.1}});
     const fuelsim::IsotropicThermoelasticMaterial linear_material({std::move(linear_functions), 1000.0});
     const adlite::Scalar linear_conductivity = linear_material.conductivity(temperature);
-    const adlite::Scalar linear_capacity = linear_material.reference_heat_capacity(temperature, 100.0);
+    const adlite::Scalar linear_capacity = linear_material.heat_capacity(temperature);
     passed =
         check(linear_conductivity.value() == 5.0 && linear_conductivity.derivative(0) == 0.1
-                  && linear_capacity.value() == 230.0 && scaled_error(linear_capacity.derivative(0), 3.0) < 1.0e-14,
-            "reference density is frozen at initial temperature while conductivity and specific heat retain "
-            "derivatives")
+                  && linear_capacity.value() == 276.0 && scaled_error(linear_capacity.derivative(0), 8.2) < 1.0e-14,
+            "linear-temperature conductivity, density, and specific heat preserve exact temperature derivatives")
         && passed;
     return passed;
 }
@@ -327,8 +326,7 @@ bool test_registered_material_functions() {
     const double centered = (plus - minus) / (2.0 * perturbation);
     const adlite::Scalar active_temperature = adlite::Scalar::independent(650.0, 0, 1);
     const adlite::Scalar conductivity = material.conductivity(active_temperature, {4.0, 0.004, 0.0, 0.01});
-    const adlite::Scalar heat_capacity =
-        material.reference_heat_capacity(active_temperature, 600.0, {4.0, 0.004, 0.0, 0.01});
+    const adlite::Scalar heat_capacity = material.heat_capacity(active_temperature, {4.0, 0.004, 0.0, 0.01});
     bool passed = check(functions->thermal.parameters.value("density") == 10.0
                             && functions->thermal.parameters.value("conductivity_offset") == 1.0,
         "registered material parameters are bound by name and stored in schema order");

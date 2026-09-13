@@ -63,10 +63,10 @@ fuelsim::ThermoelasticProperties material() {
     return fuelsim::test::thermoelastic(0.0, 10.0, 1.0e9, 0.25, 1.0e-5, 300.0, 0.0, 0.0, 0.0, 6000.0, 1000.0);
 }
 
-bool test_reference_mass_conservation() {
+bool test_current_volume_heat_diagnostics() {
     const auto registry = fuelsim::make_builtin_material_function_registry();
     auto functions = std::make_shared<fuelsim::MaterialFunctionSet>();
-    functions->name = "hex20_reference_mass_conservation";
+    functions->name = "hex20_current_volume_heat_diagnostics";
     functions->thermal = registry.bind_thermal("constant_thermophysical",
         {{"conductivity", 4.0}, {"density", 2.0}, {"specific_heat", 3.0}});
     functions->thermal.function = [](const fuelsim::ThermoelasticFunctionInput& input,
@@ -108,14 +108,22 @@ bool test_reference_mass_conservation() {
             const auto& conservation = problem.last_conservation_summary();
             const bool finite = strain_formulation == fuelsim::StrainFormulation::finite;
             const bool three_point = finite && element_formulation == fuelsim::Hex20ElementFormulation::c3d20t;
-            // rho0=2+0.2*x, cp=3+x^3, Tdot=40*x on the reference unit cube.
-            // The x^4/x^5 moments distinguish the original two- and three-point capacity rules.
-            const double fourth_moment = three_point ? 1.0 / 5.0 : 7.0 / 36.0;
-            const double fifth_moment = three_point ? 1.0 / 6.0 : 11.0 / 72.0;
-            const double expected_stored = 40.0 * (3.0 + 0.2 + 2.0 * fourth_moment + 0.2 * fifth_moment);
+            // Integrate y,z analytically: J_average(x)=2.64+.0528*(1-2*x).
+            // rho=4.5+.4*x at t=.5, cp=3+x^3, Tdot=40*x. The nonaffine
+            // midside displacement changes capacity but not the corner-volume source.
+            const double offset = 0.5 * std::sqrt(three_point ? 3.0 / 5.0 : 1.0 / 3.0);
+            const std::array<double, 3> points = {0.5 - offset, 0.5 + offset, 0.5};
+            const std::array<double, 3> weights = three_point ? std::array<double, 3>{5.0 / 18.0, 5.0 / 18.0, 4.0 / 9.0}
+                                                              : std::array<double, 3>{0.5, 0.5, 0.0};
+            double expected_stored = 0.0;
+            for (std::size_t q = 0; q < points.size(); ++q) {
+                const double x = points[q];
+                const double volume_factor = finite ? 2.64 + 0.0528 * (1.0 - 2.0 * x) : 1.0;
+                expected_stored += weights[q] * volume_factor * (4.5 + 0.4 * x) * (3.0 + x * x * x) * 40.0 * x;
+            }
             const double expected_generated = 2.0 * (finite ? 2.0 * 1.2 * 1.1 : 1.0);
             passed = check(std::abs(conservation.stored_heat_rate - expected_stored) < 1e-10,
-                         "HEX20 committed storage preserves initial mass and the selected capacity quadrature")
+                         "HEX20 committed storage uses current density, quadratic volume and selected quadrature")
                      && check(std::abs(conservation.generated_heat_rate - expected_generated) < 1e-12,
                          "HEX20 committed source uses the current corner volume independently of midside motion")
                      && check(std::abs(conservation.global_thermal_balance) < 1e-10,
@@ -1136,7 +1144,7 @@ int main(int argc, char** argv) {
     if (!mpi_only)
         passed = test_hex20_node_set_constraints() && test_multiblock_shared_nodes() && test_contact_projection(mesh)
                  && test_surface_contact_fixed_reference_graph() && test_surface_contact_finite_sliding()
-                 && test_finite_sliding_search_tree() && test_reference_mass_conservation() && passed;
+                 && test_finite_sliding_search_tree() && test_current_volume_heat_diagnostics() && passed;
     session.collective_root_action([&]() {
         (void)std::remove(argv[1]);
         (void)std::remove(argv[2]);

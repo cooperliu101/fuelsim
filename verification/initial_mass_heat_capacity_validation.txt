@@ -1,3 +1,7 @@
+status=historical experiment; initial-mass production rule rolled back 2026-09-13
+qualification_correction=old all-pass claims predate the per-sample heat-reaction comparator correction; do not use as current full-field qualification
+current_report=verification/abaqus/b544_initial_density_validation.md
+
 date=2026-09-13
 physics=initial density at region initial temperature and time zero; reference mass times current specific heat
 independent_elements_command=ctest --test-dir build-elements -j4 --output-on-failure
@@ -32,4 +36,8 @@ comprehensive_density_input_retest_passed=13/13
 comprehensive_density_input_retest_scope=12 independent initial-mass storage tests and B58 native small-strain full-field comparison
 Abaqus_2018_user_subroutine_environment_command=abaqus verify -user_std -retainFiles
 Abaqus_2018_user_subroutine_environment_result=failed during compilation of std_user.for; ifort command not found; license checkout succeeded
-Abaqus_2018_finite_comprehensive_total_volume_density_reference=not implemented or qualified; requires working user-subroutine compiler environment
+Abaqus_2018_custom_mass_correction=not pursued; superseded by user instruction to specify initial density in native finite-strain examples
+Abaqus_2018_finite_comprehensive_density_input_audit=all 12 cards prescribe initial constant density; B544 changed to 2000 kg/m3; other 11 cards unchanged
+B544_initial_density_native_rerun=completed; ten increments; full-field comparison fails original nodal heat-reaction limits after correcting incomplete pointwise absolute qualification
+B544_initial_density_compared_rows=300 nodal; 80 integration-point; 10 energy
+B544_original_temperature_density_input_and_results=preserved verbatim in verification/abaqus/b544_temperature_density_history
