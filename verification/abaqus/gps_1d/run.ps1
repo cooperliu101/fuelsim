@@ -8,7 +8,7 @@ $env:MKL_NUM_THREADS = "1"
 $env:OPENBLAS_NUM_THREADS = "1"
 New-Item -ItemType Directory -Force -Path $DestinationDirectory | Out-Null
 foreach ($Case in ($Cases -join ',').Split(',')) {
-    if ($Case -notin @("gps_uniform_axial", "gps_uniform_axial_finite", "gps_two_slice_contact", "gps_two_slice_chain", "gps_two_slice_connected", "gps_nonuniform_finite")) {
+    if ($Case -notin @("gps_uniform_axial", "gps_uniform_axial_finite", "gps_two_slice_contact", "gps_two_slice_chain", "gps_two_slice_connected", "gps_nonuniform_finite", "gps_thermal_small", "gps_thermal_finite")) {
         throw "Unexpected case: $Case"
     }
     $Work = Join-Path $env:TEMP ("fuelsim_gps_" + [guid]::NewGuid().ToString("N"))

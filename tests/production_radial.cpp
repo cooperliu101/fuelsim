@@ -380,14 +380,24 @@ bool uniform(const std::string& output,
     return passed;
 }
 
-bool nonuniform_finite(const std::string& output,
+enum class NonuniformReference { finite_constant, finite_elastic_temperature, small_thermal, finite_thermal };
+
+bool nonuniform(const std::string& output,
     const std::string& summary,
     const std::filesystem::path& references,
-    bool temperature_dependent_elasticity) {
+    NonuniformReference reference_case) {
+    const bool variable_thermal =
+        reference_case == NonuniformReference::small_thermal || reference_case == NonuniformReference::finite_thermal;
+    const bool finite = reference_case != NonuniformReference::small_thermal;
+    const bool temperature_dependent_elasticity = reference_case == NonuniformReference::finite_elastic_temperature;
+    const std::string native_name =
+        variable_thermal ? (finite ? "gps_thermal_finite" : "gps_thermal_small") : "gps_nonuniform_finite";
+    const auto reference_directory =
+        temperature_dependent_elasticity ? references / "nonuniform_elastic_temperature_probe" : references;
     require_summary(summary, 1.0);
     const auto frames = fuelsim::test::read_exodus_history(output);
-    const auto native_nodes = read_rows(references / "gps_nonuniform_finite_nodes.csv");
-    const auto native_points = read_rows(references / "gps_nonuniform_finite_points.csv");
+    const auto native_nodes = read_rows(reference_directory / (native_name + "_nodes.csv"));
+    const auto native_points = read_rows(reference_directory / (native_name + "_points.csv"));
     if (frames.size() != 11 || frames.front().time != 0.0 || native_nodes.size() != 40 || native_points.size() != 40)
         throw std::runtime_error("Nonuniform finite qualification requires all ten increments and every native sample");
     constexpr std::array<std::size_t, 4> radial_node{0, 1, 1, 0};
@@ -395,7 +405,10 @@ bool nonuniform_finite(const std::string& output,
     FieldErrorMetrics temperature, radial_reaction, axial_reaction, axial_force, axial_strain;
     FieldErrorMetrics midpoint_displacement, prescribed_zero_displacement, zero_stress_shear, zero_elastic_shear;
     FieldErrorMetrics zero_mechanism, elastic_energy_change;
+    FieldErrorMetrics heat_reaction, stored_heat_rate, generated_heat_rate, dirichlet_heat_rate, thermal_balance;
+    FieldErrorMetrics source_node_reaction_change;
     GroupedFieldErrorMetrics displacement, stress, elastic;
+    GroupedFieldErrorMetrics reconstructed_heat_flux_diagnostic;
     double previous_native_elastic_energy = 0.0;
     for (std::size_t step = 1; step < frames.size(); ++step) {
         const auto& frame = frames[step];
@@ -408,6 +421,7 @@ bool nonuniform_finite(const std::string& output,
         const auto& role = frame.nodal("node_role");
         const auto& rr = frame.nodal("reaction_force_r");
         const auto& rz = frame.nodal("reaction_force_z");
+        const auto& heat = frame.nodal("reaction_heat_flux");
         for (std::size_t n = 0; n < 4; ++n) {
             if (role.at(n) != (n < 2 ? 1.0 : 2.0))
                 throw std::runtime_error("Nonuniform finite radial and axial control node roles changed");
@@ -432,6 +446,20 @@ bool nonuniform_finite(const std::string& output,
         const auto& bottom_outer = native_nodes[(step - 1) * 4 + 1];
         const auto& top_outer = native_nodes[(step - 1) * 4 + 2];
         const auto& top_inner = native_nodes[(step - 1) * 4 + 3];
+        const std::array<double, 2> native_heat = {bottom_inner.at("reaction_heat") + top_inner.at("reaction_heat"),
+            bottom_outer.at("reaction_heat") + top_outer.at("reaction_heat")};
+        for (std::size_t n = 0; n < 2; ++n)
+            heat_reaction.add(heat.at(n), native_heat[n]);
+        if (variable_thermal && step == 8) {
+            const auto& old_heat = frames[step - 1].nodal("reaction_heat_flux");
+            const std::size_t offset = (step - 2) * 4;
+            source_node_reaction_change.add(old_heat.at(0) - heat.at(0),
+                native_nodes[offset].at("reaction_heat") + native_nodes[offset + 3].at("reaction_heat")
+                    - native_heat[0]);
+            source_node_reaction_change.add(old_heat.at(1) - heat.at(1),
+                native_nodes[offset + 1].at("reaction_heat") + native_nodes[offset + 2].at("reaction_heat")
+                    - native_heat[1]);
+        }
         radial_reaction.add(rr.at(0), bottom_inner.at("rf_r") + top_inner.at("rf_r"));
         radial_reaction.add(rr.at(1), bottom_outer.at("rf_r") + top_outer.at("rf_r"));
         const double lower_force = bottom_inner.at("rf_z") + bottom_outer.at("rf_z");
@@ -445,7 +473,9 @@ bool nonuniform_finite(const std::string& output,
         if (!(reference_height > 0.0))
             throw std::runtime_error("Nonuniform finite reference slice height must be positive");
         axial_strain.add(frame.element("axial_strain").at(0),
-            (top_inner.at("uz") - bottom_inner.at("uz")) / reference_height);
+            variable_thermal && step == 5
+                ? constrained_zero((top_inner.at("uz") - bottom_inner.at("uz")) / reference_height, 1e-13)
+                : (top_inner.at("uz") - bottom_inner.at("uz")) / reference_height);
         for (std::size_t n = 0; n < 2; ++n)
             midpoint_displacement.add(uz.at(n), 0.5 * (uz.at(2) + uz.at(3)));
         const double reference_inner_radius = bottom_inner.at("r");
@@ -460,6 +490,26 @@ bool nonuniform_finite(const std::string& output,
             std::acos(-1.0)
             * (current_outer_radius * current_outer_radius - current_inner_radius * current_inner_radius)
             * current_height;
+        const double reference_volume =
+            std::acos(-1.0)
+            * (reference_outer_radius * reference_outer_radius - reference_inner_radius * reference_inner_radius)
+            * reference_height;
+        const double active_volume = finite ? current_volume : reference_volume;
+        // The native BF amplitude is averaged over each accepted interval.
+        const double source = variable_thermal && step >= 8 ? (step == 8 ? 5e6 : 1e7) : 0.0;
+        const double native_generated = source * active_volume;
+        const double native_total_heat = native_heat[0] + native_heat[1];
+        const double native_stored = native_total_heat + native_generated;
+        generated_heat_rate.add(frame.global("conservation_generated_heat_rate"), native_generated);
+        stored_heat_rate.add(frame.global("conservation_stored_heat_rate"),
+            variable_thermal && step >= 7 ? constrained_zero(native_stored, 1e-10) : native_stored);
+        dirichlet_heat_rate.add(frame.global("conservation_dirichlet_heat_input_rate"),
+            variable_thermal && step == 7 ? constrained_zero(native_total_heat, 1e-10) : native_total_heat);
+        thermal_balance.add(frame.global("conservation_global_thermal_balance"), 0.0);
+        const auto& previous_ur = frames[step - 1].nodal("displacement_r");
+        const double conduction_length =
+            reference_outer_radius - reference_inner_radius
+            + (finite ? 0.5 * (ur.at(1) - ur.at(0) + previous_ur.at(1) - previous_ur.at(0)) : 0.0);
         double native_elastic_energy = 0.0;
         for (std::size_t point = 0; point < 4; ++point) {
             const auto& reference = native_points[(step - 1) * 4 + point];
@@ -467,6 +517,13 @@ bool nonuniform_finite(const std::string& output,
             if (reference.at("element") != 1.0 || reference.at("point") != static_cast<double>(point + 1))
                 throw std::runtime_error("Native nonuniform finite material-point correspondence changed");
             const std::size_t q = point % 2;
+            // Reconstruct exported nodal values for diagnosis only: the actual
+            // GPS body heat flux is not a production output field.
+            const double conductivity = variable_thermal ? 10.0 + 0.1 * (t.at(q) - 600.0) : 10.0;
+            const std::array<double, 2> diagnostic_flux = {-conductivity * (t.at(1) - t.at(0)) / conduction_length,
+                0.0};
+            const std::array<double, 2> native_flux = {reference.at("heat_flux_r"), reference.at("heat_flux_z")};
+            reconstructed_heat_flux_diagnostic.add(diagnostic_flux.data(), native_flux.data(), 2);
             add_tensor(stress, frame, reference, "stress", q);
             add_tensor(elastic, frame, reference, "elastic", q);
             zero_stress_shear.add(frame.element("stress_rz_q" + std::to_string(q)).at(0),
@@ -479,7 +536,7 @@ bool nonuniform_finite(const std::string& output,
             const double eta = 0.5 * (1.0 + (q == 0 ? -1.0 : 1.0) / std::sqrt(3.0));
             const double reference_radius = (1.0 - eta) * reference_inner_radius + eta * reference_outer_radius;
             const double mechanical_measure =
-                current_volume * reference_radius / (2.0 * (reference_inner_radius + reference_outer_radius));
+                active_volume * reference_radius / (2.0 * (reference_inner_radius + reference_outer_radius));
             double stress_elastic_product = 0.0;
             for (const char* component : {"rr", "zz", "hoop", "rz"})
                 stress_elastic_product += reference.at(std::string("stress_") + component)
@@ -488,7 +545,9 @@ bool nonuniform_finite(const std::string& output,
             native_elastic_energy += 0.5 * stress_elastic_product * mechanical_measure;
         }
         elastic_energy_change.add(frame.global("conservation_elastic_energy_change"),
-            native_elastic_energy - previous_native_elastic_energy);
+            variable_thermal && step >= 7
+                ? constrained_zero(native_elastic_energy - previous_native_elastic_energy, 1e-12)
+                : native_elastic_energy - previous_native_elastic_energy);
         previous_native_elastic_energy = native_elastic_energy;
         for (std::size_t q = 0; q < 2; ++q) {
             const std::string suffix = "_q" + std::to_string(q);
@@ -503,7 +562,10 @@ bool nonuniform_finite(const std::string& output,
         || elastic.group_count != 40 || zero_stress_shear.value_count != 40 || zero_elastic_shear.value_count != 40
         || radial_reaction.value_count != 20 || axial_reaction.value_count != 20 || axial_force.value_count != 10
         || axial_strain.value_count != 10 || elastic_energy_change.value_count != 10
-        || zero_mechanism.value_count != 200)
+        || zero_mechanism.value_count != 200 || heat_reaction.value_count != 20 || stored_heat_rate.value_count != 10
+        || generated_heat_rate.value_count != 10 || dirichlet_heat_rate.value_count != 10
+        || thermal_balance.value_count != 10 || reconstructed_heat_flux_diagnostic.group_count != 40
+        || (variable_thermal && source_node_reaction_change.value_count != 2))
         throw std::runtime_error("Nonuniform finite comparison lost native field or inactive-history samples");
     bool passed = true;
     passed = check("temperature", temperature, 1e-11) && passed;
@@ -520,12 +582,23 @@ bool nonuniform_finite(const std::string& output,
     passed = check("analytical_zero_stress_shear", zero_stress_shear, 1e-4) && passed;
     passed = check("analytical_zero_elastic_shear", zero_elastic_shear, 1e-13) && passed;
     passed = check("inactive_inelastic_history", zero_mechanism, 1e-13) && passed;
+    passed = check("body_boundary_heat_reaction", heat_reaction, 1e-10) && passed;
+    passed = check("stored_heat_rate", stored_heat_rate, 1e-10) && passed;
+    passed = check("generated_heat_rate", generated_heat_rate, 1e-10) && passed;
+    passed = check("dirichlet_heat_input_rate", dirichlet_heat_rate, 1e-10) && passed;
+    passed = check("thermal_balance", thermal_balance, 1e-10) && passed;
+    if (variable_thermal)
+        passed = check("source_node_reaction_change", source_node_reaction_change, 1e-10) && passed;
+    fuelsim::test::print_grouped_relative_metrics("reconstructed_heat_flux_diagnostic",
+        reconstructed_heat_flux_diagnostic);
     std::cout << "native_node_samples=" << displacement.group_count
               << "\nnative_material_point_samples=" << stress.group_count
-              << "\nqualification_scope=prescribed_nonuniform_finite_mechanics_with_"
+              << "\nqualification_scope=prescribed_nonuniform_" << (finite ? "finite" : "small")
+              << "_thermomechanics_with_"
               << (temperature_dependent_elasticity ? "paired_endpoint_material_temperature" : "constant_elasticity")
-              << "\nthermal_operator_cross_comparison=excluded_different_discretizations\n"
-              << "radial_gps_nonuniform_finite_abaqus_qualification=" << (passed ? "passed" : "failed") << '\n';
+              << "\nthermal_operator_cross_comparison=nodal_heat_reactions_and_actual_conservation_outputs\n"
+              << "body_heat_flux_comparison=diagnostic_reconstruction_not_production_field_output\n"
+              << "radial_gps_nonuniform_abaqus_qualification=" << (passed ? "passed" : "failed") << '\n';
     return passed;
 }
 
@@ -944,7 +1017,8 @@ bool contact_small(const std::string& output, const std::string& summary, const 
 int main(int argc, char** argv) {
     if (argc != 5) {
         std::cerr << "usage: production_radial "
-                     "<uniform-small|uniform-finite|nonuniform-finite|material-temperature-finite|contact-small|chain-"
+                     "<uniform-small|uniform-finite|nonuniform-finite|material-temperature-finite|thermal-small|"
+                     "thermal-finite|contact-small|chain-"
                      "small|steady-finite> "
                      "<results.e> "
                      "<summary.csv> "
@@ -956,12 +1030,15 @@ int main(int argc, char** argv) {
         if (mode == "uniform-small" || mode == "uniform-finite")
             return uniform(argv[2], argv[3], argv[4], mode == "uniform-finite") ? 0 : 1;
         if (mode == "nonuniform-finite")
-            return nonuniform_finite(argv[2], argv[3], argv[4], false) ? 0 : 1;
+            return nonuniform(argv[2], argv[3], argv[4], NonuniformReference::finite_constant) ? 0 : 1;
         if (mode == "material-temperature-finite")
-            return nonuniform_finite(argv[2],
+            return nonuniform(argv[2], argv[3], argv[4], NonuniformReference::finite_elastic_temperature) ? 0 : 1;
+        if (mode == "thermal-small" || mode == "thermal-finite")
+            return nonuniform(argv[2],
                        argv[3],
-                       std::filesystem::path(argv[4]) / "nonuniform_elastic_temperature_probe",
-                       true)
+                       argv[4],
+                       mode == "thermal-small" ? NonuniformReference::small_thermal
+                                               : NonuniformReference::finite_thermal)
                        ? 0
                        : 1;
         if (mode == "chain-small")

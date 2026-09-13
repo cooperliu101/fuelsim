@@ -1,0 +1,9 @@
+case=gps_thermal_finite
+abaqus_version=3DEXPERIENCE R2018x
+cpus=1
+output_precision=full
+accepted_increments=10
+completed_utc=2026-09-13T03:45:28.1007997Z
+work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_gps_8d37e10386874796b9277d594a3e60fc
+input_sha256=CD002015FDECAC585B6B35184201279D50FC8AC2B95A7D2F6CFAC033FAC65F67
+extractor_sha256=96CED54503D57E47D64043823565ECE0070CCD4360A6DB5CF76CA843346C8322

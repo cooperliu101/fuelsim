@@ -32,7 +32,8 @@ IsotropicThermoelasticMaterial make_material(bool inelastic = false, bool varyin
     if (varying)
         functions->thermal.function = [](const ThermoelasticFunctionInput& input, ThermalPropertyOutput& output) {
             output.conductivity = 3.0 + 120.0 / input.temperature;
-            output.density = 1000.0 + 10.0 * input.context.x + 20.0 * input.context.z + input.context.time;
+            output.density = 1000.0 + 10.0 * input.context.x + 20.0 * input.context.z + input.context.time
+                             + 0.2 * (input.temperature - 600.0);
             output.specific_heat = 500.0 + 0.1 * (input.temperature - 600.0);
         };
     functions->elasticity = registry.bind_elasticity("linear_temperature_isotropic",
@@ -150,14 +151,14 @@ void check_thermal_operators() {
     auto stationary_input = input;
     stationary_input.include_thermal_time_term = false;
     const auto stationary = evaluate_cax2t_gps(stationary_input, {true, true, false, false});
-    const std::array<std::array<double, 2>, 2> mass_weights = {{{5.0, 3.0}, {3.0, 7.0}}};
+    const std::array<double, 2> nodal_volumes = {8.0 * pi / 3.0, 10.0 * pi / 3.0};
     for (std::size_t row = 0; row < 2; ++row)
         for (std::size_t column = 0; column < 2; ++column) {
-            const double capacity = 2.0 * pi * 2.0 / 12.0 * mass_weights[row][column] * 5.0e5 / 0.5;
+            const double capacity = row == column ? nodal_volumes[row] * 5.0e5 / 0.5 : 0.0;
             const double conduction = (row == column ? 1.0 : -1.0) * pi * 2.0 * 5.0 * 3.0;
             require(error(response.jacobian[6 * row + column] - stationary.jacobian[6 * row + column], capacity)
                         < 1e-14,
-                "Consistent capacity must match the analytical cylindrical two-node matrix including its off-diagonal");
+                "Lumped heat capacity must use cylindrical row-sum weights and an exactly diagonal temperature block");
             require(error(stationary.jacobian[6 * row + column], conduction) < 1e-14,
                 "Radial conduction must match the analytical cylindrical stiffness");
         }
@@ -174,35 +175,75 @@ void check_thermal_operators() {
             "Thermal expansion must use the arithmetic mean of the two radial nodal temperatures");
     }
     const auto variable_material = make_material(false, true);
-    const auto nonlinear_thermal = evaluate_cax2t_gps(
-        {variable_material, geometry, nonuniform, initial, &history, 0.5, 0.5, 0.0, StrainFormulation::small, true});
-    std::array<double, 2> expected_heat{}, endpoint_heat{};
+    const Cax2tGpsInput variable_input{variable_material,
+        geometry,
+        nonuniform,
+        initial,
+        &history,
+        0.5,
+        0.5,
+        0.0,
+        StrainFormulation::small,
+        true};
+    const auto nonlinear_thermal = evaluate_cax2t_gps(variable_input, {true, true, true, true});
+    auto conduction_input = variable_input;
+    conduction_input.include_thermal_time_term = false;
+    const auto nonlinear_conduction = evaluate_cax2t_gps(conduction_input, {true, true, false, false});
+    std::array<double, 2> expected_heat{}, interpolated_heat{}, conductivity_derivative{};
+    double integrated_conductivity = 0.0;
     for (std::size_t q = 0; q < 2; ++q) {
         const double station = (q == 0 ? -1.0 : 1.0) / std::sqrt(3.0);
         const std::array<double, 2> shape = {0.5 * (1.0 - station), 0.5 * (1.0 + station)};
         const double radius = 1.5 + 0.5 * station;
         const double temperature = shape[0] * nonuniform[0] + shape[1] * nonuniform[1];
-        const double density = 1000.0 + 10.0 * radius + 0.5;
+        const double density = 1000.0 + 10.0 * radius + 0.5 + 0.2 * (temperature - 600.0);
         const double temperature_rate = (temperature - 600.0) / 0.5;
         const double measure = 2.0 * pi * radius;
+        integrated_conductivity += measure * (3.0 + 120.0 / nonuniform[q]);
+        conductivity_derivative[q] = -measure * 120.0 / (nonuniform[q] * nonuniform[q]);
         for (std::size_t node = 0; node < 2; ++node) {
             const double gradient = node == 0 ? -1.0 : 1.0;
-            expected_heat[node] +=
+            interpolated_heat[node] +=
                 measure
                 * ((3.0 + 120.0 / temperature) * gradient * 40.0
                     + shape[node] * density * (500.0 + 0.1 * (temperature - 600.0)) * temperature_rate);
-            endpoint_heat[node] +=
-                measure
-                * ((3.0 + 120.0 / nonuniform[q]) * gradient * 40.0
-                    + shape[node] * density * (500.0 + 0.1 * (nonuniform[q] - 600.0)) * temperature_rate);
         }
     }
+    double expected_storage = 0.0;
     for (std::size_t node = 0; node < 2; ++node) {
+        const double change = nonuniform[node] - 600.0;
+        const double density = 1000.0 + 10.0 * geometry.radii[node] + 0.5 + 0.2 * change;
+        const double heat_capacity = 500.0 + 0.1 * change;
+        const double storage = nodal_volumes[node] * density * heat_capacity * change / 0.5;
+        expected_storage += storage;
+        const double sign = node == 0 ? -1.0 : 1.0;
+        expected_heat[node] = sign * integrated_conductivity * 40.0 + storage;
         require(error(nonlinear_thermal.residual[node], expected_heat[node]) < 1e-13,
-            "Small-strain conductivity and consistent heat capacity must retain Gauss-interpolated temperature");
-        require(std::abs(expected_heat[node] - endpoint_heat[node]) > 1e3,
-            "The variable-property thermal probe must distinguish endpoint from interpolated temperature");
+            "Small-strain conductivity, density, specific heat and temperature rate must use paired nodes");
+        require(std::abs(expected_heat[node] - interpolated_heat[node]) > 1e3,
+            "Nodal heat operators must be distinguished from the former interpolated consistent operator");
+        for (std::size_t column = 0; column < 2; ++column) {
+            const double conduction =
+                sign * ((column == 0 ? -1.0 : 1.0) * integrated_conductivity + 40.0 * conductivity_derivative[column]);
+            const double capacity =
+                node == column ? nodal_volumes[node]
+                                     * ((0.2 * heat_capacity + 0.1 * density) * change + density * heat_capacity) / 0.5
+                               : 0.0;
+            require(error(nonlinear_conduction.jacobian[6 * node + column], conduction) < 1e-13,
+                "Each nodal conductivity derivative must enter the appropriate temperature column");
+            require(
+                error(nonlinear_thermal.jacobian[6 * node + column] - nonlinear_conduction.jacobian[6 * node + column],
+                    capacity)
+                    < 1e-13,
+                "Temperature-dependent lumped capacity must remain diagonal and differentiate both rho and cp");
+        }
+        for (std::size_t column = 2; column < nonuniform.size(); ++column)
+            require(nonlinear_thermal.jacobian[6 * node + column] == 0.0,
+                "Nonuniform small-strain thermal operators must have exactly zero displacement derivatives");
     }
+    require(error(nonlinear_thermal.stored_heat_rate, expected_storage) < 1e-13
+                && error(nonlinear_thermal.residual[0] + nonlinear_thermal.residual[1], expected_storage) < 1e-13,
+        "Nodal heat storage diagnostics must equal the complete summed heat residual");
 }
 
 void check_mean_thermal_expansion(StrainFormulation formulation) {
@@ -395,12 +436,12 @@ void check_finite_mean_hoop_history_and_geometry() {
             "Nonuniform finite hoop averaging must preserve exact residual-only and tangent-call agreement");
         Cax2tGpsLocalResidual expected{};
         double stored = 0.0, generated = 0.0, wrong_mechanical_force = 0.0, wrong_thermal_residual = 0.0;
+        std::array<double, 2> nodal_volumes{}, expected_conduction{};
+        const double midpoint_span = 0.5 * (first_stretch[0] + current_stretch[0]);
         for (std::size_t q = 0; q < response.stress.size(); ++q) {
             const double station = (q == 0 ? -1.0 : 1.0) / std::sqrt(3.0);
             const std::array<double, 2> shape = {0.5 * (1.0 - station), 0.5 * (1.0 + station)};
             const double reference_radius = 1.5 + 0.5 * station;
-            const double point_change = 90.0 + 40.0 * station;
-            const double point_temperature = 600.0 + point_change;
             const double material_change = state[q] - 600.0;
             const double modulus = young + (temperature_dependent ? -8.0e7 * material_change : 0.0);
             const double ratio = poisson + (temperature_dependent ? 2.0e-5 * material_change : 0.0);
@@ -431,41 +472,82 @@ void check_finite_mean_hoop_history_and_geometry() {
                 "expansion");
             const double mechanical_measure =
                 2.0 * pi * reference_radius * current_stretch[0] * current_stretch[1] * current_stretch[2];
-            // Thermal integration uses the actual deformed annulus at each Gauss point.
+            // Capacity and source use the actual current annulus. Conduction
+            // uses its whole-volume ratio and the incremental midpoint gradient.
             const double current_radius = shape[0] * 1.2 + shape[1] * 2.27;
             const double thermal_measure = pi * current_radius * (2.27 - 1.2) * (2.22 - 0.04);
-            const double conductivity = temperature_dependent ? 3.0 + 120.0 / point_temperature : 5.0;
-            const double density = temperature_dependent ? 1000.0 + 10.0 * reference_radius + 20.0 + 0.2 : 1000.0;
-            const double heat_capacity = density * (temperature_dependent ? 500.0 + 0.1 * point_change : 500.0);
-            const double storage = heat_capacity * (50.0 + 20.0 * station) / 0.1;
-            stored += thermal_measure * storage;
+            const double conductivity = temperature_dependent ? 3.0 + 120.0 / state[q] : 5.0;
             generated += thermal_measure * 2.0e6;
             for (std::size_t node = 0; node < 2; ++node) {
                 const double radial_gradient = (node == 0 ? -1.0 : 1.0) / (2.27 - 1.2);
                 const double force_density = radial_gradient * stress[0] + stress[2] / (1.2 + 2.27);
                 expected[2 + node] += mechanical_measure * force_density;
                 expected[4 + node] += mechanical_measure * (node == 0 ? -1.0 : 1.0) * stress[1] / (2.22 - 0.04);
-                const double heat_density =
-                    conductivity * radial_gradient * (730.0 - 650.0) / (2.27 - 1.2) + shape[node] * (storage - 2.0e6);
-                expected[node] += thermal_measure * heat_density;
+                const double change = state[node] - 600.0;
+                const double density =
+                    temperature_dependent ? 1000.0 + 10.0 * geometry.radii[node] + 20.0 + 0.2 + 0.2 * change : 1000.0;
+                const double capacity = density * (temperature_dependent ? 500.0 + 0.1 * change : 500.0);
+                const double storage = capacity * (state[node] - first[node]) / 0.1;
+                const double conduction = mechanical_measure * conductivity * (node == 0 ? -1.0 : 1.0) * (730.0 - 650.0)
+                                          / (midpoint_span * midpoint_span);
+                expected_conduction[node] += conduction;
+                nodal_volumes[node] += thermal_measure * shape[node];
+                stored += thermal_measure * shape[node] * storage;
+                expected[node] += conduction + thermal_measure * shape[node] * (storage - 2.0e6);
                 if (node == 0) {
                     wrong_mechanical_force += thermal_measure * force_density;
-                    wrong_thermal_residual += mechanical_measure * heat_density;
+                    wrong_thermal_residual += conduction + mechanical_measure * shape[node] * (storage - 2.0e6);
                 }
             }
         }
         for (std::size_t row = 0; row < state.size(); ++row)
             require(error(response.residual[row], expected[row]) < 1e-13,
-                "Finite forces must use averaged mechanical measure while thermal operators retain the actual point "
-                "volume");
+                "Finite conduction must use midpoint gradients and whole-volume weights, with nodal current-volume "
+                "storage and source");
         require(error(response.stored_heat_rate, stored) < 1e-13
                     && error(response.generated_heat_rate, generated) < 1e-13,
-            "Finite mean hoop mechanics must preserve actual current-volume heat storage and source diagnostics");
+            "Finite lumped storage and source diagnostics must retain actual current-volume nodal weights");
+        require(error(response.residual[0] + response.residual[1], stored - generated) < 1e-13,
+            "Finite nodal heat residuals must conserve stored minus generated heat");
         require(std::abs(expected[0] - wrong_thermal_residual) > 1e6,
             "The thermal geometry regression must distinguish actual point volumes from averaged mechanical weights");
         if (temperature_dependent)
             require(std::abs(expected[2] - wrong_mechanical_force) > 1e6,
                 "Point-dependent elasticity must distinguish averaged mechanical measure from thermal point volumes");
+        auto stationary_input = input;
+        stationary_input.include_thermal_time_term = false;
+        const auto stationary = evaluate_cax2t_gps(stationary_input, {true, true, false, false});
+        auto conduction_input = stationary_input;
+        conduction_input.volumetric_heat_source = 0.0;
+        const auto conduction_only = evaluate_cax2t_gps(conduction_input, {true, true, false, false});
+        double capacity_geometry = 0.0, conduction_geometry = 0.0;
+        for (std::size_t row = 0; row < 2; ++row) {
+            require(error(conduction_only.residual[row], expected_conduction[row]) < 1e-13,
+                "Finite conduction alone must use paired conductivity, midpoint gradients and whole-volume weights");
+            const double change = state[row] - 600.0;
+            const double density =
+                temperature_dependent ? 1000.0 + 10.0 * geometry.radii[row] + 20.0 + 0.2 + 0.2 * change : 1000.0;
+            const double cp = temperature_dependent ? 500.0 + 0.1 * change : 500.0;
+            const double slope = temperature_dependent ? 0.2 * cp + 0.1 * density : 0.0;
+            for (std::size_t column = 0; column < 2; ++column) {
+                const double capacity =
+                    row == column ? nodal_volumes[row] * (density * cp + slope * (state[row] - first[row])) / 0.1 : 0.0;
+                require(error(response.jacobian[6 * row + column] - stationary.jacobian[6 * row + column], capacity)
+                            < 1e-13,
+                    "Finite lumped capacity must retain its nodal temperature diagonal");
+            }
+            for (std::size_t column = 2; column < state.size(); ++column) {
+                capacity_geometry = std::max(capacity_geometry,
+                    std::abs(response.jacobian[6 * row + column] - stationary.jacobian[6 * row + column]));
+                conduction_geometry =
+                    std::max(conduction_geometry, std::abs(conduction_only.jacobian[6 * row + column]));
+            }
+        }
+        require(capacity_geometry > 1.0,
+            "Current nodal heat-capacity weights must have nonzero displacement derivatives");
+        require(conduction_geometry > 1.0
+                    && std::abs(conduction_only.residual[0] + conduction_only.residual[1]) < 1e-10,
+            "Finite conduction must preserve heat and have nonzero midpoint and volume geometry derivatives");
         for (std::size_t column = 0; column < state.size(); ++column) {
             const double step = column < 2 ? 1e-3 : 1e-6;
             auto plus = state, minus = state;
@@ -475,9 +557,24 @@ void check_finite_mean_hoop_history_and_geometry() {
                 {material, geometry, plus, first, &history, 0.1, 0.2, 2.0e6, StrainFormulation::finite, true});
             const auto rm = evaluate_cax2t_gps(
                 {material, geometry, minus, first, &history, 0.1, 0.2, 2.0e6, StrainFormulation::finite, true});
-            for (std::size_t row = 0; row < state.size(); ++row)
-                maximum_error = std::max(maximum_error,
-                    error(response.jacobian[6 * row + column], (rp.residual[row] - rm.residual[row]) / (2.0 * step)));
+            // Isolate the small off-diagonal heat derivative from nodal storage
+            // and the temperature-independent source. The exact zero storage
+            // entries were checked above; all 36 full tangent entries remain checked.
+            Cax2tGpsLocalResidual stationary_plus{}, stationary_minus{};
+            if (column < 2) {
+                stationary_plus = evaluate_cax2t_gps(
+                    {material, geometry, plus, first, &history, 0.1, 0.2, 0.0, StrainFormulation::finite})
+                                      .residual;
+                stationary_minus = evaluate_cax2t_gps(
+                    {material, geometry, minus, first, &history, 0.1, 0.2, 0.0, StrainFormulation::finite})
+                                       .residual;
+            }
+            for (std::size_t row = 0; row < state.size(); ++row) {
+                const bool isolated = row < 2 && column < 2 && row != column;
+                const double numerical = isolated ? (stationary_plus[row] - stationary_minus[row]) / (2.0 * step)
+                                                  : (rp.residual[row] - rm.residual[row]) / (2.0 * step);
+                maximum_error = std::max(maximum_error, error(response.jacobian[6 * row + column], numerical));
+            }
         }
         require(same_history(history, saved_history),
             "All finite mean-hoop trial evaluations must leave the accepted material histories unchanged");
@@ -487,69 +584,79 @@ void check_finite_mean_hoop_history_and_geometry() {
     std::cout << "cax2t_gps_finite_mean_hoop_jacobian_error=" << maximum_error << '\n';
 }
 
-void check_cax4t_mechanical_projection(StrainFormulation formulation) {
-    // Paired radial temperatures expand to matching CAX4T corner temperatures.
-    // Both elastic properties and mean expansion vary with temperature.
-    const auto material = make_material(false, true);
+void check_cax4t_projection(StrainFormulation formulation) {
+    // The complete radial thermal/mechanical fields expand to the rectangle.
+    // Use identical radial material fields without an axial-coordinate dependence.
+    auto functions = std::make_shared<MaterialFunctionSet>(make_material(false, true).functions());
+    functions->name = "gps_cax4t_complete_projection";
+    functions->thermal.function = [](const ThermoelasticFunctionInput& input, ThermalPropertyOutput& output) {
+        output.conductivity = 3.0 + 120.0 / input.temperature;
+        output.density = 1000.0 + 10.0 * input.context.x + input.context.time + 0.2 * (input.temperature - 600.0);
+        output.specific_heat = 500.0 + 0.1 * (input.temperature - 600.0);
+    };
+    const IsotropicThermoelasticMaterial material({functions, young});
     const auto radial_geometry = make_cax2t_gps_geometry({1.0, 2.0}, 0.0, 2.0);
     const auto quad_geometry = make_cax4t_geometry({{{1.0, 0.0}, {2.0, 0.0}, {2.0, 2.0}, {1.0, 2.0}}});
-    const Cax2tGpsLocalValues initial{600.0, 600.0, 0.0, 0.0, 0.0, 0.0};
-    const Cax2tGpsLocalValues first{620.0, 660.0, 0.1, 0.15, 0.02, 0.10};
-    const Cax2tGpsLocalValues state{650.0, 730.0, 0.2, 0.27, 0.04, 0.22};
+    Cax2tGpsLocalValues old{600.0, 600.0, 0.0, 0.0, 0.0, 0.0};
+    const std::array<Cax2tGpsLocalValues, 2> states = {
+        {{620.0, 660.0, 0.1, 0.15, 0.02, 0.10}, {650.0, 730.0, 0.2, 0.27, 0.04, 0.22}}};
     // P expands the six radial/end-section values into the twelve rectangular CAX4T values.
     const std::array<std::size_t, 12> radial_dof = {0, 1, 1, 0, 2, 3, 3, 2, 4, 4, 5, 5};
     const std::array<std::size_t, 4> radial_point = {0, 1, 1, 0};
-    Cax4LocalValues quad_initial{}, quad_first{}, quad_state{};
-    for (std::size_t i = 0; i < radial_dof.size(); ++i) {
-        quad_initial[i] = initial[radial_dof[i]];
-        quad_first[i] = first[radial_dof[i]];
-        quad_state[i] = state[radial_dof[i]];
-    }
-    const Cax2tGpsMaterialHistory radial_initial_history{};
-    const Quad4MaterialHistory quad_initial_history{};
-    const auto radial_history = evaluate_cax2t_gps(
-        {material, radial_geometry, first, initial, &radial_initial_history, 0.1, 0.1, 0.0, formulation})
-                                    .history;
-    const auto quad_history = evaluate_cax4t(
-        {material, quad_geometry, quad_first, quad_initial, &quad_initial_history, 0.1, 0.1, 0.0, formulation})
-                                  .history;
-    const auto radial =
-        evaluate_cax2t_gps({material, radial_geometry, state, first, &radial_history, 0.1, 0.2, 0.0, formulation},
-            {true, true, true, true});
-    const auto quad =
-        evaluate_cax4t({material, quad_geometry, quad_state, quad_first, &quad_history, 0.1, 0.2, 0.0, formulation},
-            {true, true, true, true});
-    Cax2tGpsLocalResidual projected_force{};
-    Cax2tGpsLocalJacobian projected_tangent{};
-    for (std::size_t row = 4; row < radial_dof.size(); ++row) {
-        projected_force[radial_dof[row]] += quad.residual[row];
-        for (std::size_t column = 0; column < radial_dof.size(); ++column)
-            projected_tangent[6 * radial_dof[row] + radial_dof[column]] += quad.jacobian[12 * row + column];
-    }
+    Cax2tGpsMaterialHistory radial_history{};
+    Quad4MaterialHistory quad_history{};
     double maximum_error = 0.0;
-    for (std::size_t q = 0; q < radial_point.size(); ++q) {
-        const auto& actual = radial.stress[radial_point[q]];
-        const auto& expected = quad.stress[q];
-        maximum_error = std::max({maximum_error,
-            error(actual.rr, expected.rr),
-            error(actual.zz, expected.zz),
-            error(actual.hoop, expected.hoop)});
-        for (std::size_t component = 0; component < 4; ++component)
-            require(std::abs(radial.history[radial_point[q]].elastic_strain[component]
-                             - quad.history[q].elastic_strain[component])
-                        < 1e-14,
-                "Reduced rectangular CAX4T and radial elements must accumulate the same material strain history");
-    }
-    for (std::size_t row = 2; row < state.size(); ++row) {
-        maximum_error = std::max(maximum_error, error(radial.residual[row], projected_force[row]));
-        for (std::size_t column = 0; column < state.size(); ++column)
-            maximum_error =
-                std::max(maximum_error, error(radial.jacobian[6 * row + column], projected_tangent[6 * row + column]));
+    for (std::size_t increment = 0; increment < states.size(); ++increment) {
+        const auto& state = states[increment];
+        Cax4LocalValues quad_old{}, quad_state{};
+        for (std::size_t i = 0; i < radial_dof.size(); ++i) {
+            quad_old[i] = old[radial_dof[i]];
+            quad_state[i] = state[radial_dof[i]];
+        }
+        const double time = 0.1 * static_cast<double>(increment + 1);
+        const auto radial = evaluate_cax2t_gps(
+            {material, radial_geometry, state, old, &radial_history, 0.1, time, 2e6, formulation, true},
+            {true, true, true, true});
+        const auto quad = evaluate_cax4t(
+            {material, quad_geometry, quad_state, quad_old, &quad_history, 0.1, time, 2e6, formulation, true},
+            {true, true, true, true});
+        Cax2tGpsLocalResidual projected_residual{};
+        Cax2tGpsLocalJacobian projected_tangent{};
+        for (std::size_t row = 0; row < radial_dof.size(); ++row) {
+            projected_residual[radial_dof[row]] += quad.residual[row];
+            for (std::size_t column = 0; column < radial_dof.size(); ++column)
+                projected_tangent[6 * radial_dof[row] + radial_dof[column]] += quad.jacobian[12 * row + column];
+        }
+        for (std::size_t q = 0; q < radial_point.size(); ++q) {
+            const auto& actual = radial.stress[radial_point[q]];
+            const auto& expected = quad.stress[q];
+            maximum_error = std::max({maximum_error,
+                error(actual.rr, expected.rr),
+                error(actual.zz, expected.zz),
+                error(actual.hoop, expected.hoop)});
+            for (std::size_t component = 0; component < 4; ++component)
+                require(std::abs(radial.history[radial_point[q]].elastic_strain[component]
+                                 - quad.history[q].elastic_strain[component])
+                            < 1e-14,
+                    "Reduced CAX4T and radial elements must accumulate identical material strain history");
+        }
+        for (std::size_t row = 0; row < state.size(); ++row) {
+            maximum_error = std::max(maximum_error, error(radial.residual[row], projected_residual[row]));
+            for (std::size_t column = 0; column < state.size(); ++column)
+                maximum_error = std::max(maximum_error,
+                    error(radial.jacobian[6 * row + column], projected_tangent[6 * row + column]));
+        }
+        require(error(radial.stored_heat_rate, quad.stored_heat_rate) < 2e-11
+                    && error(radial.generated_heat_rate, quad.generated_heat_rate) < 2e-11,
+            "Both temperature increments must preserve CAX4T heat-storage and source diagnostics");
+        radial_history = radial.history;
+        quad_history = quad.history;
+        old = state;
     }
     require(maximum_error < 2e-11,
-        "Nonuniform CAX4T mechanical force and all tangent columns must reduce to the radial assumed-strain element");
+        "Complete nonuniform CAX4T thermal/mechanical residual and 6x6 tangent must reduce to the radial element");
     std::cout << "cax2t_gps_" << (formulation == StrainFormulation::finite ? "finite" : "small")
-              << "_cax4t_mechanical_projection_error=" << maximum_error << '\n';
+              << "_cax4t_complete_projection_error=" << maximum_error << '\n';
 }
 
 void check_paired_material_temperatures(StrainFormulation formulation, bool inelastic) {
@@ -582,7 +689,7 @@ void check_paired_material_temperatures(StrainFormulation formulation, bool inel
             accumulated_trace = 2.0 * radial_strain + axial_strain;
         const auto saved_history = history;
         const auto saved_state = state, saved_old = old;
-        // Separate analytical tests cover consistent heat storage.  This test
+        // Separate analytical tests cover lumped heat storage.  This test
         // resolves the small conduction terms alongside material derivatives.
         const Cax2tGpsInput input{material,
             geometry,
@@ -791,7 +898,7 @@ void check_finite_mechanics_and_thermal_history() {
                 && error(result.residual[3], 4.0 * pi * radial_stretch * height * sigma_r) < 1e-13,
         "Finite radial reactions must use the current radius and axial length");
     require(error(result.stored_heat_rate, area * height * 5.0e5 * 20.0 / 0.5) < 1e-13,
-        "Finite consistent heat storage must use the complete current volume");
+        "Finite lumped heat storage must use the complete current volume");
 
     const double free_increment = expansion * 1000.0;
     const double free_stretch = (2.0 + free_increment) / (2.0 - free_increment);
@@ -935,8 +1042,8 @@ int main() {
         check_mean_thermal_expansion(StrainFormulation::finite);
         check_small_mean_hoop_mechanics();
         check_finite_mean_hoop_history_and_geometry();
-        check_cax4t_mechanical_projection(StrainFormulation::small);
-        check_cax4t_mechanical_projection(StrainFormulation::finite);
+        check_cax4t_projection(StrainFormulation::small);
+        check_cax4t_projection(StrainFormulation::finite);
         for (const auto formulation : {StrainFormulation::small, StrainFormulation::finite})
             for (const bool inelastic : {false, true})
                 check_paired_material_temperatures(formulation, inelastic);

@@ -81,13 +81,24 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
     const double hoop_strain = hoop_gradient * (state[2] + state[3]);
     const double axial_coordinate = geometry.z_lower + 0.5 * height;
     const double expansion_temperature = 0.5 * state[0] + 0.5 * state[1];
+    std::array<double, 2> capacity_rates{}, capacity_derivatives{};
+    if (input.include_thermal_time_term)
+        for (std::size_t node = 0; node < 2; ++node) {
+            const auto temperature =
+                request.jacobian ? adlite::Scalar::independent(state[node], 0, 1) : adlite::Scalar(state[node]);
+            const MaterialFunctionContext node_context{input.time, geometry.radii[node], 0.0, axial_coordinate};
+            const auto rate = input.material.heat_capacity(temperature, node_context)
+                              * (temperature - input.committed_state[node]) / input.time_step;
+            capacity_rates[node] = rate.value();
+            if (request.jacobian)
+                rate.copy_derivatives(&capacity_derivatives[node], 1);
+        }
     const std::array<double, 2> stations = {-gauss, gauss};
     for (std::size_t q = 0; q < stations.size(); ++q) {
         const std::array<double, 2> shape = {0.5 * (1.0 - stations[q]), 0.5 * (1.0 + stations[q])};
         const double radius = shape[0] * geometry.radii[0] + shape[1] * geometry.radii[1];
         double measure = pi * radius * thickness * height;
         const double material_temperature = state[q];
-        const double thermal_temperature = shape[0] * state[0] + shape[1] * state[1];
         const double radial_displacement = shape[0] * state[2] + shape[1] * state[3];
         std::array<double, 4> strain = {radial_strain, axial_strain, hoop_strain, 0.0};
         const MaterialFunctionContext context{input.time, radius, 0.0, axial_coordinate};
@@ -106,6 +117,7 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
         geometry_chain[2][3] = shape[1] / radius;
         std::array<double, 4> stretch{1.0, 1.0, 1.0, 1.0};
         std::array<double, 4> mechanical_stretch{1.0, 1.0, 1.0, 1.0};
+        double thermal_radial_stretch = 1.0;
         double mechanical_measure = measure;
         Cax2tGpsLocalValues measure_derivative{};
         Cax2tGpsLocalValues mechanical_measure_derivative{};
@@ -118,6 +130,7 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
                 committed_stretch[1],
                 1.0 + hoop_gradient * (old[2] + old[3])};
             stretch = {1.0 + radial_strain, 1.0 + axial_strain, 1.0 + radial_displacement / radius, 1.0};
+            thermal_radial_stretch = 0.5 * (stretch[0] + committed_stretch[0]);
             double committed_measure = measure, midpoint_measure = measure;
             for (std::size_t component = 0; component < 3; ++component) {
                 const double midpoint = 0.5 * (stretch[component] + committed_stretch[component]);
@@ -151,7 +164,8 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
             measure *= stretch[0] * stretch[1] * stretch[2];
             // The GPS restriction of CAX4T virtual work uses reference point
             // weights times the whole-element current/reference volume ratio.
-            // Thermal operators below retain the actual pointwise current volume.
+            // Conduction uses this same whole-element volume ratio. Capacity and
+            // source terms retain the actual pointwise current volume.
             mechanical_measure *= mechanical_stretch[0] * mechanical_stretch[1] * mechanical_stretch[2];
             if (!std::isfinite(measure) || !(measure > 0.0) || !std::isfinite(committed_measure)
                 || !(committed_measure > 0.0) || !std::isfinite(midpoint_measure) || !(midpoint_measure > 0.0)
@@ -261,45 +275,34 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
                 }
         }
 
-        // Only the integration-point temperature is seeded for thermal
-        // properties; the two nodal derivatives are attached in closed form.
-        const adlite::Scalar active_temperature = request.jacobian
-                                                      ? adlite::Scalar::independent(thermal_temperature, 0, 1)
-                                                      : adlite::Scalar(thermal_temperature);
-        const adlite::Scalar conductivity = input.material.conductivity(active_temperature, context);
+        // Conductivity uses the paired endpoint temperature. Capacity is
+        // row-sum lumped with nodal material properties and temperature rates.
+        const adlite::Scalar conductivity = input.material.conductivity(active_material_temperature, context);
         const double conductivity_derivative =
             request.jacobian && conductivity.derivative_size() != 0 ? conductivity.derivative(0) : 0.0;
-        double stored_rate = 0.0, stored_derivative = 0.0;
-        if (input.include_thermal_time_term) {
-            const double committed_temperature =
-                shape[0] * input.committed_state[0] + shape[1] * input.committed_state[1];
-            const double temperature_rate = (thermal_temperature - committed_temperature) / input.time_step;
-            const adlite::Scalar capacity = input.material.heat_capacity(active_temperature, context);
-            stored_rate = capacity.value() * temperature_rate;
-            if (request.jacobian)
-                stored_derivative =
-                    capacity.value() / input.time_step
-                    + (capacity.derivative_size() != 0 ? capacity.derivative(0) : 0.0) * temperature_rate;
-        }
-        result.stored_heat_rate += measure * stored_rate;
         result.generated_heat_rate += measure * input.volumetric_heat_source;
-        const double current_temperature_gradient = temperature_gradient / stretch[0];
+        const double thermal_temperature_gradient = temperature_gradient / thermal_radial_stretch;
         for (std::size_t row = 0; row < 2; ++row) {
-            const double current_gradient = gradient[row] / stretch[0];
-            const double conduction = conductivity.value() * current_gradient * current_temperature_gradient;
-            const double density = conduction + shape[row] * (stored_rate - input.volumetric_heat_source);
-            result.residual[row] += measure * density;
+            const double thermal_gradient = gradient[row] / thermal_radial_stretch;
+            const double conduction = conductivity.value() * thermal_gradient * thermal_temperature_gradient;
+            const double storage_and_source = shape[row] * (capacity_rates[row] - input.volumetric_heat_source);
+            result.residual[row] += mechanical_measure * conduction + measure * storage_and_source;
+            result.stored_heat_rate += measure * shape[row] * capacity_rates[row];
             if (request.jacobian) {
                 for (std::size_t column = 0; column < 2; ++column)
-                    result.jacobian[row * state.size() + column] +=
-                        measure
-                        * (conductivity.value() * current_gradient * gradient[column] / stretch[0]
-                            + conductivity_derivative * shape[column] * current_gradient * current_temperature_gradient
-                            + shape[row] * stored_derivative * shape[column]);
+                    result.jacobian[row * state.size() + column] += mechanical_measure * conductivity.value()
+                                                                    * thermal_gradient * gradient[column]
+                                                                    / thermal_radial_stretch;
+                result.jacobian[row * state.size() + q] +=
+                    mechanical_measure * conductivity_derivative * thermal_gradient * thermal_temperature_gradient;
+                result.jacobian[row * state.size() + row] += measure * shape[row] * capacity_derivatives[row];
                 for (std::size_t column = 2; column < state.size(); ++column)
                     result.jacobian[row * state.size() + column] +=
-                        measure_derivative[column] * density
-                        - (finite ? 2.0 * measure * conduction * reference_chain[0][column] / stretch[0] : 0.0);
+                        mechanical_measure_derivative[column] * conduction
+                        + measure_derivative[column] * storage_and_source
+                        - (finite
+                                ? mechanical_measure * conduction * reference_chain[0][column] / thermal_radial_stretch
+                                : 0.0);
             }
         }
     }

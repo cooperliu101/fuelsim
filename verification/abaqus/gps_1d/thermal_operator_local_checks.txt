@@ -1,0 +1,58 @@
+Commands:
+cmake --build build-elements --parallel 4
+ctest --test-dir build-elements -j4 --output-on-failure
+build-elements/fuelsim_cax2t_gps_tests
+
+Internal ctest changing into directory: /home/cooper/ai_project/fuelsim/build-elements
+Test project /home/cooper/ai_project/fuelsim/build-elements
+      Start  1: fuelsim_element_library_boundaries
+      Start  8: fuelsim_cax8t_tests
+      Start  9: fuelsim_cax8rt_tests
+      Start  4: fuelsim_cax4t_tests
+ 1/17 Test  #4: fuelsim_cax4t_tests ..................   Passed    0.01 sec
+      Start 13: fuelsim_c3d20rt_tests
+ 2/17 Test  #9: fuelsim_cax8rt_tests .................   Passed    0.02 sec
+      Start 12: fuelsim_c3d20t_tests
+ 3/17 Test #13: fuelsim_c3d20rt_tests ................   Passed    0.01 sec
+      Start 10: fuelsim_c3d8t_tests
+ 4/17 Test  #8: fuelsim_cax8t_tests ..................   Passed    0.02 sec
+      Start 17: fuelsim_quad8_face_tests
+ 5/17 Test #12: fuelsim_c3d20t_tests .................   Passed    0.01 sec
+      Start 11: fuelsim_c3d8rt_tests
+ 6/17 Test #10: fuelsim_c3d8t_tests ..................   Passed    0.00 sec
+      Start  7: fuelsim_cax4rt_tests
+ 7/17 Test #11: fuelsim_c3d8rt_tests .................   Passed    0.00 sec
+      Start  3: fuelsim_contact_common_tests
+ 8/17 Test #17: fuelsim_quad8_face_tests .............   Passed    0.01 sec
+      Start 14: fuelsim_line2_rz_tests
+ 9/17 Test  #7: fuelsim_cax4rt_tests .................   Passed    0.00 sec
+      Start 15: fuelsim_line3_rz_tests
+10/17 Test  #3: fuelsim_contact_common_tests .........   Passed    0.00 sec
+      Start  2: fuelsim_common_math_tests
+11/17 Test #14: fuelsim_line2_rz_tests ...............   Passed    0.00 sec
+      Start 16: fuelsim_quad4_face_tests
+12/17 Test #15: fuelsim_line3_rz_tests ...............   Passed    0.00 sec
+      Start  5: fuelsim_cax2t_gps_tests
+13/17 Test  #2: fuelsim_common_math_tests ............   Passed    0.00 sec
+      Start  6: fuelsim_ring_gps_tests
+14/17 Test #16: fuelsim_quad4_face_tests .............   Passed    0.00 sec
+15/17 Test  #5: fuelsim_cax2t_gps_tests ..............   Passed    0.00 sec
+16/17 Test  #6: fuelsim_ring_gps_tests ...............   Passed    0.00 sec
+17/17 Test  #1: fuelsim_element_library_boundaries ...   Passed    0.20 sec
+
+100% tests passed, 0 tests failed out of 17
+
+Total Test time (real) =   0.21 sec
+
+cax2t_gps_small_mean_temperature_jacobian_error=1.754572710772e-09
+cax2t_gps_finite_mean_temperature_jacobian_error=1.754572710772e-09
+cax2t_gps_small_mean_hoop_jacobian_error=1.003494713089e-10
+cax2t_gps_finite_mean_hoop_jacobian_error=4.153439259971e-09
+cax2t_gps_small_cax4t_complete_projection_error=1.541022394144e-15
+cax2t_gps_finite_cax4t_complete_projection_error=1.410019746257e-15
+cax2t_gps_small_elastic_paired_temperature_jacobian_error=4.274486468657e-11
+cax2t_gps_small_coupled_paired_temperature_jacobian_error=3.817729837048e-11
+cax2t_gps_finite_elastic_paired_temperature_jacobian_error=3.942049901461e-11
+cax2t_gps_finite_coupled_paired_temperature_jacobian_error=8.834760887302e-11
+cax2t_gps_small_coupled_directional_jacobian_error=4.854439276228e-10
+cax2t_gps_finite_coupled_directional_jacobian_error=1.088573141620e-08

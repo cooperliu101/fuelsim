@@ -49,10 +49,11 @@ struct Cax2tGpsResult final {
 
 // Two radial Gauss points use paired radial-endpoint temperatures for elastic and
 // inelastic properties. Eigenstrain uses the arithmetic mean of the two radial
-// temperatures; thermal operators retain interpolated temperature and consistent
-// heat capacity. Mechanical hoop strain uses a reference-volume mean;
+// temperatures. Conductivity uses paired endpoint temperatures; heat capacity is
+// row-sum lumped with nodal properties and rates. Mechanical hoop strain uses a reference-volume mean;
 // finite strain averages the hoop stretch before its midpoint increment. Mechanical
-// point weights scale with the whole-element volume ratio, while thermal measures
-// retain the actual pointwise current geometry.
+// point weights and conduction weights scale with the whole-element volume ratio.
+// Finite conduction gradients use the incremental midpoint configuration; heat
+// capacity and source measures retain the actual pointwise current geometry.
 Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest request = {});
 } // namespace fuelsim::elements
