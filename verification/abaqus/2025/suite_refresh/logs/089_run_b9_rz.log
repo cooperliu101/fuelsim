@@ -1,0 +1,23 @@
+﻿case=b92_cax4rt_rectangle_probe work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax4rt_c0215acb6be440a69483a817cdc455e8
+Analysis initiated from SIMULIA established products
+Abaqus JOB b92_cax4rt_rectangle_probe
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9964 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:09:12 PM
+Run pre.exe
+9/13/2026 11:09:13 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:09:13 PM
+Run standard.exe
+9/13/2026 11:09:14 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:09:14 PM
+Run SMASimUtility.exe
+9/13/2026 11:09:14 PM
+End SIM Wrap-up
+Abaqus JOB b92_cax4rt_rectangle_probe COMPLETED

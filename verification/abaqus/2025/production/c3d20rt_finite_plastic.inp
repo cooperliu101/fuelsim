@@ -1,0 +1,74 @@
+*Heading
+** C3D20RT finite-strain uniaxial loading with plasticity.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Node
+1, 0, 0, 0
+2, 1, 0, 0
+3, 1, 1, 0
+4, 0, 1, 0
+5, 0, 0, 1
+6, 1, 0, 1
+7, 1, 1, 1
+8, 0, 1, 1
+9, 0.5, 0, 0
+10, 1, 0.5, 0
+11, 0.5, 1, 0
+12, 0, 0.5, 0
+13, 0.5, 0, 1
+14, 1, 0.5, 1
+15, 0.5, 1, 1
+16, 0, 0.5, 1
+17, 0, 0, 0.5
+18, 1, 0, 0.5
+19, 1, 1, 0.5
+20, 0, 1, 0.5
+*Element, type=C3D20RT, elset=SOLID
+1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+16, 17, 18, 19, 20
+*Nset, nset=ALL, generate
+1, 20, 1
+*Nset, nset=XZERO
+1, 4, 5, 8, 12, 16, 17, 20
+*Nset, nset=XONE
+2, 3, 6, 7, 10, 14, 18, 19
+*Nset, nset=YZERO
+1, 2, 5, 6, 9, 13, 17, 18
+*Nset, nset=ZZERO
+1, 2, 3, 4, 9, 10, 11, 12
+*Material, name=SOLID
+*Elastic
+2e11, 0.3
+*Plastic
+2e8, 0
+2.2e9, 1
+*Conductivity
+1
+*Density
+1
+*Specific Heat
+1
+*Solid Section, elset=SOLID, material=SOLID
+,
+*Initial Conditions, type=TEMPERATURE
+ALL, 600
+*Amplitude, name=PULL, time=TOTAL TIME
+0, 0, 0.1, 0.0015, 1, 0.006
+*Step, name=LOADING, nlgeom=YES, inc=10
+*Coupled Temperature-Displacement
+0.1, 1, 0.1, 0.1
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1e-12, 1e-12, , , , 1e-12
+*Boundary
+ALL, 11, 11, 600
+XZERO, 1, 1, 0
+YZERO, 2, 2, 0
+ZZERO, 3, 3, 0
+*Boundary, amplitude=PULL
+XONE, 1, 1, 1
+*Output, field, frequency=1
+*Node Output
+NT, U, RF
+*Element Output, directions=YES
+S, EE, PE, PEEQ, CE, CEEQ, COORD, IVOL
+*Output, history, frequency=0
+*End Step

@@ -1,0 +1,24 @@
+﻿Analysis initiated from SIMULIA established products
+Abaqus JOB b60_fuel_plate_c3d8rt_finite_ramped_bending
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9979 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:08:28 PM
+Run pre.exe
+9/13/2026 11:08:29 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:08:29 PM
+Run standard.exe
+9/13/2026 11:08:33 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:08:35 PM
+Run SMASimUtility.exe
+9/13/2026 11:08:35 PM
+End SIM Wrap-up
+Abaqus JOB b60_fuel_plate_c3d8rt_finite_ramped_bending COMPLETED
+Abaqus B6.0 ramped finite-strain wall time: 7.4296595 seconds
+Abaqus B6.0 ramped finite-strain work directory: C:\Users\TcroM\AppData\Local\Temp\fuelsim_b60_20260913_230827

@@ -1,0 +1,22 @@
+﻿Analysis initiated from SIMULIA established products
+Abaqus JOB b59_hex8_c3d8t_multimaterial
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9979 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:14:54 PM
+Run pre.exe
+9/13/2026 11:14:55 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:14:55 PM
+Run standard.exe
+9/13/2026 11:14:57 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:14:59 PM
+Run SMASimUtility.exe
+9/13/2026 11:14:59 PM
+End SIM Wrap-up
+Abaqus JOB b59_hex8_c3d8t_multimaterial COMPLETED

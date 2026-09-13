@@ -1,0 +1,77 @@
+*Heading
+** CAX4T temperature mapping probe: temperature-dependent isotropic hardening.
+** E=1e9 Pa, nu=0.3 and sigma0=2e6 Pa are constant; no thermal expansion.
+** H(T)=2e7+4e5*(T-600) Pa for 600 <= T <= 750 K.
+** Four distinct nodal temperatures are reversed during the second loading step.
+** Every nodal temperature and displacement is prescribed.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Node
+1, 0.004, 0
+2, 0.005, 0
+3, 0.005, 0.01
+4, 0.004, 0.01
+*Element, type=CAX4T, elset=ANNULUS
+1, 1, 2, 3, 4
+*Nset, nset=ALL
+1, 2, 3, 4
+*Nset, nset=BOTTOM
+1, 2
+*Nset, nset=TOP
+3, 4
+*Material, name=SOLID
+*Elastic
+1e9, 0.3
+*Plastic, hardening=ISOTROPIC
+2e6, 0, 600
+6e6, 0.2, 600
+2e6, 0, 750
+18e6, 0.2, 750
+*Conductivity
+10
+*Density
+1000
+*Specific Heat
+1000
+*Solid Section, elset=ANNULUS, material=SOLID
+,
+*Initial Conditions, type=TEMPERATURE
+1, 600
+2, 650
+3, 700
+4, 750
+*Step, name=LOAD_FIXED_T, nlgeom=NO, inc=5, amplitude=RAMP
+*Coupled Temperature-Displacement
+0.2, 1, 0.2, 0.2
+*Boundary
+ALL, 1, 1, 0
+BOTTOM, 2, 2, 0
+TOP, 2, 2, 0.0004
+1, 11, 11, 600
+2, 11, 11, 650
+3, 11, 11, 700
+4, 11, 11, 750
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output
+S, EE, PE, PEEQ
+COORD, IVOL
+*Output, history, frequency=0
+*End Step
+*Step, name=LOAD_SWAPPED_T, nlgeom=NO, inc=5, amplitude=RAMP
+*Coupled Temperature-Displacement
+0.2, 1, 0.2, 0.2
+*Boundary
+TOP, 2, 2, 0.0008
+1, 11, 11, 750
+2, 11, 11, 700
+3, 11, 11, 650
+4, 11, 11, 600
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output
+S, EE, PE, PEEQ
+COORD, IVOL
+*Output, history, frequency=0
+*End Step

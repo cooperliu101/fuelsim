@@ -169,10 +169,10 @@ env \
 env PATH="${fuelsim_toolchain_prefix}/bin:/usr/local/bin:/usr/bin:/bin" \
   cmake --build build --parallel 4
 
-ctest --test-dir build -j4 --output-on-failure
+ctest --test-dir build -j8 --output-on-failure
 ```
 
-CTest 只保留一个最多四并发的统一回归入口。扩展参数扫描和大型性能路径作为手动
+CTest 只保留一个最多八个并发额度的统一回归入口。扩展参数扫描和大型性能路径作为手动
 验证资料保留，不再用标签形成第二套测试层级。端到端生产算例与内部数值契约
 测试的入口边界见 [测试入口说明](tests/README.md)。
 
@@ -233,7 +233,7 @@ Vec、Mat、SNES、贡献计算和线性求解均为真实分布式对象。
 运行轴对称 Abaqus 生产验收：
 
 ```bash
-ctest --test-dir build -j4 -R 'b13_|b7[0-9]_rz_' --output-on-failure
+ctest --test-dir build -j8 -R 'b13_|b7[0-9]_rz_' --output-on-failure
 ```
 
 CTest 运行完整生产输入卡，再读取结果与独立参考比较。轴对称 MOOSE 的旧验收

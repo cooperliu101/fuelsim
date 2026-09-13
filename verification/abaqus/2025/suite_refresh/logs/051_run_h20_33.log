@@ -1,0 +1,24 @@
+﻿Analysis initiated from SIMULIA established products
+Abaqus JOB h20_33_hex20_nonmatching_friction_path
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9974 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:08:33 PM
+Run pre.exe
+9/13/2026 11:08:34 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:08:34 PM
+Run standard.exe
+9/13/2026 11:08:38 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:08:40 PM
+Run SMASimUtility.exe
+9/13/2026 11:08:40 PM
+End SIM Wrap-up
+Abaqus JOB h20_33_hex20_nonmatching_friction_path COMPLETED
+H20.33 available final-frame fields: CNORMF   SECONDARY_CONTACT/PRIMARY_CONTACT, COORD, COPEN    SECONDARY_CONTACT/PRIMARY_CONTACT, CPRESS   SECONDARY_CONTACT/PRIMARY_CONTACT, CSHEAR1  SECONDARY_CONTACT/PRIMARY_CONTACT, CSHEAR2  SECONDARY_CONTACT/PRIMARY_CONTACT, CSHEARF  SECONDARY_CONTACT/PRIMARY_CONTACT, CSLIP1   SECONDARY_CONTACT/PRIMARY_CONTACT, CSLIP2   SECONDARY_CONTACT/PRIMARY_CONTACT, RF, U
+Abaqus H20.33 work directory: C:\Users\TcroM\AppData\Local\Temp\fuelsim_h20_33_20260913_230833

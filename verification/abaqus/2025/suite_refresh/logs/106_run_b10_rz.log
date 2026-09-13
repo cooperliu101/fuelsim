@@ -1,0 +1,23 @@
+﻿case=b104_cax8t_small_coupled work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax8t_2fea4578b0084b07a2b04ecd536fb9c0
+Analysis initiated from SIMULIA established products
+Abaqus JOB b104_cax8t_small_coupled
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9979 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:09:30 PM
+Run pre.exe
+9/13/2026 11:09:31 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:09:31 PM
+Run standard.exe
+9/13/2026 11:09:32 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:09:35 PM
+Run SMASimUtility.exe
+9/13/2026 11:09:35 PM
+End SIM Wrap-up
+Abaqus JOB b104_cax8t_small_coupled COMPLETED

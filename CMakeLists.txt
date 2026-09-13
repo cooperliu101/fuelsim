@@ -311,7 +311,7 @@ if(BUILD_TESTING)
                 "-DINPUT_FILE=${staged_input}"
                 "-DOUTPUT_FILE=${results}"
                 "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
-                "-DCHECK_ARGUMENTS=cax4t-material-temperature;${results};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cax4t_material_temperature_probe;${material_case}"
+                "-DCHECK_ARGUMENTS=cax4t-material-temperature;${results};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/cax4t_material_temperature_probe;${material_case}"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
         set_tests_properties("${test_name}" PROPERTIES LABELS "abaqus;production;axisymmetric")
     endforeach()
@@ -321,10 +321,7 @@ if(BUILD_TESTING)
         get_filename_component(case_directory "${staged_input}" DIRECTORY)
         set(results "${case_directory}/${input_stem}_results.e")
         set(summary "${case_directory}/${input_stem}_summary.csv")
-        set(radial_reference "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/gps_1d")
-        if(mode MATCHES "^(uniform-finite|nonuniform-finite|material-temperature-finite|thermal-small|thermal-finite)$")
-            set(radial_reference "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/gps_1d")
-        endif()
+        set(radial_reference "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/gps_1d")
         add_test(NAME "${test_name}" COMMAND "${CMAKE_COMMAND}"
             "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
             "-DINPUT_FILE=${staged_input}"
@@ -350,7 +347,7 @@ if(BUILD_TESTING)
         "-DINPUT_FILE=${gps_steady_input}"
         "-DOUTPUT_FILES=${gps_steady_result};${gps_steady_summary}"
         "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_radial>"
-        "-DCHECK_ARGUMENTS=steady-finite;${gps_steady_result};${gps_steady_summary};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/gps_1d"
+        "-DCHECK_ARGUMENTS=steady-finite;${gps_steady_result};${gps_steady_summary};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/gps_1d"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
     set_tests_properties(fuelsim_gps_contact_abaqus PROPERTIES FIXTURES_SETUP gps_contact_reference)
     set(gps_contact_reference "${CMAKE_CURRENT_BINARY_DIR}/blackbox/fuelsim_gps_contact_abaqus/verification/fuelsim/transient_gps_contact_small_results.e")
@@ -371,7 +368,7 @@ if(BUILD_TESTING)
         if(formulation STREQUAL "small")
             set_tests_properties(fuelsim_gps_chain_small PROPERTIES FIXTURES_SETUP gps_small_chain_reference)
             add_test(NAME fuelsim_gps_chain_abaqus COMMAND "$<TARGET_FILE:fuelsim_production_radial>"
-                chain-small "${results}" "${summary}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/gps_1d")
+                chain-small "${results}" "${summary}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/gps_1d")
             set_tests_properties(fuelsim_gps_chain_abaqus PROPERTIES FIXTURES_REQUIRED gps_small_chain_reference)
         endif()
     endforeach()
@@ -410,15 +407,6 @@ if(BUILD_TESTING)
         set(summary "${case_directory}/${input_stem}_summary.csv")
         set(output_files "${results};${summary}")
         set(check_arguments "${ARGN}")
-        # Explicit versioned references; physical input cards remain byte-identical.
-        foreach(reference_case IN ITEMS b77_rz_finite_thermal b91_cax4rt_finite_probe
-            b910_cax4rt_finite_thermal b917_cax4rt_finite_thermal_operators
-            b101_cax8t_finite_probe b111_cax8t_finite_thermal b121_cax8rt_finite_probe
-            b1211_cax8rt_finite_thermal b150_cax4t_finite_thermal_operator b526_friction_reversal)
-            string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${reference_case}"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${reference_case}"
-                check_arguments "${check_arguments}")
-        endforeach()
         if(check_mode STREQUAL "hex8-inelastic" OR check_mode STREQUAL "b34-transient" OR check_mode STREQUAL "b40"
             OR check_mode STREQUAL "b549" OR check_mode STREQUAL "b550" OR check_mode STREQUAL "b555"
             OR check_mode STREQUAL "b531" OR check_mode STREQUAL "b534" OR check_mode STREQUAL "rz-sliding-abaqus"
@@ -567,14 +555,14 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b61_c3d20t_material_replay)
     fuelsim_add_production_test(fuelsim_b60_c3d8rt_finite_steady_bending_tests b60_steady
         steady_b60_fuel_plate_c3d8rt_finite_bending b60 steady
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b60_fuel_plate_c3d8rt_finite_steady_bending_nodal.csv")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b60_fuel_plate_c3d8rt_finite_steady_bending_nodal.csv")
     set_tests_properties(fuelsim_b60_c3d8rt_finite_steady_bending_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;finite-strain;steady;thermal;mechanical;bending"
         TIMEOUT 120
     )
     fuelsim_add_production_test(fuelsim_b60_c3d8rt_finite_transient_bending_tests b60_transient
         transient_b60_fuel_plate_c3d8rt_finite_ramped_bending b60 transient
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b60_fuel_plate_c3d8rt_finite_ramped_bending_nodal.csv")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b60_fuel_plate_c3d8rt_finite_ramped_bending_nodal.csv")
     set_tests_properties(fuelsim_b60_c3d8rt_finite_transient_bending_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;finite-strain;transient;thermal;mechanical;bending"
         TIMEOUT 120
@@ -689,7 +677,7 @@ if(BUILD_TESTING)
             "-DINPUT_FILE=${c3d20rt_contact_input}"
             "-DOUTPUT_FILE=${c3d20rt_contact_output}"
             "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_c3d20rt_contact_results>"
-            "-DCHECK_ARGUMENTS=${c3d20rt_contact_output};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/c3d20rt_contact_friction_nodes.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/c3d20rt_contact_friction_contact.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/c3d20rt_contact_friction_points.csv;70"
+            "-DCHECK_ARGUMENTS=${c3d20rt_contact_output};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/c3d20rt_contact_friction_nodes.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/c3d20rt_contact_friction_contact.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/c3d20rt_contact_friction_points.csv;70"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
     set_tests_properties(fuelsim_c3d20rt_contact_friction_abaqus_tests PROPERTIES
         LABELS "three-dimensional;quadratic;abaqus;contact;thermal;friction;transient" TIMEOUT 180)
@@ -704,7 +692,7 @@ if(BUILD_TESTING)
             "-DINPUT_FILE=${c3d20rt_frictionless_input}"
             "-DOUTPUT_FILE=${c3d20rt_frictionless_output}"
             "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_c3d20rt_contact_results>"
-            "-DCHECK_ARGUMENTS=${c3d20rt_frictionless_output};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/c3d20rt_finite_contact_frictionless_short_nodes.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/c3d20rt_finite_contact_frictionless_short_contact.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/c3d20rt_finite_contact_frictionless_short_points.csv;80;8;--qualified-finite-frictionless"
+            "-DCHECK_ARGUMENTS=${c3d20rt_frictionless_output};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/c3d20rt_finite_contact_frictionless_short_nodes.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/c3d20rt_finite_contact_frictionless_short_contact.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/c3d20rt_finite_contact_frictionless_short_points.csv;80;8;--qualified-finite-frictionless"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
     set_tests_properties(fuelsim_c3d20rt_finite_frictionless_abaqus_tests PROPERTIES
         LABELS "three-dimensional;quadratic;abaqus;contact;thermal;transient" TIMEOUT 180)
@@ -721,7 +709,7 @@ if(BUILD_TESTING)
                 "-DINPUT_FILE=${c3d20rt_material_input}"
                 "-DOUTPUT_FILE=${c3d20rt_material_output}"
                 "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_c3d20rt_material_results>"
-                "-DCHECK_ARGUMENTS=${c3d20rt_material_output};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${c3d20rt_material_name}_nodes.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${c3d20rt_material_name}_points.csv;${c3d20rt_material_mode}"
+                "-DCHECK_ARGUMENTS=${c3d20rt_material_output};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${c3d20rt_material_name}_nodes.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${c3d20rt_material_name}_points.csv;${c3d20rt_material_mode}"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
         set_tests_properties("fuelsim_${c3d20rt_material_name}_abaqus_tests" PROPERTIES
             LABELS "three-dimensional;quadratic;abaqus;inelastic;transient")
@@ -730,10 +718,7 @@ if(BUILD_TESTING)
         fuelsim_exodus_result_test_support fuelsim_field_error_metrics)
     fuelsim_enable_warnings(fuelsim_c3d20rt_probe_results)
     foreach(c3d20rt_probe_name IN ITEMS c3d20rt_thermal_probe c3d20rt_nonaffine_probe c3d20rt_small_probe)
-        set(probe_reference "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus")
-        if(NOT c3d20rt_probe_name STREQUAL "c3d20rt_small_probe")
-            set(probe_reference "${probe_reference}/2025/production")
-        endif()
+        set(probe_reference "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production")
         fuelsim_stage_blackbox_case(c3d20rt_probe_input ${c3d20rt_probe_name} transient_${c3d20rt_probe_name}.fsi)
         get_filename_component(c3d20rt_probe_directory "${c3d20rt_probe_input}" DIRECTORY)
         set(c3d20rt_probe_results "${c3d20rt_probe_directory}/transient_${c3d20rt_probe_name}_results.e")
@@ -767,8 +752,8 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b38_hex8_sts_identification_tests)
     add_test(NAME fuelsim_b38_hex8_sts_identification_tests
         COMMAND fuelsim_b38_hex8_sts_identification_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b38_hex8_sts_operator.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b38_hex8_sts_contact_summary.txt")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b38_hex8_sts_operator.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b38_hex8_sts_contact_summary.txt")
     set_tests_properties(fuelsim_b38_hex8_sts_identification_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;abaqus;identification")
 
@@ -778,8 +763,8 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b49_hex8_c3d8t_operator_abaqus_tests)
     add_test(NAME fuelsim_b49_hex8_c3d8t_operator_abaqus_tests
         COMMAND fuelsim_b49_hex8_c3d8t_operator_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b49_hex8_c3d8t_operator_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b49_hex8_c3d8t_operator_integration_points.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b49_hex8_c3d8t_operator_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b49_hex8_c3d8t_operator_integration_points.csv")
     set_tests_properties(fuelsim_b49_hex8_c3d8t_operator_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;thermo-mechanical;abaqus;identification")
 
@@ -789,7 +774,7 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b50_hex8_c3d8t_capacity_abaqus_tests)
     add_test(NAME fuelsim_b50_hex8_c3d8t_capacity_abaqus_tests
         COMMAND fuelsim_b50_hex8_c3d8t_capacity_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b50_hex8_c3d8t_capacity.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b50_hex8_c3d8t_capacity.csv")
     set_tests_properties(fuelsim_b50_hex8_c3d8t_capacity_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;thermal;abaqus;identification")
 
@@ -799,8 +784,8 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests)
     add_test(NAME fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests
         COMMAND fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b51_hex8_c3d8t_finite_heat_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b51_hex8_c3d8t_finite_heat_integration_points.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b51_hex8_c3d8t_finite_heat_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b51_hex8_c3d8t_finite_heat_integration_points.csv")
     set_tests_properties(fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;finite-strain;thermal;abaqus;identification")
 
@@ -810,7 +795,7 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b52_hex8_c3d8t_thermal_contact_abaqus_tests)
     add_test(NAME fuelsim_b52_hex8_c3d8t_thermal_contact_abaqus_tests
         COMMAND fuelsim_b52_hex8_c3d8t_thermal_contact_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b52_hex8_c3d8t_thermal_contact_nodal.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b52_hex8_c3d8t_thermal_contact_nodal.csv")
     set_tests_properties(fuelsim_b52_hex8_c3d8t_thermal_contact_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;thermal;contact;abaqus")
 
@@ -820,8 +805,8 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b520_hex8_c3d8t_gap_conductance_abaqus_tests)
     add_test(NAME fuelsim_b520_hex8_c3d8t_gap_conductance_abaqus_tests
         COMMAND fuelsim_b520_hex8_c3d8t_gap_conductance_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b520_hex8_c3d8t_gap_conductance_clearance_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b520_hex8_c3d8t_gap_conductance_pressure_nodal.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b520_hex8_c3d8t_gap_conductance_clearance_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b520_hex8_c3d8t_gap_conductance_pressure_nodal.csv")
     set_tests_properties(fuelsim_b520_hex8_c3d8t_gap_conductance_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;thermo-mechanical;contact;abaqus;identification")
 
@@ -832,7 +817,7 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b521_hex8_c3d8t_thermal_contact_path_abaqus_tests)
     add_test(NAME fuelsim_b521_hex8_c3d8t_thermal_contact_path_abaqus_tests
         COMMAND fuelsim_b521_hex8_c3d8t_thermal_contact_path_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b521_hex8_c3d8t_thermal_contact_path_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b521_hex8_c3d8t_thermal_contact_path_nodal.csv"
             "${CMAKE_CURRENT_BINARY_DIR}/b521_hex8_c3d8t_thermal_contact_checkpoint.bin")
     set_tests_properties(fuelsim_b521_hex8_c3d8t_thermal_contact_path_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;thermo-mechanical;contact;abaqus")
@@ -844,16 +829,16 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests)
     add_test(NAME fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests
         COMMAND fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_f6_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_f12_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_swapped_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_tight_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_contact.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_f6_contact.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_f12_contact.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_swapped_contact.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_tight_contact.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b522_hex8_c3d8t_faceted_thermal_contact_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b522_hex8_c3d8t_faceted_thermal_contact_f6_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b522_hex8_c3d8t_faceted_thermal_contact_f12_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b522_hex8_c3d8t_faceted_thermal_contact_swapped_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b522_hex8_c3d8t_faceted_thermal_contact_tight_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b522_hex8_c3d8t_faceted_thermal_contact_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b522_hex8_c3d8t_faceted_thermal_contact_f6_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b522_hex8_c3d8t_faceted_thermal_contact_f12_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b522_hex8_c3d8t_faceted_thermal_contact_swapped_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b522_hex8_c3d8t_faceted_thermal_contact_tight_contact.csv")
     set_tests_properties(fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;thermo-mechanical;contact;curved;abaqus")
 
@@ -865,7 +850,7 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests)
     fuelsim_add_production_test(fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests b523
         transient_b523_integrated_contact hex8-contact-path b523
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b523_hex8_c3d8t_integrated_path")
     set_tests_properties(fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;plasticity;creep;friction;contact;abaqus")
 
@@ -874,7 +859,7 @@ if(BUILD_TESTING)
         set(b526_test "fuelsim_b526_hex8_c3d8t_${b526_suffix}_abaqus_tests")
         fuelsim_add_production_test(${b526_test} ${b526_case}
             transient_${b526_case} hex8-contact-path ${b526_case}
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${b526_case}")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${b526_case}")
         set_tests_properties(${b526_test} PROPERTIES
             LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;friction;contact;abaqus;transition")
     endforeach()
@@ -885,14 +870,14 @@ if(BUILD_TESTING)
         set(b53_contact_test "fuelsim_${b53_contact_case}_c3d8rt_abaqus_tests")
         fuelsim_add_production_test(${b53_contact_test} ${b53_contact_case}
             transient_${b53_contact_case} hex8-contact-path ${b53_contact_case}
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${b53_contact_case}")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${b53_contact_case}")
         set_tests_properties(${b53_contact_test} PROPERTIES
             LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;thermal;mechanical;finite-strain;friction;contact;abaqus;transition")
     endforeach()
 
     fuelsim_add_production_test(fuelsim_b540_c3d8rt_nonmatching_contact_abaqus_tests b540
         transient_b540_nonmatching_contact_cycle hex8-contact-path b540_nonmatching_contact_cycle
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b540_nonmatching_contact_cycle")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b540_nonmatching_contact_cycle")
     set_tests_properties(fuelsim_b540_c3d8rt_nonmatching_contact_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;thermal;mechanical;finite-strain;friction;contact;nonmatching;abaqus;transition")
 
@@ -910,7 +895,7 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b527_hex8_engineering_fuel_clad_tests)
     fuelsim_add_production_test(fuelsim_b527_medium_abaqus_tests b527
         transient_b527_engineering_contact hex8-contact-path b527_medium
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b527_medium")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b527_medium")
     set_tests_properties(fuelsim_b527_medium_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;friction;contact;engineering;abaqus")
 
@@ -921,7 +906,7 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b552_hex8_c3d8t_sts_cross_face_abaqus_tests)
     add_test(NAME fuelsim_b552_hex8_c3d8t_sts_cross_face_abaqus_tests
         COMMAND fuelsim_b552_hex8_c3d8t_sts_cross_face_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production")
     set_tests_properties(fuelsim_b552_hex8_c3d8t_sts_cross_face_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8t;steady;mechanical;finite-strain;contact;surface-to-surface;finite-sliding;operator-identification;abaqus")
 
@@ -931,9 +916,9 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b53_hex8_c3d8t_thermal_load_abaqus_tests)
     add_test(NAME fuelsim_b53_hex8_c3d8t_thermal_load_abaqus_tests
         COMMAND fuelsim_b53_hex8_c3d8t_thermal_load_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b53_hex8_c3d8t_thermal_load.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b53_hex8_c3d8t_thermal_load_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b53_hex8_c3d8t_surface_geometry.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b53_hex8_c3d8t_thermal_load.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b53_hex8_c3d8t_thermal_load_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b53_hex8_c3d8t_surface_geometry.csv")
     set_tests_properties(fuelsim_b53_hex8_c3d8t_thermal_load_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;thermal;abaqus;identification")
 
@@ -950,15 +935,15 @@ if(BUILD_TESTING)
 
     fuelsim_add_production_test(fuelsim_b55_hex8_c3d8t_transient_abaqus_tests b55
             transient_b55_hex8_c3d8t_thermal b55
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b55_hex8_c3d8t_transient_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b55_hex8_c3d8t_transient_integration.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b55_hex8_c3d8t_transient_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b55_hex8_c3d8t_transient_integration.csv")
     set_tests_properties(fuelsim_b55_hex8_c3d8t_transient_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;abaqus")
 
     add_test(NAME fuelsim_b56_hex8_c3d8t_temperature_operator_abaqus_tests
         COMMAND fuelsim_b49_hex8_c3d8t_operator_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b56_hex8_c3d8t_temperature_operator_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b56_hex8_c3d8t_temperature_operator_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b56_hex8_c3d8t_temperature_operator_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b56_hex8_c3d8t_temperature_operator_integration.csv"
             temperature_dependent)
     set_tests_properties(fuelsim_b56_hex8_c3d8t_temperature_operator_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;thermal;mechanical;temperature-dependent;abaqus;identification")
@@ -975,8 +960,8 @@ if(BUILD_TESTING)
 
     fuelsim_add_production_test(fuelsim_b58_hex8_c3d8t_multistep_abaqus_tests b58
             transient_b58_hex8_c3d8t_multistep b58
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b58_hex8_c3d8t_reference_mass_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b58_hex8_c3d8t_reference_mass_integration.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b58_hex8_c3d8t_reference_mass_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b58_hex8_c3d8t_reference_mass_integration.csv")
     set_tests_properties(fuelsim_b58_hex8_c3d8t_multistep_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;temperature-dependent;abaqus")
 
@@ -994,33 +979,33 @@ if(BUILD_TESTING)
             "-DCASE_DIRECTORY=${b59_case_directory}"
             "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
             "-DINTERNAL_COMMAND=$<TARGET_FILE:fuelsim_b59_hex8_c3d8t_multimaterial_abaqus_tests>"
-            "-DREFERENCE_DIRECTORY=${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus"
+            "-DREFERENCE_DIRECTORY=${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_b59.cmake")
     set_tests_properties(fuelsim_b59_hex8_c3d8t_multimaterial_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;multimaterial;distorted;abaqus")
 
     fuelsim_add_production_test(fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests b510
         transient_b510_small_j2 hex8-inelastic-abaqus plastic
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b510_hex8_c3d8t_small_j2_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b510_hex8_c3d8t_small_j2_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b510_hex8_c3d8t_small_j2_energy.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b510_hex8_c3d8t_small_j2_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b510_hex8_c3d8t_small_j2_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b510_hex8_c3d8t_small_j2_energy.csv")
     set_tests_properties(fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests PROPERTIES
         FIXTURES_SETUP b510_production
         LABELS "acceptance;three-dimensional;hex8;transient;mechanical;plasticity;abaqus")
 
     fuelsim_add_production_test(fuelsim_b512_hex8_c3d8t_small_coupled_abaqus_tests b512
         transient_b512_small_coupled hex8-inelastic-abaqus coupled
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b512_hex8_c3d8t_small_coupled_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b512_hex8_c3d8t_small_coupled_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b512_hex8_c3d8t_small_coupled_energy.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b512_hex8_c3d8t_small_coupled_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b512_hex8_c3d8t_small_coupled_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b512_hex8_c3d8t_small_coupled_energy.csv")
     set_tests_properties(fuelsim_b512_hex8_c3d8t_small_coupled_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;mechanical;plasticity;creep;abaqus")
 
     fuelsim_add_production_test(fuelsim_b513_hex8_c3d8t_small_noncoaxial_abaqus_tests b513
         transient_b513_small_noncoaxial hex8-inelastic-abaqus noncoaxial
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b513_hex8_c3d8t_small_noncoaxial_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b513_hex8_c3d8t_small_noncoaxial_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b513_hex8_c3d8t_small_noncoaxial_energy.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b513_hex8_c3d8t_small_noncoaxial_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b513_hex8_c3d8t_small_noncoaxial_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b513_hex8_c3d8t_small_noncoaxial_energy.csv")
     set_tests_properties(fuelsim_b513_hex8_c3d8t_small_noncoaxial_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;mechanical;plasticity;creep;noncoaxial;reversal;abaqus")
 
@@ -1031,74 +1016,74 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b514_hex8_c3d8t_finite_elastic_abaqus_tests)
     add_test(NAME fuelsim_b514_hex8_c3d8t_finite_elastic_abaqus_tests
         COMMAND fuelsim_b514_hex8_c3d8t_finite_elastic_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b514_hex8_c3d8t_finite_elastic_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b514_hex8_c3d8t_finite_elastic_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b514_hex8_c3d8t_finite_elastic_energy.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b514_hex8_c3d8t_finite_elastic_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b514_hex8_c3d8t_finite_elastic_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b514_hex8_c3d8t_finite_elastic_energy.csv")
     set_tests_properties(fuelsim_b514_hex8_c3d8t_finite_elastic_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;mechanical;elasticity;finite-strain;rotation;abaqus")
 
     fuelsim_add_production_test(fuelsim_b515_hex8_c3d8t_finite_j2_abaqus_tests b515
         transient_b515_finite_j2 hex8-inelastic-abaqus finite_plastic
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b515_hex8_c3d8t_finite_j2_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b515_hex8_c3d8t_finite_j2_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b515_hex8_c3d8t_finite_j2_energy.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b515_hex8_c3d8t_finite_j2_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b515_hex8_c3d8t_finite_j2_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b515_hex8_c3d8t_finite_j2_energy.csv")
     set_tests_properties(fuelsim_b515_hex8_c3d8t_finite_j2_abaqus_tests PROPERTIES
         FIXTURES_SETUP b515_production
         LABELS "acceptance;three-dimensional;hex8;transient;mechanical;plasticity;finite-strain;reversal;abaqus")
 
     fuelsim_add_production_test(fuelsim_b517_hex8_c3d8t_finite_coupled_abaqus_tests b517
         transient_b517_finite_coupled hex8-inelastic-abaqus finite_coupled
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b517_hex8_c3d8t_finite_coupled_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b517_hex8_c3d8t_finite_coupled_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b517_hex8_c3d8t_finite_coupled_energy.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b517_hex8_c3d8t_finite_coupled_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b517_hex8_c3d8t_finite_coupled_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b517_hex8_c3d8t_finite_coupled_energy.csv")
     set_tests_properties(fuelsim_b517_hex8_c3d8t_finite_coupled_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;mechanical;plasticity;creep;finite-strain;abaqus")
 
     fuelsim_add_production_test(fuelsim_b535_hex8_c3d8rt_finite_j2_abaqus_tests b535
         transient_b535_finite_c3d8rt_j2 hex8-inelastic-abaqus finite_reduced_plastic
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b535_hex8_c3d8rt_finite_j2_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b535_hex8_c3d8rt_finite_j2_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b535_hex8_c3d8rt_finite_j2_energy.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b535_hex8_c3d8rt_finite_j2_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b535_hex8_c3d8rt_finite_j2_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b535_hex8_c3d8rt_finite_j2_energy.csv")
     set_tests_properties(fuelsim_b535_hex8_c3d8rt_finite_j2_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;plasticity;finite-strain;reversal;abaqus")
 
     fuelsim_add_production_test(fuelsim_b537_hex8_c3d8rt_finite_coupled_abaqus_tests b537
         transient_b537_finite_c3d8rt_coupled hex8-inelastic-abaqus finite_reduced_coupled
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b537_hex8_c3d8rt_finite_coupled_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b537_hex8_c3d8rt_finite_coupled_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b537_hex8_c3d8rt_finite_coupled_energy.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b537_hex8_c3d8rt_finite_coupled_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b537_hex8_c3d8rt_finite_coupled_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b537_hex8_c3d8rt_finite_coupled_energy.csv")
     set_tests_properties(fuelsim_b537_hex8_c3d8rt_finite_coupled_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;plasticity;creep;finite-strain;abaqus")
 
     fuelsim_add_production_test(fuelsim_b541_hex8_c3d8rt_small_j2_abaqus_tests b541
         transient_b541_small_c3d8rt_j2 hex8-inelastic-abaqus reduced_plastic
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b541_hex8_c3d8rt_small_j2_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b541_hex8_c3d8rt_small_j2_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b541_hex8_c3d8rt_small_j2_energy.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b541_hex8_c3d8rt_small_j2_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b541_hex8_c3d8rt_small_j2_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b541_hex8_c3d8rt_small_j2_energy.csv")
     set_tests_properties(fuelsim_b541_hex8_c3d8rt_small_j2_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;plasticity;small-strain;reversal;abaqus")
 
     fuelsim_add_production_test(fuelsim_b543_hex8_c3d8rt_small_coupled_abaqus_tests b543
         transient_b543_small_c3d8rt_coupled hex8-inelastic-abaqus reduced_coupled
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b543_hex8_c3d8rt_small_coupled_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b543_hex8_c3d8rt_small_coupled_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b543_hex8_c3d8rt_small_coupled_energy.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b543_hex8_c3d8rt_small_coupled_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b543_hex8_c3d8rt_small_coupled_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b543_hex8_c3d8rt_small_coupled_energy.csv")
     set_tests_properties(fuelsim_b543_hex8_c3d8rt_small_coupled_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;plasticity;creep;small-strain;abaqus")
 
     fuelsim_add_production_test(fuelsim_b545_hex8_c3d8rt_finite_noncoaxial_abaqus_tests b545
         transient_b545_finite_c3d8rt_noncoaxial hex8-inelastic-abaqus finite_reduced_noncoaxial
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b545_hex8_c3d8rt_finite_noncoaxial_100step_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b545_hex8_c3d8rt_finite_noncoaxial_100step_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b545_hex8_c3d8rt_finite_noncoaxial_100step_energy.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b545_hex8_c3d8rt_finite_noncoaxial_100step_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b545_hex8_c3d8rt_finite_noncoaxial_100step_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b545_hex8_c3d8rt_finite_noncoaxial_100step_energy.csv")
     set_tests_properties(fuelsim_b545_hex8_c3d8rt_finite_noncoaxial_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;plasticity;creep;finite-strain;noncoaxial;large-rotation;abaqus")
 
     fuelsim_add_production_test(fuelsim_b518_hex8_c3d8t_finite_noncoaxial_abaqus_tests b518
         transient_b518_finite_noncoaxial hex8-inelastic-abaqus finite_noncoaxial
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b518_hex8_c3d8t_finite_noncoaxial_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b518_hex8_c3d8t_finite_noncoaxial_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b518_hex8_c3d8t_finite_noncoaxial_energy.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b518_hex8_c3d8t_finite_noncoaxial_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b518_hex8_c3d8t_finite_noncoaxial_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b518_hex8_c3d8t_finite_noncoaxial_energy.csv")
     set_tests_properties(fuelsim_b518_hex8_c3d8t_finite_noncoaxial_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;mechanical;plasticity;creep;finite-strain;noncoaxial;reversal;abaqus")
 
@@ -1109,40 +1094,40 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b519_hex8_c3d8t_finite_selective_abaqus_tests)
     add_test(NAME fuelsim_b519_hex8_c3d8t_finite_selective_abaqus_tests
         COMMAND fuelsim_b519_hex8_c3d8t_finite_selective_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b519_hex8_c3d8t_finite_selective_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b519_hex8_c3d8t_finite_selective_integration.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b519_hex8_c3d8t_finite_selective_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b519_hex8_c3d8t_finite_selective_integration.csv")
     set_tests_properties(fuelsim_b519_hex8_c3d8t_finite_selective_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;mechanical;elasticity;finite-strain;selective-integration;abaqus")
 
     fuelsim_add_production_test(fuelsim_b511_hex8_c3d8t_small_norton_abaqus_tests b511
         transient_b511_small_norton hex8-norton-abaqus small
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b511_hex8_c3d8t_small_norton_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b511_hex8_c3d8t_small_norton_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b511_hex8_c3d8t_small_norton_energy.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b511_hex8_c3d8t_small_norton_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b511_hex8_c3d8t_small_norton_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b511_hex8_c3d8t_small_norton_energy.csv")
     set_tests_properties(fuelsim_b511_hex8_c3d8t_small_norton_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;mechanical;creep;abaqus")
 
     fuelsim_add_production_test(fuelsim_b516_hex8_c3d8t_finite_norton_abaqus_tests b516
         transient_b516_finite_norton hex8-norton-abaqus finite
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b516_hex8_c3d8t_finite_norton_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b516_hex8_c3d8t_finite_norton_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b516_hex8_c3d8t_finite_norton_energy.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b516_hex8_c3d8t_finite_norton_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b516_hex8_c3d8t_finite_norton_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b516_hex8_c3d8t_finite_norton_energy.csv")
     set_tests_properties(fuelsim_b516_hex8_c3d8t_finite_norton_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;mechanical;creep;finite-strain;abaqus")
 
     fuelsim_add_production_test(fuelsim_b536_hex8_c3d8rt_finite_norton_abaqus_tests b536
         transient_b536_finite_c3d8rt_norton hex8-norton-abaqus finite_reduced
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b536_hex8_c3d8rt_finite_norton_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b536_hex8_c3d8rt_finite_norton_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b536_hex8_c3d8rt_finite_norton_energy.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b536_hex8_c3d8rt_finite_norton_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b536_hex8_c3d8rt_finite_norton_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b536_hex8_c3d8rt_finite_norton_energy.csv")
     set_tests_properties(fuelsim_b536_hex8_c3d8rt_finite_norton_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;creep;finite-strain;abaqus")
 
     fuelsim_add_production_test(fuelsim_b542_hex8_c3d8rt_small_norton_abaqus_tests b542
         transient_b542_small_c3d8rt_norton hex8-norton-abaqus reduced
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b542_hex8_c3d8rt_small_norton_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b542_hex8_c3d8rt_small_norton_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b542_hex8_c3d8rt_small_norton_energy.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b542_hex8_c3d8rt_small_norton_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b542_hex8_c3d8rt_small_norton_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b542_hex8_c3d8rt_small_norton_energy.csv")
     set_tests_properties(fuelsim_b542_hex8_c3d8rt_small_norton_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;creep;small-strain;abaqus")
 
@@ -1154,9 +1139,9 @@ if(BUILD_TESTING)
         set(b39_test "fuelsim_b39_hex8_sts_${b39_case}_abaqus_tests")
         set(b39_stem "steady_hex8_sts_${b39_case}_abaqus")
         fuelsim_add_production_test(${b39_test} b39_${b39_case} ${b39_stem} planar-sts-hex8
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b39_hex8_sts_${b39_case}_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b39_hex8_sts_${b39_case}_force.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b39_hex8_sts_${b39_case}_reaction.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b39_hex8_sts_${b39_case}_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b39_hex8_sts_${b39_case}_force.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b39_hex8_sts_${b39_case}_reaction.csv")
         set_tests_properties(${b39_test} PROPERTIES FIXTURES_SETUP "b39_${b39_case}_production"
             LABELS "acceptance;production;three-dimensional;hex8;contact;abaqus")
         set(b39_directory "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b39_${b39_case}/verification/fuelsim")
@@ -1169,8 +1154,8 @@ if(BUILD_TESTING)
 
     fuelsim_add_production_test(fuelsim_b40_hex8_sts_friction_abaqus_tests b40
         transient_hex8_sts_friction_abaqus b40
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b40_hex8_sts_friction_contact.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b40_hex8_sts_friction_reaction.csv")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b40_hex8_sts_friction_contact.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b40_hex8_sts_friction_reaction.csv")
     set_tests_properties(fuelsim_b40_hex8_sts_friction_abaqus_tests
         PROPERTIES FIXTURES_SETUP b40_production LABELS "acceptance;production;hex8;contact;friction;abaqus")
     fuelsim_stage_blackbox_case(b40_checkpoint_input b40_restart transient_hex8_sts_friction_checkpoint.fsi)
@@ -1211,8 +1196,8 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_b41_hex8_finite_sliding_abaqus_tests
         COMMAND fuelsim_b41_hex8_finite_sliding_abaqus_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b41_hex8_finite_sliding_mesh.e"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b41_hex8_finite_sliding_small.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b41_hex8_finite_sliding_finite.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b41_hex8_finite_sliding_small.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b41_hex8_finite_sliding_finite.csv")
     set_tests_properties(fuelsim_b41_hex8_finite_sliding_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;friction;finite-sliding;abaqus")
     add_executable(fuelsim_b42_hex8_friction_objectivity_abaqus_tests
@@ -1223,14 +1208,14 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_b42_hex8_friction_objectivity_abaqus_tests
         COMMAND fuelsim_b42_hex8_friction_objectivity_abaqus_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b40_hex8_sts_friction_mesh.e"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b42_hex8_sts_friction_objectivity.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b42_hex8_sts_friction_objectivity.csv")
     set_tests_properties(fuelsim_b42_hex8_friction_objectivity_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;friction;finite-sliding;objectivity;abaqus")
 
     fuelsim_add_production_test(fuelsim_b43_hex8_finite_strain_contact_abaqus_tests b43
         transient_hex8_finite_strain_contact_abaqus hex8-finite-contact
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b43_hex8_finite_strain_contact_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b43_hex8_finite_strain_contact.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b43_hex8_finite_strain_contact_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b43_hex8_finite_strain_contact.csv")
     set_tests_properties(fuelsim_b43_hex8_finite_strain_contact_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;finite-sliding;finite-strain;abaqus")
 
@@ -1242,10 +1227,10 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_b44_hex8_nonmatching_partial_contact_abaqus_tests
         COMMAND fuelsim_b44_hex8_nonmatching_partial_contact_abaqus_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b44_hex8_nonmatching_partial_mesh.e"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b44_hex8_nonmatching_partial_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b44_hex8_nonmatching_partial_contact.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b44_hex8_nonmatching_partial_swapped_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b44_hex8_nonmatching_partial_swapped_contact.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b44_hex8_nonmatching_partial_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b44_hex8_nonmatching_partial_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b44_hex8_nonmatching_partial_swapped_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b44_hex8_nonmatching_partial_swapped_contact.csv")
     set_tests_properties(fuelsim_b44_hex8_nonmatching_partial_contact_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;finite-sliding;finite-strain;nonmatching;abaqus")
 
@@ -1257,15 +1242,15 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_b45_hex8_nonplanar_sts_abaqus_tests
         COMMAND fuelsim_b45_hex8_nonplanar_sts_abaqus_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b45_hex8_faceted_cylinder_mesh.e"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b45_hex8_faceted_cylinder_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b45_hex8_faceted_cylinder_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b45_hex8_faceted_cylinder_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b45_hex8_faceted_cylinder_contact.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b45_hex8_warped_bilinear_mesh.e"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b45_hex8_warped_bilinear_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b45_hex8_warped_bilinear_contact.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b45_hex8_warped_bilinear_linear_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b45_hex8_warped_bilinear_linear_contact.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b45_hex8_warped_bilinear_quadratic_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b45_hex8_warped_bilinear_quadratic_contact.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b45_hex8_warped_bilinear_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b45_hex8_warped_bilinear_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b45_hex8_warped_bilinear_linear_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b45_hex8_warped_bilinear_linear_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b45_hex8_warped_bilinear_quadratic_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b45_hex8_warped_bilinear_quadratic_contact.csv")
     set_tests_properties(fuelsim_b45_hex8_nonplanar_sts_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;finite-sliding;curved;warped-geometry;abaqus")
 
@@ -1277,8 +1262,8 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_b46_hex8_release_recontact_abaqus_tests
         COMMAND fuelsim_b46_hex8_release_recontact_abaqus_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b46_hex8_release_recontact_mesh.e"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b46_hex8_release_recontact_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b46_hex8_release_recontact_contact.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b46_hex8_release_recontact_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b46_hex8_release_recontact_contact.csv")
     set_tests_properties(fuelsim_b46_hex8_release_recontact_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;finite-sliding;release;recontact;abaqus")
 
@@ -1291,20 +1276,20 @@ if(BUILD_TESTING)
         COMMAND fuelsim_b47_hex8_scale_parameter_abaqus_tests
             unit
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_unit_mesh.e"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_unit_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_unit_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b47_hex8_scale_unit_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b47_hex8_scale_unit_contact.csv"
             aspect16
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_aspect16_mesh.e"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_aspect16_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_aspect16_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b47_hex8_scale_aspect16_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b47_hex8_scale_aspect16_contact.csv"
             area4
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_area4_mesh.e"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_area4_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_area4_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b47_hex8_scale_area4_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b47_hex8_scale_area4_contact.csv"
             area_quarter
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_area_quarter_mesh.e"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_area_quarter_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_area_quarter_contact.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b47_hex8_scale_area_quarter_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b47_hex8_scale_area_quarter_contact.csv")
     set_tests_properties(fuelsim_b47_hex8_scale_parameter_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;friction;small-sliding;scale;abaqus")
 
@@ -1322,7 +1307,7 @@ if(BUILD_TESTING)
             "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
             "-DINTERNAL_COMMAND=$<TARGET_FILE:fuelsim_b48_multi_contact_contract>"
             "-DCASE_DIRECTORY=${b48_directory}"
-            "-DREFERENCE_DIRECTORY=${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus"
+            "-DREFERENCE_DIRECTORY=${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_b48.cmake")
     set_tests_properties(fuelsim_b48_hex8_multi_contact_path_abaqus_tests
         PROPERTIES
@@ -1507,16 +1492,16 @@ if(BUILD_TESTING)
 
     fuelsim_add_production_test(fuelsim_b34_hex8_sliding_contact_abaqus_tests b34
             steady_hex8_sliding_contact_abaqus b34
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b34_hex8_sliding_contact_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b34_hex8_sliding_contact_contact.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b34_hex8_sliding_contact_reaction.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b34_hex8_sliding_contact_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b34_hex8_sliding_contact_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b34_hex8_sliding_contact_reaction.csv")
     set_tests_properties(fuelsim_b34_hex8_sliding_contact_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;friction;restart;abaqus")
     fuelsim_add_production_test(fuelsim_b34_transient_sliding_checkpoint b34_transient
         transient_hex8_sliding_contact_checkpoint b34-transient
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b34_hex8_sliding_contact_nodes.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b34_hex8_sliding_contact_contact.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b34_hex8_sliding_contact_reaction.csv")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b34_hex8_sliding_contact_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b34_hex8_sliding_contact_contact.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b34_hex8_sliding_contact_reaction.csv")
     set_tests_properties(fuelsim_b34_transient_sliding_checkpoint PROPERTIES FIXTURES_SETUP b34_transient_production)
     add_executable(fuelsim_hex8_friction_checkpoint_contract_tests tests/hex8_friction_checkpoint_contract_tests.cpp)
     target_link_libraries(fuelsim_hex8_friction_checkpoint_contract_tests
@@ -1561,9 +1546,9 @@ if(BUILD_TESTING)
         set(h20_29_test "fuelsim_h20_29_hex20_sts_${h20_29_case}_abaqus_tests")
         fuelsim_add_production_test(${h20_29_test} h20_29_${h20_29_case}
                 steady_hex20_sts_${h20_29_case}_abaqus planar-sts
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_${h20_29_case}_displacement.csv"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_${h20_29_case}_force.csv"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_${h20_29_case}_reaction.csv")
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_29_hex20_sts_${h20_29_case}_displacement.csv"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_29_hex20_sts_${h20_29_case}_force.csv"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_29_hex20_sts_${h20_29_case}_reaction.csv")
         set_tests_properties(${h20_29_test}
             PROPERTIES LABELS "acceptance;production;three-dimensional;hex20;contact;nonmatching;abaqus;split-case")
     endforeach()
@@ -1578,9 +1563,9 @@ if(BUILD_TESTING)
         set(curved_test "fuelsim_h20_30_${curved_case}_abaqus_tests")
         fuelsim_add_production_test("${curved_test}" "h20_30_${curved_case}"
             "${curved_stem}" hex20-curved "${curved_case}"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_30_hex20_sts_${curved_case}_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_30_hex20_sts_${curved_case}_force.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_30_hex20_sts_${curved_case}_resultant.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_30_hex20_sts_${curved_case}_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_30_hex20_sts_${curved_case}_force.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_30_hex20_sts_${curved_case}_resultant.csv")
         set_tests_properties("${curved_test}" PROPERTIES FIXTURES_SETUP "h20_30_${curved_case}_production"
             LABELS "acceptance;production;three-dimensional;hex20;contact;curved;abaqus")
         add_test(NAME "fuelsim_h20_30_${curved_case}_contract"
@@ -1593,16 +1578,16 @@ if(BUILD_TESTING)
     endforeach()
     fuelsim_add_production_test(fuelsim_h20_friction_path_abaqus_tests h20_33
             transient_hex20_nonmatching_friction_abaqus hex20-friction-path-33
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_33_hex20_nonmatching_friction_path_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_33_hex20_nonmatching_friction_path_contact.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_33_hex20_nonmatching_friction_path_reaction.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_33_hex20_nonmatching_friction_path_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_33_hex20_nonmatching_friction_path_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_33_hex20_nonmatching_friction_path_reaction.csv")
     set_tests_properties(fuelsim_h20_friction_path_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;nonmatching;abaqus;restart")
 
     fuelsim_add_production_test(fuelsim_h20_35_curved_friction_abaqus_tests h20_35
             steady_hex20_sts_quadratic_cylinder_friction_abaqus hex20-curved-friction
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_35_hex20_sts_quadratic_cylinder_friction_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_35_hex20_sts_quadratic_cylinder_friction_contact.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_35_hex20_sts_quadratic_cylinder_friction_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_35_hex20_sts_quadratic_cylinder_friction_contact.csv")
     set_tests_properties(fuelsim_h20_35_curved_friction_abaqus_tests
         PROPERTIES FIXTURES_SETUP h20_35_production LABELS "acceptance;production;three-dimensional;hex20;contact;friction;curved;abaqus")
     add_test(NAME fuelsim_h20_35_curved_friction_contract
@@ -1615,8 +1600,8 @@ if(BUILD_TESTING)
 
     fuelsim_add_production_test(fuelsim_h20_36_curved_friction_path_abaqus_tests h20_36
             transient_hex20_sts_quadratic_cylinder_friction_path_abaqus hex20-friction-path-36
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_36_hex20_sts_quadratic_cylinder_friction_path_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_36_hex20_sts_quadratic_cylinder_friction_path_contact.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_36_hex20_sts_quadratic_cylinder_friction_path_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_36_hex20_sts_quadratic_cylinder_friction_path_contact.csv")
     set_tests_properties(fuelsim_h20_36_curved_friction_path_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;curved;abaqus;restart")
 
@@ -1646,8 +1631,8 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_h20_38_friction_objectivity_abaqus_tests
         COMMAND fuelsim_h20_38_friction_objectivity_abaqus_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_38_hex20_sts_friction_objectivity_mesh.e"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_38_hex20_sts_friction_objectivity.inp"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_38_hex20_sts_friction_objectivity.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_38_hex20_sts_friction_objectivity.inp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_38_hex20_sts_friction_objectivity.csv")
     set_tests_properties(fuelsim_h20_38_friction_objectivity_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;sliding;objectivity;abaqus")
 
@@ -1659,8 +1644,8 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_h20_39_finite_sliding_abaqus_tests
         COMMAND fuelsim_h20_39_finite_sliding_abaqus_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_39_hex20_finite_sliding_mesh.e"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_39_hex20_finite_sliding_small.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_39_hex20_finite_sliding_finite.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_39_hex20_finite_sliding_small.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_39_hex20_finite_sliding_finite.csv")
     set_tests_properties(fuelsim_h20_39_finite_sliding_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;finite-sliding;abaqus")
 
@@ -1673,34 +1658,34 @@ if(BUILD_TESTING)
         COMMAND fuelsim_h20_40_curved_finite_sliding_abaqus_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_40_hex20_curved_finite_sliding_mesh.e"
             finite
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_40_hex20_curved_finite_sliding_finite.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_40_hex20_curved_finite_sliding_finite.csv")
     set_tests_properties(fuelsim_h20_40_curved_finite_sliding_finite_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;curved;finite-sliding;abaqus")
 
     fuelsim_add_production_test(fuelsim_h20_41_hex20_partial_contact_abaqus_tests h20_41
         steady_hex20_finite_sliding_partial_contact_abaqus hex20-partial-contact
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_41_hex20_finite_sliding_partial_contact_contact.csv")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_41_hex20_finite_sliding_partial_contact_contact.csv")
     set_tests_properties(fuelsim_h20_41_hex20_partial_contact_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;partial-contact;finite-sliding;abaqus")
 
     fuelsim_add_production_test(fuelsim_b549_c3d20t_abaqus_tests b549 transient_b549_small_c3d20t b549
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b549_small_c3d20t_temperature.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b549_small_c3d20t_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b549_small_c3d20t_material.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b549_small_c3d20t_temperature.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b549_small_c3d20t_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b549_small_c3d20t_material.csv")
     set_tests_properties(fuelsim_b549_c3d20t_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex20;c3d20t;transient;thermal;mechanical;finite-strain;plasticity;creep;abaqus")
     fuelsim_add_production_test(fuelsim_b550_c3d20t_contact_abaqus_tests b550 transient_b550_small_c3d20t_contact b550
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b550_small_c3d20t_contact_temperature.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b550_small_c3d20t_contact_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b550_small_c3d20t_contact_material.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b550_small_c3d20t_contact.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b550_small_c3d20t_contact_temperature.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b550_small_c3d20t_contact_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b550_small_c3d20t_contact_material.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b550_small_c3d20t_contact.csv")
     set_tests_properties(fuelsim_b550_c3d20t_contact_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex20;c3d20t;transient;thermal;mechanical;contact;finite-sliding;finite-strain;plasticity;creep;abaqus")
     fuelsim_add_production_test(fuelsim_b555_c3d20t_friction_abaqus_tests b555 transient_b555_small_c3d20t_friction b555
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b555_small_c3d20t_friction_temperature.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b555_small_c3d20t_friction_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b555_small_c3d20t_friction_material.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b555_small_c3d20t_friction.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b555_small_c3d20t_friction_temperature.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b555_small_c3d20t_friction_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b555_small_c3d20t_friction_material.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b555_small_c3d20t_friction.csv")
     set_tests_properties(fuelsim_b555_c3d20t_friction_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex20;c3d20t;transient;thermal;mechanical;contact;friction;finite-sliding;finite-strain;plasticity;creep;abaqus")
     add_executable(fuelsim_hex20_integrated_output_contract_tests tests/hex20_integrated_output_contract_tests.cpp)
@@ -1734,16 +1719,16 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_h20_31_hex20_curved_sts_identification_tests)
     add_test(NAME fuelsim_h20_31_hex20_curved_sts_identification_tests
         COMMAND fuelsim_h20_31_hex20_curved_sts_identification_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_31_hex20_curved_sts_operator.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_31_hex20_curved_sts_operator.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_30_hex20_sts_quadratic_cylinder_mesh.e")
     set_tests_properties(fuelsim_h20_31_hex20_curved_sts_identification_tests
         PROPERTIES LABELS "identification;three-dimensional;hex20;contact;curved;abaqus")
 
     fuelsim_add_production_test(fuelsim_h20_24_hex20_nonmatching_abaqus_tests h20_24_nonmatching
             steady_hex20_nonmatching_contact_abaqus hex20-nonmatching
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_24_hex20_nonmatching_surface_contact_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_24_hex20_nonmatching_surface_contact_reaction.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_24_hex20_nonmatching_surface_contact_pressure.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_24_hex20_nonmatching_surface_contact_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_24_hex20_nonmatching_surface_contact_reaction.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/h20_24_hex20_nonmatching_surface_contact_pressure.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_24_hex20_nonmatching_mortar_all_nodes_0001.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_24_hex20_nonmatching_mortar.csv")
     set_tests_properties(fuelsim_h20_24_hex20_nonmatching_abaqus_tests
@@ -1816,11 +1801,11 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b528_hex8_c3d8rt_operator_abaqus_tests)
     add_test(NAME fuelsim_b528_hex8_c3d8rt_operator_abaqus_tests
         COMMAND fuelsim_b528_hex8_c3d8rt_operator_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b528_hex8_c3d8rt_operator_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b528_hex8_c3d8rt_warped_operator_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b528_hex8_c3d8rt_holdout_operator_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b532_hex8_c3d8rt_finite_regular_operator_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b532_hex8_c3d8rt_finite_warped_operator_nodal.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b528_hex8_c3d8rt_operator_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b528_hex8_c3d8rt_warped_operator_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b528_hex8_c3d8rt_holdout_operator_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b532_hex8_c3d8rt_finite_regular_operator_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b532_hex8_c3d8rt_finite_warped_operator_nodal.csv")
     set_tests_properties(fuelsim_b528_hex8_c3d8rt_operator_abaqus_tests PROPERTIES
         LABELS "acceptance;abaqus;three-dimensional;reduced-integration")
 
@@ -1830,8 +1815,8 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b529_hex8_c3d8rt_capacity_abaqus_tests)
     add_test(NAME fuelsim_b529_hex8_c3d8rt_capacity_abaqus_tests
         COMMAND fuelsim_b529_hex8_c3d8rt_capacity_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b529_hex8_c3d8rt_regular_capacity.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b529_hex8_c3d8rt_warped_capacity.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b529_hex8_c3d8rt_regular_capacity.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b529_hex8_c3d8rt_warped_capacity.csv")
     set_tests_properties(fuelsim_b529_hex8_c3d8rt_capacity_abaqus_tests PROPERTIES
         LABELS "acceptance;abaqus;three-dimensional;reduced-integration;transient;thermal")
 
@@ -1841,16 +1826,16 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b530_hex8_c3d8rt_thermal_load_abaqus_tests)
     add_test(NAME fuelsim_b530_hex8_c3d8rt_thermal_load_abaqus_tests
         COMMAND fuelsim_b530_hex8_c3d8rt_thermal_load_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b530_hex8_c3d8rt_thermal_load.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b530_hex8_c3d8rt_thermal_load_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b530_hex8_c3d8rt_surface_geometry.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b530_hex8_c3d8rt_thermal_load.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b530_hex8_c3d8rt_thermal_load_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b530_hex8_c3d8rt_surface_geometry.csv")
     set_tests_properties(fuelsim_b530_hex8_c3d8rt_thermal_load_abaqus_tests PROPERTIES
         LABELS "acceptance;abaqus;three-dimensional;reduced-integration;thermal")
 
     fuelsim_add_production_test(fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests b531
             transient_b531_hex8_c3d8rt b531
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b531_hex8_c3d8rt_transient_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b531_hex8_c3d8rt_transient_integration.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b531_hex8_c3d8rt_transient_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b531_hex8_c3d8rt_transient_integration.csv")
     set_tests_properties(fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests PROPERTIES
         LABELS "acceptance;abaqus;three-dimensional;reduced-integration;transient;thermo-mechanical")
     fuelsim_add_production_test(fuelsim_b534_hex8_c3d8rt_finite_transient_abaqus_tests b534
@@ -2238,20 +2223,20 @@ if(BUILD_TESTING)
             set(rz_input "transient_${rz_case}")
         endif()
         fuelsim_add_production_test("fuelsim_${rz_case}_abaqus_tests" "${rz_case}" "${rz_input}" rz-abaqus
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${rz_case}_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${rz_case}_points.csv" "${rz_mechanism}")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${rz_case}_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${rz_case}_points.csv" "${rz_mechanism}")
     endforeach()
 
     fuelsim_add_production_test(fuelsim_b80_rz_small_friction_abaqus_tests b80_rz_small_friction
         transient_b80_rz_small_friction rz-friction-abaqus
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b80_rz_small_friction_nodes.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b80_rz_small_friction_points.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b80_rz_small_friction_contact.csv")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b80_rz_small_friction_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b80_rz_small_friction_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b80_rz_small_friction_contact.csv")
     fuelsim_add_production_test(fuelsim_b81_rz_finite_sliding_abaqus_tests b81_rz_finite_sliding
         transient_b81_rz_finite_sliding rz-sliding-abaqus
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b81_rz_finite_sliding_nodes.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b81_rz_finite_sliding_points.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b81_rz_finite_sliding_contact.csv")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b81_rz_finite_sliding_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b81_rz_finite_sliding_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b81_rz_finite_sliding_contact.csv")
     set_tests_properties(fuelsim_b81_rz_finite_sliding_abaqus_tests PROPERTIES FIXTURES_SETUP b81_rz_production)
     add_executable(fuelsim_rz_friction_history_contract_tests tests/rz_friction_history_contract_tests.cpp)
     target_link_libraries(fuelsim_rz_friction_history_contract_tests PRIVATE fuelsim::io fuelsim_exodus_result_test_support)
@@ -2269,8 +2254,8 @@ if(BUILD_TESTING)
     foreach(cax4t_thermal_case IN ITEMS b150_cax4t_finite_thermal_operator b151_cax4t_small_conductivity)
         fuelsim_add_production_test("fuelsim_${cax4t_thermal_case}_abaqus_tests" "${cax4t_thermal_case}"
             "transient_${cax4t_thermal_case}" rz-abaqus
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax4t_thermal_case}_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax4t_thermal_case}_points.csv" "probe")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${cax4t_thermal_case}_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${cax4t_thermal_case}_points.csv" "probe")
     endforeach()
 
     # B9.16 retains the B9.0 mechanical state and extends its thermal operator checks;
@@ -2290,8 +2275,8 @@ if(BUILD_TESTING)
         endif()
         fuelsim_add_production_test("fuelsim_${cax4rt_case}_abaqus_tests" "${cax4rt_case}"
             "${cax4rt_input}" rz-abaqus
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax4rt_case}_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax4rt_case}_points.csv" "${cax4rt_mechanism}")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${cax4rt_case}_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${cax4rt_case}_points.csv" "${cax4rt_mechanism}")
     endforeach()
 
     foreach(cax8t_case IN ITEMS b100_cax8t_small_probe b101_cax8t_finite_probe
@@ -2305,33 +2290,33 @@ if(BUILD_TESTING)
         endif()
         fuelsim_add_production_test("fuelsim_${cax8t_case}_abaqus_tests" "${cax8t_case}"
             "transient_${cax8t_case}" rz-abaqus
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8t_case}_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8t_case}_points.csv" "${cax8t_mechanism}")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${cax8t_case}_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${cax8t_case}_points.csv" "${cax8t_mechanism}")
     endforeach()
 
     foreach(cax8t_case IN ITEMS b102_cax8t_small_contact b103_cax8t_finite_contact)
         fuelsim_add_production_test("fuelsim_${cax8t_case}_abaqus_tests" "${cax8t_case}"
             "steady_${cax8t_case}" rz-abaqus
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8t_case}_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8t_case}_points.csv" contact)
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${cax8t_case}_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${cax8t_case}_points.csv" contact)
     endforeach()
 
     fuelsim_add_production_test(fuelsim_b112_cax8t_small_friction_abaqus_tests b112_cax8t_small_friction
         transient_b112_cax8t_small_friction rz8-friction-abaqus
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b112_cax8t_small_friction_nodes.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b112_cax8t_small_friction_points.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b112_cax8t_small_friction_contact.csv")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b112_cax8t_small_friction_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b112_cax8t_small_friction_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b112_cax8t_small_friction_contact.csv")
     fuelsim_add_production_test(fuelsim_b113_cax8t_finite_sliding_abaqus_tests b113_cax8t_finite_sliding
         transient_b113_cax8t_finite_sliding rz8-sliding-abaqus
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b113_cax8t_finite_sliding_nodes.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b113_cax8t_finite_sliding_points.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b113_cax8t_finite_sliding_contact.csv")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b113_cax8t_finite_sliding_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b113_cax8t_finite_sliding_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b113_cax8t_finite_sliding_contact.csv")
 
     fuelsim_add_production_test(fuelsim_b114_cax8t_recovery_abaqus_tests b114_cax8t_recovery
         transient_b114_cax8t_recovery rz8-recovery-abaqus
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b114_cax8t_recovery_nodes.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b114_cax8t_recovery_points.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b114_cax8t_recovery_contact.csv")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b114_cax8t_recovery_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b114_cax8t_recovery_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b114_cax8t_recovery_contact.csv")
 
     foreach(cax8rt_case IN ITEMS b120_cax8rt_small_probe b121_cax8rt_finite_probe
         b124_cax8rt_small_coupled b125_cax8rt_finite_coupled
@@ -2344,27 +2329,27 @@ if(BUILD_TESTING)
         endif()
         fuelsim_add_production_test("fuelsim_${cax8rt_case}_abaqus_tests" "${cax8rt_case}"
             "transient_${cax8rt_case}" rz-abaqus
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8rt_case}_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8rt_case}_points.csv" "${cax8rt_mechanism}")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${cax8rt_case}_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${cax8rt_case}_points.csv" "${cax8rt_mechanism}")
     endforeach()
 
     foreach(cax8rt_case IN ITEMS b122_cax8rt_small_contact b123_cax8rt_finite_contact)
         fuelsim_add_production_test("fuelsim_${cax8rt_case}_abaqus_tests" "${cax8rt_case}"
             "steady_${cax8rt_case}" rz-abaqus
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8rt_case}_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8rt_case}_points.csv" contact)
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${cax8rt_case}_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${cax8rt_case}_points.csv" contact)
     endforeach()
 
     fuelsim_add_production_test(fuelsim_b1212_cax8rt_small_friction_abaqus_tests b1212_cax8rt_small_friction
         transient_b1212_cax8rt_small_friction rz8-friction-abaqus
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1212_cax8rt_small_friction_nodes.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1212_cax8rt_small_friction_points.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1212_cax8rt_small_friction_contact.csv")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b1212_cax8rt_small_friction_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b1212_cax8rt_small_friction_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b1212_cax8rt_small_friction_contact.csv")
     fuelsim_add_production_test(fuelsim_b1213_cax8rt_finite_sliding_abaqus_tests b1213_cax8rt_finite_sliding
         transient_b1213_cax8rt_finite_sliding rz8-sliding-abaqus
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1213_cax8rt_finite_sliding_nodes.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1213_cax8rt_finite_sliding_points.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1213_cax8rt_finite_sliding_contact.csv")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b1213_cax8rt_finite_sliding_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b1213_cax8rt_finite_sliding_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b1213_cax8rt_finite_sliding_contact.csv")
 
     # B10.14 identifies the shared quadratic-edge recovery on prescribed states.
     # B12.0/B12.12/B12.13 retain CAX8RT bulk/contact coverage; B12.14 remains manual.
@@ -2428,26 +2413,26 @@ if(BUILD_TESTING)
 
     fuelsim_add_production_test(fuelsim_b915_cax4rt_thermal_identification_abaqus_tests b915_cax4rt_thermal_identification
         transient_b915_cax4rt_thermal_identification rz-abaqus
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b915_cax4rt_thermal_identification_nodes.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b915_cax4rt_thermal_identification_points.csv" probe)
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b915_cax4rt_thermal_identification_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b915_cax4rt_thermal_identification_points.csv" probe)
 
     foreach(cax4rt_thermal_case IN ITEMS b916_cax4rt_variable_conductivity b917_cax4rt_finite_thermal_operators)
         fuelsim_add_production_test(fuelsim_${cax4rt_thermal_case}_abaqus_tests ${cax4rt_thermal_case}
             transient_${cax4rt_thermal_case} rz-abaqus
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax4rt_thermal_case}_nodes.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax4rt_thermal_case}_points.csv" probe)
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${cax4rt_thermal_case}_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${cax4rt_thermal_case}_points.csv" probe)
     endforeach()
 
     fuelsim_add_production_test(fuelsim_b913_cax4rt_small_friction_abaqus_tests b913_cax4rt_small_friction
         transient_b913_cax4rt_small_friction rz-friction-abaqus
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b913_cax4rt_small_friction_nodes.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b913_cax4rt_small_friction_points.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b913_cax4rt_small_friction_contact.csv")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b913_cax4rt_small_friction_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b913_cax4rt_small_friction_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b913_cax4rt_small_friction_contact.csv")
     fuelsim_add_production_test(fuelsim_b914_cax4rt_finite_sliding_abaqus_tests b914_cax4rt_finite_sliding
         transient_b914_cax4rt_finite_sliding rz-sliding-abaqus
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b914_cax4rt_finite_sliding_nodes.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b914_cax4rt_finite_sliding_points.csv"
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b914_cax4rt_finite_sliding_contact.csv")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b914_cax4rt_finite_sliding_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b914_cax4rt_finite_sliding_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b914_cax4rt_finite_sliding_contact.csv")
     set_tests_properties(fuelsim_b914_cax4rt_finite_sliding_abaqus_tests PROPERTIES FIXTURES_SETUP b914_cax4rt_production)
     add_test(NAME fuelsim_b914_cax4rt_friction_history_contract COMMAND fuelsim_rz_friction_history_contract_tests
         "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b914_cax4rt_finite_sliding/verification/fuelsim/transient_b914_cax4rt_finite_sliding.fsi"
@@ -2459,10 +2444,7 @@ if(BUILD_TESTING)
     foreach(pcmi_group IN ITEMS small finite integrated)
         foreach(pcmi_element IN ITEMS cax4t cax4rt cax8t cax8rt)
             set(pcmi_case "b13_${pcmi_group}_${pcmi_element}")
-            set(pcmi_reference "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus")
-            if(NOT pcmi_group STREQUAL "small")
-                set(pcmi_reference "${pcmi_reference}/2025/b13")
-            endif()
+            set(pcmi_reference "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/b13")
             fuelsim_stage_blackbox_case(pcmi_input "${pcmi_case}" "transient_${pcmi_case}.fsi")
             get_filename_component(pcmi_directory "${pcmi_input}" DIRECTORY)
             set(pcmi_output "${pcmi_directory}/transient_${pcmi_case}_results.e")
@@ -2491,7 +2473,7 @@ if(BUILD_TESTING)
                 "-DINPUT_FILE=${nts_input}"
                 "-DOUTPUT_FILE=${nts_output}"
                 "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_nts_abaqus>"
-                "-DCHECK_ARGUMENTS=${nts_output};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${nts_case}_nodes.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${nts_case}_contact.csv"
+                "-DCHECK_ARGUMENTS=${nts_output};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${nts_case}_nodes.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${nts_case}_contact.csv"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
         set_tests_properties("fuelsim_${nts_case}_abaqus_tests" PROPERTIES LABELS "acceptance;production;abaqus;contact" TIMEOUT 120)
     endforeach()

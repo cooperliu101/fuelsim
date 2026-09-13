@@ -1,0 +1,26 @@
+﻿Analysis initiated from SIMULIA established products
+Abaqus JOB b555_small_c3d20t_friction
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9979 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:08:26 PM
+Run pre.exe
+9/13/2026 11:08:27 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:08:27 PM
+Run standard.exe
+9/13/2026 11:08:29 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:08:31 PM
+Run SMASimUtility.exe
+9/13/2026 11:08:31 PM
+End SIM Wrap-up
+Abaqus JOB b555_small_c3d20t_friction COMPLETED
+B5.55 final frame time=0.40000000596046448
+B5.55 integration rows S=216 PEEQ=108 CEEQ=108 COORD=216 IVOL=216 sample=[(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8)]
+Abaqus B5.55 wall time: 5.2281066 seconds
+Abaqus B5.55 work directory: C:\Users\TcroM\AppData\Local\Temp\fuelsim_b555_20260913_230826

@@ -1,0 +1,146 @@
+task	status	started_utc	finished_utc	runner	arguments	log
+000_run_b34	success	2026-09-13T15:14:16.9953017Z	2026-09-13T15:14:20.8740172Z	../production/run_b34.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/000_run_b34.log
+001_run_b38_probe	success	2026-09-13T15:14:17.0655717Z	2026-09-13T15:14:23.2029701Z	../production/run_b38_probe.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/001_run_b38_probe.log
+002_run_b39	success	2026-09-13T15:14:17.1536326Z	2026-09-13T15:14:32.6864491Z	../production/run_b39.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/002_run_b39.log
+003_run_b40	success	2026-09-13T15:14:17.2416632Z	2026-09-13T15:14:23.1669211Z	../production/run_b40.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/003_run_b40.log
+004_run_b41	success	2026-09-13T15:14:17.3211954Z	2026-09-13T15:14:28.8967489Z	../production/run_b41.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/004_run_b41.log
+005_run_b42	success	2026-09-13T15:14:22.2290659Z	2026-09-13T15:14:28.4865937Z	../production/run_b42.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/005_run_b42.log
+006_run_b43	success	2026-09-13T15:14:23.4438917Z	2026-09-13T15:14:29.3466271Z	../production/run_b43.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/006_run_b43.log
+007_run_b44	success	2026-09-13T15:14:24.5367092Z	2026-09-13T15:14:34.4770209Z	../production/run_b44.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/007_run_b44.log
+008_run_b45	success	2026-09-13T15:14:29.1300103Z	2026-09-13T15:14:44.0438493Z	../production/run_b45.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/008_run_b45.log
+009_run_b46	success	2026-09-13T15:14:29.5973932Z	2026-09-13T15:14:35.8137499Z	../production/run_b46.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/009_run_b46.log
+010_run_b47	success	2026-09-13T15:14:30.8329200Z	2026-09-13T15:14:45.6752121Z	../production/run_b47.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/010_run_b47.log
+011_run_b48	success	2026-09-13T15:14:33.9493389Z	2026-09-13T15:14:40.0316647Z	../production/run_b48.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/011_run_b48.log
+012_run_b49	success	2026-09-13T15:14:35.7392641Z	2026-09-13T15:14:44.6591643Z	../production/run_b49.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/012_run_b49.log
+013_run_b50	success	2026-09-13T15:14:37.0767500Z	2026-09-13T15:14:40.9131311Z	../production/run_b50.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/013_run_b50.log
+014_run_b51	success	2026-09-13T15:14:41.1527740Z	2026-09-13T15:14:45.1833770Z	../production/run_b51.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/014_run_b51.log
+015_run_b52	success	2026-09-13T15:14:42.2688530Z	2026-09-13T15:14:46.0754610Z	../production/run_b52.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/015_run_b52.log
+016_run_b520	success	2026-09-13T15:14:44.9014535Z	2026-09-13T15:14:56.4884155Z	../production/run_b520.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/016_run_b520.log
+017_run_b521	success	2026-09-13T15:14:45.4227423Z	2026-09-13T15:14:51.4757666Z	../production/run_b521.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/017_run_b521.log
+018_run_b522	success	2026-09-13T15:14:45.9248741Z	2026-09-13T15:15:04.7113707Z	../production/run_b522.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/018_run_b522.log
+019_run_b523	success	2026-09-13T15:14:46.3322350Z	2026-09-13T15:14:52.5645158Z	../production/run_b523.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/019_run_b523.log
+020_run_b53	success	2026-09-13T15:14:47.4299437Z	2026-09-13T15:14:51.3993270Z	../production/run_b53.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/020_run_b53.log
+021_run_b55	success	2026-09-13T15:14:51.7163850Z	2026-09-13T15:14:55.5970475Z	../production/run_b55.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/021_run_b55.log
+022_run_b56	success	2026-09-13T15:14:52.8095195Z	2026-09-13T15:15:01.8298395Z	../production/run_b56.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/022_run_b56.log
+023_run_b59	success	2026-09-13T15:14:53.9220032Z	2026-09-13T15:15:00.0941902Z	../production/run_b59.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/023_run_b59.log
+024_run_b510	success	2026-09-13T15:14:56.7492885Z	2026-09-13T15:15:02.7501152Z	../production/run_b510.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/024_run_b510.log
+025_run_b511	success	2026-09-13T15:14:57.8452911Z	2026-09-13T15:15:03.8620354Z	../production/run_b511.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/025_run_b511.log
+026_run_b512	success	2026-09-13T15:15:01.3516549Z	2026-09-13T15:15:07.3485493Z	../production/run_b512.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/026_run_b512.log
+027_run_b513	success	2026-09-13T15:15:02.9885690Z	2026-09-13T15:15:09.3955904Z	../production/run_b513.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/027_run_b513.log
+028_run_b514	success	2026-09-13T15:15:04.0988865Z	2026-09-13T15:15:10.2957029Z	../production/run_b514.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/028_run_b514.log
+029_run_b515	success	2026-09-13T15:15:04.9443628Z	2026-09-13T15:15:11.0804406Z	../production/run_b515.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/029_run_b515.log
+030_run_b516	success	2026-09-13T15:15:06.0570735Z	2026-09-13T15:15:12.1511174Z	../production/run_b516.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/030_run_b516.log
+031_run_b517	success	2026-09-13T15:15:08.6080162Z	2026-09-13T15:15:14.5299839Z	../production/run_b517.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/031_run_b517.log
+032_run_b518	success	2026-09-13T15:15:10.5294627Z	2026-09-13T15:15:17.0304832Z	../production/run_b518.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/032_run_b518.log
+033_run_b519	success	2026-09-13T15:15:11.3146663Z	2026-09-13T15:15:15.3365080Z	../production/run_b519.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/033_run_b519.log
+034_run_b530	success	2026-09-13T15:15:12.3906596Z	2026-09-13T15:15:16.2522470Z	../production/run_b530.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/034_run_b530.log
+035_run_b531	success	2026-09-13T15:15:13.5190006Z	2026-09-13T15:15:17.3173056Z	../production/run_b531.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/035_run_b531.log
+036_run_b535_b537	success	2026-09-13T15:15:15.5721836Z	2026-09-13T15:15:33.0290196Z	../production/run_b535_b537.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/036_run_b535_b537.log
+037_run_b538_b539	success	2026-09-13T15:15:16.4876465Z	2026-09-13T15:15:28.7208544Z	../production/run_b538_b539.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/037_run_b538_b539.log
+038_run_b540	success	2026-09-13T15:15:17.2727485Z	2026-09-13T15:15:24.0117268Z	../production/run_b540.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/038_run_b540.log
+039_run_b541_b543	success	2026-09-13T15:15:17.5693817Z	2026-09-13T15:15:35.2933528Z	../production/run_b541_b543.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/039_run_b541_b543.log
+040_run_b545	success	2026-09-13T15:08:18.2953890Z	2026-09-13T15:08:37.7036027Z	../production/run_b545.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/040_run_b545.log
+041_run_b549	success	2026-09-13T15:08:21.8066987Z	2026-09-13T15:08:27.7121888Z	../production/run_b549.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/041_run_b549.log
+042_run_b550	success	2026-09-13T15:08:22.9206592Z	2026-09-13T15:08:28.9045165Z	../production/run_b550.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/042_run_b550.log
+043_run_b552	success	2026-09-13T15:08:24.7760915Z	2026-09-13T15:08:28.5641303Z	../production/run_b552.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/043_run_b552.log
+044_run_b555	success	2026-09-13T15:08:25.8972960Z	2026-09-13T15:08:31.9397756Z	../production/run_b555.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/044_run_b555.log
+045_run_b60_finite_steady	success	2026-09-13T15:08:26.6964753Z	2026-09-13T15:08:32.7319145Z	../production/run_b60_finite_steady.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/045_run_b60_finite_steady.log
+046_run_b60_finite_ramped	success	2026-09-13T15:08:27.8147512Z	2026-09-13T15:08:36.0976904Z	../production/run_b60_finite_ramped.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/046_run_b60_finite_ramped.log
+047_run_h20_24	success	2026-09-13T15:08:28.8076735Z	2026-09-13T15:08:34.7523970Z	../production/run_h20_24.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/047_run_h20_24.log
+048_run_h20_29	success	2026-09-13T15:08:29.1442804Z	2026-09-13T15:08:58.3387445Z	../production/run_h20_29.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/048_run_h20_29.log
+049_run_h20_30	success	2026-09-13T15:08:30.2481031Z	2026-09-13T15:08:41.8437754Z	../production/run_h20_30.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/049_run_h20_30.log
+050_run_h20_31	success	2026-09-13T15:08:32.1963902Z	2026-09-13T15:08:59.5202425Z	../production/run_h20_31.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/050_run_h20_31.log
+051_run_h20_33	success	2026-09-13T15:08:32.9735171Z	2026-09-13T15:08:41.0573994Z	../production/run_h20_33.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/051_run_h20_33.log
+052_run_h20_35	success	2026-09-13T15:08:34.1069930Z	2026-09-13T15:08:40.0927470Z	../production/run_h20_35.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/052_run_h20_35.log
+053_run_h20_36	success	2026-09-13T15:08:36.0509058Z	2026-09-13T15:08:46.1872943Z	../production/run_h20_36.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/053_run_h20_36.log
+054_run_h20_38	success	2026-09-13T15:08:37.3715245Z	2026-09-13T15:08:43.2646701Z	../production/run_h20_38.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/054_run_h20_38.log
+055_run_h20_39	success	2026-09-13T15:08:38.9766433Z	2026-09-13T15:08:50.6409753Z	../production/run_h20_39.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/055_run_h20_39.log
+056_run_h20_40	success	2026-09-13T15:08:41.2998836Z	2026-09-13T15:10:09.4228654Z	../production/run_h20_40.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/056_run_h20_40.log
+057_run_h20_41	success	2026-09-13T15:08:42.1054562Z	2026-09-13T15:08:48.1644402Z	../production/run_h20_41.ps1	"{""SourceDirectory"": ""$SOURCE""}"	logs/057_run_h20_41.log
+058_run_b58_reference_mass	success	2026-09-13T15:08:43.2329853Z	2026-09-13T15:08:47.3231691Z	../production/run_b58_reference_mass.ps1	"{""DestinationDirectory"": ""$SOURCE""}"	logs/058_run_b58_reference_mass.log
+059_run_b526	success	2026-09-13T15:08:44.5313594Z	2026-09-13T15:08:50.7476957Z	../production/run_b526.ps1	"{""Case"": ""b526_contact_cycle"", ""SourceDirectory"": ""$SOURCE""}"	logs/059_run_b526.log
+060_run_b527	success	2026-09-13T15:08:47.4743843Z	2026-09-13T15:08:54.0188459Z	../production/run_b527.ps1	"{""Case"": ""b527_medium"", ""SourceDirectory"": ""$SOURCE""}"	logs/060_run_b527.log
+061_run_b528	success	2026-09-13T15:08:48.4155443Z	2026-09-13T15:08:57.4460748Z	../production/run_b528.ps1	"{""Geometry"": ""regular"", ""SourceDirectory"": ""$SOURCE""}"	logs/061_run_b528.log
+062_run_b528	success	2026-09-13T15:08:49.5355938Z	2026-09-13T15:08:58.4393904Z	../production/run_b528.ps1	"{""Geometry"": ""warped"", ""SourceDirectory"": ""$SOURCE""}"	logs/062_run_b528.log
+063_run_b528	success	2026-09-13T15:08:50.9993908Z	2026-09-13T15:08:59.9594699Z	../production/run_b528.ps1	"{""Geometry"": ""holdout"", ""SourceDirectory"": ""$SOURCE""}"	logs/063_run_b528.log
+064_run_b529	success	2026-09-13T15:08:52.1780975Z	2026-09-13T15:08:56.0924500Z	../production/run_b529.ps1	"{""Geometry"": ""regular"", ""SourceDirectory"": ""$SOURCE""}"	logs/064_run_b529.log
+065_run_b529	success	2026-09-13T15:08:55.3037570Z	2026-09-13T15:08:59.1092898Z	../production/run_b529.ps1	"{""Geometry"": ""warped"", ""SourceDirectory"": ""$SOURCE""}"	logs/065_run_b529.log
+066_run_b532	success	2026-09-13T15:08:57.3939468Z	2026-09-13T15:09:01.3043159Z	../production/run_b532.ps1	"{""Geometry"": ""regular"", ""SourceDirectory"": ""$SOURCE""}"	logs/066_run_b532.log
+067_run_b532	success	2026-09-13T15:08:58.5850164Z	2026-09-13T15:09:02.5118319Z	../production/run_b532.ps1	"{""Geometry"": ""warped"", ""SourceDirectory"": ""$SOURCE""}"	logs/067_run_b532.log
+068_run_c3d20rt_material	success	2026-09-13T15:08:58.6888855Z	2026-09-13T15:09:02.6437945Z	../production/run_c3d20rt_material.ps1	"{""CaseName"": ""small_coupled"", ""SourceDirectory"": ""$SOURCE""}"	logs/068_run_c3d20rt_material.log
+069_run_c3d20rt_material	success	2026-09-13T15:16:21.4281918Z	2026-09-13T15:16:27.4913592Z	../production/run_c3d20rt_material.ps1	"{""CaseName"": ""finite_coupled"", ""SourceDirectory"": ""$SOURCE""}"	logs/069_run_c3d20rt_material.log
+070_run_c3d20rt_material	success	2026-09-13T15:08:59.7778779Z	2026-09-13T15:09:07.5174726Z	../production/run_c3d20rt_material.ps1	"{""CaseName"": ""small_plastic"", ""SourceDirectory"": ""$SOURCE""}"	logs/070_run_c3d20rt_material.log
+071_run_c3d20rt_material	success	2026-09-13T15:16:21.5120422Z	2026-09-13T15:16:25.3179632Z	../production/run_c3d20rt_material.ps1	"{""CaseName"": ""finite_plastic"", ""SourceDirectory"": ""$SOURCE""}"	logs/071_run_c3d20rt_material.log
+072_run_c3d20rt_material	success	2026-09-13T15:16:21.5943265Z	2026-09-13T15:16:27.5842834Z	../production/run_c3d20rt_material.ps1	"{""CaseName"": ""finite_creep"", ""SourceDirectory"": ""$SOURCE""}"	logs/072_run_c3d20rt_material.log
+073_run_c3d20rt_material	success	2026-09-13T15:09:02.5844428Z	2026-09-13T15:09:10.5445233Z	../production/run_c3d20rt_material.ps1	"{""CaseName"": ""small_creep_hold"", ""SourceDirectory"": ""$SOURCE""}"	logs/073_run_c3d20rt_material.log
+074_run_c3d20rt_probe	success	2026-09-13T15:09:02.8907635Z	2026-09-13T15:09:10.8591337Z	../production/run_c3d20rt_probe.ps1	"{""JobName"": ""c3d20rt_small_probe"", ""SourceDirectory"": ""$SOURCE""}"	logs/074_run_c3d20rt_probe.log
+075_run_c3d20rt_contact	success	2026-09-13T15:09:04.0966730Z	2026-09-13T15:09:16.2347101Z	../production/run_c3d20rt_contact.ps1	"{""JobName"": ""c3d20rt_contact_friction"", ""SourceDirectory"": ""$SOURCE""}"	logs/075_run_c3d20rt_contact.log
+076_run_c3d20rt_contact	success	2026-09-13T15:09:08.9145667Z	2026-09-13T15:10:02.3193723Z	../production/run_c3d20rt_contact.ps1	"{""JobName"": ""c3d20rt_finite_contact_frictionless"", ""SourceDirectory"": ""$SOURCE""}"	logs/076_run_c3d20rt_contact.log
+077_run_b7_rz	success	2026-09-13T15:15:18.6753369Z	2026-09-13T15:15:23.6954898Z	../production/run_b7_rz.ps1	"{""Cases"": ""b70_rz_small_coupled"", ""DestinationDirectory"": ""$SOURCE""}"	logs/077_run_b7_rz.log
+078_run_b7_rz	success	2026-09-13T15:15:24.2610720Z	2026-09-13T15:15:29.2152984Z	../production/run_b7_rz.ps1	"{""Cases"": ""b71_rz_finite_coupled"", ""DestinationDirectory"": ""$SOURCE""}"	logs/078_run_b7_rz.log
+079_run_b7_rz	success	2026-09-13T15:15:25.3642635Z	2026-09-13T15:15:32.3738339Z	../production/run_b7_rz.ps1	"{""Cases"": ""b72_rz_small_creep"", ""DestinationDirectory"": ""$SOURCE""}"	logs/079_run_b7_rz.log
+080_run_b7_rz	success	2026-09-13T15:15:29.4444717Z	2026-09-13T15:15:36.4503252Z	../production/run_b7_rz.ps1	"{""Cases"": ""b73_rz_finite_creep"", ""DestinationDirectory"": ""$SOURCE""}"	logs/080_run_b7_rz.log
+081_run_b7_rz	success	2026-09-13T15:15:30.5649534Z	2026-09-13T15:15:37.5709476Z	../production/run_b7_rz.ps1	"{""Cases"": ""b74_rz_small_plastic"", ""DestinationDirectory"": ""$SOURCE""}"	logs/081_run_b7_rz.log
+082_run_b7_rz	success	2026-09-13T15:15:33.2701748Z	2026-09-13T15:15:38.3548921Z	../production/run_b7_rz.ps1	"{""Cases"": ""b75_rz_finite_plastic"", ""DestinationDirectory"": ""$SOURCE""}"	logs/082_run_b7_rz.log
+083_run_b7_rz	success	2026-09-13T15:15:34.3886243Z	2026-09-13T15:15:39.3375068Z	../production/run_b7_rz.ps1	"{""Cases"": ""b76_rz_small_thermal"", ""DestinationDirectory"": ""$SOURCE""}"	logs/083_run_b7_rz.log
+084_run_b7_rz	success	2026-09-13T15:15:36.5678253Z	2026-09-13T15:15:41.5191615Z	../production/run_b7_rz.ps1	"{""Cases"": ""b78_rz_small_contact"", ""DestinationDirectory"": ""$SOURCE""}"	logs/084_run_b7_rz.log
+085_run_b7_rz	success	2026-09-13T15:15:37.7084752Z	2026-09-13T15:15:42.7511353Z	../production/run_b7_rz.ps1	"{""Cases"": ""b79_rz_finite_contact"", ""DestinationDirectory"": ""$SOURCE""}"	logs/085_run_b7_rz.log
+086_run_b8_rz	success	2026-09-13T15:09:10.5766299Z	2026-09-13T15:09:16.7966329Z	../production/run_b8_rz.ps1	"{""Cases"": ""b80_rz_small_friction"", ""DestinationDirectory"": ""$SOURCE""}"	logs/086_run_b8_rz.log
+087_run_b8_rz	success	2026-09-13T15:09:10.6910700Z	2026-09-13T15:09:16.7966329Z	../production/run_b8_rz.ps1	"{""Cases"": ""b81_rz_finite_sliding"", ""DestinationDirectory"": ""$SOURCE""}"	logs/087_run_b8_rz.log
+088_run_b15_cax4t	success	2026-09-13T15:09:10.8082285Z	2026-09-13T15:09:17.3438614Z	../production/run_b15_cax4t.ps1	"{""Cases"": ""b151_cax4t_small_conductivity"", ""DestinationDirectory"": ""$SOURCE""}"	logs/088_run_b15_cax4t.log
+089_run_b9_rz	success	2026-09-13T15:09:11.1164755Z	2026-09-13T15:09:15.1874555Z	../production/run_b9_rz.ps1	"{""Cases"": ""b92_cax4rt_rectangle_probe"", ""DestinationDirectory"": ""$SOURCE""}"	logs/089_run_b9_rz.log
+090_run_b9_rz	success	2026-09-13T15:09:12.2581133Z	2026-09-13T15:09:16.3291158Z	../production/run_b9_rz.ps1	"{""Cases"": ""b93_cax4rt_small_coupled"", ""DestinationDirectory"": ""$SOURCE""}"	logs/090_run_b9_rz.log
+091_run_b9_rz	success	2026-09-13T15:09:16.4761114Z	2026-09-13T15:09:20.4102505Z	../production/run_b9_rz.ps1	"{""Cases"": ""b94_cax4rt_finite_coupled"", ""DestinationDirectory"": ""$SOURCE""}"	logs/091_run_b9_rz.log
+092_run_b9_rz	success	2026-09-13T15:09:17.0302883Z	2026-09-13T15:09:21.0585021Z	../production/run_b9_rz.ps1	"{""Cases"": ""b95_cax4rt_small_creep"", ""DestinationDirectory"": ""$SOURCE""}"	logs/092_run_b9_rz.log
+093_run_b9_rz	success	2026-09-13T15:09:17.1137844Z	2026-09-13T15:09:23.2806836Z	../production/run_b9_rz.ps1	"{""Cases"": ""b96_cax4rt_finite_creep"", ""DestinationDirectory"": ""$SOURCE""}"	logs/093_run_b9_rz.log
+094_run_b9_rz	success	2026-09-13T15:09:17.5911108Z	2026-09-13T15:09:23.6080463Z	../production/run_b9_rz.ps1	"{""Cases"": ""b97_cax4rt_small_plastic"", ""DestinationDirectory"": ""$SOURCE""}"	logs/094_run_b9_rz.log
+095_run_b9_rz	success	2026-09-13T15:09:17.6755331Z	2026-09-13T15:09:23.8610353Z	../production/run_b9_rz.ps1	"{""Cases"": ""b98_cax4rt_finite_plastic"", ""DestinationDirectory"": ""$SOURCE""}"	logs/095_run_b9_rz.log
+096_run_b9_rz	success	2026-09-13T15:09:18.8036514Z	2026-09-13T15:09:22.7432845Z	../production/run_b9_rz.ps1	"{""Cases"": ""b99_cax4rt_small_thermal"", ""DestinationDirectory"": ""$SOURCE""}"	logs/096_run_b9_rz.log
+097_run_b9_rz	success	2026-09-13T15:09:21.2964248Z	2026-09-13T15:09:25.2713577Z	../production/run_b9_rz.ps1	"{""Cases"": ""b911_cax4rt_small_contact"", ""DestinationDirectory"": ""$SOURCE""}"	logs/097_run_b9_rz.log
+098_run_b9_rz	success	2026-09-13T15:09:22.4271842Z	2026-09-13T15:09:26.3979205Z	../production/run_b9_rz.ps1	"{""Cases"": ""b912_cax4rt_finite_contact"", ""DestinationDirectory"": ""$SOURCE""}"	logs/098_run_b9_rz.log
+099_run_b9_rz	success	2026-09-13T15:09:23.5297286Z	2026-09-13T15:09:29.6426041Z	../production/run_b9_rz.ps1	"{""Cases"": ""b913_cax4rt_small_friction"", ""DestinationDirectory"": ""$SOURCE""}"	logs/099_run_b9_rz.log
+100_run_b9_rz	success	2026-09-13T15:09:23.8491797Z	2026-09-13T15:09:30.0443582Z	../production/run_b9_rz.ps1	"{""Cases"": ""b914_cax4rt_finite_sliding"", ""DestinationDirectory"": ""$SOURCE""}"	logs/100_run_b9_rz.log
+101_run_b9_rz	success	2026-09-13T15:09:24.1009580Z	2026-09-13T15:09:28.1518943Z	../production/run_b9_rz.ps1	"{""Cases"": ""b915_cax4rt_thermal_identification"", ""DestinationDirectory"": ""$SOURCE""}"	logs/101_run_b9_rz.log
+102_run_b9_rz	success	2026-09-13T15:09:25.2488890Z	2026-09-13T15:09:29.2042533Z	../production/run_b9_rz.ps1	"{""Cases"": ""b916_cax4rt_variable_conductivity"", ""DestinationDirectory"": ""$SOURCE""}"	logs/102_run_b9_rz.log
+103_run_b10_rz	success	2026-09-13T15:09:26.5552517Z	2026-09-13T15:09:30.7554673Z	../production/run_b10_rz.ps1	"{""Cases"": ""b100_cax8t_small_probe"", ""DestinationDirectory"": ""$SOURCE""}"	logs/103_run_b10_rz.log
+104_run_b10_rz	success	2026-09-13T15:09:27.6997366Z	2026-09-13T15:09:31.7522770Z	../production/run_b10_rz.ps1	"{""Cases"": ""b102_cax8t_small_contact"", ""DestinationDirectory"": ""$SOURCE""}"	logs/104_run_b10_rz.log
+105_run_b10_rz	success	2026-09-13T15:09:29.4586936Z	2026-09-13T15:09:35.6029279Z	../production/run_b10_rz.ps1	"{""Cases"": ""b103_cax8t_finite_contact"", ""DestinationDirectory"": ""$SOURCE""}"	logs/105_run_b10_rz.log
+106_run_b10_rz	success	2026-09-13T15:09:29.8797461Z	2026-09-13T15:09:36.0357856Z	../production/run_b10_rz.ps1	"{""Cases"": ""b104_cax8t_small_coupled"", ""DestinationDirectory"": ""$SOURCE""}"	logs/106_run_b10_rz.log
+107_run_b10_rz	success	2026-09-13T15:09:30.2918227Z	2026-09-13T15:09:34.3964994Z	../production/run_b10_rz.ps1	"{""Cases"": ""b105_cax8t_finite_coupled"", ""DestinationDirectory"": ""$SOURCE""}"	logs/107_run_b10_rz.log
+108_run_b10_rz	success	2026-09-13T15:09:31.0046478Z	2026-09-13T15:09:37.2101115Z	../production/run_b10_rz.ps1	"{""Cases"": ""b106_cax8t_small_creep"", ""DestinationDirectory"": ""$SOURCE""}"	logs/108_run_b10_rz.log
+109_run_b10_rz	success	2026-09-13T15:09:32.0093949Z	2026-09-13T15:09:38.0719862Z	../production/run_b10_rz.ps1	"{""Cases"": ""b107_cax8t_finite_creep"", ""DestinationDirectory"": ""$SOURCE""}"	logs/109_run_b10_rz.log
+110_run_b10_rz	success	2026-09-13T15:09:33.1482207Z	2026-09-13T15:09:37.1582889Z	../production/run_b10_rz.ps1	"{""Cases"": ""b108_cax8t_small_plastic"", ""DestinationDirectory"": ""$SOURCE""}"	logs/110_run_b10_rz.log
+111_run_b10_rz	success	2026-09-13T15:09:35.6897598Z	2026-09-13T15:09:39.7596838Z	../production/run_b10_rz.ps1	"{""Cases"": ""b109_cax8t_finite_plastic"", ""DestinationDirectory"": ""$SOURCE""}"	logs/111_run_b10_rz.log
+112_run_b10_rz	success	2026-09-13T15:09:36.3312583Z	2026-09-13T15:09:40.3328538Z	../production/run_b10_rz.ps1	"{""Cases"": ""b110_cax8t_small_thermal"", ""DestinationDirectory"": ""$SOURCE""}"	logs/112_run_b10_rz.log
+113_run_b10_rz	success	2026-09-13T15:09:37.3970491Z	2026-09-13T15:09:43.6546217Z	../production/run_b10_rz.ps1	"{""Cases"": ""b112_cax8t_small_friction"", ""DestinationDirectory"": ""$SOURCE""}"	logs/113_run_b10_rz.log
+114_run_b10_rz	success	2026-09-13T15:09:38.3285531Z	2026-09-13T15:09:44.4536981Z	../production/run_b10_rz.ps1	"{""Cases"": ""b113_cax8t_finite_sliding"", ""DestinationDirectory"": ""$SOURCE""}"	logs/114_run_b10_rz.log
+115_run_b10_rz	success	2026-09-13T15:09:38.4171841Z	2026-09-13T15:09:44.5325327Z	../production/run_b10_rz.ps1	"{""Cases"": ""b114_cax8t_recovery"", ""DestinationDirectory"": ""$SOURCE""}"	logs/115_run_b10_rz.log
+116_run_b12_rz	success	2026-09-13T15:09:39.5546117Z	2026-09-13T15:09:43.5943867Z	../production/run_b12_rz.ps1	"{""Cases"": ""b120_cax8rt_small_probe"", ""DestinationDirectory"": ""$SOURCE""}"	logs/116_run_b12_rz.log
+117_run_b12_rz	success	2026-09-13T15:09:40.5773322Z	2026-09-13T15:09:44.5948580Z	../production/run_b12_rz.ps1	"{""Cases"": ""b122_cax8rt_small_contact"", ""DestinationDirectory"": ""$SOURCE""}"	logs/117_run_b12_rz.log
+118_run_b12_rz	success	2026-09-13T15:09:41.7172104Z	2026-09-13T15:09:45.7046375Z	../production/run_b12_rz.ps1	"{""Cases"": ""b123_cax8rt_finite_contact"", ""DestinationDirectory"": ""$SOURCE""}"	logs/118_run_b12_rz.log
+119_run_b12_rz	success	2026-09-13T15:09:43.9074430Z	2026-09-13T15:09:48.3212342Z	../production/run_b12_rz.ps1	"{""Cases"": ""b124_cax8rt_small_coupled"", ""DestinationDirectory"": ""$SOURCE""}"	logs/119_run_b12_rz.log
+120_run_b12_rz	success	2026-09-13T15:09:44.6950482Z	2026-09-13T15:09:50.8818679Z	../production/run_b12_rz.ps1	"{""Cases"": ""b125_cax8rt_finite_coupled"", ""DestinationDirectory"": ""$SOURCE""}"	logs/120_run_b12_rz.log
+121_run_b12_rz	success	2026-09-13T15:09:44.8301200Z	2026-09-13T15:09:50.9206999Z	../production/run_b12_rz.ps1	"{""Cases"": ""b126_cax8rt_small_creep"", ""DestinationDirectory"": ""$SOURCE""}"	logs/121_run_b12_rz.log
+122_run_b12_rz	success	2026-09-13T15:09:44.9192647Z	2026-09-13T15:09:50.9472904Z	../production/run_b12_rz.ps1	"{""Cases"": ""b127_cax8rt_finite_creep"", ""DestinationDirectory"": ""$SOURCE""}"	logs/122_run_b12_rz.log
+123_run_b12_rz	success	2026-09-13T15:09:45.9699899Z	2026-09-13T15:09:52.0367446Z	../production/run_b12_rz.ps1	"{""Cases"": ""b128_cax8rt_small_plastic"", ""DestinationDirectory"": ""$SOURCE""}"	logs/123_run_b12_rz.log
+124_run_b12_rz	success	2026-09-13T15:09:47.1001047Z	2026-09-13T15:09:53.4841601Z	../production/run_b12_rz.ps1	"{""Cases"": ""b129_cax8rt_finite_plastic"", ""DestinationDirectory"": ""$SOURCE""}"	logs/124_run_b12_rz.log
+125_run_b12_rz	success	2026-09-13T15:09:49.6080163Z	2026-09-13T15:09:53.5987895Z	../production/run_b12_rz.ps1	"{""Cases"": ""b1210_cax8rt_small_thermal"", ""DestinationDirectory"": ""$SOURCE""}"	logs/125_run_b12_rz.log
+126_run_b12_rz	success	2026-09-13T15:09:51.1548205Z	2026-09-13T15:09:57.3003286Z	../production/run_b12_rz.ps1	"{""Cases"": ""b1212_cax8rt_small_friction"", ""DestinationDirectory"": ""$SOURCE""}"	logs/126_run_b12_rz.log
+127_run_b12_rz	success	2026-09-13T15:09:52.2776710Z	2026-09-13T15:09:58.4643332Z	../production/run_b12_rz.ps1	"{""Cases"": ""b1213_cax8rt_finite_sliding"", ""DestinationDirectory"": ""$SOURCE""}"	logs/127_run_b12_rz.log
+128_run_b13_pcmi	success	2026-09-13T15:09:52.3635227Z	2026-09-13T15:09:58.8009322Z	../b13/run_b13_pcmi.ps1	"{""Cases"": ""b13_small_cax4t"", ""DestinationDirectory"": ""$SOURCE""}"	logs/128_run_b13_pcmi.log
+129_run_b13_pcmi	success	2026-09-13T15:09:53.5108080Z	2026-09-13T15:09:59.8344763Z	../b13/run_b13_pcmi.ps1	"{""Cases"": ""b13_small_cax4rt"", ""DestinationDirectory"": ""$SOURCE""}"	logs/129_run_b13_pcmi.log
+130_run_b13_pcmi	success	2026-09-13T15:09:53.8354352Z	2026-09-13T15:10:00.4600764Z	../b13/run_b13_pcmi.ps1	"{""Cases"": ""b13_small_cax8t"", ""DestinationDirectory"": ""$SOURCE""}"	logs/130_run_b13_pcmi.log
+131_run_b13_pcmi	success	2026-09-13T15:09:54.9768681Z	2026-09-13T15:10:01.4552070Z	../b13/run_b13_pcmi.ps1	"{""Cases"": ""b13_small_cax8rt"", ""DestinationDirectory"": ""$SOURCE""}"	logs/131_run_b13_pcmi.log
+132_run_b14_nts	success	2026-09-13T15:09:58.5985024Z	2026-09-13T15:10:04.9116110Z	../production/run_b14_nts.ps1	"{""Cases"": ""b14_nts_cax4t"", ""DestinationDirectory"": ""$SOURCE""}"	logs/132_run_b14_nts.log
+133_run_b14_nts	success	2026-09-13T15:09:59.0526352Z	2026-09-13T15:10:03.2869202Z	../production/run_b14_nts.ps1	"{""Cases"": ""b14_nts_cax8t"", ""DestinationDirectory"": ""$SOURCE""}"	logs/133_run_b14_nts.log
+134_run	success	2026-09-13T15:10:00.0734874Z	2026-09-13T15:10:04.2252563Z	../gps_1d/run.ps1	"{""Cases"": ""gps_uniform_axial"", ""DestinationDirectory"": ""$SOURCE""}"	logs/134_run.log
+135_run	success	2026-09-13T15:10:00.7087026Z	2026-09-13T15:10:06.9739821Z	../gps_1d/run.ps1	"{""Cases"": ""gps_two_slice_contact"", ""DestinationDirectory"": ""$SOURCE""}"	logs/135_run.log
+136_run	success	2026-09-13T15:10:01.6984294Z	2026-09-13T15:10:05.8267220Z	../gps_1d/run.ps1	"{""Cases"": ""gps_two_slice_chain"", ""DestinationDirectory"": ""$SOURCE""}"	logs/136_run.log
+137_run	success	2026-09-13T15:10:02.5848503Z	2026-09-13T15:10:06.5072621Z	../cax4t_material_temperature_probe/run.ps1	"{""Cases"": ""elastic_moduli"", ""DestinationDirectory"": ""$SOURCE""}"	logs/137_run.log
+138_run	success	2026-09-13T15:10:03.5414584Z	2026-09-13T15:10:07.4799958Z	../cax4t_material_temperature_probe/run.ps1	"{""Cases"": ""elastic_moduli_finite"", ""DestinationDirectory"": ""$SOURCE""}"	logs/138_run.log
+139_run	success	2026-09-13T15:10:04.4722942Z	2026-09-13T15:10:08.4324063Z	../cax4t_material_temperature_probe/run.ps1	"{""Cases"": ""plastic_yield"", ""DestinationDirectory"": ""$SOURCE""}"	logs/139_run.log
+140_run	success	2026-09-13T15:10:05.1624496Z	2026-09-13T15:10:09.1289165Z	../cax4t_material_temperature_probe/run.ps1	"{""Cases"": ""plastic_yield_finite"", ""DestinationDirectory"": ""$SOURCE""}"	logs/140_run.log
+141_run	success	2026-09-13T15:10:06.0776107Z	2026-09-13T15:10:10.1932020Z	../cax4t_material_temperature_probe/run.ps1	"{""Cases"": ""plastic_hardening"", ""DestinationDirectory"": ""$SOURCE""}"	logs/141_run.log
+142_run	success	2026-09-13T15:10:06.7431759Z	2026-09-13T15:10:13.0561407Z	../cax4t_material_temperature_probe/run.ps1	"{""Cases"": ""plastic_hardening_finite"", ""DestinationDirectory"": ""$SOURCE""}"	logs/142_run.log
+143_run	success	2026-09-13T15:10:07.2418766Z	2026-09-13T15:10:11.3619735Z	../cax4t_material_temperature_probe/run.ps1	"{""Cases"": ""production_creep_coefficient_finite"", ""DestinationDirectory"": ""$SOURCE""}"	logs/143_run.log
+144_run	success	2026-09-13T15:10:07.7251847Z	2026-09-13T15:10:13.8602654Z	../cax4t_material_temperature_probe/run.ps1	"{""Cases"": ""production_creep_exponent_finite"", ""DestinationDirectory"": ""$SOURCE""}"	logs/144_run.log

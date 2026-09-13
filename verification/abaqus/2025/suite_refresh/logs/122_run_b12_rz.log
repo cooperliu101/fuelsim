@@ -1,0 +1,23 @@
+﻿case=b127_cax8rt_finite_creep work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax8rt_9280d73153f3413b8ed3e0dc8537c0a6
+Analysis initiated from SIMULIA established products
+Abaqus JOB b127_cax8rt_finite_creep
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9969 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:09:45 PM
+Run pre.exe
+9/13/2026 11:09:46 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:09:46 PM
+Run standard.exe
+9/13/2026 11:09:48 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:09:50 PM
+Run SMASimUtility.exe
+9/13/2026 11:09:50 PM
+End SIM Wrap-up
+Abaqus JOB b127_cax8rt_finite_creep COMPLETED

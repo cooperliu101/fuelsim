@@ -1,0 +1,295 @@
+*Heading
+** B5.16 Abaqus/Standard finite-strain Norton creep C3D8T constant-stress probe.
+** Creep dissipation heat generation is intentionally disabled.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Node
+1, 0.0, 0.0, 0.0
+2, 1.0, 0.0, 0.0
+3, 1.0, 1.0, 0.0
+4, 0.0, 1.0, 0.0
+5, 0.0, 0.0, 1.0
+6, 1.0, 0.0, 1.0
+7, 1.0, 1.0, 1.0
+8, 0.0, 1.0, 1.0
+*Element, type=C3D8T, elset=VOLUME
+1, 1, 2, 3, 4, 5, 6, 7, 8
+*Nset, nset=ALL_NODES, generate
+1, 8, 1
+*Nset, nset=LEFT
+1, 4, 5, 8
+*Nset, nset=RIGHT
+2, 3, 6, 7
+*Nset, nset=Y0
+1, 2, 5, 6
+*Nset, nset=Z0, generate
+1, 4, 1
+*Material, name=NORTON_MATERIAL
+*Elastic
+2.0000000000000000e11, 3.0000000000000000e-1
+*Creep, law=TIME
+1.0000000000000001e-28, 3.0000000000000000e0, 0.0
+*Conductivity
+1.0
+*Density
+1.0
+*Specific Heat
+1.0
+*Solid Section, elset=VOLUME, material=NORTON_MATERIAL
+,
+*Initial Conditions, type=TEMPERATURE
+ALL_NODES, 6.0000000000000000e2
+*Amplitude, name=CONSTANT, time=STEP TIME
+0.0, 1.0, 1.0, 1.0
+*Step, name=PRELOAD, nlgeom=YES
+*Static
+1.0, 1.0, 1.0000000000000000e-5, 1.0
+*Boundary
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+*Cload, amplitude=CONSTANT
+2, 1, 7.5000000000000000e+07
+3, 1, 7.5000000000000000e+07
+6, 1, 7.5000000000000000e+07
+7, 1, 7.5000000000000000e+07
+*End Step
+*Step, name=STEP1, nlgeom=YES, inc=64
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1.0000000000000000e-12, 1.0000000000000000e-12, , , , 1.0000000000000000e-12
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+*Cload, op=NEW, amplitude=CONSTANT
+2, 1, 7.5000000000000000e+07
+3, 1, 7.5000000000000000e+07
+6, 1, 7.5000000000000000e+07
+7, 1, 7.5000000000000000e+07
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, EE, LE, IVOL, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLWK
+*End Step
+*Step, name=STEP2, nlgeom=YES, inc=64
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1.0000000000000000e-12, 1.0000000000000000e-12, , , , 1.0000000000000000e-12
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+*Cload, op=NEW, amplitude=CONSTANT
+2, 1, 7.5000000000000000e+07
+3, 1, 7.5000000000000000e+07
+6, 1, 7.5000000000000000e+07
+7, 1, 7.5000000000000000e+07
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, EE, LE, IVOL, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLWK
+*End Step
+*Step, name=STEP3, nlgeom=YES, inc=64
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1.0000000000000000e-12, 1.0000000000000000e-12, , , , 1.0000000000000000e-12
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+*Cload, op=NEW, amplitude=CONSTANT
+2, 1, 7.5000000000000000e+07
+3, 1, 7.5000000000000000e+07
+6, 1, 7.5000000000000000e+07
+7, 1, 7.5000000000000000e+07
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, EE, LE, IVOL, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLWK
+*End Step
+*Step, name=STEP4, nlgeom=YES, inc=64
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1.0000000000000000e-12, 1.0000000000000000e-12, , , , 1.0000000000000000e-12
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+*Cload, op=NEW, amplitude=CONSTANT
+2, 1, 7.5000000000000000e+07
+3, 1, 7.5000000000000000e+07
+6, 1, 7.5000000000000000e+07
+7, 1, 7.5000000000000000e+07
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, EE, LE, IVOL, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLWK
+*End Step
+*Step, name=STEP5, nlgeom=YES, inc=64
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1.0000000000000000e-12, 1.0000000000000000e-12, , , , 1.0000000000000000e-12
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+*Cload, op=NEW, amplitude=CONSTANT
+2, 1, 7.5000000000000000e+07
+3, 1, 7.5000000000000000e+07
+6, 1, 7.5000000000000000e+07
+7, 1, 7.5000000000000000e+07
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, EE, LE, IVOL, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLWK
+*End Step
+*Step, name=STEP6, nlgeom=YES, inc=64
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1.0000000000000000e-12, 1.0000000000000000e-12, , , , 1.0000000000000000e-12
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+*Cload, op=NEW, amplitude=CONSTANT
+2, 1, 7.5000000000000000e+07
+3, 1, 7.5000000000000000e+07
+6, 1, 7.5000000000000000e+07
+7, 1, 7.5000000000000000e+07
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, EE, LE, IVOL, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLWK
+*End Step
+*Step, name=STEP7, nlgeom=YES, inc=64
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1.0000000000000000e-12, 1.0000000000000000e-12, , , , 1.0000000000000000e-12
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+*Cload, op=NEW, amplitude=CONSTANT
+2, 1, 7.5000000000000000e+07
+3, 1, 7.5000000000000000e+07
+6, 1, 7.5000000000000000e+07
+7, 1, 7.5000000000000000e+07
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, EE, LE, IVOL, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLWK
+*End Step
+*Step, name=STEP8, nlgeom=YES, inc=64
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1.0000000000000000e-12, 1.0000000000000000e-12, , , , 1.0000000000000000e-12
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+*Cload, op=NEW, amplitude=CONSTANT
+2, 1, 7.5000000000000000e+07
+3, 1, 7.5000000000000000e+07
+6, 1, 7.5000000000000000e+07
+7, 1, 7.5000000000000000e+07
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, EE, LE, IVOL, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLWK
+*End Step
+*Step, name=STEP9, nlgeom=YES, inc=64
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1.0000000000000000e-12, 1.0000000000000000e-12, , , , 1.0000000000000000e-12
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+*Cload, op=NEW, amplitude=CONSTANT
+2, 1, 7.5000000000000000e+07
+3, 1, 7.5000000000000000e+07
+6, 1, 7.5000000000000000e+07
+7, 1, 7.5000000000000000e+07
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, EE, LE, IVOL, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLWK
+*End Step
+*Step, name=STEP10, nlgeom=YES, inc=64
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1.0000000000000000e-12, 1.0000000000000000e-12, , , , 1.0000000000000000e-12
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+*Cload, op=NEW, amplitude=CONSTANT
+2, 1, 7.5000000000000000e+07
+3, 1, 7.5000000000000000e+07
+6, 1, 7.5000000000000000e+07
+7, 1, 7.5000000000000000e+07
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, EE, LE, IVOL, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLWK
+*End Step

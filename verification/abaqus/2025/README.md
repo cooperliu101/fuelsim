@@ -1,4 +1,8 @@
-# Abaqus 2025 初始质量比较
+# Abaqus 2025 参考
+
+本次对自动测试中剩余 2018 数值参考的更新见 [完整套件参考更新](suite_refresh/README.md)。
+该更新暴露四项新的比较失败，以下 314/314 通过仅是更新前批次的历史结果。
+
 
 用户随后授权对八项未通过例题采用分项容差，见
 [当前容差约定](tolerance_qualification.md)。调整后完整回归为 **314/314 通过**，
@@ -63,7 +67,7 @@ B5.4 删除了旧的“必须偏离初始质量”断言；直接原生比较门
 用于追溯原生输出数据库。输入同一性表和本目录 SHA256SUMS 覆盖原生输入、
 脚本及提取结果；旧 2018 文件未被替换。
 
-完整 Fuelsim 回归命令为 `ctest --test-dir build -j4 --output-on-failure`。
+完整 Fuelsim 回归命令为 `ctest --test-dir build -j8 --output-on-failure`。
 尚未通过的比较明确记录为 `unverified`，不能据此声称全部有限应变验收完成。
 
 原生执行日志保存在 `run_logs/`。首次批量任务中 B6.1 和 B5.26 缺少辅助文件，

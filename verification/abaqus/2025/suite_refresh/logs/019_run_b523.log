@@ -1,0 +1,23 @@
+﻿Analysis initiated from SIMULIA established products
+Abaqus JOB b523_hex8_c3d8t_integrated_path
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9979 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:14:47 PM
+Run pre.exe
+9/13/2026 11:14:48 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:14:48 PM
+Run standard.exe
+9/13/2026 11:14:50 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:14:51 PM
+Run SMASimUtility.exe
+9/13/2026 11:14:51 PM
+End SIM Wrap-up
+Abaqus JOB b523_hex8_c3d8t_integrated_path COMPLETED
+Abaqus B5.23 work directory: C:\Users\TcroM\AppData\Local\Temp\fuelsim_b523_20260913_231446

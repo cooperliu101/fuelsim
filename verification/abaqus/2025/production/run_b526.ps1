@@ -4,6 +4,14 @@ param(
     [string]$Case = ""
 )
 
+function Invoke-Abaqus {
+    $ErrorActionPreference = "Continue"
+    $NativeOutput = & "C:\SIMULIA\Commands\abq2025.bat" @args 2>&1
+    $NativeExitCode = $LASTEXITCODE
+    foreach ($Item in $NativeOutput) { Write-Output ($Item.ToString()) }
+    $global:LASTEXITCODE = $NativeExitCode
+}
+
 $ErrorActionPreference = "Stop"
 $Work = Join-Path $env:TEMP ("fuelsim_b526_" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $Work | Out-Null
@@ -21,11 +29,11 @@ foreach ($Item in $Cases) {
     $InputFile = "$JobName.inp"
     Copy-Item (Join-Path $SourceDirectory $InputFile) $Work
     Set-Location $Work
-    & "C:\SIMULIA\Commands\abq2025.bat" `
+    Invoke-Abaqus `
         job=$JobName `
         input=$InputFile `
         output_precision=full `
-        interactive
+        cpus=1 interactive
     if ($LASTEXITCODE -ne 0) {
         throw "Abaqus $JobName solve failed with exit code $LASTEXITCODE"
     }
@@ -43,7 +51,7 @@ foreach ($Item in $Cases) {
     if (Test-Path $Success) {
         Remove-Item $Success
     }
-    & "C:\SIMULIA\Commands\abq2025.bat" `
+    Invoke-Abaqus `
         python extract_b524_b525.py `
         "$JobName.odb" `
         $Outputs[0] `

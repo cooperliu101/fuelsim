@@ -1,0 +1,74 @@
+*Heading
+** CAX4T temperature-dependent Norton coefficient; SI units.
+** A(T)=1e-17+(T-600)*(8e-17/150), n=2, m=0.
+** NLGEOM=YES and default creep integration select backward Euler.
+** Four different fixed temperatures; no expansion or plasticity.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Node
+1, 0.004, 0.0
+2, 0.005, 0.0
+3, 0.005, 0.01
+4, 0.004, 0.01
+*Element, type=CAX4T, elset=BODY
+1, 1, 2, 3, 4
+*Nset, nset=ALL_NODES, generate
+1, 4, 1
+*Nset, nset=BOTTOM
+1, 2
+*Nset, nset=TOP
+3, 4
+*Material, name=MATERIAL
+*Elastic
+1.e9, 0.3
+*Creep, law=TIME
+1.e-17, 2.0, 0.0, 600.0
+9.e-17, 2.0, 0.0, 750.0
+*Conductivity
+10.0
+*Density
+1000.0
+*Specific Heat
+1000.0
+*Solid Section, elset=BODY, material=MATERIAL
+,
+*Initial Conditions, type=TEMPERATURE
+1, 600.0
+2, 650.0
+3, 700.0
+4, 750.0
+*Step, name=PRELOAD, nlgeom=YES, inc=20
+*Coupled Temperature-displacement, creep=NONE
+0.1, 0.1
+*Boundary
+ALL_NODES, 1, 1, 0.0
+BOTTOM, 2, 2, 0.0
+TOP, 2, 2, 1.e-4
+1, 11, 11, 600.0
+2, 11, 11, 650.0
+3, 11, 11, 700.0
+4, 11, 11, 750.0
+*Output, field, frequency=1
+*Node Output
+COORD, NT, U
+*Element Output, directions=YES
+S, EE, CE, CEEQ, COORD
+*End Step
+** Retain every boundary condition; only creep is now active.
+*Step, name=RELAX_FAST, nlgeom=YES, inc=20
+*Coupled Temperature-displacement
+0.05, 0.2
+*Output, field, frequency=1
+*Node Output
+COORD, NT, U
+*Element Output, directions=YES
+S, EE, CE, CEEQ, COORD
+*End Step
+*Step, name=RELAX_SLOW, nlgeom=YES, inc=20
+*Coupled Temperature-displacement
+0.2, 0.8
+*Output, field, frequency=1
+*Node Output
+COORD, NT, U
+*Element Output, directions=YES
+S, EE, CE, CEEQ, COORD
+*End Step

@@ -1,0 +1,110 @@
+﻿Analysis initiated from SIMULIA established products
+Abaqus JOB b522_hex8_c3d8t_faceted_thermal_contact
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9984 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:14:46 PM
+Run pre.exe
+9/13/2026 11:14:47 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:14:47 PM
+Run standard.exe
+9/13/2026 11:14:48 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:14:49 PM
+Run SMASimUtility.exe
+9/13/2026 11:14:49 PM
+End SIM Wrap-up
+Abaqus JOB b522_hex8_c3d8t_faceted_thermal_contact COMPLETED
+Analysis initiated from SIMULIA established products
+Abaqus JOB b522_hex8_c3d8t_faceted_thermal_contact_f6
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9989 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:14:50 PM
+Run pre.exe
+9/13/2026 11:14:51 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:14:51 PM
+Run standard.exe
+9/13/2026 11:14:52 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:14:52 PM
+Run SMASimUtility.exe
+9/13/2026 11:14:52 PM
+End SIM Wrap-up
+Abaqus JOB b522_hex8_c3d8t_faceted_thermal_contact_f6 COMPLETED
+Analysis initiated from SIMULIA established products
+Abaqus JOB b522_hex8_c3d8t_faceted_thermal_contact_f12
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9979 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:14:54 PM
+Run pre.exe
+9/13/2026 11:14:55 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:14:55 PM
+Run standard.exe
+9/13/2026 11:14:56 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:14:56 PM
+Run SMASimUtility.exe
+9/13/2026 11:14:56 PM
+End SIM Wrap-up
+Abaqus JOB b522_hex8_c3d8t_faceted_thermal_contact_f12 COMPLETED
+Analysis initiated from SIMULIA established products
+Abaqus JOB b522_hex8_c3d8t_faceted_thermal_contact_swapped
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9979 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:14:58 PM
+Run pre.exe
+9/13/2026 11:14:59 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:14:59 PM
+Run standard.exe
+9/13/2026 11:14:59 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:15:00 PM
+Run SMASimUtility.exe
+9/13/2026 11:15:00 PM
+End SIM Wrap-up
+Abaqus JOB b522_hex8_c3d8t_faceted_thermal_contact_swapped COMPLETED
+Analysis initiated from SIMULIA established products
+Abaqus JOB b522_hex8_c3d8t_faceted_thermal_contact_tight
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9989 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:15:01 PM
+Run pre.exe
+9/13/2026 11:15:02 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:15:02 PM
+Run standard.exe
+9/13/2026 11:15:03 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:15:03 PM
+Run SMASimUtility.exe
+9/13/2026 11:15:04 PM
+End SIM Wrap-up
+Abaqus JOB b522_hex8_c3d8t_faceted_thermal_contact_tight COMPLETED

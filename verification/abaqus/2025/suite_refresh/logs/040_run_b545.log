@@ -1,0 +1,23 @@
+﻿Analysis initiated from SIMULIA established products
+Abaqus JOB b545_hex8_c3d8rt_finite_noncoaxial_100step
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9989 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:08:19 PM
+Run pre.exe
+9/13/2026 11:08:20 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:08:20 PM
+Run standard.exe
+9/13/2026 11:08:31 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:08:33 PM
+Run SMASimUtility.exe
+9/13/2026 11:08:33 PM
+End SIM Wrap-up
+Abaqus JOB b545_hex8_c3d8rt_finite_noncoaxial_100step COMPLETED
+Completed Abaqus B5.45 in C:\Users\TcroM\AppData\Local\Temp\fuelsim_b545_fc24d8f17de14ef3a932bd2e0983ab5b

@@ -1,0 +1,23 @@
+﻿case=b112_cax8t_small_friction work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax8t_5e062b5d0ac94616a63424cf580570ce
+Analysis initiated from SIMULIA established products
+Abaqus JOB b112_cax8t_small_friction
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9974 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:09:38 PM
+Run pre.exe
+9/13/2026 11:09:39 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:09:39 PM
+Run standard.exe
+9/13/2026 11:09:40 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:09:42 PM
+Run SMASimUtility.exe
+9/13/2026 11:09:42 PM
+End SIM Wrap-up
+Abaqus JOB b112_cax8t_small_friction COMPLETED

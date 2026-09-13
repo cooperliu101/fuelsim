@@ -90,7 +90,7 @@ env \
     -DSEACASExodus_DIR="${fuelsim_dependency_root}/exodus-2024-06-27/lib/cmake/SEACASExodus" \
     -DFUELSIM_WARNINGS_AS_ERRORS=ON
 cmake --build build --parallel 4
-ctest --test-dir build -j4 --output-on-failure
+ctest --test-dir build -j8 --output-on-failure
 ```
 
 已有构建目录升级依赖时，还需在配置命令中显式指定
@@ -120,7 +120,7 @@ cmake --build build-sanitize --parallel 4
 ASAN_OPTIONS=detect_leaks=0 \
 MPIR_CVAR_CH4_NETMOD=ofi \
 FI_PROVIDER=tcp \
-  ctest --test-dir build-sanitize -j4 --output-on-failure
+  ctest --test-dir build-sanitize -j8 --output-on-failure
 ```
 
 泄漏检查关闭是显式边界：当前 MOOSE PETSc 初始化会加载系统 CUDA 驱动，

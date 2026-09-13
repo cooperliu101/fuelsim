@@ -358,8 +358,10 @@ Abaqus 2025 原生热容探测仅作为独立比较证据，不改变上述质�
 库。PETSc 不需要启用 Exodus；不得使用 DMPlex 或 PETSc Exodus viewer。
 所有并行编译命令最多使用 4 个作业；不得使用没有显式作业数的 `--parallel`，
 以免 Release 链接时优化同时启动过多链接进程并耗尽 WSL 内存。
-所有 CTest 运行统一使用最多 4 个并发测试，不得使用串行完整回归；命令中必须
-显式指定 `-j4` 或更小的并发数。
+所有 CTest 运行统一使用最多 8 个并发测试，不得使用串行完整回归；命令中必须
+显式指定 `-j8` 或更小的并发数。用户要求后续例题使用 8 核预算；
+Abaqus 参考重算同样最多占用 8 核，可并行运行八个单核原生任务。
+日常 CTest 仅读取已生成的参考，不自动启动 Abaqus。
 先安装 ADlite 和 Exodus，然后配置 fuelsim：
 
 ```bash
@@ -377,7 +379,7 @@ env \
 cmake --build build --parallel 4
 
 # 统一回归：所有已注册测试都属于同一个轻量测试套件
-ctest --test-dir build -j4 --output-on-failure
+ctest --test-dir build -j8 --output-on-failure
 ```
 
 CTest 不再区分日常回归和完整回归，也不使用 `qualification` 标签筛选扩展参数

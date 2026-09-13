@@ -1,0 +1,23 @@
+﻿Analysis initiated from SIMULIA established products
+Abaqus JOB h20_41_hex20_finite_sliding_partial_contact
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9969 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:08:43 PM
+Run pre.exe
+9/13/2026 11:08:44 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:08:44 PM
+Run standard.exe
+9/13/2026 11:08:45 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:08:47 PM
+Run SMASimUtility.exe
+9/13/2026 11:08:47 PM
+End SIM Wrap-up
+Abaqus JOB h20_41_hex20_finite_sliding_partial_contact COMPLETED
+Abaqus H20.41 work directory: C:\Users\TcroM\AppData\Local\Temp\fuelsim_h20_41_20260913_230842

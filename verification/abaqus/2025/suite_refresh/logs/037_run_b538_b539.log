@@ -1,0 +1,47 @@
+﻿Analysis initiated from SIMULIA established products
+Abaqus JOB b538_contact_cycle
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9989 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:15:17 PM
+Run pre.exe
+9/13/2026 11:15:18 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:15:18 PM
+Run standard.exe
+9/13/2026 11:15:19 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:15:21 PM
+Run SMASimUtility.exe
+9/13/2026 11:15:21 PM
+End SIM Wrap-up
+Abaqus JOB b538_contact_cycle COMPLETED
+Completed Abaqus contact case: b538_contact_cycle
+Analysis initiated from SIMULIA established products
+Abaqus JOB b539_friction_reversal
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9989 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:15:23 PM
+Run pre.exe
+9/13/2026 11:15:24 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:15:24 PM
+Run standard.exe
+9/13/2026 11:15:26 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:15:27 PM
+Run SMASimUtility.exe
+9/13/2026 11:15:27 PM
+End SIM Wrap-up
+Abaqus JOB b539_friction_reversal COMPLETED
+Completed Abaqus contact case: b539_friction_reversal
+Abaqus B5.38-B5.39 work directory: C:\Users\TcroM\AppData\Local\Temp\fuelsim_b538_b539_e009e857dff64aeab290dd65db60fbcc

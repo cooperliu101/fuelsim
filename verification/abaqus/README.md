@@ -1,6 +1,6 @@
 # Abaqus references
 
-> 2026-09-13：固定初始质量热容已回退，恢复原生热容比较。保留综合输入的初始单值密度及新鉴定的 C3D8RT 体内力修正。B5.23 与 B5.44 的当前正式输入、原生结果及来源核对见[参考来源同步说明](b523_b544_reference_alignment.md)；[B5.44 初始密度报告](b544_initial_density_validation.md)保留此前设置的历史比较，回退说明见[热容实验记录](../../docs/initial-mass-heat-capacity.md)。
+> 当前生产程序采用固定初始质量。自动测试的 Abaqus 数值参考统一使用 Windows Abaqus 2025 重新计算的结果，见 [2025 参考更新记录](2025/suite_refresh/README.md)。旧目录中的 2018 结果与历史鉴定报告保留用于追溯，不能代表当前测试结果。日常 CTest 不启动 Abaqus。
 
 ## CAX4T 力学材料参数取温的独立鉴定
 

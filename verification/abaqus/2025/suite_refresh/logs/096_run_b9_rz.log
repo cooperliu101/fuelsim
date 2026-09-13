@@ -1,0 +1,23 @@
+﻿case=b99_cax4rt_small_thermal work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax4rt_b5540250e00346559a25307009b2ac7b
+Analysis initiated from SIMULIA established products
+Abaqus JOB b99_cax4rt_small_thermal
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9964 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:09:19 PM
+Run pre.exe
+9/13/2026 11:09:20 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:09:20 PM
+Run standard.exe
+9/13/2026 11:09:21 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:09:21 PM
+Run SMASimUtility.exe
+9/13/2026 11:09:21 PM
+End SIM Wrap-up
+Abaqus JOB b99_cax4rt_small_thermal COMPLETED

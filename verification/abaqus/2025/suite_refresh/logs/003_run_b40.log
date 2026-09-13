@@ -1,0 +1,23 @@
+﻿Analysis initiated from SIMULIA established products
+Abaqus JOB b40_hex8_sts_friction
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9979 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:14:18 PM
+Run pre.exe
+9/13/2026 11:14:19 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:14:19 PM
+Run standard.exe
+9/13/2026 11:14:20 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:14:22 PM
+Run SMASimUtility.exe
+9/13/2026 11:14:22 PM
+End SIM Wrap-up
+Abaqus JOB b40_hex8_sts_friction COMPLETED
+Abaqus B4.0 work directory: C:\Users\TcroM\AppData\Local\Temp\fuelsim_b40_20260913_231417

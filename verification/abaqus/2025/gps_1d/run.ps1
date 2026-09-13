@@ -2,6 +2,14 @@ param(
     [string[]]$Cases = @("gps_uniform_axial", "gps_uniform_axial_finite", "gps_two_slice_contact", "gps_two_slice_chain", "gps_two_slice_connected", "gps_nonuniform_finite"),
     [string]$DestinationDirectory = $PSScriptRoot
 )
+function Invoke-Abaqus {
+    $ErrorActionPreference = "Continue"
+    $NativeOutput = & "C:\SIMULIA\Commands\abq2025.bat" @args 2>&1
+    $NativeExitCode = $LASTEXITCODE
+    foreach ($Item in $NativeOutput) { Write-Output ($Item.ToString()) }
+    $global:LASTEXITCODE = $NativeExitCode
+}
+
 $ErrorActionPreference = "Stop"
 $env:OMP_NUM_THREADS = "1"
 $env:MKL_NUM_THREADS = "1"
@@ -18,7 +26,7 @@ foreach ($Case in ($Cases -join ',').Split(',')) {
     Push-Location $Work
     try {
         $ErrorActionPreference = "Continue"
-        & C:\SIMULIA\Commands\abq2025.bat job=$Case input="$Case.inp" cpus=1 output_precision=full ask_delete=OFF interactive *> "${Case}_run.log"
+        Invoke-Abaqus job=$Case input="$Case.inp" output_precision=full ask_delete=OFF cpus=1 interactive *> "${Case}_run.log"
         $AnalysisExitCode = $LASTEXITCODE
         $ErrorActionPreference = "Stop"
         foreach ($Extension in @("dat", "msg", "sta")) {
@@ -30,7 +38,7 @@ foreach ($Case in ($Cases -join ',').Split(',')) {
             throw "Abaqus failed; inspect $Work"
         }
         $ErrorActionPreference = "Continue"
-        & C:\SIMULIA\Commands\abq2025.bat python extract.py "$Case.odb" $Case *> "${Case}_extract.log"
+        Invoke-Abaqus python extract.py "$Case.odb" $Case *> "${Case}_extract.log"
         $ExtractExitCode = $LASTEXITCODE
         $ErrorActionPreference = "Stop"
         Get-Content "${Case}_extract.log" | Set-Content (Join-Path $DestinationDirectory "${Case}_extract.log") -Encoding UTF8
@@ -43,7 +51,7 @@ foreach ($Case in ($Cases -join ',').Split(',')) {
             Copy-Item "${Case}_${Kind}.csv" $DestinationDirectory
         }
         Copy-Item "${Case}_fields.txt" $DestinationDirectory
-        @("case=$Case", "abaqus_version=Abaqus 2025 RELr427", "cpus=1", "output_precision=full",
+        @("case=$Case", "abaqus_version=Abaqus 2025 RELr427", "", "output_precision=full",
             "accepted_increments=10", "completed_utc=$([DateTime]::UtcNow.ToString('o'))", "work_directory=$Work",
             "input_sha256=$((Get-FileHash "$Case.inp" -Algorithm SHA256).Hash)",
             "extractor_sha256=$((Get-FileHash 'extract.py' -Algorithm SHA256).Hash)") |

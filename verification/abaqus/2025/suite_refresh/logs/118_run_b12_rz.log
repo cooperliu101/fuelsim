@@ -1,0 +1,23 @@
+﻿case=b123_cax8rt_finite_contact work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax8rt_071b552fc87d4c368de31d5d72391df1
+Analysis initiated from SIMULIA established products
+Abaqus JOB b123_cax8rt_finite_contact
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9969 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 11:09:42 PM
+Run pre.exe
+9/13/2026 11:09:43 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 11:09:43 PM
+Run standard.exe
+9/13/2026 11:09:44 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 11:09:44 PM
+Run SMASimUtility.exe
+9/13/2026 11:09:44 PM
+End SIM Wrap-up
+Abaqus JOB b123_cax8rt_finite_contact COMPLETED

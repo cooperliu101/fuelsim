@@ -2,6 +2,14 @@ param(
     [Parameter(Mandatory = $true)][string[]]$Cases,
     [Parameter(Mandatory = $true)][string]$DestinationDirectory
 )
+function Invoke-Abaqus {
+    $ErrorActionPreference = "Continue"
+    $NativeOutput = & "C:\SIMULIA\Commands\abq2025.bat" @args 2>&1
+    $NativeExitCode = $LASTEXITCODE
+    foreach ($Item in $NativeOutput) { Write-Output ($Item.ToString()) }
+    $global:LASTEXITCODE = $NativeExitCode
+}
+
 $ErrorActionPreference = "Stop"
 New-Item -ItemType Directory -Force -Path $DestinationDirectory | Out-Null
 $env:OMP_NUM_THREADS = "1"
@@ -19,7 +27,7 @@ foreach ($Case in ($Cases -join ',').Split(',')) {
     Write-Output "case=$Case work_directory=$Work"
     Push-Location $Work
     try {
-        & C:\SIMULIA\Commands\abq2025.bat job=$Case input="$Case.inp" cpus=1 output_precision=full ask_delete=OFF interactive
+        Invoke-Abaqus job=$Case input="$Case.inp" output_precision=full ask_delete=OFF cpus=1 interactive
         foreach ($Extension in @("dat", "msg", "sta")) {
             if (Test-Path "$Case.$Extension") { Copy-Item "$Case.$Extension" $DestinationDirectory }
         }
@@ -27,7 +35,7 @@ foreach ($Case in ($Cases -join ',').Split(',')) {
             !(Select-String -Path "$Case.sta" -Pattern "THE ANALYSIS HAS COMPLETED SUCCESSFULLY" -Quiet)) {
             throw "Abaqus failed; inspect $Work"
         }
-        & C:\SIMULIA\Commands\abq2025.bat python $Extractor "$Case.odb" $Case
+        Invoke-Abaqus python $Extractor "$Case.odb" $Case
         if ($LASTEXITCODE -ne 0) { throw "Extraction failed: $Case" }
         $Kinds = @("nodes", "points")
         if ($Case -match "friction|sliding|recovery") { $Kinds += "contact" }
@@ -38,7 +46,7 @@ foreach ($Case in ($Cases -join ',').Split(',')) {
             }
             Copy-Item $Output $DestinationDirectory
         }
-        @("case=$Case", "abaqus_version=Abaqus 2025 RELr427", "cpus=1", "output_precision=full",
+        @("case=$Case", "abaqus_version=Abaqus 2025 RELr427", "", "output_precision=full",
             "completed_utc=$([DateTime]::UtcNow.ToString('o'))", "work_directory=$Work",
             "input_sha256=$((Get-FileHash "$Case.inp" -Algorithm SHA256).Hash)",
             "extractor_sha256=$((Get-FileHash $Extractor -Algorithm SHA256).Hash)") |

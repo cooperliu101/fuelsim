@@ -1,0 +1,39 @@
+*Heading
+** CAX4RT volumetric heating and restrained thermal expansion, small strain.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Include, input=b9_rz_material_mesh.inc
+*Material, name=SOLID
+*Elastic
+2e11, 0.3
+*Expansion, zero=600
+1e-4
+*Conductivity
+10
+*Density
+1000
+*Specific Heat
+100
+*Solid Section, elset=SOLID, material=SOLID
+,
+*Initial Conditions, type=TEMPERATURE
+ALL, 600
+*Amplitude, name=CONSTANT
+0, 1, 1, 1
+*Step, name=HEATING, nlgeom=NO, inc=5
+*Coupled Temperature-Displacement
+0.2, 1, 0.2, 0.2
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1e-10, 1e-10, , , , 1e-10
+*Boundary
+AXIS, 1, 1, 0
+BOTTOM, 2, 2, 0
+TOP, 2, 2, 0
+*Dflux, amplitude=CONSTANT
+SOLID, BF, 1e7
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output, directions=YES
+S, EE, COORD, IVOL, HFL
+*Output, history, frequency=0
+*End Step

@@ -1,0 +1,54 @@
+*Heading
+** CAX4RT small-strain friction: sticking, sliding and two reversals.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Include, input=b9_rz_sliding_mesh.inc
+*Material, name=SOLID
+*Elastic
+1e9, 0.3
+*Conductivity
+10
+*Density
+1000
+*Specific Heat
+100
+*Solid Section, elset=INNER, material=SOLID
+,
+*Solid Section, elset=OUTER, material=SOLID
+,
+*Initial Conditions, type=TEMPERATURE
+ALL, 600
+*Surface Interaction, name=INTERFACE
+*Surface Behavior, pressure-overclosure=LINEAR
+1e13
+*Friction, slip tolerance=0.001
+0.2
+*Gap Heat Generation
+0
+*Contact Pair, interaction=INTERFACE, type=NODE TO SURFACE, adjust=0
+S_INNER, S_OUTER
+*Amplitude, name=CLOSURE, time=TOTAL TIME
+0, 0, 0.1, 5e-6, 1, 5e-6
+*Amplitude, name=TRANSLATION, time=TOTAL TIME
+0, 0, 0.1, 0, 0.2, 1e-9, 0.3, 1e-5
+0.4, 2e-5, 0.5, 0.000019999, 0.6, 1e-5, 0.7, 0
+0.8, -1e-5, 0.9, -0.000009999, 1, 0
+*Step, name=FRICTION, nlgeom=NO, inc=10
+*Coupled Temperature-Displacement
+0.1, 1, 0.1, 0.1
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1e-10, 1e-10, , , , 1e-10
+*Boundary
+OUTER_RIGHT, 1, 2, 0
+*Boundary, amplitude=CLOSURE
+INNER_LEFT, 1, 1, 1
+*Boundary, amplitude=TRANSLATION
+INNER_LEFT, 2, 2, 1
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output
+S, EE, COORD, IVOL, HFL
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*Output, history, frequency=0
+*End Step
