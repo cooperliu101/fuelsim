@@ -21,7 +21,7 @@ namespace fuelsim {
 namespace {
 constexpr std::array<unsigned char, 16> checkpoint_magic =
     {'F', 'U', 'E', 'L', 'S', 'I', 'M', '_', 'C', 'H', 'E', 'C', 'K', 'P', 'T', '\0'};
-constexpr std::uint32_t checkpoint_version = 21U;
+constexpr std::uint32_t checkpoint_version = 22U;
 constexpr std::uint32_t endian_marker = 0x01020304U;
 constexpr std::uint64_t maximum_checkpoint_bytes = 16ULL * 1024ULL * 1024ULL * 1024ULL;
 

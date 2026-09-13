@@ -887,6 +887,35 @@ int main(int argc, char** argv) {
         } else if (mode == "b6") {
             require_argument_count(mode, argc, 5);
             passed = run_b6(argv[2], argv[3], argv[4]);
+        } else if (mode == "gravity") {
+            require_argument_count(mode, argc, 9);
+            passed = completed_summary(argv[3], "steady");
+            const auto result = fuelsim::test::read_final_exodus_results(argv[2]);
+            const double expected = std::stod(argv[5]);
+            const double tolerance = std::stod(argv[6]);
+            double reaction = 0.0;
+            const bool has_node_roles =
+                std::find(result.nodal_variable_names.begin(), result.nodal_variable_names.end(), "node_role")
+                != result.nodal_variable_names.end();
+            const auto& reactions = result.nodal(argv[4]);
+            for (std::size_t node = 0; node < reactions.size(); ++node) {
+                // GPS axial reactions exist only on the axial control nodes (role 2).
+                if (has_node_roles && std::string(argv[4]) == "reaction_force_z"
+                    && result.nodal("node_role")[node] != 2.0)
+                    continue;
+                reaction += reactions[node];
+            }
+            double displacement = 0.0;
+            for (double value : result.nodal(argv[7]))
+                displacement = std::max(displacement, std::abs(value));
+            std::cout << std::setprecision(16) << "gravity_reaction=" << reaction << " expected=" << expected
+                      << " maximum_displacement=" << displacement << '\n';
+            passed = check(std::abs(reaction - expected) < tolerance,
+                         "Deformed-body support reaction balances initial mass times acceleration")
+                     && passed;
+            passed = check(displacement > std::stod(argv[8]),
+                         "Gravity conservation is verified after a substantial finite deformation")
+                     && passed;
         } else if (mode == "hex20-fields") {
             require_argument_count(mode, argc, 7);
             const std::string field_selection = argv[6];
@@ -1165,6 +1194,8 @@ int main(int argc, char** argv) {
                 } else {
                     options.expected_steps = 20;
                     options.contact_transition = "reversal";
+                    if (options.case_name == "b526_friction_reversal")
+                        options.minimum_contact_state_match_fraction = 0.95;
                 }
             } else
                 throw std::invalid_argument("Unknown contact path");

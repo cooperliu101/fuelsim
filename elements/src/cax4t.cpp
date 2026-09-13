@@ -371,14 +371,16 @@ void assemble_cax4t(const Cax4Input& data,
     const auto* old_history = data.committed_history;
     const double time_step = data.time_step;
     const bool thermal_time = data.include_thermal_time_term;
-    // Nodal material values are independent of the integration point. Keep the
-    // geometric weighting and its derivatives in the original quadrature loop.
+    // Each nodal heat capacity uses its fixed initial density and current cp.
+    // The reference nodal mass has no displacement derivative.
     std::array<double, 4> capacity_rates{}, capacity_derivatives{};
     if (thermal_time && old_history)
         for (std::size_t n = 0; n < 4; ++n) {
             const auto temperature = jacobian ? adlite::Scalar::independent(state[n], 0, 1) : adlite::Scalar(state[n]);
             const auto& coordinate = geometry.coordinates[n];
-            const auto rate = data.material.heat_capacity(temperature, {data.time, coordinate.r, 0.0, coordinate.z})
+            const auto rate = data.material.reference_heat_capacity(temperature,
+                                  data.initial_temperature,
+                                  {data.time, coordinate.r, 0.0, coordinate.z})
                               * (temperature - old_state[n]) / time_step;
             capacity_rates[n] = rate.value();
             if (jacobian)
@@ -459,13 +461,12 @@ void assemble_cax4t(const Cax4Input& data,
             const auto conduction = thermal_gr[n] * tr + thermal_gz[n] * tz;
             auto thermal = conduction_measure * conductivity.value() * conduction
                            - thermal_measure * data.volumetric_heat_source * point.shape[n];
-            // CAX4T capacity is row-sum lumped: integrate N_i over the
-            // selected volume, then evaluate rho*cp and temperature rate at i.
+            // Retain nodal row-sum lumping on the fixed reference volume.
             if (thermal_time && old_history) {
-                thermal += thermal_measure * point.shape[n] * capacity_rates[n];
-                result.stored_heat_rate += thermal_measure.value() * point.shape[n] * capacity_rates[n];
+                thermal += point.weighted_measure * point.shape[n] * capacity_rates[n];
+                result.stored_heat_rate += point.weighted_measure * point.shape[n] * capacity_rates[n];
                 if (jacobian)
-                    result.jacobian[n * 12 + n] += thermal_measure.value() * point.shape[n] * capacity_derivatives[n];
+                    result.jacobian[n * 12 + n] += point.weighted_measure * point.shape[n] * capacity_derivatives[n];
             }
             result.residual[n] += thermal.value();
             if (jacobian) {
@@ -528,6 +529,7 @@ Cax4Result evaluate_cax4t(const Cax4Input& input, ElementRequest request) {
     const auto averages = evaluate_cax4t_kinematics(input, request.jacobian, systems);
     const auto stresses = evaluate_cax4t_material(input, request, averages, systems, result);
     assemble_cax4t(input, request.jacobian, averages, stresses, systems, result);
+    add_cax4_body_acceleration(input, result.residual);
     finish_cax4_result(result, request);
     return result;
 }

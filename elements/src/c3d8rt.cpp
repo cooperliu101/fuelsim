@@ -848,12 +848,14 @@ Hex8LocalResidual reduced_hex8_finite_residual_values(const elements::C3d8Input&
 
     if (include_thermal_time_term)
         for (std::size_t node = 0; node < hex8_node_count; ++node) {
+            const Hex8CapacityPoint& capacity_point = reference.reduced_capacity_points[node];
             const double capacity = data.material
-                                        .heat_capacity(adlite::Scalar(state[node]),
-                                            material_context(data.time, reference.capacity_points[node].position))
+                                        .reference_heat_capacity(adlite::Scalar(state[node]),
+                                            data.initial_temperature,
+                                            material_context(data.time, capacity_point.position))
                                         .value();
             residual[node] +=
-                current.shape_measures[node] * capacity * (state[node] - committed_state[node]) / time_step;
+                capacity_point.weighted_measure * capacity * (state[node] - committed_state[node]) / time_step;
         }
     return residual;
 }
@@ -1153,15 +1155,12 @@ void add_reduced_hex8_finite_jacobian(const elements::C3d8Input& data,
     if (include_thermal_time_term)
         for (std::size_t node = 0; node < hex8_node_count; ++node) {
             const adlite::Scalar nodal_temperature = adlite::Scalar::independent(state[node], 0, 1);
-            const adlite::Scalar capacity = data.material.heat_capacity(nodal_temperature,
-                material_context(data.time, reference.capacity_points[node].position));
-            const double rate = capacity.value() * (state[node] - committed_state[node]) / time_step;
-            for (std::size_t column = 0; column < reduced_displacement_dof_count; ++column)
-                jacobian[node * hex8_local_dof_count + 8 + column] +=
-                    current_derivatives.shape_measures[node][column] * rate;
+            const adlite::Scalar capacity = data.material.reference_heat_capacity(nodal_temperature,
+                data.initial_temperature,
+                material_context(data.time, reference.reduced_capacity_points[node].position));
             const double capacity_derivative = capacity.is_active() ? capacity.derivative(0) : 0.0;
             jacobian[node * hex8_local_dof_count + node] +=
-                current.shape_measures[node]
+                reference.reduced_capacity_points[node].weighted_measure
                 * (capacity.value() + capacity_derivative * (state[node] - committed_state[node])) / time_step;
         }
 }
@@ -1434,7 +1433,9 @@ void assemble_c3d8rt_small_strain_system(const elements::C3d8Input& data,
             const Hex8CapacityPoint& capacity_point = geometry.reduced_capacity_points[node];
             const MaterialFunctionContext capacity_context = material_context(data.time, capacity_point.position);
             const adlite::Scalar active_capacity_temperature = adlite::Scalar::independent(state[node], 0, 1);
-            const adlite::Scalar capacity = data.material.heat_capacity(active_capacity_temperature, capacity_context);
+            const adlite::Scalar capacity = data.material.reference_heat_capacity(active_capacity_temperature,
+                data.initial_temperature,
+                capacity_context);
             const adlite::Scalar capacity_term = capacity_point.weighted_measure * capacity
                                                  * (active_capacity_temperature - (*committed_state)[node]) / time_step;
             residual[node] += capacity_term.value();
@@ -1642,6 +1643,8 @@ C3d8Result evaluate_c3d8rt(const C3d8Input& input, ElementRequest request) {
     }
     if (request.stress)
         result.stress = compute_hex8_stress(input);
+    if (request.residual || request.jacobian)
+        add_hex8_body_acceleration(input, result.residual);
     return result;
 }
 } // namespace fuelsim::elements

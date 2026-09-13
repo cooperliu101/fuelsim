@@ -1,0 +1,54 @@
+param(
+    [string]$SourceDirectory = $PSScriptRoot
+)
+
+$ErrorActionPreference = "Stop"
+$env:OMP_NUM_THREADS = "1"
+$env:MKL_NUM_THREADS = "1"
+$env:OPENBLAS_NUM_THREADS = "1"
+$JobName = "c3d8t_nonaffine_capacity_probe"
+$Work = Join-Path $env:TEMP ("fuelsim_c3d8t_nonaffine_capacity_" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $Work | Out-Null
+Copy-Item (Join-Path $SourceDirectory "$JobName.inp") $Work
+Copy-Item (Join-Path $SourceDirectory "extract_nonaffine_capacity.py") $Work
+if ((Get-FileHash (Join-Path $SourceDirectory "$JobName.inp") -Algorithm SHA256).Hash -ne
+    (Get-FileHash (Join-Path $Work "$JobName.inp") -Algorithm SHA256).Hash) {
+    throw "The staged input differs from the complete source input"
+}
+Push-Location $Work
+try {
+    & "C:\SIMULIA\Commands\abq2025.bat" job=$JobName input="$JobName.inp" cpus=1 output_precision=full interactive |
+        Tee-Object -FilePath "${JobName}_run.log"
+    if ($LASTEXITCODE -ne 0) { throw "Abaqus $JobName solve failed with exit code $LASTEXITCODE" }
+    if (!(Test-Path "$JobName.sta") -or
+        !(Select-String -Path "$JobName.sta" -Pattern "THE ANALYSIS HAS COMPLETED SUCCESSFULLY" -Quiet)) {
+        throw "Abaqus $JobName did not report successful completion"
+    }
+    $Outputs = @("${JobName}_nodal.csv", "${JobName}_integration.csv")
+    & "C:\SIMULIA\Commands\abq2025.bat" python extract_nonaffine_capacity.py "$JobName.odb" `
+        $Outputs[0] $Outputs[1] | Tee-Object -FilePath "${JobName}_extract.log"
+    if ($LASTEXITCODE -ne 0) { throw "Abaqus $JobName extraction failed with exit code $LASTEXITCODE" }
+    foreach ($Output in $Outputs) {
+        if (!(Test-Path $Output) -or @(Import-Csv $Output).Count -ne 128) {
+            throw "Abaqus extraction produced an unexpected row count in $Output"
+        }
+        Copy-Item $Output $SourceDirectory
+    }
+    foreach ($Extension in @("dat", "msg", "sta")) {
+        Copy-Item "$JobName.$Extension" $SourceDirectory
+    }
+    Copy-Item "${JobName}_run.log" $SourceDirectory
+    if (Test-Path "${JobName}_extract.log") {
+        Copy-Item "${JobName}_extract.log" $SourceDirectory
+    }
+    @("case=$JobName", "scope=one-increment isolated finite nonaffine thermal capacity",
+        "abaqus_version=Abaqus 2025 RELr427", "cpus=1", "output_precision=full",
+        "completed_utc=$([DateTime]::UtcNow.ToString('o'))", "work_directory=$Work",
+        "input_sha256=$((Get-FileHash "$JobName.inp" -Algorithm SHA256).Hash)",
+        "extractor_sha256=$((Get-FileHash 'extract_nonaffine_capacity.py' -Algorithm SHA256).Hash)") +
+        @($Outputs | ForEach-Object { "${_}_sha256=$((Get-FileHash $_ -Algorithm SHA256).Hash)" }) |
+        Set-Content (Join-Path $SourceDirectory "${JobName}_provenance.txt")
+    Write-Output "Completed $JobName in $Work"
+} finally {
+    Pop-Location
+}

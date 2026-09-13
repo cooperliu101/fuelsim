@@ -1,0 +1,7 @@
+b57_temperature_capacity_residual_relative_error=1.208622e-15
+b57_temperature_capacity_analytic_relative_error=1.154997e-15
+b57_temperature_capacity_jacobian_relative_frobenius_error=8.069159e-11
+b57_enthalpy_increment_relative_difference=4.520496e-02
+b57_abaqus_capacity_maximum_off_diagonal=1.266599e-04
+b57_fuelsim_capacity_maximum_off_diagonal=0.000000e+00
+[PASS] B5.7 Abaqus C3D8T temperature-dependent heat capacity

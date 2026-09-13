@@ -32,3 +32,7 @@ void validate_cax_time_input(bool has_history, double time_step, bool thermal_ti
 
 void finish_cax4_result(elements::Cax4Result& result, elements::ElementRequest request);
 } // namespace fuelsim
+
+namespace fuelsim::elements {
+void add_cax4_body_acceleration(const Cax4Input& input, Cax4LocalResidual& residual);
+}

@@ -26,57 +26,17 @@
 
 namespace fuelsim {
 namespace {
-double capacity_volume_ratio(const std::array<std::array<double, 3>, 3>& deformation) {
-    const double determinant =
-        deformation[0][0] * (deformation[1][1] * deformation[2][2] - deformation[1][2] * deformation[2][1])
-        - deformation[0][1] * (deformation[1][0] * deformation[2][2] - deformation[1][2] * deformation[2][0])
-        + deformation[0][2] * (deformation[1][0] * deformation[2][1] - deformation[1][1] * deformation[2][0]);
-    if (!std::isfinite(determinant) || !(determinant > 0.0))
-        throw std::domain_error("Cartesian stored heat requires a finite positive current Jacobian");
-    return determinant;
-}
-
-double hex20_current_capacity_measure(const Hex20MechanicalQuadraturePoint& point, const Hex20LocalValues& state) {
-    std::array<std::array<double, 3>, 3> deformation{};
-    for (std::size_t component = 0; component < 3; ++component) {
-        deformation[component][component] = 1.0;
-        for (std::size_t direction = 0; direction < 3; ++direction)
-            for (std::size_t node = 0; node < hex20_displacement_node_count; ++node)
-                deformation[component][direction] +=
-                    state[8 + 20 * component + node] * point.displacement_gradient[node][direction];
-    }
-    return point.weighted_measure * capacity_volume_ratio(deformation);
-}
-
-std::array<double, hex8_node_count>
-hex8_current_capacity_measures(const Hex8Geometry& geometry, const Hex8LocalValues& state, bool reduced) {
-    // Natural-coordinate Gauss order and local corner order differ at these two pairs.
-    constexpr std::array<std::size_t, hex8_node_count> gauss_to_node = {0, 1, 3, 2, 4, 5, 7, 6};
-    std::array<double, hex8_node_count> measures{};
-    double current_volume = 0.0;
-    for (std::size_t q = 0; q < geometry.points.size(); ++q) {
-        const Hex8QuadraturePoint& point = geometry.points[q];
-        std::array<std::array<double, 3>, 3> deformation{};
-        for (std::size_t component = 0; component < 3; ++component) {
-            deformation[component][component] = 1.0;
-            for (std::size_t direction = 0; direction < 3; ++direction)
-                for (std::size_t node = 0; node < hex8_node_count; ++node)
-                    deformation[component][direction] +=
-                        state[8 * (component + 1) + node] * point.gradient[node][direction];
-        }
-        const double measure = point.weighted_measure * capacity_volume_ratio(deformation);
-        current_volume += measure;
-        if (reduced) {
-            for (std::size_t node = 0; node < hex8_node_count; ++node)
-                measures[node] += point.shape[node] * measure;
-        }
-    }
-    if (!reduced) {
-        const double volume_ratio = current_volume / geometry.reference_volume;
-        for (std::size_t q = 0; q < geometry.points.size(); ++q)
-            measures[gauss_to_node[q]] = geometry.points[q].weighted_measure * volume_ratio;
-    }
-    return measures;
+double body_point_work(const RegionDefinition& region,
+    const MaterialFunctionContext& context,
+    double reference_measure,
+    const std::array<double, 3>& displacement_increment) {
+    if (region.body_acceleration == std::array<double, 3>{})
+        return 0.0;
+    const IsotropicThermoelasticMaterial material(region.material);
+    double specific_work = 0.0;
+    for (std::size_t component = 0; component < 3; ++component)
+        specific_work += region.body_acceleration[component] * displacement_increment[component];
+    return reference_measure * material.initial_density(region.initial_temperature, context) * specific_work;
 }
 
 void finalize_conservation(const NonlinearProblem& problem,
@@ -132,12 +92,14 @@ void finalize_conservation(const NonlinearProblem& problem,
                                  + std::abs(result.dirichlet_heat_input_rate);
     result.relative_thermal_balance =
         thermal_scale > 0.0 ? std::abs(result.global_thermal_balance) / thermal_scale : 0.0;
+    result.internal_mechanical_work_increment += result.body_force_work_increment;
     result.mechanical_work_balance = result.internal_mechanical_work_increment + result.contact_work_increment
                                      - result.pressure_traction_work_increment
-                                     - result.dirichlet_reaction_work_increment;
+                                     - result.dirichlet_reaction_work_increment - result.body_force_work_increment;
     const double mechanical_scale =
-        std::abs(result.internal_mechanical_work_increment) + std::abs(result.contact_work_increment)
-        + std::abs(result.pressure_traction_work_increment) + std::abs(result.dirichlet_reaction_work_increment);
+        std::abs(result.body_force_work_increment) + std::abs(result.internal_mechanical_work_increment)
+        + std::abs(result.contact_work_increment) + std::abs(result.pressure_traction_work_increment)
+        + std::abs(result.dirichlet_reaction_work_increment);
     result.relative_mechanical_work_balance =
         mechanical_scale > 0.0 ? std::abs(result.mechanical_work_balance) / mechanical_scale : 0.0;
 }
@@ -181,7 +143,8 @@ class SpatialProblemStorage {
                 0.0,
                 value.strain_formulation,
                 value.rz_element_formulation,
-                value.initial_temperature});
+                value.initial_temperature,
+                value.body_acceleration});
             quad8_material_histories.emplace_back(rz8->region_element_count(r));
         }
     }
@@ -196,7 +159,8 @@ class SpatialProblemStorage {
                 0.0,
                 value.strain_formulation,
                 value.rz_element_formulation,
-                value.initial_temperature});
+                value.initial_temperature,
+                value.body_acceleration});
         }
     }
 
@@ -1438,12 +1402,14 @@ TransientConservationSummary combine_half_step_conservation(const TransientConse
         double TransientConservationSummary::* member = transient_conservation_fields[index].member;
         result.*member = first.*member + second.*member;
     }
+    result.body_force_work_increment = first.body_force_work_increment + second.body_force_work_increment;
     result.mechanical_work_balance = result.internal_mechanical_work_increment + result.contact_work_increment
                                      - result.pressure_traction_work_increment
-                                     - result.dirichlet_reaction_work_increment;
+                                     - result.dirichlet_reaction_work_increment - result.body_force_work_increment;
     const double mechanical_scale =
-        std::abs(result.internal_mechanical_work_increment) + std::abs(result.pressure_traction_work_increment)
-        + std::abs(result.dirichlet_reaction_work_increment) + std::abs(result.contact_work_increment);
+        std::abs(result.body_force_work_increment) + std::abs(result.internal_mechanical_work_increment)
+        + std::abs(result.pressure_traction_work_increment) + std::abs(result.dirichlet_reaction_work_increment)
+        + std::abs(result.contact_work_increment);
     result.relative_mechanical_work_balance =
         mechanical_scale > 0.0 ? std::abs(result.mechanical_work_balance) / mechanical_scale : 0.0;
     result.unconstrained_mechanical_residual_l2 =
@@ -1678,7 +1644,7 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                 const auto& geometry = _impl->_radial->region_element_geometry(region, element);
                 const bool finite = _impl->layout().region(region).strain_formulation == StrainFormulation::finite;
                 Cax2tGpsLocalValues current{}, old{};
-                if (finite) {
+                if (finite || _impl->layout().region(region).body_acceleration != std::array<double, 3>{}) {
                     const std::size_t index = _impl->_radial->region_element_offset(region) + element;
                     current = _impl->_radial->volume_state(index, converged_solution);
                     old = _impl->_radial->volume_state(index, _impl->committed_solution);
@@ -1688,6 +1654,14 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     const double radius = shape[0] * geometry.radii[0] + shape[1] * geometry.radii[1];
                     const double thickness = geometry.radii[1] - geometry.radii[0];
                     const double height = geometry.z_upper - geometry.z_lower;
+                    const std::array<double, 3> increment{shape[0] * (current[2] - old[2])
+                                                              + shape[1] * (current[3] - old[3]),
+                        0.0,
+                        0.5 * (current[4] - old[4] + current[5] - old[5])};
+                    conservation.body_force_work_increment += body_point_work(_impl->layout().region(region),
+                        {0.0, radius, 0.0, 0.5 * (geometry.z_lower + geometry.z_upper)},
+                        pi * radius * thickness * height,
+                        increment);
                     double current_measure = pi * radius * thickness * height;
                     double committed_measure = current_measure;
                     if (finite) {
@@ -1735,6 +1709,20 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                 old[i] = _impl->committed_solution[dofs[i]];
             }
             const auto& geometry = _impl->rz8->region_element_geometry(r, e);
+            if (_impl->layout().region(r).body_acceleration != std::array<double, 3>{})
+                for (std::size_t q = 0; q < geometry.point_count; ++q) {
+                    const auto& point = geometry.points[q];
+                    std::array<double, 3> increment{};
+                    for (std::size_t node = 0; node < 8; ++node) {
+                        increment[0] += point.shape[node] * (current[4 + node] - old[4 + node]);
+                        increment[2] += point.shape[node] * (current[12 + node] - old[12 + node]);
+                    }
+                    conservation.body_force_work_increment += body_point_work(_impl->layout().region(r),
+                        {0.0, point.radius, 0.0, point.axial_coordinate},
+                        point.weighted_measure,
+                        increment);
+                }
+
             const auto update = compute_cax8(_impl->kernel_data[r],
                 geometry,
                 current,
@@ -1777,6 +1765,19 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     const Hex20LocalValues old =
                         _impl->cartesian->hex20_volume_state(offset + element, _impl->committed_solution);
                     const Hex20Geometry& geometry = _impl->cartesian->hex20_region_element_geometry(region, element);
+                    if (_impl->layout().region(region).body_acceleration != std::array<double, 3>{})
+                        for (const auto& point : geometry.mechanical_points) {
+                            std::array<double, 3> increment{};
+                            for (std::size_t component = 0; component < 3; ++component)
+                                for (std::size_t node = 0; node < 20; ++node)
+                                    increment[component] +=
+                                        point.displacement_shape[node]
+                                        * (current[8 + component * 20 + node] - old[8 + component * 20 + node]);
+                            conservation.body_force_work_increment += body_point_work(_impl->layout().region(region),
+                                {0.0, point.position.x, point.position.y, point.position.z},
+                                point.weighted_measure,
+                                increment);
+                        }
                     CartesianMaterialHistory update = _impl->cartesian->transient_update(region,
                         element,
                         current,
@@ -1788,19 +1789,21 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     const double heat_source = _impl->cartesian->region_heat_source_average(region,
                         _impl->committed_time,
                         _impl->active_end_time);
-                    const auto accumulate_stored_heat =
-                        [&](const std::array<double, 8>& shape, const CartesianPoint3& position, double measure) {
-                            if (!_impl->include_thermal_time_term)
-                                return;
-                            double current_temperature = 0.0, old_temperature = 0.0;
-                            for (std::size_t node = 0; node < hex20_temperature_node_count; ++node) {
-                                current_temperature += shape[node] * current[node];
-                                old_temperature += shape[node] * old[node];
-                            }
-                            conservation.stored_heat_rate +=
-                                measure * _impl->cartesian->heat_capacity(region, current_temperature, position)
-                                * (current_temperature - old_temperature) / _impl->active_time_step;
-                        };
+                    const auto accumulate_stored_heat = [&](const std::array<double, 8>& shape,
+                                                            const CartesianPoint3& position,
+                                                            double reference_measure) {
+                        if (!_impl->include_thermal_time_term)
+                            return;
+                        double current_temperature = 0.0, old_temperature = 0.0;
+                        for (std::size_t node = 0; node < hex20_temperature_node_count; ++node) {
+                            current_temperature += shape[node] * current[node];
+                            old_temperature += shape[node] * old[node];
+                        }
+                        conservation.stored_heat_rate +=
+                            reference_measure
+                            * _impl->cartesian->reference_heat_capacity(region, current_temperature, position)
+                            * (current_temperature - old_temperature) / _impl->active_time_step;
+                    };
                     if (!finite) {
                         for (const Hex20ThermalQuadraturePoint& point : geometry.thermal_points) {
                             accumulate_stored_heat(point.temperature_shape, point.position, point.weighted_measure);
@@ -1823,10 +1826,8 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     }
                     for (std::size_t q = 0; q < geometry.mechanical_points.size(); ++q) {
                         const Hex20MechanicalQuadraturePoint& point = geometry.mechanical_points[q];
-                        if (finite && _impl->include_thermal_time_term)
-                            accumulate_stored_heat(point.temperature_shape,
-                                point.position,
-                                hex20_current_capacity_measure(point, current));
+                        if (finite)
+                            accumulate_stored_heat(point.temperature_shape, point.position, point.weighted_measure);
                         const CartesianMaterialPointState& old_history =
                             _impl->cartesian_material_histories[region][element][q];
                         const CartesianMaterialPointState& new_history = update[q];
@@ -1852,9 +1853,21 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                 const Hex8LocalValues current = _impl->cartesian->volume_state(offset + element, converged_solution);
                 const Hex8LocalValues old = _impl->cartesian->volume_state(offset + element, _impl->committed_solution);
                 const Hex8Geometry& geometry = _impl->cartesian->region_element_geometry(region, element);
+                if (_impl->layout().region(region).body_acceleration != std::array<double, 3>{})
+                    for (const auto& point : geometry.points) {
+                        std::array<double, 3> increment{};
+                        for (std::size_t component = 0; component < 3; ++component)
+                            for (std::size_t node = 0; node < 8; ++node)
+                                increment[component] +=
+                                    point.shape[node]
+                                    * (current[8 + component * 8 + node] - old[8 + component * 8 + node]);
+                        conservation.body_force_work_increment += body_point_work(_impl->layout().region(region),
+                            {0.0, point.position.x, point.position.y, point.position.z},
+                            point.weighted_measure,
+                            increment);
+                    }
                 const bool reduced =
                     _impl->cartesian->region(region).hex8_element_formulation == Hex8ElementFormulation::c3d8rt;
-                const bool finite = _impl->cartesian->region(region).strain_formulation == StrainFormulation::finite;
                 const auto& capacity_points = reduced ? geometry.reduced_capacity_points : geometry.capacity_points;
                 auto element_result = _impl->cartesian->transient_update(region,
                     element,
@@ -1863,22 +1876,19 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     _impl->cartesian_material_histories[region][element],
                     _impl->active_time_step);
                 auto& update = element_result.history;
-                const double heat_source =
-                    _impl->cartesian->region_heat_source_average(region, _impl->committed_time, _impl->active_end_time);
-                std::array<double, hex8_node_count> current_capacity_measures{};
-                if (finite && _impl->include_thermal_time_term)
-                    current_capacity_measures = hex8_current_capacity_measures(geometry, current, reduced);
                 if (_impl->include_thermal_time_term)
                     for (std::size_t node = 0; node < hex8_node_count; ++node) {
                         const Hex8CapacityPoint& point = capacity_points[node];
                         conservation.stored_heat_rate +=
-                            (finite ? current_capacity_measures[node] : point.weighted_measure)
-                            * _impl->cartesian->heat_capacity(region, current[node], point.position)
+                            point.weighted_measure
+                            * _impl->cartesian->reference_heat_capacity(region, current[node], point.position)
                             * (current[node] - old[node]) / _impl->active_time_step;
                     }
+                const double heat_source =
+                    _impl->cartesian->region_heat_source_average(region, _impl->committed_time, _impl->active_end_time);
                 if (heat_source != 0.0) {
                     double source_measure = reduced ? geometry.reduced_body_source_measure : geometry.reference_volume;
-                    if (finite) {
+                    if (_impl->cartesian->region(region).strain_formulation == StrainFormulation::finite) {
                         if (reduced) {
                             Hex8Coordinates current_coordinates{};
                             for (std::size_t node = 0; node < hex8_node_count; ++node) {
@@ -1987,6 +1997,18 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     _impl->include_thermal_time_term,
                     {true, false, true, false});
                 auto update = std::move(result.history);
+                if (element_data.body_acceleration != std::array<double, 3>{})
+                    for (const auto& point : geometry.points) {
+                        std::array<double, 3> increment{};
+                        for (std::size_t node = 0; node < 4; ++node) {
+                            increment[0] += point.shape[node] * (state[4 + node] - committed_state[4 + node]);
+                            increment[2] += point.shape[node] * (state[8 + node] - committed_state[8 + node]);
+                        }
+                        conservation.body_force_work_increment += body_point_work(_impl->layout().region(region),
+                            {0.0, point.radius, 0.0, point.axial_coordinate},
+                            point.weighted_measure,
+                            increment);
+                    }
                 conservation.stored_heat_rate += result.stored_heat_rate;
                 conservation.generated_heat_rate += result.generated_heat_rate;
                 if (reduced) {
@@ -2001,7 +2023,8 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                             _impl->kernel_data[region].volumetric_heat_source,
                             _impl->kernel_data[region].strain_formulation,
                             false,
-                            _impl->kernel_data[region].initial_temperature});
+                            _impl->kernel_data[region].initial_temperature,
+                            _impl->kernel_data[region].body_acceleration});
                     const double old_hourglass =
                         fuelsim::elements::cax4rt_hourglass_energy({_impl->kernel_data[region].material,
                             geometry,
@@ -2013,7 +2036,8 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                             _impl->kernel_data[region].volumetric_heat_source,
                             _impl->kernel_data[region].strain_formulation,
                             false,
-                            _impl->kernel_data[region].initial_temperature});
+                            _impl->kernel_data[region].initial_temperature,
+                            _impl->kernel_data[region].body_acceleration});
                     conservation.mechanical_hourglass_energy += current_hourglass;
                     conservation.mechanical_hourglass_energy_change += current_hourglass - old_hourglass;
                 }

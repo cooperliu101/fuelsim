@@ -238,7 +238,7 @@ fuelsim::ThermoelasticProperties material() {
     return fuelsim::test::thermoelastic(0.0, 10.0, 1.0e9, 0.25, 1.0e-5, 300.0, 0.0, 0.0, 0.0, 6000.0, 1000.0);
 }
 
-bool test_current_volume_heat_diagnostics() {
+bool test_initial_mass_heat_diagnostics() {
     const auto registry = fuelsim::make_builtin_material_function_registry();
     auto functions = std::make_shared<fuelsim::MaterialFunctionSet>();
     functions->name = "hex8_current_volume_heat_diagnostics";
@@ -261,6 +261,7 @@ bool test_current_volume_heat_diagnostics() {
             definition.regions.push_back({"solid", "solid", {functions, 2.0e5}, 2.0, 300.0});
             definition.regions[0].hex8_element_formulation = element_formulation;
             definition.regions[0].strain_formulation = strain_formulation;
+            definition.regions[0].body_acceleration = {0.0, 0.0, -9.81};
             definition.boundary_conditions.push_back(
                 {"temperature", fuelsim::BoundaryConditionType::dirichlet, "all", fuelsim::Field::temperature, 300.0});
             fuelsim::TransientProblem problem(definition, mesh);
@@ -280,6 +281,9 @@ bool test_current_volume_heat_diagnostics() {
             }
             problem.commit_time_step(trial);
             const auto& conservation = problem.last_conservation_summary();
+            passed = check(std::abs(conservation.body_force_work_increment - (-9.81 * 2.0 * 0.16)) < 1e-11,
+                         "gravity work uses initial mass despite temperature and volume changes")
+                     && passed;
             const bool finite = strain_formulation == fuelsim::StrainFormulation::finite;
             const bool reduced = element_formulation == fuelsim::Hex8ElementFormulation::c3d8rt;
             // On [0,2]x[0,1]x[0,1], J=2.64+.00096*XYZ-.0096*X^2-.0072*Y^2-.0088*Z^2.
@@ -287,10 +291,9 @@ bool test_current_volume_heat_diagnostics() {
             const double current_source_volume = reduced ? 5.28 + 0.00048 - 0.024 - 0.0036 - 0.0044
                                                          : 5.28 + 0.00048 - 0.0256 - 0.0048 - 0.0088 * 2.0 / 3.0;
             const double expected_generated = 2.0 * (finite ? current_source_volume : 2.0);
-            const double current_capacity_volume = 5.28 + 0.00048 - 0.0256 - 0.0048 - 0.0088 * 2.0 / 3.0;
-            const double expected_stored = (finite ? current_capacity_volume : 2.0) * 5.1 * 4.2 * 60.0 / 0.5;
+            const double expected_stored = 2.0 * 2.0 * 4.2 * 60.0 / 0.5;
             passed = check(std::abs(conservation.stored_heat_rate - expected_stored) < 1e-9,
-                         "HEX8 committed storage uses current density and its complete capacity volume")
+                         "HEX8 committed storage uses initial density and reference volume")
                      && check(std::abs(conservation.generated_heat_rate - expected_generated) < 1e-11,
                          "HEX8 committed source preserves its full or center current-volume integration rule")
                      && check(std::abs(conservation.global_thermal_balance) < 1e-9,
@@ -1184,7 +1187,7 @@ int main(int argc, char** argv) {
     passed = test_finite_sliding_end_to_end() && passed;
     if (!mpi_only) {
         passed = test_small_strain_steady_predictor(mesh) && passed;
-        passed = test_current_volume_heat_diagnostics() && passed;
+        passed = test_initial_mass_heat_diagnostics() && passed;
         passed = test_convection_boundary(mesh) && passed;
         passed = test_multiple_regions() && passed;
         passed = test_contact_projection_transfer() && passed;

@@ -846,7 +846,8 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
             0.0,
             region(region_index).strain_formulation,
             region(region_index).hex8_element_formulation,
-            region(region_index).initial_temperature});
+            region(region_index).initial_temperature,
+            region(region_index).body_acceleration});
     }
     _committed_contact_solution = initial_state();
     validate_local_state(0, contribution_count(), _committed_contact_solution);
@@ -991,7 +992,8 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
             0.0,
             this->region(region).strain_formulation,
             this->region(region).hex8_element_formulation,
-            this->region(region).initial_temperature});
+            this->region(region).initial_temperature,
+            this->region(region).body_acceleration});
     _committed_contact_solution = initial_state();
     validate_local_state(0, contribution_count(), _committed_contact_solution);
     refresh_controls();
@@ -1630,9 +1632,13 @@ SpatialAssembly::hex20_stress(std::size_t region, std::size_t element, const std
         .stress;
 }
 
-double SpatialAssembly::heat_capacity(std::size_t region, double temperature, const CartesianPoint3& position) const {
+double SpatialAssembly::reference_heat_capacity(std::size_t region,
+    double temperature,
+    const CartesianPoint3& position) const {
     const CartesianRegionData& data = _kernel_data.at(region);
-    return data.material.heat_capacity(temperature, {data.time, position.x, position.y, position.z}).value();
+    return data.material
+        .reference_heat_capacity(temperature, data.initial_temperature, {data.time, position.x, position.y, position.z})
+        .value();
 }
 
 double SpatialAssembly::mechanical_hourglass_energy(std::size_t region,
@@ -1651,7 +1657,8 @@ double SpatialAssembly::mechanical_hourglass_energy(std::size_t region,
         data.volumetric_heat_source,
         data.strain_formulation,
         false,
-        data.initial_temperature});
+        data.initial_temperature,
+        data.body_acceleration});
 }
 
 SpatialAssembly::ContributionRanges SpatialAssembly::contribution_ranges() const noexcept {

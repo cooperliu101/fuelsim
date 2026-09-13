@@ -162,7 +162,6 @@ fuelsim::ThermoelasticProperties properties(bool temperature_dependent) {
                 {"specific_heat", 3000.0},
                 {"reference_temperature", 300.0},
                 {"conductivity_temperature_coefficient", 0.01},
-                {"density_temperature_coefficient", 0.0},
                 {"specific_heat_temperature_coefficient", 0.0}});
         result.functions = std::move(functions);
     }

@@ -24,7 +24,8 @@ inline elements::C3d8Result evaluate_c3d8(const CartesianRegionData& data,
         data.volumetric_heat_source,
         data.strain_formulation,
         thermal_time,
-        data.initial_temperature};
+        data.initial_temperature,
+        data.body_acceleration};
     return data.hex8_element_formulation == Hex8ElementFormulation::c3d8rt ? elements::evaluate_c3d8rt(input, request)
                                                                            : elements::evaluate_c3d8t(input, request);
 }
@@ -92,7 +93,8 @@ inline elements::C3d20Result evaluate_c3d20(const CartesianRegionData& data,
         data.volumetric_heat_source,
         data.strain_formulation,
         thermal_time,
-        data.initial_temperature};
+        data.initial_temperature,
+        data.body_acceleration};
     return geometry.mechanical_points.size() == 8 ? elements::evaluate_c3d20rt(input, request)
                                                   : elements::evaluate_c3d20t(input, request);
 }

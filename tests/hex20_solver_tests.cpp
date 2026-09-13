@@ -63,7 +63,7 @@ fuelsim::ThermoelasticProperties material() {
     return fuelsim::test::thermoelastic(0.0, 10.0, 1.0e9, 0.25, 1.0e-5, 300.0, 0.0, 0.0, 0.0, 6000.0, 1000.0);
 }
 
-bool test_current_volume_heat_diagnostics() {
+bool test_initial_mass_heat_diagnostics() {
     const auto registry = fuelsim::make_builtin_material_function_registry();
     auto functions = std::make_shared<fuelsim::MaterialFunctionSet>();
     functions->name = "hex20_current_volume_heat_diagnostics";
@@ -87,6 +87,7 @@ bool test_current_volume_heat_diagnostics() {
             definition.regions.push_back({"solid", "solid", {functions, 2.0e5}, 2.0, 300.0});
             definition.regions[0].hex20_element_formulation = element_formulation;
             definition.regions[0].strain_formulation = strain_formulation;
+            definition.regions[0].body_acceleration = {0.0, 0.0, -9.81};
             definition.boundary_conditions.push_back(
                 {"temperature", fuelsim::BoundaryConditionType::dirichlet, "all", fuelsim::Field::temperature, 300.0});
             fuelsim::TransientProblem problem(definition, mesh);
@@ -106,11 +107,13 @@ bool test_current_volume_heat_diagnostics() {
             }
             problem.commit_time_step(trial);
             const auto& conservation = problem.last_conservation_summary();
+            passed = check(std::abs(conservation.body_force_work_increment - (-9.81 * 2.1 * 0.05)) < 1e-11,
+                         "gravity work uses initial mass despite temperature and volume changes")
+                     && passed;
             const bool finite = strain_formulation == fuelsim::StrainFormulation::finite;
             const bool three_point = finite && element_formulation == fuelsim::Hex20ElementFormulation::c3d20t;
-            // Integrate y,z analytically: J_average(x)=2.64+.0528*(1-2*x).
-            // rho=4.5+.4*x at t=.5, cp=3+x^3, Tdot=40*x. The nonaffine
-            // midside displacement changes capacity but not the corner-volume source.
+            // Initial rho=2+.2*x, current cp=3+x^3, Tdot=40*x.
+            // Reference mass is independent of the nonaffine midside displacement.
             const double offset = 0.5 * std::sqrt(three_point ? 3.0 / 5.0 : 1.0 / 3.0);
             const std::array<double, 3> points = {0.5 - offset, 0.5 + offset, 0.5};
             const std::array<double, 3> weights = three_point ? std::array<double, 3>{5.0 / 18.0, 5.0 / 18.0, 4.0 / 9.0}
@@ -118,12 +121,11 @@ bool test_current_volume_heat_diagnostics() {
             double expected_stored = 0.0;
             for (std::size_t q = 0; q < points.size(); ++q) {
                 const double x = points[q];
-                const double volume_factor = finite ? 2.64 + 0.0528 * (1.0 - 2.0 * x) : 1.0;
-                expected_stored += weights[q] * volume_factor * (4.5 + 0.4 * x) * (3.0 + x * x * x) * 40.0 * x;
+                expected_stored += weights[q] * (2.0 + 0.2 * x) * (3.0 + x * x * x) * 40.0 * x;
             }
             const double expected_generated = 2.0 * (finite ? 2.0 * 1.2 * 1.1 : 1.0);
             passed = check(std::abs(conservation.stored_heat_rate - expected_stored) < 1e-10,
-                         "HEX20 committed storage uses current density, quadratic volume and selected quadrature")
+                         "HEX20 committed storage uses initial density, reference volume and selected quadrature")
                      && check(std::abs(conservation.generated_heat_rate - expected_generated) < 1e-12,
                          "HEX20 committed source uses the current corner volume independently of midside motion")
                      && check(std::abs(conservation.global_thermal_balance) < 1e-10,
@@ -1144,7 +1146,7 @@ int main(int argc, char** argv) {
     if (!mpi_only)
         passed = test_hex20_node_set_constraints() && test_multiblock_shared_nodes() && test_contact_projection(mesh)
                  && test_surface_contact_fixed_reference_graph() && test_surface_contact_finite_sliding()
-                 && test_finite_sliding_search_tree() && test_current_volume_heat_diagnostics() && passed;
+                 && test_finite_sliding_search_tree() && test_initial_mass_heat_diagnostics() && passed;
     session.collective_root_action([&]() {
         (void)std::remove(argv[1]);
         (void)std::remove(argv[2]);

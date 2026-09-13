@@ -1,0 +1,28 @@
+﻿Analysis initiated from SIMULIA established products
+Abaqus JOB gps_thermal_finite
+Abaqus 2025
+abq2025.bat : Abaqus License Manager checked out the following licenses:
+所在位置 \\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\build\abaqus2025\gps_1d\run.ps1:21 字符: 9
++         & C:\SIMULIA\Commands\abq2025.bat job=$Case input="$Case.inp" ...
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Abaqus License ...owing licenses::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:35:49 PM
+Run pre.exe
+9/13/2026 9:35:50 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:35:50 PM
+Run standard.exe
+9/13/2026 9:35:51 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:35:51 PM
+Run SMASimUtility.exe
+9/13/2026 9:35:51 PM
+End SIM Wrap-up
+Abaqus JOB gps_thermal_finite COMPLETED

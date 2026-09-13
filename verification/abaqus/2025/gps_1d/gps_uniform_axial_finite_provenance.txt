@@ -1,0 +1,9 @@
+case=gps_uniform_axial_finite
+abaqus_version=Abaqus 2025 RELr427
+cpus=1
+output_precision=full
+accepted_increments=10
+completed_utc=2026-09-13T13:35:40.6217438Z
+work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_gps_2b26041d0bcd4e19a640b97e641303b6
+input_sha256=BED2B591633285E562ABFEF0109386875425F5E3F9872542E215F58C0692ED84
+extractor_sha256=6C206DC1F1ECA20FEB0FE0DBCC4C81C3DE66E8B045FF195258CFD31B6D33EA0D

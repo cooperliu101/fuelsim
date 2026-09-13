@@ -1187,7 +1187,8 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem,
         cumulative_creep += snapshot.conservation.creep_dissipation_increment;
         cumulative_friction += snapshot.conservation.friction_dissipation_increment;
         cumulative_external_work += snapshot.conservation.trapezoidal_pressure_traction_work_increment
-                                    + snapshot.conservation.trapezoidal_dirichlet_reaction_work_increment;
+                                    + snapshot.conservation.trapezoidal_dirichlet_reaction_work_increment
+                                    + snapshot.conservation.body_force_work_increment;
         maximum_abaqus_artificial_energy = std::max(maximum_abaqus_artificial_energy, std::abs(expected.artificial));
         if (expected.internal != 0.0)
             maximum_abaqus_artificial_energy_fraction =

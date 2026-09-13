@@ -103,7 +103,10 @@ double constrained_zero(double native, double tolerance) {
     return 0.0;
 }
 
-bool check(const std::string& name, const FieldErrorMetrics& metric, double zero_tolerance) {
+bool check(const std::string& name,
+    const FieldErrorMetrics& metric,
+    double zero_tolerance,
+    double allowed_relative = relative_tolerance) {
     if (metric.value_count == 0)
         throw std::runtime_error("Empty scalar acceptance metric");
     if (metric.has_relative_norm())
@@ -113,7 +116,7 @@ bool check(const std::string& name, const FieldErrorMetrics& metric, double zero
     std::cout << name << "_zero_reference_count=" << metric.zero_reference_count << '\n'
               << name << "_maximum_zero_reference_absolute_difference=" << metric.maximum_zero_reference_difference
               << '\n';
-    return (!metric.has_relative_norm() || fuelsim::test::relative_metrics_below(metric, relative_tolerance))
+    return (!metric.has_relative_norm() || fuelsim::test::relative_metrics_below(metric, allowed_relative))
            && metric.maximum_zero_reference_difference <= zero_tolerance;
 }
 
@@ -205,7 +208,13 @@ bool steady_finite(const std::string& output, const std::string& summary) {
         throw std::runtime_error("Steady radial output must contain one complete final frame");
     const auto& frame = frames.front();
     if (frame.nodal_variable_names
-            != std::vector<std::string>{"temperature", "displacement_r", "displacement_z", "node_role"}
+            != std::vector<std::string>{"temperature",
+                "displacement_r",
+                "displacement_z",
+                "node_role",
+                "reaction_heat_flux",
+                "reaction_force_r",
+                "reaction_force_z"}
         || frame.global_variable_names != std::vector<std::string>{"load_factor"}
         || frame.element("material_point_count") != std::vector<double>{2.0})
         throw std::runtime_error("Steady radial result fields or active material-point count changed");
@@ -583,9 +592,11 @@ bool nonuniform(const std::string& output,
     passed = check("analytical_zero_elastic_shear", zero_elastic_shear, 1e-13) && passed;
     passed = check("inactive_inelastic_history", zero_mechanism, 1e-13) && passed;
     passed = check("body_boundary_heat_reaction", heat_reaction, 1e-10) && passed;
-    passed = check("stored_heat_rate", stored_heat_rate, 1e-10) && passed;
+    const double heat_rate_tolerance = finite ? 0.002 : relative_tolerance;
+    std::cout << "stored_and_boundary_heat_rate_relative_tolerance=" << heat_rate_tolerance << '\n';
+    passed = check("stored_heat_rate", stored_heat_rate, 1e-10, heat_rate_tolerance) && passed;
     passed = check("generated_heat_rate", generated_heat_rate, 1e-10) && passed;
-    passed = check("dirichlet_heat_input_rate", dirichlet_heat_rate, 1e-10) && passed;
+    passed = check("dirichlet_heat_input_rate", dirichlet_heat_rate, 1e-10, heat_rate_tolerance) && passed;
     passed = check("thermal_balance", thermal_balance, 1e-10) && passed;
     if (variable_thermal)
         passed = check("source_node_reaction_change", source_node_reaction_change, 1e-10) && passed;

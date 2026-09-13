@@ -1,0 +1,9 @@
+b54_current_capacity_relative_error=3.20828e-08
+b54_reference_capacity_relative_error=1.32058e-06
+b54_current_body_source_relative_error=3.05169e-08
+b54_reference_body_source_relative_error=0.333511
+b54_current_surface_heat_flux_relative_error=1.39069e-08
+b54_reference_surface_heat_flux_relative_error=0.464178
+b54_current_convection_relative_error=2.73548e-08
+b54_reference_convection_relative_error=0.463206
+[PASS] B5.4 Abaqus C3D8T finite-deformation thermal integration

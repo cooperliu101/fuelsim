@@ -136,19 +136,17 @@ ThermalPropertyEvaluator linear_temperature_thermophysical(const MaterialParamet
     const double specific_heat = named.value("specific_heat");
     const double reference_temperature = named.value("reference_temperature");
     const double conductivity_temperature_coefficient = named.value("conductivity_temperature_coefficient");
-    const double density_temperature_coefficient = named.value("density_temperature_coefficient");
     const double specific_heat_temperature_coefficient = named.value("specific_heat_temperature_coefficient");
     return [conductivity,
                density,
                specific_heat,
                reference_temperature,
                conductivity_temperature_coefficient,
-               density_temperature_coefficient,
                specific_heat_temperature_coefficient](const ThermoelasticFunctionInput& input,
                ThermalPropertyOutput& output) {
         const adlite::Scalar temperature_change = input.temperature - reference_temperature;
         output.conductivity = conductivity + conductivity_temperature_coefficient * temperature_change;
-        output.density = density + density_temperature_coefficient * temperature_change;
+        output.density = density;
         output.specific_heat = specific_heat + specific_heat_temperature_coefficient * temperature_change;
     };
 }
@@ -461,7 +459,6 @@ MaterialFunctionRegistry make_builtin_material_function_registry() {
             {"specific_heat", "J/(kg*K)"},
             {"reference_temperature", "K"},
             {"conductivity_temperature_coefficient", "W/(m*K^2)"},
-            {"density_temperature_coefficient", "kg/(m^3*K)"},
             {"specific_heat_temperature_coefficient", "J/(kg*K^2)"}},
         &linear_temperature_thermophysical);
     registry.add_elasticity("constant_isotropic",

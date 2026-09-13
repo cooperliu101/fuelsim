@@ -36,7 +36,6 @@
       conductivity = 11
       reference_temperature = 600
       conductivity_temperature_coefficient = 0.1
-      density_temperature_coefficient = 0
       specific_heat_temperature_coefficient = 0
       density = 1000
       specific_heat = 100

@@ -625,8 +625,9 @@ bool test_cartesian_inelastic_material() {
 }
 
 bool test_nonaffine_finite_capacity_weights() {
-    // Native one-node temperature bases on these two geometries independently identify all eight weights.
-    // See verification/abaqus/b523_diagnosis/c3d8t_nonaffine_capacity_probe.inp and its nodal CSV.
+    // Reference Gauss weights independently evaluated in the nonaffine capacity analysis.
+    // See verification/abaqus/b523_diagnosis/nonaffine_capacity_candidates.tsv (reference_gauss).
+    // The Abaqus 2018 current-volume capacity remains a separate external comparison.
     const std::array<fuelsim::Hex8Coordinates, 2> coordinates{{{{{0.0, 0.0, 0.0},
                                                                    {0.5, 0.0, 0.0},
                                                                    {0.5, 1.0, 0.0},
@@ -651,22 +652,22 @@ bool test_nonaffine_finite_capacity_weights() {
         {0.14, 0.015, 0.02},
         {0.09, 0.045, 0.15},
         {-0.04, 0.11, 0.025}}};
-    const std::array<std::array<double, 8>, 2> native_weights{{{{0.086492977864583376,
-                                                                   0.086492977864583334,
-                                                                   0.086492977864583459,
-                                                                   0.086492977864583362,
-                                                                   0.086492977864583487,
-                                                                   0.086492977864583265,
-                                                                   0.086492977864583598,
-                                                                   0.086492977864583293}},
-        {{0.18864893529100263,
-            0.19480021222107047,
-            0.16747108788622089,
-            0.19539472837019323,
-            0.22017845529702804,
-            0.23231297342535384,
-            0.20217395708244326,
-            0.22403243167668968}}}};
+    const std::array<std::array<double, 8>, 2> reference_weights{{{{0.062499999999999979,
+                                                                      0.062499999999999979,
+                                                                      0.062500000000000028,
+                                                                      0.062499999999999979,
+                                                                      0.062500000000000056,
+                                                                      0.062499999999999951,
+                                                                      0.062499999999999979,
+                                                                      0.062500000000000028}},
+        {{0.15233523564835924,
+            0.15730243156300722,
+            0.13523398686603305,
+            0.15778250719944623,
+            0.17779552702285578,
+            0.18759422891166486,
+            0.16325677824052978,
+            0.18090763788143716}}}};
     const fuelsim::CartesianTestData data{
         fuelsim::IsotropicThermoelasticMaterial(
             fuelsim::test::thermoelastic(0.0, 1.0e-20, 2.0e11, 0.25, 0.0, 300.0, 0.0, 0.0, 0.0, 2000.0, 3000.0)),
@@ -674,7 +675,7 @@ bool test_nonaffine_finite_capacity_weights() {
         1.0,
         fuelsim::StrainFormulation::finite};
     constexpr double volumetric_capacity = 2000.0 * 3000.0;
-    double maximum_native_relative_error = 0.0, maximum_tangent_relative_error = 0.0;
+    double maximum_reference_relative_error = 0.0, maximum_tangent_relative_error = 0.0;
     double maximum_temperature_block_error = 0.0, maximum_residual_path_error = 0.0;
     double maximum_displacement_coupling = 0.0;
     for (std::size_t shape = 0; shape < coordinates.size(); ++shape) {
@@ -693,16 +694,17 @@ bool test_nonaffine_finite_capacity_weights() {
             fuelsim::compute_c3d8_transient(data, geometry, state, old_state, history, 1.0, &jacobian);
         const auto ordinary = fuelsim::compute_c3d8_transient(data, geometry, state, old_state, history, 1.0);
         for (std::size_t row = 0; row < 8; ++row) {
-            const double expected = native_weights[shape][row] * volumetric_capacity * (state[row] - old_state[row]);
-            maximum_native_relative_error =
-                std::max(maximum_native_relative_error, std::abs(residual[row] - expected) / expected);
+            const double expected = reference_weights[shape][row] * volumetric_capacity * (state[row] - old_state[row]);
+            maximum_reference_relative_error =
+                std::max(maximum_reference_relative_error, std::abs(residual[row] - expected) / expected);
             maximum_residual_path_error =
                 std::max(maximum_residual_path_error, std::abs(residual[row] - ordinary[row]) / expected);
             for (std::size_t column = 0; column < 8; ++column) {
-                const double expected_tangent = row == column ? native_weights[shape][row] * volumetric_capacity : 0.0;
+                const double expected_tangent =
+                    row == column ? reference_weights[shape][row] * volumetric_capacity : 0.0;
                 maximum_temperature_block_error = std::max(maximum_temperature_block_error,
                     std::abs(jacobian[row * 32 + column] - expected_tangent)
-                        / (native_weights[shape][row] * volumetric_capacity));
+                        / (reference_weights[shape][row] * volumetric_capacity));
             }
         }
         constexpr double difference_step = 2.0e-7;
@@ -719,21 +721,24 @@ bool test_nonaffine_finite_capacity_weights() {
                 column_error = std::max(column_error, std::abs(exact - numerical));
                 column_scale = std::max({column_scale, std::abs(exact), std::abs(numerical)});
                 if (column >= 8)
-                    maximum_displacement_coupling = std::max(maximum_displacement_coupling, std::abs(exact));
+                    maximum_displacement_coupling =
+                        std::max({maximum_displacement_coupling, std::abs(exact), std::abs(numerical)});
             }
-            maximum_tangent_relative_error = std::max(maximum_tangent_relative_error, column_error / column_scale);
+            if (column < 8)
+                maximum_tangent_relative_error = std::max(maximum_tangent_relative_error,
+                    column_scale > 0.0 ? column_error / column_scale : column_error);
         }
     }
-    std::cout << "hex8_nonaffine_capacity_native_maximum_relative_error=" << maximum_native_relative_error << '\n'
+    std::cout << "hex8_nonaffine_capacity_reference_maximum_relative_error=" << maximum_reference_relative_error << '\n'
               << "hex8_nonaffine_capacity_tangent_maximum_relative_error=" << maximum_tangent_relative_error << '\n'
               << "hex8_nonaffine_capacity_temperature_block_error=" << maximum_temperature_block_error << '\n';
-    return check(maximum_native_relative_error < 2.0e-13,
-               "all nonaffine finite capacity weights agree with the independently measured native nodal bases")
+    return check(maximum_reference_relative_error < 2.0e-13,
+               "nonaffine finite capacity uses independently evaluated reference Gauss weights")
            && check(maximum_temperature_block_error < 2.0e-13,
-               "nonaffine finite capacity retains the native diagonal temperature block")
+               "nonaffine finite capacity retains the initial-mass diagonal temperature block")
            && check(maximum_residual_path_error < 2.0e-14,
                "ordinary and tangent residual paths agree for nonaffine finite capacity")
-           && check(maximum_tangent_relative_error < 2.0e-6 && maximum_displacement_coupling > 1.0e4,
+           && check(maximum_tangent_relative_error < 2.0e-6 && maximum_displacement_coupling < 1.0e-12,
                "all nonaffine capacity temperature and displacement columns agree with centered differences");
 }
 
@@ -938,6 +943,7 @@ bool test_finite_strain_kinematics_and_coupled_jacobian() {
 
 int run_c3d8t_tests() {
     bool passed = test_history_geometry(false);
+    passed = test_fixed_initial_mass_capacity(false) && passed;
     passed = test_geometry_and_constant_strain() && passed;
     passed = test_distorted_selective_volumetric_integration() && passed;
     passed = test_selective_integration_constrained_face_rank() && passed;

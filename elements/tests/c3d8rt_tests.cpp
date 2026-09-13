@@ -730,6 +730,7 @@ bool test_reduced_native_thermal_hourglass() {
 
 int run_c3d8rt_tests() {
     bool passed = test_history_geometry(true);
+    passed = test_fixed_initial_mass_capacity(true) && passed;
     passed = test_reduced_integration_inelastic_jacobian() && passed;
     passed = test_reduced_integration_thermoelastic_capacity_gate() && passed;
     passed = test_reduced_integration_hourglass_energy() && passed;

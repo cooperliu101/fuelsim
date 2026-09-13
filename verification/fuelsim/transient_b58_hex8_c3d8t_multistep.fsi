@@ -16,7 +16,6 @@
       specific_heat = 3000
       reference_temperature = 300
       conductivity_temperature_coefficient = 0.01
-      density_temperature_coefficient = 0
       specific_heat_temperature_coefficient = 4
     []
     [elasticity]

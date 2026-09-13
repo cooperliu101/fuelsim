@@ -1,0 +1,123 @@
+*Heading
+** Two independent radial GPS operator specimens, heights 0.01 and 0.02 m.
+** Every mechanical displacement is prescribed; interface temperatures are solved.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Node
+1, 0.004, 0
+2, 0.005, 0
+3, 0.005, 0.01
+4, 0.004, 0.01
+5, 0.00501, 0
+6, 0.006, 0
+7, 0.006, 0.01
+8, 0.00501, 0.01
+9, 0.004, 0.01
+10, 0.005, 0.01
+11, 0.005, 0.03
+12, 0.004, 0.03
+13, 0.00501, 0.01
+14, 0.006, 0.01
+15, 0.006, 0.03
+16, 0.00501, 0.03
+*Element, type=CAX4T, elset=INNER_ONE
+1, 1, 2, 3, 4
+*Element, type=CAX4T, elset=OUTER_ONE
+2, 5, 6, 7, 8
+*Element, type=CAX4T, elset=INNER_TWO
+3, 9, 10, 11, 12
+*Element, type=CAX4T, elset=OUTER_TWO
+4, 13, 14, 15, 16
+*Elset, elset=ALL_ELEMENTS
+1, 2, 3, 4
+*Nset, nset=ALL, generate
+1, 16, 1
+*Nset, nset=INNER
+1, 2, 3, 4, 9, 10, 11, 12
+*Nset, nset=OUTER
+5, 6, 7, 8, 13, 14, 15, 16
+*Nset, nset=HEATED
+1, 4, 9, 12
+*Nset, nset=COOLED
+6, 7, 14, 15
+*Surface, type=ELEMENT, name=SECONDARY_ONE
+INNER_ONE, S2
+*Surface, type=ELEMENT, name=PRIMARY_ONE
+OUTER_ONE, S4
+*Surface, type=ELEMENT, name=SECONDARY_TWO
+INNER_TWO, S2
+*Surface, type=ELEMENT, name=PRIMARY_TWO
+OUTER_TWO, S4
+*Material, name=SOLID
+*Elastic
+1e9, 0.3
+*Expansion, zero=600
+1e-5
+*Conductivity
+10
+*Density
+1000
+*Specific Heat
+1000
+*Solid Section, elset=ALL_ELEMENTS, material=SOLID
+,
+*Initial Conditions, type=TEMPERATURE
+ALL, 600
+*Surface Interaction, name=CONTACT_ONE
+*Surface Behavior, pressure-overclosure=LINEAR
+1e12
+*Friction, slip tolerance=1e-5
+0.3
+*Gap Conductance
+1e4, 0
+1e4, 0.0001
+0, 0.001
+*Gap Heat Generation
+0
+*Surface Interaction, name=CONTACT_TWO
+*Surface Behavior, pressure-overclosure=LINEAR
+1e12
+*Friction, slip tolerance=1e-5
+0.3
+*Gap Conductance
+1e4, 0
+1e4, 0.0001
+0, 0.001
+*Gap Heat Generation
+0
+*Contact Pair, interaction=CONTACT_ONE, type=SURFACE TO SURFACE, small sliding, adjust=0
+SECONDARY_ONE, PRIMARY_ONE
+*Contact Pair, interaction=CONTACT_TWO, type=SURFACE TO SURFACE, small sliding, adjust=0
+SECONDARY_TWO, PRIMARY_TWO
+*Amplitude, name=CLOSURE, time=TOTAL TIME
+0, 0, 1, 2e-5, 5, 2e-5, 6, 0
+7, 0, 8, 2e-5, 10, 2e-5
+*Amplitude, name=TRANSLATION, time=TOTAL TIME
+0, 0, 1, 0, 2, 1e-8, 3, 2e-6
+4, 1.999e-6, 5, -2e-6, 6, -2e-6, 7, 2e-5
+8, 2e-5, 9, 2.001e-5, 10, 2.4e-5
+*Amplitude, name=HOT_TEMPERATURE, time=TOTAL TIME
+0, 600, 1, 700, 10, 700
+*Step, name=CONTACT_HISTORY, nlgeom=NO, inc=10
+*Coupled Temperature-Displacement, steady state
+1, 10, 1, 1
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1e-10, 1e-10, , , , 1e-10
+*Boundary
+OUTER, 1, 2, 0
+COOLED, 11, 11, 600
+*Boundary, amplitude=CLOSURE
+INNER, 1, 1, 1
+*Boundary, amplitude=TRANSLATION
+INNER, 2, 2, 1
+*Boundary, amplitude=HOT_TEMPERATURE
+HEATED, 11, 11, 1
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output
+S, EE
+COORD, IVOL, HFL
+*Contact Output
+CSTRESS, CDISP, CFORCE, HFL
+*Output, history, frequency=0
+*End Step

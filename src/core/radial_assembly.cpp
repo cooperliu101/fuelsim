@@ -474,7 +474,9 @@ elements::Cax2tGpsResult SpatialAssembly::evaluate_volume(std::size_t r,
         time,
         _heat_sources.at(r),
         region(r).strain_formulation,
-        include_thermal};
+        include_thermal,
+        region(r).initial_temperature,
+        region(r).body_acceleration};
     return elements::evaluate_cax2t_gps(input, {true, linearize, true, true});
 }
 
@@ -547,7 +549,9 @@ void SpatialAssembly::compute_contribution(std::size_t index,
                                                          time,
                                                          _heat_sources[r],
                                                          region(r).strain_formulation,
-                                                         include_thermal},
+                                                         include_thermal,
+                                                         region(r).initial_temperature,
+                                                         region(r).body_acceleration},
             {true, linearize, true, true});
         result.residual.assign(result.volume.residual.begin(), result.volume.residual.end());
         if (linearize)

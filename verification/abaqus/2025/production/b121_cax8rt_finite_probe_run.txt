@@ -1,0 +1,8 @@
+case=b121_cax8rt_finite_probe
+abaqus_version=Abaqus 2025 RELr427
+cpus=1
+output_precision=full
+completed_utc=2026-09-13T13:35:00.3059817Z
+work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax8rt_765ba35acf7144ef8c81e339d6127866
+input_sha256=F0B9D20DB263C247558797F561FB464E0C9522F26179096502C204E08026BBAF
+extractor_sha256=E4FBC0945E45CC20418438A35B65D72011289083EA9DE1C84428B2E683DB9D7F

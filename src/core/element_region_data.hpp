@@ -10,6 +10,7 @@ struct AxisymmetricRegionData final {
     StrainFormulation strain_formulation = StrainFormulation::small;
     RzElementFormulation element_formulation = RzElementFormulation::cax4t;
     double initial_temperature = 600.0;
+    std::array<double, 3> body_acceleration{};
 };
 
 struct CartesianRegionData final {
@@ -18,5 +19,6 @@ struct CartesianRegionData final {
     StrainFormulation strain_formulation = StrainFormulation::small;
     Hex8ElementFormulation hex8_element_formulation = Hex8ElementFormulation::c3d8t;
     double initial_temperature = 0.0;
+    std::array<double, 3> body_acceleration{};
 };
 } // namespace fuelsim

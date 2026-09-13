@@ -1,0 +1,60 @@
+*Heading
+** Distorted CAX4T: non-affine prescribed motion and nonuniform temperature.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Node
+1, 1, 0
+2, 2.1, 0.1
+3, 1.9, 1.2
+4, 0.9, 1
+*Element, type=CAX4T, elset=SOLID
+1, 1, 2, 3, 4
+*Nset, nset=ALL
+1, 2, 3, 4
+*Material, name=SOLID
+*Elastic
+1e6, 0.25
+*Expansion, zero=600
+1e-5
+*Conductivity
+10
+*Density
+1000
+*Specific Heat
+100
+*Solid Section, elset=SOLID, material=SOLID
+,
+*Initial Conditions, type=TEMPERATURE
+ALL, 600
+*Step, name=PROBE, nlgeom=YES, inc=1
+*Coupled Temperature-Displacement
+0.1, 0.1, 0.1, 0.1
+*Boundary
+1, 1, 1, 0.01
+1, 2, 2, 0.02
+2, 1, 1, 0.03
+2, 2, 2, -0.01
+3, 1, 1, 0.06
+3, 2, 2, 0.07
+4, 1, 1, -0.02
+4, 2, 2, 0.05
+1, 11, 11, 600
+2, 11, 11, 620
+3, 11, 11, 590
+4, 11, 11, 610
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output
+S, EE, COORD, IVOL, HFL
+*Output, history, frequency=0
+*End Step
+*Step, name=CONDUCTION, inc=1
+*Coupled Temperature-Displacement, steady state
+0.1, 0.1, 0.1, 0.1
+*End Step
+*Step, name=SOURCE, inc=1
+*Coupled Temperature-Displacement, steady state
+0.1, 0.1, 0.1, 0.1
+*Dflux
+SOLID, BF, 1000
+*End Step

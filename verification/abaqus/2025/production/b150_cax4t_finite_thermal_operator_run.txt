@@ -1,0 +1,9 @@
+case=b150_cax4t_finite_thermal_operator
+abaqus_version=Abaqus 2025 RELr427
+cpus=1
+output_precision=full
+completed_utc=2026-09-13T13:35:11.0330990Z
+work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax4rt_0e01c97f7d954330a8d7e3e0eda34460
+input_sha256=FA943AA100A04CCD40B94D037A530A9CBA4BF15E38BE1647C81D43823931182A
+extractor=extract_b7_rz.py
+extractor_sha256=376B586D958135935016E571640052F2F2BA39AD4026474C2C076714E6D6BCAC

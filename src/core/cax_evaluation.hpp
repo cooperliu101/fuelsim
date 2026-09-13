@@ -27,7 +27,8 @@ inline elements::Cax4Result evaluate_cax4(const AxisymmetricRegionData& data,
         data.volumetric_heat_source,
         data.strain_formulation,
         thermal_time,
-        data.initial_temperature};
+        data.initial_temperature,
+        data.body_acceleration};
     switch (data.element_formulation) {
     case RzElementFormulation::cax4t:
         return elements::evaluate_cax4t(input, request);
@@ -55,7 +56,9 @@ inline elements::Cax8Result compute_cax8(const AxisymmetricRegionData& data,
         data.time,
         data.volumetric_heat_source,
         data.strain_formulation,
-        thermal_time};
+        thermal_time,
+        data.initial_temperature,
+        data.body_acceleration};
     switch (data.element_formulation) {
     case RzElementFormulation::cax8t:
         return elements::evaluate_cax8t(input, request);

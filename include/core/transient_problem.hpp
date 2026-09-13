@@ -32,7 +32,7 @@ struct TransientConservationSummary final {
            elastic_energy_change = 0.0, plastic_dissipation_increment = 0.0, creep_dissipation_increment = 0.0,
            friction_dissipation_increment = 0.0, trapezoidal_pressure_traction_work_increment = 0.0,
            trapezoidal_dirichlet_reaction_work_increment = 0.0, mechanical_hourglass_energy = 0.0,
-           mechanical_hourglass_energy_change = 0.0;
+           mechanical_hourglass_energy_change = 0.0, body_force_work_increment = 0.0;
 };
 
 struct TransientConservationField final {
@@ -40,7 +40,7 @@ struct TransientConservationField final {
     double TransientConservationSummary::* member;
 };
 
-inline constexpr std::array<TransientConservationField, 24> transient_conservation_fields = {{
+inline constexpr std::array<TransientConservationField, 25> transient_conservation_fields = {{
     {"generated_heat_rate", &TransientConservationSummary::generated_heat_rate},
     {"stored_heat_rate", &TransientConservationSummary::stored_heat_rate},
     {"convection_heat_rate", &TransientConservationSummary::convection_heat_rate},
@@ -67,6 +67,7 @@ inline constexpr std::array<TransientConservationField, 24> transient_conservati
         &TransientConservationSummary::trapezoidal_dirichlet_reaction_work_increment},
     {"mechanical_hourglass_energy", &TransientConservationSummary::mechanical_hourglass_energy},
     {"mechanical_hourglass_energy_change", &TransientConservationSummary::mechanical_hourglass_energy_change},
+    {"body_force_work_increment", &TransientConservationSummary::body_force_work_increment},
 }};
 
 class TransientProblem final : public NonlinearProblem {

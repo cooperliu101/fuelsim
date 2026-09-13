@@ -165,6 +165,7 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_c3d8rt_tests COMMAND fuelsim_c3d8rt_tests)
     add_test(NAME fuelsim_c3d20t_tests COMMAND fuelsim_c3d20t_tests)
     add_test(NAME fuelsim_c3d20rt_tests COMMAND fuelsim_c3d20rt_tests)
+    add_test(NAME fuelsim_body_acceleration_tests COMMAND fuelsim_body_acceleration_tests)
     add_test(NAME fuelsim_line2_rz_tests COMMAND fuelsim_line2_rz_tests)
     add_test(NAME fuelsim_line3_rz_tests COMMAND fuelsim_line3_rz_tests)
     add_test(NAME fuelsim_quad4_face_tests COMMAND fuelsim_quad4_face_tests)
@@ -320,12 +321,16 @@ if(BUILD_TESTING)
         get_filename_component(case_directory "${staged_input}" DIRECTORY)
         set(results "${case_directory}/${input_stem}_results.e")
         set(summary "${case_directory}/${input_stem}_summary.csv")
+        set(radial_reference "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/gps_1d")
+        if(mode MATCHES "^(uniform-finite|nonuniform-finite|material-temperature-finite|thermal-small|thermal-finite)$")
+            set(radial_reference "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/gps_1d")
+        endif()
         add_test(NAME "${test_name}" COMMAND "${CMAKE_COMMAND}"
             "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
             "-DINPUT_FILE=${staged_input}"
             "-DOUTPUT_FILES=${results};${summary};${case_directory}/${input_stem}.checkpoint"
             "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_radial>"
-            "-DCHECK_ARGUMENTS=${mode};${results};${summary};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/gps_1d"
+            "-DCHECK_ARGUMENTS=${mode};${results};${summary};${radial_reference}"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
     endfunction()
     fuelsim_add_radial_case(fuelsim_gps_uniform_small_abaqus transient_gps_uniform_small uniform-small)
@@ -404,6 +409,16 @@ if(BUILD_TESTING)
         set(results "${case_directory}/${input_stem}_results.e")
         set(summary "${case_directory}/${input_stem}_summary.csv")
         set(output_files "${results};${summary}")
+        set(check_arguments "${ARGN}")
+        # Explicit versioned references; physical input cards remain byte-identical.
+        foreach(reference_case IN ITEMS b77_rz_finite_thermal b91_cax4rt_finite_probe
+            b910_cax4rt_finite_thermal b917_cax4rt_finite_thermal_operators
+            b101_cax8t_finite_probe b111_cax8t_finite_thermal b121_cax8rt_finite_probe
+            b1211_cax8rt_finite_thermal b150_cax4t_finite_thermal_operator b526_friction_reversal)
+            string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${reference_case}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/${reference_case}"
+                check_arguments "${check_arguments}")
+        endforeach()
         if(check_mode STREQUAL "hex8-inelastic" OR check_mode STREQUAL "b34-transient" OR check_mode STREQUAL "b40"
             OR check_mode STREQUAL "b549" OR check_mode STREQUAL "b550" OR check_mode STREQUAL "b555"
             OR check_mode STREQUAL "b531" OR check_mode STREQUAL "b534" OR check_mode STREQUAL "rz-sliding-abaqus"
@@ -416,7 +431,7 @@ if(BUILD_TESTING)
                 "-DINPUT_FILE=${staged_input}"
                 "-DOUTPUT_FILES=${output_files}"
                 "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
-                "-DCHECK_ARGUMENTS=${check_mode};${results};${summary};${ARGN}"
+                "-DCHECK_ARGUMENTS=${check_mode};${results};${summary};${check_arguments}"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
         set_tests_properties("${test_name}" PROPERTIES LABELS "acceptance;production" TIMEOUT 120)
     endfunction()
@@ -533,6 +548,16 @@ if(BUILD_TESTING)
         PRIVATE fuelsim_field_error_metrics fuelsim::io fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_b60_fuel_plate_c3d8rt_benchmark)
+    fuelsim_add_production_test(fuelsim_gravity_hex8 gravity_hex8
+        steady_gravity_hex8 gravity reaction_force_x -19620 1e-5 displacement_x 0.15)
+    fuelsim_add_production_test(fuelsim_gravity_hex20 gravity_hex20
+        steady_gravity_hex20 gravity reaction_force_x -19620 1e-5 displacement_x 0.15)
+    fuelsim_add_production_test(fuelsim_gravity_gps gravity_gps
+        steady_gravity_gps gravity reaction_force_z 0.005547424307708858 1e-9 displacement_z 0.0015)
+    fuelsim_add_production_test(fuelsim_gravity_quad4 gravity_quad4
+        steady_gravity_quad4 gravity reaction_force_z 0.00018491414359029523 1e-9 displacement_z 0.00015)
+    fuelsim_add_production_test(fuelsim_gravity_quad8 gravity_quad8
+        steady_gravity_quad8 gravity reaction_force_z 0.00006163804786343175 1e-9 displacement_z 0.00015)
     add_executable(fuelsim_b61_c3d20t_material_replay
         benchmarks/b61_c3d20t_material_replay.cpp
     )
@@ -556,7 +581,7 @@ if(BUILD_TESTING)
     )
     fuelsim_add_production_test(fuelsim_b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests b61
         transient_b61_fuel_plate_c3d8rt_finite_inelastic_bending hex8-bulk-abaqus b61
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b61_fuel_plate_c3d8rt_finite_inelastic_bending")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b61_fuel_plate_c3d8rt_finite_inelastic_bending")
     set_tests_properties(fuelsim_b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;thermal;mechanical;finite-strain;bending;plasticity;creep;abaqus"
         TIMEOUT 120
@@ -705,6 +730,10 @@ if(BUILD_TESTING)
         fuelsim_exodus_result_test_support fuelsim_field_error_metrics)
     fuelsim_enable_warnings(fuelsim_c3d20rt_probe_results)
     foreach(c3d20rt_probe_name IN ITEMS c3d20rt_thermal_probe c3d20rt_nonaffine_probe c3d20rt_small_probe)
+        set(probe_reference "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus")
+        if(NOT c3d20rt_probe_name STREQUAL "c3d20rt_small_probe")
+            set(probe_reference "${probe_reference}/2025/production")
+        endif()
         fuelsim_stage_blackbox_case(c3d20rt_probe_input ${c3d20rt_probe_name} transient_${c3d20rt_probe_name}.fsi)
         get_filename_component(c3d20rt_probe_directory "${c3d20rt_probe_input}" DIRECTORY)
         set(c3d20rt_probe_results "${c3d20rt_probe_directory}/transient_${c3d20rt_probe_name}_results.e")
@@ -714,7 +743,7 @@ if(BUILD_TESTING)
                 "-DINPUT_FILE=${c3d20rt_probe_input}"
                 "-DOUTPUT_FILE=${c3d20rt_probe_results}"
                 "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_c3d20rt_probe_results>"
-                "-DCHECK_ARGUMENTS=${c3d20rt_probe_results};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${c3d20rt_probe_name}_nodes.csv"
+                "-DCHECK_ARGUMENTS=${c3d20rt_probe_results};${probe_reference}/${c3d20rt_probe_name}_nodes.csv"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
         set_tests_properties(fuelsim_${c3d20rt_probe_name}_abaqus_tests PROPERTIES
             LABELS "three-dimensional;quadratic;abaqus;thermal;transient")
@@ -869,7 +898,7 @@ if(BUILD_TESTING)
 
     fuelsim_add_production_test(fuelsim_b544_hex8_c3d8rt_distorted_bending_abaqus_tests b544
         transient_b544_distorted_bending hex8-bulk-abaqus b544
-        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b544_hex8_c3d8rt_distorted_bending")
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/b544/b544_hex8_c3d8rt_distorted_bending")
     set_tests_properties(fuelsim_b544_hex8_c3d8rt_distorted_bending_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;thermal;mechanical;finite-strain;bending;distorted-mesh;temperature-dependent;abaqus")
 
@@ -914,8 +943,8 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b54_hex8_c3d8t_finite_thermal_load_abaqus_tests)
     add_test(NAME fuelsim_b54_hex8_c3d8t_finite_thermal_load_abaqus_tests
         COMMAND fuelsim_b54_hex8_c3d8t_finite_thermal_load_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b54_hex8_c3d8t_finite_capacity.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b54_hex8_c3d8t_finite_thermal_load.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b54_hex8_c3d8t_finite_capacity.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b54_hex8_c3d8t_finite_thermal_load.csv")
     set_tests_properties(fuelsim_b54_hex8_c3d8t_finite_thermal_load_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;finite-strain;transient;thermal;abaqus;identification")
 
@@ -940,7 +969,7 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b57_hex8_c3d8t_temperature_capacity_abaqus_tests)
     add_test(NAME fuelsim_b57_hex8_c3d8t_temperature_capacity_abaqus_tests
         COMMAND fuelsim_b57_hex8_c3d8t_temperature_capacity_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b57_hex8_c3d8t_temperature_capacity.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b57_hex8_c3d8t_temperature_capacity.csv")
     set_tests_properties(fuelsim_b57_hex8_c3d8t_temperature_capacity_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;thermal;temperature-dependent;abaqus;identification")
 
@@ -1826,8 +1855,8 @@ if(BUILD_TESTING)
         LABELS "acceptance;abaqus;three-dimensional;reduced-integration;transient;thermo-mechanical")
     fuelsim_add_production_test(fuelsim_b534_hex8_c3d8rt_finite_transient_abaqus_tests b534
             transient_b534_hex8_c3d8rt_finite b534
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b534_hex8_c3d8rt_finite_transient_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b534_hex8_c3d8rt_finite_transient_integration.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b534_hex8_c3d8rt_finite_transient_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/2025/production/b534_hex8_c3d8rt_finite_transient_integration.csv")
     set_tests_properties(fuelsim_b534_hex8_c3d8rt_finite_transient_abaqus_tests PROPERTIES
         LABELS "acceptance;abaqus;three-dimensional;reduced-integration;finite-strain;transient;thermo-mechanical")
     add_executable(fuelsim_hex8_reduced_history_contract_tests tests/hex8_reduced_history_contract_tests.cpp)
@@ -2430,6 +2459,10 @@ if(BUILD_TESTING)
     foreach(pcmi_group IN ITEMS small finite integrated)
         foreach(pcmi_element IN ITEMS cax4t cax4rt cax8t cax8rt)
             set(pcmi_case "b13_${pcmi_group}_${pcmi_element}")
+            set(pcmi_reference "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus")
+            if(NOT pcmi_group STREQUAL "small")
+                set(pcmi_reference "${pcmi_reference}/2025/b13")
+            endif()
             fuelsim_stage_blackbox_case(pcmi_input "${pcmi_case}" "transient_${pcmi_case}.fsi")
             get_filename_component(pcmi_directory "${pcmi_input}" DIRECTORY)
             set(pcmi_output "${pcmi_directory}/transient_${pcmi_case}_results.e")
@@ -2439,7 +2472,7 @@ if(BUILD_TESTING)
                     "-DINPUT_FILE=${pcmi_input}"
                     "-DOUTPUT_FILE=${pcmi_output}"
                     "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_pcmi_abaqus>"
-                    "-DCHECK_ARGUMENTS=${pcmi_output};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${pcmi_case}_nodes.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${pcmi_case}_points.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${pcmi_case}_contact.csv;${pcmi_group}"
+                    "-DCHECK_ARGUMENTS=${pcmi_output};${pcmi_reference}/${pcmi_case}_nodes.csv;${pcmi_reference}/${pcmi_case}_points.csv;${pcmi_reference}/${pcmi_case}_contact.csv;${pcmi_group}"
                     -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
             set_tests_properties("fuelsim_${pcmi_case}_abaqus_tests" PROPERTIES
                 LABELS "acceptance;production;abaqus;pcmi" TIMEOUT 240)

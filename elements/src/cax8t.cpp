@@ -292,12 +292,15 @@ Cax8Result evaluate_cax8t(const Cax8Input& data, ElementRequest request, Cax8Qua
         }
         const auto conductivity = data.material.conductivity(t, context);
         const adlite::Scalar capacity =
-            history && thermal_time ? data.material.heat_capacity(t, context) * (t - k.old[5]) / dt : adlite::Scalar(0);
+            history && thermal_time
+                ? data.material.reference_heat_capacity(t, data.initial_temperature, context) * (t - k.old[5]) / dt
+                : adlite::Scalar(0);
         const auto source_map = source_geometry(p, state, finite, jacobian);
         const double source_measure = source_map.measure;
         const auto& source_derivative = source_map.derivative;
         for (std::size_t n = 0; n < 4; ++n) {
-            const auto row = k.measure * (conductivity * (gr[n] * tr + gz[n] * tz) + p.temperature_shape[n] * capacity);
+            const auto row = k.measure * conductivity * (gr[n] * tr + gz[n] * tz)
+                             + p.weighted_measure * p.temperature_shape[n] * capacity;
             add_row(result, n, row, p, jacobian);
             const double source = p.temperature_shape[n] * data.volumetric_heat_source;
             result.residual[n] -= source * source_measure;
@@ -310,11 +313,27 @@ Cax8Result evaluate_cax8t(const Cax8Input& data, ElementRequest request, Cax8Qua
                                                    * (gr[n].value() * gr[j].value() + gz[n].value() * gz[j].value());
         }
         result.generated_heat_rate += source_measure * data.volumetric_heat_source;
-        result.stored_heat_rate += k.measure.value() * capacity.value();
+        result.stored_heat_rate += p.weighted_measure * capacity.value();
     }
     if (request.stress)
         for (std::size_t q = 0; q < result.history.size(); ++q)
             result.stress[q] = result.history[q].stress;
+    for (double value : data.body_acceleration)
+        if (!std::isfinite(value))
+            throw std::invalid_argument("Body acceleration must be finite");
+    if (data.body_acceleration[1] != 0.0)
+        throw std::invalid_argument("Axisymmetric body acceleration has only radial and axial components");
+    if ((request.residual || request.jacobian) && data.body_acceleration != std::array<double, 3>{})
+        for (std::size_t q = 0; q < data.geometry.point_count; ++q) {
+            const auto& point = data.geometry.points[q];
+            const double mass = point.weighted_measure
+                                * data.material.initial_density(data.initial_temperature,
+                                    {0.0, point.radius, 0.0, point.axial_coordinate});
+            for (std::size_t node = 0; node < 8; ++node) {
+                result.residual[4 + node] -= mass * point.shape[node] * data.body_acceleration[0];
+                result.residual[12 + node] -= mass * point.shape[node] * data.body_acceleration[2];
+            }
+        }
     if (!request.residual && !request.jacobian)
         result.residual.fill(0.0);
     if (!request.history)

@@ -221,7 +221,7 @@ Quantity quantity(const std::string& name) {
         || name == "conservation_unconstrained_thermal_residual_l2")
         return Quantity::heat_rate;
     if (name == "conservation_internal_mechanical_work_increment"
-        || name == "conservation_pressure_traction_work_increment"
+        || name == "conservation_pressure_traction_work_increment" || name == "conservation_body_force_work_increment"
         || name == "conservation_dirichlet_reaction_work_increment" || name == "conservation_contact_work_increment"
         || name == "conservation_mechanical_work_balance" || name == "conservation_elastic_energy_change"
         || name == "conservation_plastic_dissipation_increment" || name == "conservation_creep_dissipation_increment"

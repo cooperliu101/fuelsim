@@ -1,0 +1,23 @@
+Analysis initiated from SIMULIA established products
+Abaqus JOB b544_hex8_c3d8rt_distorted_bending
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:31:49 PM
+Run pre.exe
+9/13/2026 9:31:50 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:31:50 PM
+Run standard.exe
+9/13/2026 9:31:51 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:31:53 PM
+Run SMASimUtility.exe
+9/13/2026 9:31:53 PM
+End SIM Wrap-up
+Abaqus JOB b544_hex8_c3d8rt_distorted_bending COMPLETED
+Completed Abaqus B5.44 in C:\Users\TcroM\AppData\Local\Temp\fuelsim_b544_f795bf4a90054281a893a2e9d203659e

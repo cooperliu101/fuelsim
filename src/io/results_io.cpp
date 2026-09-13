@@ -1431,7 +1431,8 @@ void append_reaction_values(const spatial_detail::SpatialLayout& spatial,
 }
 
 void append_cartesian_reactions(const cartesian::SpatialAssembly& spatial,
-    const TransientProblem& problem,
+    const NonlinearProblem& problem,
+    const std::vector<double>& raw_residual,
     std::vector<std::vector<double>>& values) {
     std::vector<std::vector<std::size_t>> source_nodes;
     std::vector<std::vector<bool>> temperature_nodes;
@@ -1441,12 +1442,7 @@ void append_cartesian_reactions(const cartesian::SpatialAssembly& spatial,
         if (spatial.uses_hex20())
             temperature_nodes.push_back(spatial.hex20_region_mesh(region).temperature_nodes());
     }
-    append_reaction_values(spatial,
-        source_nodes,
-        spatial.uses_hex20(),
-        temperature_nodes,
-        BackendAccess::committed_raw_residual(problem),
-        values);
+    append_reaction_values(spatial, source_nodes, spatial.uses_hex20(), temperature_nodes, raw_residual, values);
     std::vector<double> constraints(problem.dof_count(), 0.0);
     for (const auto& condition : problem.dirichlet_conditions())
         constraints.at(condition.dof) = 1.0;
@@ -1830,22 +1826,36 @@ void EngineeringHistoryWriter::append(const TransientProblem& problem,
     _stream.flush();
 }
 
+namespace {
+std::vector<double> steady_raw_residual(const SteadyProblem& problem, const std::vector<double>& state) {
+    std::vector<double> result(problem.dof_count(), 0.0);
+    ContributionWorkspace workspace;
+    for (std::size_t contribution = 0; contribution < problem.contribution_count(); ++contribution) {
+        problem.evaluate_contribution(contribution, state, workspace, false);
+        for (std::size_t local = 0; local < workspace.dofs.size(); ++local)
+            result.at(workspace.dofs[local]) += workspace.residual[local];
+    }
+    return result;
+}
+} // namespace
+
 void write_steady_results(const std::string& path,
     const UnstructuredBar2Mesh& mesh,
     const SteadyProblem& problem,
     const std::vector<double>& state) {
+    const auto raw_residual = steady_raw_residual(problem, state);
     const auto& spatial = BackendAccess::radial_spatial(problem);
     write_exodus_bar2(path, mesh);
     define_result_variables(path,
         results_mesh_view(mesh),
-        radial_nodal_names(false),
+        radial_nodal_names(true),
         radial_element_names(spatial.definition()),
         global_variable_names(spatial.definition().contacts));
     write_result_step(path,
         results_mesh_view(mesh),
         1,
         0.0,
-        radial_nodal(spatial, state, nullptr),
+        radial_nodal(spatial, state, &raw_residual),
         radial_elements(spatial, state, nullptr),
         radial_globals(spatial, state, problem.load_factor()));
 }
@@ -1854,16 +1864,23 @@ void write_steady_results(const std::string& path,
     const UnstructuredQuad4Mesh& mesh,
     const SteadyProblem& problem,
     const std::vector<double>& state) {
+    const auto raw_residual = steady_raw_residual(problem, state);
     if (path.empty())
         throw std::invalid_argument("Exodus result path must not be empty");
     const SpatialDefinition& definition = BackendAccess::steady(problem).spatial.definition();
-    const std::vector<std::string> nodal = nodal_variable_names(definition.contacts);
+    const std::vector<std::string> nodal = nodal_variable_names(definition.contacts, true);
     const std::vector<std::string> element = stress_variable_names();
     const std::vector<std::string> global = global_variable_names(definition.contacts);
     write_exodus_quad4(path, mesh);
     define_result_variables(path, results_mesh_view(mesh), nodal, element, global);
     std::vector<std::vector<double>> nodal_values;
     fill_rz_nodal(mesh, BackendAccess::steady(problem).spatial, state, nodal_values);
+    const auto& spatial = BackendAccess::steady(problem).spatial;
+    std::vector<std::vector<std::size_t>> source_nodes;
+    for (std::size_t region = 0; region < spatial.region_count(); ++region)
+        source_nodes.push_back(spatial.region_mesh(region).source_node_ids());
+    append_reaction_values(spatial, source_nodes, false, {}, raw_residual, nodal_values);
+
     write_result_step(path,
         results_mesh_view(mesh),
         1,
@@ -1877,18 +1894,19 @@ void write_steady_results(const std::string& path,
     const UnstructuredQuad8Mesh& mesh,
     const SteadyProblem& problem,
     const std::vector<double>& state) {
+    const auto raw_residual = steady_raw_residual(problem, state);
     const auto& spatial = BackendAccess::quad8_spatial(problem);
     write_exodus_quad8(path, mesh);
     define_result_variables(path,
         results_mesh_view(mesh),
-        quad8_nodal_names(spatial.definition().contacts, false),
+        quad8_nodal_names(spatial.definition().contacts, true),
         quad8_element_names(false),
         global_variable_names(spatial.definition().contacts));
     write_result_step(path,
         results_mesh_view(mesh),
         1,
         1,
-        quad8_nodal(mesh, spatial, state, nullptr),
+        quad8_nodal(mesh, spatial, state, &raw_residual),
         quad8_elements(mesh, spatial, state, nullptr, &BackendAccess::quad8_kernel_data(problem)),
         quad8_globals(spatial, state, problem.load_factor()));
 }
@@ -1897,17 +1915,19 @@ void write_steady_results(const std::string& path,
     const UnstructuredHex8Mesh& mesh,
     const SteadyProblem& problem,
     const std::vector<double>& state) {
+    const auto raw_residual = steady_raw_residual(problem, state);
     if (path.empty())
         throw std::invalid_argument("Exodus result path must not be empty");
     write_exodus_hex8(path, mesh);
     const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
     define_result_variables(path,
         results_mesh_view(mesh),
-        cartesian_nodal_variable_names(spatial.definition().contacts),
+        cartesian_nodal_variable_names(spatial.definition().contacts, true),
         cartesian_stress_variable_names(),
         global_variable_names(spatial.definition().contacts));
     std::vector<std::vector<double>> nodal_values;
     fill_cartesian_nodal(mesh, spatial, state, nodal_values);
+    append_cartesian_reactions(spatial, problem, raw_residual, nodal_values);
     write_result_step(path,
         results_mesh_view(mesh),
         1,
@@ -1921,6 +1941,7 @@ void write_steady_results(const std::string& path,
     const UnstructuredHex20Mesh& mesh,
     const SteadyProblem& problem,
     const std::vector<double>& state) {
+    const auto raw_residual = steady_raw_residual(problem, state);
     if (path.empty())
         throw std::invalid_argument("Exodus result path must not be empty");
     write_exodus_hex20(path, mesh);
@@ -1929,7 +1950,7 @@ void write_steady_results(const std::string& path,
     define_result_variables(
         path,
         results_mesh_view(mesh),
-        cartesian_nodal_variable_names(contacts),
+        cartesian_nodal_variable_names(contacts, true),
         [&] {
             auto names = cartesian_stress_variable_names(27);
             names.push_back("material_point_count");
@@ -1938,6 +1959,7 @@ void write_steady_results(const std::string& path,
         global_variable_names(contacts));
     std::vector<std::vector<double>> nodal_values;
     fill_cartesian_nodal(mesh, spatial, state, nodal_values);
+    append_cartesian_reactions(spatial, problem, raw_residual, nodal_values);
     write_result_step(path,
         results_mesh_view(mesh),
         1,
@@ -2060,7 +2082,7 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
             fill_cartesian_nodal(*_hex20_mesh, spatial, state, nodal_values);
         else
             fill_cartesian_nodal(*_hex_mesh, spatial, state, nodal_values);
-        append_cartesian_reactions(spatial, problem, nodal_values);
+        append_cartesian_reactions(spatial, problem, BackendAccess::committed_raw_residual(problem), nodal_values);
         write_result_step(_path,
             _hex20_mesh ? results_mesh_view(*_hex20_mesh) : results_mesh_view(*_hex_mesh),
             _step_count,

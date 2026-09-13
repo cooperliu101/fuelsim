@@ -55,15 +55,41 @@ adlite::Scalar IsotropicThermoelasticMaterial::conductivity(const adlite::Scalar
     return output.conductivity;
 }
 
-adlite::Scalar IsotropicThermoelasticMaterial::heat_capacity(const adlite::Scalar& temperature,
+double IsotropicThermoelasticMaterial::initial_density(double initial_temperature,
+    MaterialFunctionContext context) const {
+    if (!std::isfinite(initial_temperature))
+        throw std::domain_error("Initial material temperature must be finite");
+    context.time = 0.0;
+    ThermalPropertyOutput output{};
+    const ThermalFunctionInstance& instance = _properties.functions->thermal;
+    instance.function({adlite::Scalar(initial_temperature), context}, output);
+    if (!std::isfinite(output.density.value()) || !(output.density.value() > 0.0))
+        throw std::domain_error("Initial material density must be finite and positive");
+    return output.density.value();
+}
+
+adlite::Scalar IsotropicThermoelasticMaterial::current_density(double initial_temperature,
+    const adlite::Scalar& volume_ratio,
+    MaterialFunctionContext context) const {
+    if (!std::isfinite(volume_ratio.value()) || !(volume_ratio.value() > 0.0))
+        throw std::domain_error("Current material density requires a finite positive volume ratio");
+    return initial_density(initial_temperature, context) / volume_ratio;
+}
+
+adlite::Scalar IsotropicThermoelasticMaterial::specific_heat(const adlite::Scalar& temperature,
     MaterialFunctionContext context) const {
     ThermalPropertyOutput output{};
     const ThermalFunctionInstance& instance = _properties.functions->thermal;
     instance.function({temperature, context}, output);
-    if (!std::isfinite(output.density.value()) || !(output.density.value() > 0.0)
-        || !std::isfinite(output.specific_heat.value()) || !(output.specific_heat.value() > 0.0))
-        throw std::domain_error("Thermal material function density and specific_heat must be finite and positive");
-    return output.density * output.specific_heat;
+    if (!std::isfinite(output.specific_heat.value()) || !(output.specific_heat.value() > 0.0))
+        throw std::domain_error("Material specific_heat must be finite and positive");
+    return output.specific_heat;
+}
+
+adlite::Scalar IsotropicThermoelasticMaterial::reference_heat_capacity(const adlite::Scalar& temperature,
+    double initial_temperature,
+    MaterialFunctionContext context) const {
+    return initial_density(initial_temperature, context) * specific_heat(temperature, context);
 }
 
 ActiveThermoelasticProperties IsotropicThermoelasticMaterial::active_properties(const adlite::Scalar& temperature,

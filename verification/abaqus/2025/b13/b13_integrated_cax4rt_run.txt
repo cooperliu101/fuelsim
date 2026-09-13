@@ -1,0 +1,8 @@
+case=b13_integrated_cax4rt
+abaqus_version=Abaqus 2025 RELr427
+cpus=1
+output_precision=full
+completed_utc=2026-09-13T13:33:50.4131886Z
+work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_pcmi_c023fc8bbd6547589502f30c223b0d7a
+input_sha256=1F75B6EC24716CCFBD68DED0F7BAC605E24334D0E72ACA9D6F9613CBF5B9A8AE
+extractor_sha256=5C72977BAF9E2675FA500B3F7BA5F74509319C7E22B66EC687329ED1D59D162B

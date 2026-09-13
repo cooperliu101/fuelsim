@@ -1,0 +1,184 @@
+case=b13_finite_cax4t work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_pcmi_6badfc162b8d44e2932c0ea47ba0a448
+Analysis initiated from SIMULIA established products
+Abaqus JOB b13_finite_cax4t
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:32:43 PM
+Run pre.exe
+9/13/2026 9:32:44 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:32:44 PM
+Run standard.exe
+9/13/2026 9:32:46 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:32:47 PM
+Run SMASimUtility.exe
+9/13/2026 9:32:47 PM
+End SIM Wrap-up
+Abaqus JOB b13_finite_cax4t COMPLETED
+case=b13_finite_cax4rt work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_pcmi_cbcd07d8756e461f977e99b11c495562
+Analysis initiated from SIMULIA established products
+Abaqus JOB b13_finite_cax4rt
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:32:49 PM
+Run pre.exe
+9/13/2026 9:32:50 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:32:50 PM
+Run standard.exe
+9/13/2026 9:32:52 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:32:54 PM
+Run SMASimUtility.exe
+9/13/2026 9:32:54 PM
+End SIM Wrap-up
+Abaqus JOB b13_finite_cax4rt COMPLETED
+case=b13_finite_cax8t work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_pcmi_966e9af7e03249018ac9d982147ca7c9
+Analysis initiated from SIMULIA established products
+Abaqus JOB b13_finite_cax8t
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:32:56 PM
+Run pre.exe
+9/13/2026 9:32:57 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:32:57 PM
+Run standard.exe
+9/13/2026 9:32:59 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:33:00 PM
+Run SMASimUtility.exe
+9/13/2026 9:33:00 PM
+End SIM Wrap-up
+Abaqus JOB b13_finite_cax8t COMPLETED
+case=b13_finite_cax8rt work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_pcmi_74fbb6d1543e4b35bc6e37448eef7a9d
+Analysis initiated from SIMULIA established products
+Abaqus JOB b13_finite_cax8rt
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:33:03 PM
+Run pre.exe
+9/13/2026 9:33:04 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:33:04 PM
+Run standard.exe
+9/13/2026 9:33:06 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:33:07 PM
+Run SMASimUtility.exe
+9/13/2026 9:33:07 PM
+End SIM Wrap-up
+Abaqus JOB b13_finite_cax8rt COMPLETED
+case=b13_integrated_cax4t work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_pcmi_a1175d23a47641f3a0b2449fe9ad3b56
+Analysis initiated from SIMULIA established products
+Abaqus JOB b13_integrated_cax4t
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:33:10 PM
+Run pre.exe
+9/13/2026 9:33:11 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:33:11 PM
+Run standard.exe
+9/13/2026 9:33:21 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:33:22 PM
+Run SMASimUtility.exe
+9/13/2026 9:33:22 PM
+End SIM Wrap-up
+Abaqus JOB b13_integrated_cax4t COMPLETED
+case=b13_integrated_cax4rt work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_pcmi_c023fc8bbd6547589502f30c223b0d7a
+Analysis initiated from SIMULIA established products
+Abaqus JOB b13_integrated_cax4rt
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:33:35 PM
+Run pre.exe
+9/13/2026 9:33:36 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:33:36 PM
+Run standard.exe
+9/13/2026 9:33:44 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:33:46 PM
+Run SMASimUtility.exe
+9/13/2026 9:33:46 PM
+End SIM Wrap-up
+Abaqus JOB b13_integrated_cax4rt COMPLETED
+case=b13_integrated_cax8t work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_pcmi_f012a65c47de433093656378dc868cde
+Analysis initiated from SIMULIA established products
+Abaqus JOB b13_integrated_cax8t
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:33:51 PM
+Run pre.exe
+9/13/2026 9:33:52 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:33:52 PM
+Run standard.exe
+9/13/2026 9:34:05 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:34:07 PM
+Run SMASimUtility.exe
+9/13/2026 9:34:07 PM
+End SIM Wrap-up
+Abaqus JOB b13_integrated_cax8t COMPLETED
+case=b13_integrated_cax8rt work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_pcmi_a7d67b6dad8e44c7b089a157617de3fa
+Analysis initiated from SIMULIA established products
+Abaqus JOB b13_integrated_cax8rt
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9989 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:34:38 PM
+Run pre.exe
+9/13/2026 9:34:39 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:34:39 PM
+Run standard.exe
+9/13/2026 9:34:49 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:34:50 PM
+Run SMASimUtility.exe
+9/13/2026 9:34:50 PM
+End SIM Wrap-up
+Abaqus JOB b13_integrated_cax8rt COMPLETED

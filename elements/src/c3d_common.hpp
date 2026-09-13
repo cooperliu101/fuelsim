@@ -158,3 +158,7 @@ std::array<adlite::Scalar, 4> reduced_hex8_thermal_hourglass_coefficients(
     const std::array<std::array<adlite::Scalar, 3>, hex8_node_count>& average_gradient,
     const adlite::Scalar& volume);
 } // namespace fuelsim::c3d8_detail
+
+namespace fuelsim::elements {
+void add_hex8_body_acceleration(const C3d8Input& input, Hex8LocalResidual& residual);
+}

@@ -467,6 +467,7 @@ void add_thermal_point_residual_values(const Hex20ThermalQuadraturePoint& point,
     const Hex20LocalValues& state,
     const IsotropicThermoelasticMaterial& material,
     double time,
+    double initial_temperature,
     double volumetric_heat_source,
     const Hex20LocalValues* committed_state,
     double time_step,
@@ -483,7 +484,8 @@ void add_thermal_point_residual_values(const Hex20ThermalQuadraturePoint& point,
     if (committed_state != nullptr && include_thermal_time_term) {
         const double old_temperature = interpolate_temperature_values(point, *committed_state);
         temperature_rate = (temperature - old_temperature) / time_step;
-        heat_capacity = material.heat_capacity(adlite::Scalar(temperature), context).value();
+        heat_capacity =
+            material.reference_heat_capacity(adlite::Scalar(temperature), initial_temperature, context).value();
     }
     for (std::size_t node = 0; node < 8; ++node) {
         double conduction = 0.0;
@@ -548,6 +550,7 @@ void add_thermal_point_system(const Hex20ThermalQuadraturePoint& point,
     const Hex20LocalValues& state,
     const IsotropicThermoelasticMaterial& material,
     double time,
+    double initial_temperature,
     double volumetric_heat_source,
     const Hex20LocalValues* committed_state,
     double time_step,
@@ -572,7 +575,7 @@ void add_thermal_point_system(const Hex20ThermalQuadraturePoint& point,
         for (std::size_t node = 0; node < 8; ++node)
             old_temperature += point.temperature_shape[node] * (*committed_state)[node];
         temperature_rate = (active_temperature[0] - old_temperature) / time_step;
-        heat_capacity = material.heat_capacity(active_temperature[0], context);
+        heat_capacity = material.reference_heat_capacity(active_temperature[0], initial_temperature, context);
     }
     std::array<double, point_width> derivatives{};
     for (std::size_t node = 0; node < 8; ++node) {
@@ -601,6 +604,7 @@ void add_finite_thermal_point_residual_values(const Hex20MechanicalQuadraturePoi
     const Hex20LocalValues& state,
     const IsotropicThermoelasticMaterial& material,
     double time,
+    double initial_temperature,
     double volumetric_heat_source,
     const Hex20LocalValues* committed_state,
     double time_step,
@@ -621,7 +625,8 @@ void add_finite_thermal_point_residual_values(const Hex20MechanicalQuadraturePoi
     if (committed_state != nullptr && include_thermal_time_term) {
         const double old_temperature = interpolate_temperature_values(point, *committed_state);
         temperature_rate = (temperature - old_temperature) / time_step;
-        heat_capacity = material.heat_capacity(adlite::Scalar(temperature), context).value();
+        heat_capacity =
+            material.reference_heat_capacity(adlite::Scalar(temperature), initial_temperature, context).value();
     }
     const double source_measure =
         volumetric_heat_source == 0.0 ? 0.0 : evaluate_source_measure_values(point, state).weighted_measure;
@@ -629,10 +634,9 @@ void add_finite_thermal_point_residual_values(const Hex20MechanicalQuadraturePoi
         double conduction = 0.0;
         for (std::size_t direction = 0; direction < 3; ++direction)
             conduction += kinematics.midpoint_temperature_gradient[node][direction] * temperature_gradient[direction];
-        residual[node] +=
-            kinematics.current_weighted_measure
-                * (conductivity * conduction + point.temperature_shape[node] * heat_capacity * temperature_rate)
-            - source_measure * point.temperature_shape[node] * volumetric_heat_source;
+        residual[node] += kinematics.current_weighted_measure * conductivity * conduction
+                          + point.weighted_measure * point.temperature_shape[node] * heat_capacity * temperature_rate
+                          - source_measure * point.temperature_shape[node] * volumetric_heat_source;
     }
 }
 
@@ -640,6 +644,7 @@ void add_finite_thermal_point_system(const Hex20MechanicalQuadraturePoint& point
     const Hex20LocalValues& state,
     const IsotropicThermoelasticMaterial& material,
     double time,
+    double initial_temperature,
     double volumetric_heat_source,
     const Hex20LocalValues* committed_state,
     double time_step,
@@ -655,7 +660,7 @@ void add_finite_thermal_point_system(const Hex20MechanicalQuadraturePoint& point
     if (committed_state != nullptr && include_thermal_time_term) {
         const double old_temperature = interpolate_temperature_values(point, *committed_state);
         temperature_rate = (active_temperature - old_temperature) / time_step;
-        heat_capacity = material.heat_capacity(active_temperature, context);
+        heat_capacity = material.reference_heat_capacity(active_temperature, initial_temperature, context);
     }
     const auto midpoint_gradient = temperature_shape_gradients(point, kinematics.midpoint_inverse_values);
     std::array<double, 3> temperature_gradient{};
@@ -684,10 +689,15 @@ void add_finite_thermal_point_system(const Hex20MechanicalQuadraturePoint& point
         double conduction = 0.0;
         for (std::size_t direction = 0; direction < 3; ++direction)
             conduction += midpoint_gradient[node][direction] * temperature_gradient[direction];
-        const adlite::Scalar thermal_integrand =
-            conductivity * conduction + point.temperature_shape[node] * heat_capacity * temperature_rate;
-        thermal_integrand.copy_derivatives(derivatives.data(), derivatives.size());
         const double current_weight = kinematics.current_weighted_measure.value();
+        // Density follows the fixed initial mass. Its geometric volume ratio
+        // cancels the current capacity measure, leaving the original reference
+        // weight and no displacement derivative of heat storage.
+        const adlite::Scalar conduction_integrand = conductivity * conduction;
+        const adlite::Scalar thermal_residual =
+            current_weight * conduction_integrand
+            + point.weighted_measure * point.temperature_shape[node] * heat_capacity * temperature_rate;
+        thermal_residual.copy_derivatives(derivatives.data(), derivatives.size());
         std::array<double, 3> midpoint_projected_test{};
         for (std::size_t row = 0; row < 3; ++row)
             for (std::size_t direction = 0; direction < 3; ++direction)
@@ -702,7 +712,7 @@ void add_finite_thermal_point_system(const Hex20MechanicalQuadraturePoint& point
                         + temperature_gradient[component] * midpoint_projected_test[direction]);
                 full_gradient_derivative[component][direction] =
                     current_weight
-                    * (kinematics.current_inverse_values[direction][component] * thermal_integrand.value()
+                    * (kinematics.current_inverse_values[direction][component] * conduction_integrand.value()
                         + conductivity.value() * conduction_derivative);
             }
         for (std::size_t displacement_component = 0; displacement_component < 3; ++displacement_component)
@@ -721,12 +731,11 @@ void add_finite_thermal_point_system(const Hex20MechanicalQuadraturePoint& point
             for (std::size_t direction = 0; direction < 3; ++direction)
                 gradient_dot += midpoint_gradient[node][direction] * midpoint_gradient[other][direction];
             jacobian[node * hex20_local_dof_count + other] +=
-                current_weight
-                * (conductivity.value() * gradient_dot
-                    + point.temperature_shape[other] * derivatives[temperature_index]);
+                current_weight * conductivity.value() * gradient_dot
+                + point.temperature_shape[other] * derivatives[temperature_index];
         }
-        residual[node] += current_weight * thermal_integrand.value()
-                          - source.weighted_measure * point.temperature_shape[node] * volumetric_heat_source;
+        residual[node] +=
+            thermal_residual.value() - source.weighted_measure * point.temperature_shape[node] * volumetric_heat_source;
     }
 }
 
@@ -735,6 +744,7 @@ void add_mechanical_point_system(const Hex20MechanicalQuadraturePoint& point,
     const IsotropicThermoelasticMaterial& material,
     StrainFormulation strain_formulation,
     double time,
+    double initial_temperature,
     double volumetric_heat_source,
     const Hex20LocalValues* committed_state,
     const CartesianMaterialPointState* committed_material,
@@ -769,6 +779,7 @@ void add_mechanical_point_system(const Hex20MechanicalQuadraturePoint& point,
             state,
             material,
             time,
+            initial_temperature,
             volumetric_heat_source,
             committed_state,
             time_step,
@@ -870,6 +881,7 @@ Hex20LocalResidual compute_local(const elements::C3d20Input& data, Hex20LocalJac
                     state,
                     data.material,
                     data.time,
+                    data.initial_temperature,
                     data.volumetric_heat_source,
                     committed_state,
                     time_step,
@@ -881,6 +893,7 @@ Hex20LocalResidual compute_local(const elements::C3d20Input& data, Hex20LocalJac
                     state,
                     data.material,
                     data.time,
+                    data.initial_temperature,
                     data.volumetric_heat_source,
                     committed_state,
                     time_step,
@@ -906,6 +919,7 @@ Hex20LocalResidual compute_local(const elements::C3d20Input& data, Hex20LocalJac
                 state,
                 data.material,
                 data.time,
+                data.initial_temperature,
                 data.volumetric_heat_source,
                 committed_state,
                 time_step,
@@ -918,6 +932,7 @@ Hex20LocalResidual compute_local(const elements::C3d20Input& data, Hex20LocalJac
             data.material,
             data.strain_formulation,
             data.time,
+            data.initial_temperature,
             data.volumetric_heat_source,
             committed_state,
             history == nullptr ? nullptr : &(*history)[q],
@@ -1014,6 +1029,19 @@ C3d20Result evaluate_c3d20t(const C3d20Input& input, ElementRequest request, C3d
         result.history = compute_hex20_transient_update(input);
     if (request.stress)
         result.stress = compute_hex20_stress(input);
+    for (double value : input.body_acceleration)
+        if (!std::isfinite(value))
+            throw std::invalid_argument("Body acceleration must be finite");
+    if ((request.residual || request.jacobian) && input.body_acceleration != std::array<double, 3>{})
+        for (const auto& point : input.geometry.mechanical_points) {
+            const double mass = point.weighted_measure
+                                * input.material.initial_density(input.initial_temperature,
+                                    {0.0, point.position.x, point.position.y, point.position.z});
+            for (std::size_t component = 0; component < 3; ++component)
+                for (std::size_t node = 0; node < 20; ++node)
+                    result.residual[8 + component * 20 + node] -=
+                        mass * point.displacement_shape[node] * input.body_acceleration[component];
+        }
     return result;
 }
 } // namespace fuelsim::elements

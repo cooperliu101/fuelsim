@@ -90,18 +90,17 @@ fuelsim::Hex8Coordinates distorted_coordinates() {
         {-0.20, 1.00, 1.20}}};
 }
 
-fuelsim::ThermoelasticProperties properties() {
+fuelsim::ThermoelasticProperties properties(double initial_density) {
     fuelsim::ThermoelasticProperties result =
-        fuelsim::test::thermoelastic(0.0, 4.0, 2.0e11, 0.25, 0.0, 300.0, 0.0, 0.0, 0.0, 2000.0, 3000.0);
+        fuelsim::test::thermoelastic(0.0, 4.0, 2.0e11, 0.25, 0.0, 300.0, 0.0, 0.0, 0.0, initial_density, 3000.0);
     fuelsim::MaterialFunctionRegistry registry = fuelsim::make_builtin_material_function_registry();
     auto functions = std::make_shared<fuelsim::MaterialFunctionSet>(*result.functions);
     functions->thermal = registry.bind_thermal("linear_temperature_thermophysical",
         {{"conductivity", 4.0},
-            {"density", 2000.0},
+            {"density", initial_density},
             {"specific_heat", 3000.0},
             {"reference_temperature", 300.0},
             {"conductivity_temperature_coefficient", 0.0},
-            {"density_temperature_coefficient", -1.0},
             {"specific_heat_temperature_coefficient", 4.0}});
     result.functions = std::move(functions);
     return result;
@@ -147,7 +146,17 @@ int main(int argc, char** argv) {
         const std::map<std::string, StateReference> reference = read_reference(argv[1]);
         const StateReference& base = reference.at("BASE");
         const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(distorted_coordinates());
-        const fuelsim::CartesianRegionData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 0.0, 1.0};
+        // The native input starts at nodal temperatures 310,...,450 K.
+        // Its initial element mean is 380 K, so the prescribed density table
+        // gives rho_initial = 2000 - (380 - 300) = 1920 kg/m3 in Abaqus 2025.
+        double initial_temperature = 0.0;
+        for (double value : old_temperature)
+            initial_temperature += value / static_cast<double>(node_count);
+        const double initial_density = 2000.0 - (initial_temperature - 300.0);
+        fuelsim::CartesianRegionData data{fuelsim::IsotropicThermoelasticMaterial(properties(initial_density)),
+            0.0,
+            1.0};
+        data.initial_temperature = initial_temperature;
         fuelsim::Hex8LocalValues committed_state{}, state{};
         for (std::size_t node = 0; node < node_count; ++node) {
             committed_state[node] = old_temperature[node];
@@ -169,7 +178,7 @@ int main(int argc, char** argv) {
         for (std::size_t node = 0; node < node_count; ++node) {
             fuelsim_capacity[node] = transient[node] - steady[node];
             const double temperature = state[node], increment = temperature - committed_state[node];
-            const double density = 2000.0 - (temperature - 300.0);
+            const double density = initial_density;
             const double specific_heat = 3000.0 + 4.0 * (temperature - 300.0);
             analytic_capacity[node] =
                 geometry.capacity_points[node].weighted_measure * density * specific_heat * increment;
@@ -221,7 +230,7 @@ int main(int argc, char** argv) {
         const bool passed =
             check(residual_error < 2.0e-12, "Fuelsim temperature-dependent lumped-capacity residual matches Abaqus")
             && check(analytic_error < 2.0e-12,
-                "Abaqus uses current rho(T) times cp(T) times the backward-Euler temperature increment")
+                "Abaqus 2025 uses initial density times current cp(T) and the backward-Euler temperature increment")
             && check(jacobian_error < 2.0e-9,
                 "Fuelsim temperature-dependent lumped-capacity Jacobian matches the Abaqus centered tangent")
             && check(enthalpy_difference > 1.0e-3,

@@ -84,6 +84,51 @@ int main(int argc, char** argv) {
         const double relative_tolerance = small ? 0.005 : 0.001;
         std::map<std::string, FieldErrorMetrics> scalar;
         std::map<std::string, GroupedFieldErrorMetrics> tensor;
+        const bool finite_cax4t =
+            group == "finite" && std::filesystem::path(argv[2]).filename() == "b13_finite_cax4t_nodes.csv";
+        // User-qualified small nonzero fields retain both aggregate relative gates.
+        // Every sample must satisfy its relative OR absolute pointwise gate.
+        const std::map<std::string, double> absolute_limits = finite_cax4t
+                                                                  ? std::map<std::string, double>{{"stress", 20.0},
+                                                                        {"elastic", 3e-10},
+                                                                        {"displacement", 2e-12},
+                                                                        {"creep", 1e-18},
+                                                                        {"equiv_creep", 1e-18},
+                                                                        {"gap", 1e-12},
+                                                                        {"pressure", 5.0},
+                                                                        {"normal_force", 1e-4},
+                                                                        {"normal_resultant", 1e-4},
+                                                                        {"support_force", 1e-4}}
+                                                                  : std::map<std::string, double>{};
+        std::map<std::string, std::size_t> pointwise_failures, absolute_acceptances;
+        std::map<std::string, double> maximum_relative_failure_difference, relative_failure_reference;
+        const auto check_point = [&](const std::string& name, double difference, double reference) {
+            if (reference == 0.0 || difference < relative_tolerance * reference)
+                return;
+            if (difference > maximum_relative_failure_difference[name]) {
+                maximum_relative_failure_difference[name] = difference;
+                relative_failure_reference[name] = reference;
+            }
+            const auto limit = absolute_limits.find(name);
+            if (limit != absolute_limits.end() && difference < limit->second)
+                ++absolute_acceptances[name];
+            else
+                ++pointwise_failures[name];
+        };
+        const auto add_scalar = [&](const std::string& name, double actual, double reference) {
+            scalar[name].add(actual, reference);
+            check_point(name, std::abs(actual - reference), std::abs(reference));
+        };
+        const auto add_tensor =
+            [&](const std::string& name, const double* actual, const double* reference, std::size_t count) {
+                tensor[name].add(actual, reference, count);
+                double difference = 0.0, norm = 0.0;
+                for (std::size_t component = 0; component < count; ++component) {
+                    difference = std::hypot(difference, actual[component] - reference[component]);
+                    norm = std::hypot(norm, reference[component]);
+                }
+                check_point(name, difference, norm);
+            };
         std::size_t ni = 0, pi = 0, ci = 0, active = 0, sliding = 0;
         double max_plastic = 0, max_creep = 0;
         std::map<std::pair<std::size_t, std::size_t>, std::array<double, 4>> previous_inelastic;
@@ -105,8 +150,8 @@ int main(int argc, char** argv) {
             if (frame.time == 0)
                 continue;
             // Conservation uses every production frame, including times omitted from the external references.
-            scalar["thermal_balance_heat"].add(frame.global("conservation_global_thermal_balance"), 0.0);
-            scalar["interface_balance_heat"].add(frame.global("conservation_interface_heat_imbalance"), 0.0);
+            add_scalar("thermal_balance_heat", frame.global("conservation_global_thermal_balance"), 0.0);
+            add_scalar("interface_balance_heat", frame.global("conservation_interface_heat_imbalance"), 0.0);
             if (integrated) {
                 if (std::abs(frame.time - std::round(frame.time / 0.0625) * 0.0625) > 1e-12)
                     throw std::runtime_error("Integrated production time grid differs");
@@ -136,7 +181,7 @@ int main(int argc, char** argv) {
                 require_time(row, frame.time);
                 if (row.at("node") != static_cast<double>(n + 1))
                     throw std::runtime_error("Node labels differ");
-                scalar["temperature"].add(frame.nodal("temperature")[n], row.at("temperature"));
+                add_scalar("temperature", frame.nodal("temperature")[n], row.at("temperature"));
                 std::array<double, 2> a = {frame.nodal("displacement_r")[n], frame.nodal("displacement_z")[n]},
                                       b = {row.at("ur"), row.at("uz")};
                 // Only prescribed zero components are normalized, after an
@@ -145,23 +190,23 @@ int main(int argc, char** argv) {
                     frame.nodes[n][1] == (integrated ? -0.001 : 0.0)};
                 for (std::size_t component = 0; component < 2; ++component)
                     if (fixed[component]) {
-                        scalar["prescribed_displacement_zero"].add(a[component], 0.0);
-                        scalar["prescribed_displacement_zero"].add(b[component], 0.0);
+                        add_scalar("prescribed_displacement_zero", a[component], 0.0);
+                        add_scalar("prescribed_displacement_zero", b[component], 0.0);
                         a[component] = b[component] = 0.0;
                     }
-                tensor["displacement"].add(a.data(), b.data(), 2);
+                add_tensor("displacement", a.data(), b.data(), 2);
                 for (std::size_t component = 0; component < 2; ++component)
                     if (support[n][component])
-                        scalar["support_force"].add(
+                        add_scalar("support_force",
                             frame.nodal(component == 0 ? "reaction_force_r" : "reaction_force_z")[n],
                             row.at(component == 0 ? "rf_r" : "rf_z"));
                 if (!quadratic || frame.nodal("temperature_active")[n] == 1) {
                     const double actual_heat = frame.nodal("reaction_heat_flux")[n];
                     if (temperature_support[n])
-                        scalar["boundary_heat"].add(actual_heat, row.at("reaction_heat"));
+                        add_scalar("boundary_heat", actual_heat, row.at("reaction_heat"));
                     else {
-                        scalar["free_heat"].add(actual_heat, 0.0);
-                        scalar["free_heat"].add(row.at("reaction_heat"), 0.0);
+                        add_scalar("free_heat", actual_heat, 0.0);
+                        add_scalar("free_heat", row.at("reaction_heat"), 0.0);
                     }
                 }
             }
@@ -191,10 +236,10 @@ int main(int argc, char** argv) {
                             }
                             ++c;
                         }
-                        tensor[prefix].add(a.data(), b.data(), 4);
+                        add_tensor(prefix, a.data(), b.data(), 4);
                     }
                     for (const char* name : {"equiv_plastic", "equiv_creep"})
-                        scalar[name].add(frame.element(std::string(name) + suffix)[e], row.at(name));
+                        add_scalar(name, frame.element(std::string(name) + suffix)[e], row.at(name));
                     max_plastic = std::max(max_plastic, frame.element("equiv_plastic" + suffix)[e]);
                     max_creep = std::max(max_creep, frame.element("equiv_creep" + suffix)[e]);
                     // B13 small: every clad point must activate both mechanisms at every step.
@@ -241,31 +286,33 @@ int main(int argc, char** argv) {
                     throw std::runtime_error("Duplicate contact node in reference frame");
                 contact_nodes[n] = true;
                 const std::string pair = "_fuel_cladding";
-                scalar["pressure"].add(
+                add_scalar("pressure",
                     frame.nodal("contact_" + std::string(quadratic ? "recovered_pressure" : "pressure") + pair).at(n),
                     row.at("pressure"));
-                scalar["gap"].add(frame.nodal("contact_gap" + pair).at(n), row.at("gap"));
+                add_scalar("gap", frame.nodal("contact_gap" + pair).at(n), row.at("gap"));
                 const double normal = std::hypot(row.at("normal_r"), row.at("normal_z"));
-                scalar["normal_force"].add(frame.nodal("contact_normal_force" + pair).at(n), normal);
+                add_scalar("normal_force", frame.nodal("contact_normal_force" + pair).at(n), normal);
                 total_normal += normal;
                 active += frame.nodal("contact_pressure" + pair).at(n) > 0 ? 1U : 0U;
                 if (integrated) {
-                    scalar["shear"].add(
+                    add_scalar("shear",
                         frame
                             .nodal(
                                 "contact_" + std::string(quadratic ? "recovered_shear" : "tangential_traction") + pair)
                             .at(n),
                         row.at("shear"));
-                    scalar["slip"].add(std::abs(frame.nodal("contact_total_tangential_slip" + pair).at(n)),
+                    add_scalar("slip",
+                        std::abs(frame.nodal("contact_total_tangential_slip" + pair).at(n)),
                         std::abs(row.at("slip")));
-                    scalar["tangent_force"].add(std::abs(frame.nodal("contact_tangential_force" + pair).at(n)),
+                    add_scalar("tangent_force",
+                        std::abs(frame.nodal("contact_tangential_force" + pair).at(n)),
                         std::hypot(row.at("tangential_r"), row.at("tangential_z")));
                     sliding += frame.nodal("contact_sliding" + pair).at(n) == 1 ? 1U : 0U;
                 }
             }
             if (ci == contact_begin)
                 throw std::runtime_error("Missing contact frame");
-            scalar["normal_resultant"].add(frame.global("contact_force_fuel_cladding"), total_normal);
+            add_scalar("normal_resultant", frame.global("contact_force_fuel_cladding"), total_normal);
         }
         bool passed = ni == nodes.size() && pi == points.size() && ci == contacts.size() && active > 0
                       && max_plastic > 0 && max_creep > 0
@@ -289,7 +336,10 @@ int main(int argc, char** argv) {
                 print_relative_metrics(name, m);
             else
                 print_absolute_metrics(name, m);
-            passed = passed && (!m.has_relative_norm() || relative_metrics_below(m, relative_tolerance))
+            passed = passed
+                     && (!m.has_relative_norm()
+                         || (m.relative_l2() < relative_tolerance && m.relative_absolute_peak() < relative_tolerance
+                             && pointwise_failures[name] == 0))
                      && m.maximum_zero_reference_difference <= absolute;
         }
         for (const auto& [name, m] : tensor) {
@@ -298,9 +348,22 @@ int main(int argc, char** argv) {
             std::cout << name << "_zero_reference_count=" << m.zero_reference_count << '\n'
                       << name << "_maximum_zero_reference_absolute_difference=" << m.maximum_zero_reference_difference
                       << '\n';
-            passed = passed && (!m.has_relative_norm() || grouped_relative_metrics_below(m, relative_tolerance))
+            passed = passed
+                     && (!m.has_relative_norm()
+                         || (m.relative_l2() < relative_tolerance && m.relative_absolute_peak() < relative_tolerance
+                             && pointwise_failures[name] == 0))
                      && m.maximum_zero_reference_difference <= (name == "stress" ? 1e-4 : 1e-13);
         }
+        for (const auto& [name, limit] : absolute_limits)
+            std::cout << name << "_qualified_pointwise_absolute_tolerance=" << limit << '\n'
+                      << name << "_absolute_qualified_samples=" << absolute_acceptances[name] << '\n'
+                      << name
+                      << "_maximum_relative_failure_absolute_difference=" << maximum_relative_failure_difference[name]
+                      << '\n'
+                      << name << "_relative_failure_reference_norm=" << relative_failure_reference[name] << '\n';
+        for (const auto& [name, count] : pointwise_failures)
+            if (count != 0)
+                std::cerr << "[FAIL] " << name << " pointwise samples outside both tolerances=" << count << '\n';
         std::cout << "active_contact_samples=" << active << "\nsliding_contact_samples=" << sliding
                   << "\nmaximum_plastic=" << max_plastic << "\nmaximum_creep=" << max_creep
                   << "\nsimultaneous_clad_samples=" << simultaneous_samples

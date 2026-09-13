@@ -1,0 +1,330 @@
+BATCH_START 0 run_b7_rz.ps1
+case=b77_rz_finite_thermal work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_rz_22168ae46c414327a0cd13b2c766aa2e
+BATCH_START 1 run_b9_rz.ps1
+case=b91_cax4rt_finite_probe work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax4rt_9fd314ebaf474440815bbce8fdff9b9f
+Analysis initiated from SIMULIA established products
+Abaqus JOB b91_cax4rt_finite_probe
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:34:37 PM
+Run pre.exe
+9/13/2026 9:34:38 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:34:38 PM
+Run standard.exe
+9/13/2026 9:34:39 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:34:39 PM
+Run SMASimUtility.exe
+9/13/2026 9:34:39 PM
+End SIM Wrap-up
+Abaqus JOB b91_cax4rt_finite_probe COMPLETED
+case=b910_cax4rt_finite_thermal work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax4rt_b443c40fe0bc4978982b330996fcb21a
+Analysis initiated from SIMULIA established products
+Abaqus JOB b910_cax4rt_finite_thermal
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9989 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:34:40 PM
+Run pre.exe
+9/13/2026 9:34:41 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:34:41 PM
+Run standard.exe
+9/13/2026 9:34:42 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:34:43 PM
+Run SMASimUtility.exe
+9/13/2026 9:34:43 PM
+End SIM Wrap-up
+Abaqus JOB b910_cax4rt_finite_thermal COMPLETED
+case=b917_cax4rt_finite_thermal_operators work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax4rt_2ffef3de41b3468f891e8b00bdb2b154
+Analysis initiated from SIMULIA established products
+Abaqus JOB b917_cax4rt_finite_thermal_operators
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9989 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:34:44 PM
+Run pre.exe
+9/13/2026 9:34:45 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:34:45 PM
+Run standard.exe
+9/13/2026 9:34:46 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:34:47 PM
+Run SMASimUtility.exe
+9/13/2026 9:34:47 PM
+End SIM Wrap-up
+Abaqus JOB b917_cax4rt_finite_thermal_operators COMPLETED
+BATCH_START 2 run_b10_rz.ps1
+case=b101_cax8t_finite_probe work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax8t_06114540f2cc4f918947de67d3ba0f3e
+Analysis initiated from SIMULIA established products
+Abaqus JOB b101_cax8t_finite_probe
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9989 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:34:49 PM
+Run pre.exe
+9/13/2026 9:34:50 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:34:50 PM
+Run standard.exe
+9/13/2026 9:34:50 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:34:51 PM
+Run SMASimUtility.exe
+9/13/2026 9:34:51 PM
+End SIM Wrap-up
+Abaqus JOB b101_cax8t_finite_probe COMPLETED
+case=b111_cax8t_finite_thermal work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax8t_765ba01d5ae94df4ae64085adb32ff0b
+Analysis initiated from SIMULIA established products
+Abaqus JOB b111_cax8t_finite_thermal
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:34:52 PM
+Run pre.exe
+9/13/2026 9:34:53 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:34:53 PM
+Run standard.exe
+9/13/2026 9:34:54 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:34:55 PM
+Run SMASimUtility.exe
+9/13/2026 9:34:55 PM
+End SIM Wrap-up
+Abaqus JOB b111_cax8t_finite_thermal COMPLETED
+BATCH_START 3 run_b12_rz.ps1
+case=b121_cax8rt_finite_probe work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax8rt_765ba35acf7144ef8c81e339d6127866
+Analysis initiated from SIMULIA established products
+Abaqus JOB b121_cax8rt_finite_probe
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:34:57 PM
+Run pre.exe
+9/13/2026 9:34:58 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:34:58 PM
+Run standard.exe
+9/13/2026 9:34:59 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:34:59 PM
+Run SMASimUtility.exe
+9/13/2026 9:34:59 PM
+End SIM Wrap-up
+Abaqus JOB b121_cax8rt_finite_probe COMPLETED
+case=b1211_cax8rt_finite_thermal work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax8rt_ef2f1bfc188a4652a9b3231f04caabc9
+Analysis initiated from SIMULIA established products
+Abaqus JOB b1211_cax8rt_finite_thermal
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:35:01 PM
+Run pre.exe
+9/13/2026 9:35:02 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:35:02 PM
+Run standard.exe
+9/13/2026 9:35:03 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:35:03 PM
+Run SMASimUtility.exe
+9/13/2026 9:35:03 PM
+End SIM Wrap-up
+Abaqus JOB b1211_cax8rt_finite_thermal COMPLETED
+BATCH_START 4 run_b15_cax4t.ps1
+case=b150_cax4t_finite_thermal_operator work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax4rt_0e01c97f7d954330a8d7e3e0eda34460
+Analysis initiated from SIMULIA established products
+Abaqus JOB b150_cax4t_finite_thermal_operator
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:35:05 PM
+Run pre.exe
+9/13/2026 9:35:06 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:35:06 PM
+Run standard.exe
+9/13/2026 9:35:07 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:35:09 PM
+Run SMASimUtility.exe
+9/13/2026 9:35:09 PM
+End SIM Wrap-up
+Abaqus JOB b150_cax4t_finite_thermal_operator COMPLETED
+BATCH_START 5 run_b61.ps1
+Copy-Item : 找不到路径“\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\build\abaqus2025\b60_long_plate_meat_clad_
+c3d8rt.json”，因为该路径不存在。
+所在位置 \\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\build\abaqus2025\run_b61.ps1:17 字符: 5
++     Copy-Item (Join-Path $SourceDirectory $InputFile) $Work
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (\\wsl.localhost...lad_c3d8rt.json:String) [Copy-Item], ItemNotFoundExce 
+   ption
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.CopyItemCommand
+ 
+BATCH_START 6 run_b534.ps1
+Analysis initiated from SIMULIA established products
+Abaqus JOB b534_hex8_c3d8rt_finite_transient_full_field
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:35:12 PM
+Run pre.exe
+9/13/2026 9:35:13 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:35:13 PM
+Run standard.exe
+9/13/2026 9:35:14 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:35:14 PM
+Run SMASimUtility.exe
+9/13/2026 9:35:14 PM
+End SIM Wrap-up
+Abaqus JOB b534_hex8_c3d8rt_finite_transient_full_field COMPLETED
+Abaqus B5.34 work directory: C:\Users\TcroM\AppData\Local\Temp\fuelsim_b534_20260913_213511
+BATCH_START 7 run_b54.ps1
+Analysis initiated from SIMULIA established products
+Abaqus JOB b54_hex8_c3d8t_finite_thermal_load_probe
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:35:16 PM
+Run pre.exe
+9/13/2026 9:35:17 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:35:17 PM
+Run standard.exe
+9/13/2026 9:35:18 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:35:20 PM
+Run SMASimUtility.exe
+9/13/2026 9:35:20 PM
+End SIM Wrap-up
+Abaqus JOB b54_hex8_c3d8t_finite_thermal_load_probe COMPLETED
+BATCH_START 8 run_b57.ps1
+Analysis initiated from SIMULIA established products
+Abaqus JOB b57_hex8_c3d8t_temperature_capacity
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:35:22 PM
+Run pre.exe
+9/13/2026 9:35:23 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:35:23 PM
+Run standard.exe
+9/13/2026 9:35:24 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:35:26 PM
+Run SMASimUtility.exe
+9/13/2026 9:35:26 PM
+End SIM Wrap-up
+Abaqus JOB b57_hex8_c3d8t_temperature_capacity COMPLETED
+BATCH_START 9 run_b526.ps1
+Copy-Item : 找不到路径“\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\build\abaqus2025\b526_cases.tsv”，因为该路
+径不存在。
+所在位置 \\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\build\abaqus2025\run_b526.ps1:10 字符: 1
++ Copy-Item (Join-Path $SourceDirectory "b526_cases.tsv") $Work
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (\\wsl.localhost...\b526_cases.tsv:String) [Copy-Item], ItemNotFoundExce 
+   ption
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.CopyItemCommand
+ 
+BATCH_START 10 run_c3d20rt_probe.ps1
+abaqus_work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_c3d20rt_probe_20260913_213527
+Analysis initiated from SIMULIA established products
+Abaqus JOB c3d20rt_thermal_probe
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:35:28 PM
+Run pre.exe
+9/13/2026 9:35:29 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:35:29 PM
+Run standard.exe
+9/13/2026 9:35:30 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:35:32 PM
+Run SMASimUtility.exe
+9/13/2026 9:35:32 PM
+End SIM Wrap-up
+Abaqus JOB c3d20rt_thermal_probe COMPLETED
+abaqus_work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_c3d20rt_probe_20260913_213527
+BATCH_START 11 run_c3d20rt_probe.ps1
+abaqus_work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_c3d20rt_probe_20260913_213533
+Analysis initiated from SIMULIA established products
+Abaqus JOB c3d20rt_nonaffine_probe
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 9:35:34 PM
+Run pre.exe
+9/13/2026 9:35:34 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 9:35:34 PM
+Run standard.exe
+9/13/2026 9:35:35 PM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/13/2026 9:35:36 PM
+Run SMASimUtility.exe
+9/13/2026 9:35:36 PM
+End SIM Wrap-up
+Abaqus JOB c3d20rt_nonaffine_probe COMPLETED
+abaqus_work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_c3d20rt_probe_20260913_213533

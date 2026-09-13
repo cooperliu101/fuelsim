@@ -472,7 +472,8 @@ RegionDefinition read_region(const InputDocument& document,
             "initial_temperature",
             "volumetric_heat_source",
             "heat_source_function",
-            "heat_source_time_evaluation"});
+            "heat_source_time_evaluation",
+            "body_acceleration"});
     const InputEntry* block = find_entry(section, "block");
     const InputEntry* block_id = find_entry(section, "block_id");
     if ((block == nullptr) == (block_id == nullptr))
@@ -509,6 +510,16 @@ RegionDefinition read_region(const InputDocument& document,
         read_double(document, section, "volumetric_heat_source"),
         initial_temperature,
         resolved_block_id};
+    if (const InputEntry* acceleration = find_entry(section, "body_acceleration")) {
+        const auto values = parse_double_list(document, *acceleration);
+        const bool cartesian = geometry == CaseGeometry::cartesian_3d;
+        if (values.size() != (cartesian ? 3U : 2U))
+            value_error(document,
+                *acceleration,
+                "body_acceleration requires x y z in Cartesian geometry or radial axial in axisymmetry (m/s^2)");
+        result.body_acceleration = cartesian ? std::array<double, 3>{values[0], values[1], values[2]}
+                                             : std::array<double, 3>{values[0], 0.0, values[1]};
+    }
     result.heat_source_function = read_optional_string(section, "heat_source_function", {});
     const std::string heat_source_time_evaluation =
         read_optional_string(section, "heat_source_time_evaluation", "end_time");

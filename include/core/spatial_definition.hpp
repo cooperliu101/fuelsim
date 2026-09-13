@@ -57,6 +57,7 @@ struct RegionDefinition final {
     // Explicit input-card topology; zero means a programmatically constructed definition.
     std::size_t requested_cartesian_node_count = 0;
     bool radial_gps = false;
+    std::array<double, 3> body_acceleration{};
 };
 enum class MechanicalContactFormulation {
     penalty,

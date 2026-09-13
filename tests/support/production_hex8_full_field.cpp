@@ -933,7 +933,8 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
         cumulative_creep += snapshot.global("conservation_creep_dissipation_increment");
         cumulative_friction += snapshot.global("conservation_friction_dissipation_increment");
         cumulative_external_work += snapshot.global("conservation_trapezoidal_pressure_traction_work_increment")
-                                    + snapshot.global("conservation_trapezoidal_dirichlet_reaction_work_increment");
+                                    + snapshot.global("conservation_trapezoidal_dirichlet_reaction_work_increment")
+                                    + snapshot.global("conservation_body_force_work_increment");
         maximum_abaqus_artificial_energy = std::max(maximum_abaqus_artificial_energy, std::abs(expected.artificial));
         if (expected.internal != 0.0)
             maximum_abaqus_artificial_energy_fraction =

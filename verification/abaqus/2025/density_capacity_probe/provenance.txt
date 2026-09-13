@@ -1,0 +1,6 @@
+abaqus_version=2025 RELr427
+cpus=1
+work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_density_capacity_2025_a0e1eff4973e45c0940da513ec5fc1ad
+input_sha256=0f28cd34fae297936974ca076ee68227385e09386c6180d45be65789dbfaa290
+extractor_sha256=ac81b00850e000300b0b91d26f909c4013056727dd414176a16d53b08a938f7a
+recovery_note=Native solve and extraction succeeded; empty extraction stdout created no optional extract.log. Provenance restored after checking staged input bytes.

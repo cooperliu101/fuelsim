@@ -1106,6 +1106,24 @@ bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, co
         "\n  checkpoint = collision.dat");
     passed = expect_case_failure(malformed_path, output_collision, "paths must differ") && passed;
     passed = fuzz_input_parser(transient_text, malformed_path) && passed;
+    std::string gravity_input = transient_text;
+    replace_all(gravity_input, "volumetric_heat_source =", "body_acceleration = 0 -9.81\n    volumetric_heat_source =");
+    const auto gravity_case = parse_mutation(gravity_input);
+    passed = check(gravity_case.spatial.regions[0].body_acceleration == std::array<double, 3>{0, 0, -9.81},
+                 "axisymmetric gravity maps radial and axial input components")
+             && passed;
+    replace_all(gravity_input, "body_acceleration = 0 -9.81", "body_acceleration = 0 0 -9.81");
+    passed = expect_case_failure(malformed_path, gravity_input, "body_acceleration requires") && passed;
+    std::string gravity_cartesian = read_text(c3d8rt_path);
+    replace_all(gravity_cartesian,
+        "volumetric_heat_source =",
+        "body_acceleration = 1 2 -9.81\n    volumetric_heat_source =");
+    const auto gravity_cartesian_case = parse_mutation(gravity_cartesian);
+    passed = check(gravity_cartesian_case.spatial.regions[0].body_acceleration == std::array<double, 3>{1, 2, -9.81},
+                 "Cartesian gravity preserves all three global components")
+             && passed;
+    replace_all(gravity_cartesian, "body_acceleration = 1 2 -9.81", "body_acceleration = 0 -9.81");
+    passed = expect_case_failure(malformed_path, gravity_cartesian, "body_acceleration requires") && passed;
     return passed;
 }
 } // namespace

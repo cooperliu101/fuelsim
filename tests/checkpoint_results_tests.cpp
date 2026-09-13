@@ -216,14 +216,14 @@ bool test_friction_history_checkpoint(const std::string& input_path, const std::
         std::fstream file(checkpoint_path, std::ios::binary | std::ios::in | std::ios::out);
         if (!file)
             return check(false, "friction checkpoint opens for version test");
-        const std::array<unsigned char, 4> old_version = {20U, 0U, 0U, 0U};
+        const std::array<unsigned char, 4> old_version = {21U, 0U, 0U, 0U};
         file.seekp(16, std::ios::beg);
         file.write(reinterpret_cast<const char*>(old_version.data()), static_cast<std::streamsize>(old_version.size()));
     }
     fuelsim::TransientProblem old_version_target(input.spatial, mesh);
     passed = expect_failure([&]() { (void)fuelsim::restore_transient_checkpoint(checkpoint_path, old_version_target); },
                  "version is not supported",
-                 "checkpoint version 21 rejects the initial-mass heat-capacity format")
+                 "checkpoint version 22 rejects the former current-volume heat-capacity format")
              && passed;
     return check(std::remove(checkpoint_path.c_str()) == 0, "friction checkpoint artifact is removed") && passed;
 }
@@ -384,7 +384,7 @@ bool verify_exodus(const std::string& path,
             "Exodus defines temperature, displacement, gap and pressure")
         && check(ex_get_variable_param(exoid, EX_ELEM_BLOCK, &element_variables) == 0 && element_variables == 85,
             "Exodus defines stress and inelastic integration-point fields")
-        && check(ex_get_variable_param(exoid, EX_GLOBAL, &global_variables) == 0 && global_variables == 28,
+        && check(ex_get_variable_param(exoid, EX_GLOBAL, &global_variables) == 0 && global_variables == 29,
             "Exodus defines load and conservative interface totals");
     const int last_step = static_cast<int>(expected_steps);
     double time = 0.0;
@@ -433,8 +433,8 @@ bool verify_steady_results(const fuelsim::FuelSimCaseDefinition& input,
     int global_variables = 0;
     const bool passed =
         check(ex_inquire_int(exoid, EX_INQ_TIME) == 1, "steady Exodus result contains one final state")
-        && check(ex_get_variable_param(exoid, EX_NODAL, &nodal_variables) == 0 && nodal_variables == 17,
-            "steady Exodus result contains nodal contact fields")
+        && check(ex_get_variable_param(exoid, EX_NODAL, &nodal_variables) == 0 && nodal_variables == 20,
+            "steady Exodus result contains nodal contact and reaction fields")
         && check(ex_get_variable_param(exoid, EX_ELEM_BLOCK, &element_variables) == 0 && element_variables == 17,
             "steady Exodus result contains four-point stresses")
         && check(ex_get_variable_param(exoid, EX_GLOBAL, &global_variables) == 0 && global_variables == 4,
@@ -513,6 +513,14 @@ bool run_tests(const std::string& input_path, const std::string& checkpoint_path
              && passed;
     passed = verify_exodus(results_path, mesh, split, observer.steps() + 1) && passed;
     fuelsim::TransientProblem mismatch(input.spatial, mesh);
+    fuelsim::SpatialDefinition gravity_changed = input.spatial;
+    gravity_changed.regions[0].body_acceleration[2] = -9.81;
+    fuelsim::TransientProblem gravity_changed_problem(std::move(gravity_changed), mesh);
+    passed =
+        expect_failure([&]() { (void)fuelsim::restore_transient_checkpoint(checkpoint_path, gravity_changed_problem); },
+            "signature",
+            "checkpoint rejects a changed body acceleration")
+        && passed;
     fuelsim::SpatialDefinition changed = input.spatial;
     auto changed_functions = std::make_shared<fuelsim::MaterialFunctionSet>(*changed.regions[1].material.functions);
     ++changed_functions->plasticity.version;

@@ -21,7 +21,9 @@ bool test_reduced_volume_kernel() {
             const fuelsim::CartesianTestData data{fuelsim::IsotropicThermoelasticMaterial(properties),
                 4.0,
                 1.0,
-                formulation};
+                formulation,
+                fuelsim::Hex8ElementFormulation::c3d8t,
+                300.0};
             fuelsim::Hex20LocalValues old{}, state{};
             for (std::size_t node = 0; node < 8; ++node) {
                 old[node] = 300.0;
@@ -51,7 +53,8 @@ bool test_reduced_volume_kernel() {
 }
 
 int run_c3d20rt_tests() {
-    return test_reduced_volume_kernel() ? 0 : 1;
+    return test_reduced_volume_kernel() && test_reference_mass_capacity(fuelsim::Hex20ElementFormulation::c3d20rt) ? 0
+                                                                                                                   : 1;
 }
 } // namespace
 

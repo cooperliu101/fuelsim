@@ -123,3 +123,26 @@ void finish_cax4_result(elements::Cax4Result& result, elements::ElementRequest r
         result.history = {};
 }
 } // namespace fuelsim
+
+namespace fuelsim::elements {
+void add_cax4_body_acceleration(const Cax4Input& input, Cax4LocalResidual& residual) {
+    for (double value : input.body_acceleration)
+        if (!std::isfinite(value))
+            throw std::invalid_argument("Body acceleration must be finite");
+    if (input.body_acceleration[1] != 0.0)
+        throw std::invalid_argument("Axisymmetric body acceleration has only radial and axial components");
+    if (input.body_acceleration == std::array<double, 3>{})
+        return;
+    // rho_current*dV_current = rho_initial*dV_reference, so a fixed global
+    // acceleration contributes no displacement or temperature tangent.
+    for (const auto& point : input.geometry.points) {
+        const double mass = point.weighted_measure
+                            * input.material.initial_density(input.initial_temperature,
+                                {0.0, point.radius, 0.0, point.axial_coordinate});
+        for (std::size_t node = 0; node < 4; ++node) {
+            residual[4 + node] -= mass * point.shape[node] * input.body_acceleration[0];
+            residual[8 + node] -= mass * point.shape[node] * input.body_acceleration[2];
+        }
+    }
+}
+} // namespace fuelsim::elements

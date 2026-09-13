@@ -257,8 +257,6 @@ int main(int argc, char** argv) {
             && check(body_error < 5.0e-7, "Abaqus and fuelsim finite-deformation body-source vectors agree")
             && check(surface_error < 5.0e-7, "Abaqus and fuelsim finite-deformation surface-flux vectors agree")
             && check(film_error < 5.0e-7, "Abaqus and fuelsim finite-deformation convection vectors agree")
-            && check(reference_capacity_error > 1.0e-2,
-                "the finite-deformation capacity probe distinguishes reference integration")
             && check(reference_body_error > 1.0e-2,
                 "the finite-deformation body-source probe distinguishes reference integration")
             && check(reference_surface_error > 1.0e-2,

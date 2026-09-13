@@ -159,7 +159,9 @@ bool test_finite_thermal_operators() {
     const fuelsim::CartesianTestData conduction_data{fuelsim::IsotropicThermoelasticMaterial(properties),
         0.0,
         1.0,
-        fuelsim::StrainFormulation::finite};
+        fuelsim::StrainFormulation::finite,
+        fuelsim::Hex8ElementFormulation::c3d8t,
+        300.0};
     fuelsim::Hex20LocalValues state{};
     constexpr double gradient_x = 7.0, gradient_y = -5.0, gradient_z = 3.0;
     for (std::size_t node = 0; node < 8; ++node)
@@ -245,9 +247,9 @@ bool test_finite_thermal_operators() {
             }
             expected_capacity += mass * static_cast<double>(other + 1);
         }
-        expected_capacity *= 6.0 * 2.4 / 216.0;
+        expected_capacity *= 6.0 / 216.0;
         passed = check(near(transient[node] - steady[node], expected_capacity, 3.0e-12),
-                     "finite-strain HEX20 capacity uses the consistent current-volume matrix")
+                     "finite-strain HEX20 capacity uses the consistent initial-mass matrix")
                  && passed;
     }
 
@@ -272,7 +274,9 @@ bool test_jacobian_and_transient_history() {
     const fuelsim::CartesianTestData data{fuelsim::IsotropicThermoelasticMaterial(material(true)),
         4.0e5,
         1.0,
-        fuelsim::StrainFormulation::small};
+        fuelsim::StrainFormulation::small,
+        fuelsim::Hex8ElementFormulation::c3d8t,
+        300.0};
     fuelsim::Hex20LocalValues old{}, state{};
     for (std::size_t node = 0; node < 8; ++node)
         old[node] = state[node] = 300.0 + 2.0 * static_cast<double>(node);
@@ -293,7 +297,9 @@ bool test_jacobian_and_transient_history() {
     const fuelsim::CartesianTestData finite_data{fuelsim::IsotropicThermoelasticMaterial(material(true)),
         4.0e5,
         1.0,
-        fuelsim::StrainFormulation::finite};
+        fuelsim::StrainFormulation::finite,
+        fuelsim::Hex8ElementFormulation::c3d8t,
+        300.0};
     const double finite_error = directional_jacobian_error(finite_data, geometry, state, old, history);
     const double finite_thermal_error = directional_jacobian_error(finite_data, geometry, state, old, history, 0, 8);
     const double finite_residual_error = residual_path_error(finite_data, geometry, state, old, history);
@@ -345,6 +351,7 @@ int run_c3d20t_tests() {
     const bool passed = test_geometry_and_constant_strain() && test_material_value_paths()
                         && test_finite_thermal_operators() && test_jacobian_and_transient_history()
                         && test_warped_geometry()
+                        && test_reference_mass_capacity(fuelsim::Hex20ElementFormulation::c3d20t)
 
         ;
     if (passed)

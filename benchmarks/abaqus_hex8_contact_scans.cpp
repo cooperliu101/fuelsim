@@ -479,7 +479,6 @@ fuelsim::ThermoelasticProperties primary_material(double poisson = 0.28) {
             {"specific_heat", 1.0},
             {"reference_temperature", 300.0},
             {"conductivity_temperature_coefficient", 0.015},
-            {"density_temperature_coefficient", 0.0},
             {"specific_heat_temperature_coefficient", 0.001}});
     result.functions = std::move(functions);
     return result;
@@ -496,7 +495,6 @@ fuelsim::ThermoelasticProperties secondary_material(double poisson = 0.3, bool e
             {"specific_heat", 1.0},
             {"reference_temperature", 300.0},
             {"conductivity_temperature_coefficient", 0.01},
-            {"density_temperature_coefficient", 0.0},
             {"specific_heat_temperature_coefficient", 0.001}});
     result.functions = std::move(functions);
     if (elastic_only)

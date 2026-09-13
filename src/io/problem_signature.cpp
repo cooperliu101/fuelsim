@@ -50,6 +50,8 @@ void hash_region_definition(std::uint64_t& hash, const RegionDefinition& spatial
     hash_thermoelastic(hash, spatial.material);
     hash_double(hash, spatial.volumetric_heat_source);
     hash_double(hash, spatial.initial_temperature);
+    for (double acceleration : spatial.body_acceleration)
+        hash_double(hash, acceleration);
     hash_string(hash, spatial.heat_source_function);
     hash_integer(hash, static_cast<std::int64_t>(spatial.heat_source_time_evaluation));
     hash_integer(hash, static_cast<std::int64_t>(spatial.hex8_element_formulation));

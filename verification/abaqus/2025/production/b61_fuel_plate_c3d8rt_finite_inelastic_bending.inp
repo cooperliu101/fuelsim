@@ -1,0 +1,69 @@
+*Heading
+** B6.1 finite-strain C3D8RT fuel-plate bending and axial extension with coupled J2 plasticity and Norton creep.
+** Inelastic dissipation heat generation is intentionally disabled in both solvers.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Include, input=b60_long_plate_meat_clad_c3d8rt.inc
+*Material, name=FUEL
+*Elastic
+2.0e11, 0.30
+*Expansion, zero=600.
+1.0e-4
+*Plastic
+1.0e6, 0.0
+2.0001e10, 1.0
+*Creep, law=TIME
+3.5e-28, 3.0, 0.0
+*Conductivity
+3.0
+*Density
+10970.
+*Specific Heat
+300.
+*Material, name=CLAD
+*Elastic
+1.0e11, 0.32
+*Expansion, zero=600.
+5.0e-6
+*Plastic
+1.0e6, 0.0
+2.0001e10, 1.0
+*Creep, law=TIME
+3.5e-28, 3.0, 0.0
+*Conductivity
+16.0
+*Density
+6500.
+*Specific Heat
+330.
+*Solid Section, elset=MEAT, material=FUEL
+,
+*Solid Section, elset=CLAD, material=CLAD
+,
+*Initial Conditions, type=TEMPERATURE
+ALL_NODES, 600.
+*Amplitude, name=FRONT_TEMPERATURE, definition=TABULAR, time=TOTAL TIME
+0., 0.75, 10., 1.
+*Amplitude, name=RIGHT_DISPLACEMENT_X, definition=TABULAR, time=TOTAL TIME
+0., 0., 10., 1.
+*Step, name=FINITE_INELASTIC_BENDING, nlgeom=YES, inc=20
+*Coupled Temperature-Displacement
+2.0, 10.0, 2.0, 2.0
+*Boundary
+N_PLATE_LEFT, 1, 3, 0.
+*DFLUX
+MEAT, BF, 2.0e8
+*Boundary, amplitude=FRONT_TEMPERATURE
+N_PLATE_FRONT, 11, 11, 800.
+*Boundary
+N_PLATE_BACK, 11, 11, 600.
+*Boundary, amplitude=RIGHT_DISPLACEMENT_X
+N_PLATE_RIGHT, 1, 1, 8.0e-4
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output, directions=YES
+CE, CEEQ, COORD, EE, HFL, IVOL, LE, PE, PEEQ, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLAE, ALLCD, ALLFD, ALLIE, ALLPD, ALLSE, ALLWK
+*End Step

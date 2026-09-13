@@ -539,3 +539,22 @@ std::array<std::array<adlite::Scalar, 4>, 8> hex8_hourglass_shape(
     return hex8_hourglass_shape_impl(coordinates, average_gradient);
 }
 } // namespace fuelsim::c3d8_detail
+
+namespace fuelsim::elements {
+void add_hex8_body_acceleration(const C3d8Input& input, Hex8LocalResidual& residual) {
+    for (double value : input.body_acceleration)
+        if (!std::isfinite(value))
+            throw std::invalid_argument("Body acceleration must be finite");
+    if (input.body_acceleration == std::array<double, 3>{})
+        return;
+    // Use the exact cancellation of current density and current volume.
+    for (const auto& point : input.geometry.points) {
+        const double mass = point.weighted_measure
+                            * input.material.initial_density(input.initial_temperature,
+                                {0.0, point.position.x, point.position.y, point.position.z});
+        for (std::size_t component = 0; component < 3; ++component)
+            for (std::size_t node = 0; node < 8; ++node)
+                residual[8 + component * 8 + node] -= mass * point.shape[node] * input.body_acceleration[component];
+    }
+}
+} // namespace fuelsim::elements

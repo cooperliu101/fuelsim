@@ -1,5 +1,7 @@
 # 轴对称一维广义平面应变与 1.5 维计算
 
+> 当前密度、固定初始质量热容与重力规则见[密度与重力说明](density-mass-and-gravity.md)。该规则取代下文历史算子识别中的当前体积热容描述，其他算子构形规则继续适用。
+
 `axisymmetric_1d` 将多个径向切片放入同一个热力耦合非线性系统。生产入口仍是
 `fuelsim -i <case.fsi>`，问题类型仍是 `SteadyProblem` 或 `TransientProblem`。
 首版同时支持小应变和有限应变，复用现有热膨胀、J2 塑性、Norton 蠕变及
@@ -56,9 +58,9 @@ delta_e_i = 2*(lambda_i_new-lambda_i_old)/(lambda_i_new+lambda_i_old)
 `1/((R0+R1)*lambda_hoop_bar_current)`。力学材料点测度为参考测度乘
 `lambda_r*lambda_z*lambda_hoop_bar`，即单元整体当前/参考体积比。
 热传导使用增量中间构形梯度，径向梯度除以新旧径向伸长比的平均值；导热积分
-权重使用参考权重乘上述单元整体当前/参考体积比。热容和体热源采用逐点真实
-伸长比 `(R+u_r)/R` 对应的当前体积。两套测度、导热梯度和虚应变的全部几何
-导数进入切线；热容的温度块虽为对角矩阵，其位移导数一般不为零。
+权重使用参考权重乘上述单元整体当前/参考体积比。体热源采用逐点真实
+伸长比 `(R+u_r)/R` 对应的当前体积。热容采用初始密度乘参考节点体积权重，
+其温度块为对角矩阵，位移导数为零；导热、体热源和虚应变仍保留全部几何导数。
 本模型不表示二维局部剪切、弯曲和端部应力集中。
 
 有限应变材料历史中的热应变更新使用 `eigenstrain(T_exp_new)-eigenstrain(T_exp_old)`，
@@ -144,7 +146,7 @@ Exodus 使用二维 RZ 坐标和真实 `BAR2` 径向连接，在同一节点表�
 | [uniform_finite](../verification/fuelsim/transient_gps_uniform_finite.fsi) | 有限应变温升与轴向力，同步增量的 Abaqus 全场比较 |
 | [nonuniform_finite](../verification/fuelsim/transient_gps_nonuniform_finite.fsi) | 非比例径向位移与非均匀温度，Abaqus 有限应变应力、历史和反力比较 |
 | [thermal_small](../verification/fuelsim/transient_gps_thermal_small.fsi) | 温变热物性，节点热反力、储热及体热源的小应变比较 |
-| [thermal_finite](../verification/fuelsim/transient_gps_thermal_finite.fsi) | 同一热历程与非比例有限应变，检验中间构形导热和当前体积热容 |
+| [thermal_finite](../verification/fuelsim/transient_gps_thermal_finite.fsi) | 同一热历程与非比例有限应变，旧版中间构形导热和当前体积热容参考；当前初始质量模型须单独验收 |
 | [contact_small](../verification/fuelsim/transient_gps_contact_small.fsi) | 两种切片高度、径向导热及接触粘着、滑动、反向、张开和再接触 |
 | [chain_small](../verification/fuelsim/transient_gps_chain_small.fsi) | 两条两切片轴向链，内部控制节点自由，解析解与原生 Abaqus 连续网格共同检验摩擦传力 |
 | [chain_finite](../verification/fuelsim/transient_gps_chain_finite.fsi) | 总轴向伸长达到 10%，当前面积和分片轴向力平衡的解析检验 |

@@ -165,6 +165,12 @@ int main(int argc, char** argv) {
             throw std::runtime_error("Verification matrix header does not match schema");
         const std::set<std::string> required_ids = {
             "gps.local",
+            "mass.gravity_local",
+            "gravity.hex8",
+            "gravity.hex20",
+            "gravity.gps",
+            "gravity.quad4",
+            "gravity.quad8",
             "gps.uniform_small",
             "gps.uniform_finite",
             "gps.nonuniform_finite",
@@ -396,6 +402,7 @@ int main(int argc, char** argv) {
         };
         std::set<std::string> found_ids;
         std::size_t verified = 0;
+        std::size_t unverified = 0;
         std::size_t qualified = 0;
         std::size_t measured = 0;
         std::size_t limitations = 0;
@@ -420,11 +427,13 @@ int main(int argc, char** argv) {
                 throw std::runtime_error("Duplicate matrix id: " + id);
             if (required_ids.count(id) == 0)
                 throw std::runtime_error("Unexpected matrix id: " + id);
-            if (status == "verified" || status == "qualified") {
+            if (status == "verified" || status == "qualified" || status == "unverified") {
                 if (status == "verified")
                     ++verified;
-                else
+                else if (status == "qualified")
                     ++qualified;
+                else
+                    ++unverified;
                 if (fields[3] == "-") {
                     if (status != "qualified" || manually_qualified_ids.count(id) == 0
                         || fields[5].find("manual case is not registered in CTest") == std::string::npos)
@@ -449,11 +458,12 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 190 || qualified != 13 || measured != 12 || limitations != 5)
+        if (verified != 188 || qualified != 21 || measured != 12 || limitations != 5 || unverified != 0)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         check_c3d8t_contract(argv[4], registered_tests);
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'
                   << "verification_matrix_verified=" << verified << '\n'
+                  << "verification_matrix_unverified=" << unverified << '\n'
                   << "verification_matrix_qualified=" << qualified << '\n'
                   << "verification_matrix_measured=" << measured << '\n'
                   << "verification_matrix_limitations=" << limitations << '\n'

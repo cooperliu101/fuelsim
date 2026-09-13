@@ -37,6 +37,8 @@ struct Cax8Input final {
     double volumetric_heat_source = 0.0;
     StrainFormulation strain_formulation = StrainFormulation::small;
     bool include_thermal_time_term = false;
+    double initial_temperature = 600.0;
+    std::array<double, 3> body_acceleration{};
 };
 
 struct Cax8Result final {
