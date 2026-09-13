@@ -1,0 +1,8 @@
+case=plastic_yield
+cpus=1
+output_precision=full
+analysis_exit_code=0
+completed_utc=2026-09-13T00:30:56.7727589Z
+work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax4t_material_temperature_15a1da98de7746159a168af362a9d039
+input_sha256=1D4EB9F82E674E2521DD0468268A7FC724FC66AFCE07BD6E78B512A851EBBCAE
+extractor_sha256=DD197C1F3E21360C223163DB04AD0877DC9211F85E26B677046D5C0445B5A7AB

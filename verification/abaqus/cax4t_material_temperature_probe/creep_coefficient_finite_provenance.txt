@@ -1,0 +1,8 @@
+case=creep_coefficient_finite
+cpus=1
+output_precision=full
+analysis_exit_code=0
+completed_utc=2026-09-13T00:31:18.1800631Z
+work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax4t_material_temperature_fbf0ee5daca442429155c482beb26c91
+input_sha256=AA1CB568D2F7C0257074279BAE432729959D4CBF54ABC814D5C0C21E8D0EC61B
+extractor_sha256=DD197C1F3E21360C223163DB04AD0877DC9211F85E26B677046D5C0445B5A7AB

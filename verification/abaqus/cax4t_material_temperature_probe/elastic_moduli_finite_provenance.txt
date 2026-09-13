@@ -1,0 +1,8 @@
+case=elastic_moduli_finite
+cpus=1
+output_precision=full
+analysis_exit_code=0
+completed_utc=2026-09-13T00:30:52.4780726Z
+work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax4t_material_temperature_38ac911072884dccbd6e50cea511e02b
+input_sha256=A2CCD7AD1C4D7B5BA4583BD4FE869DE62B7463D9B4C0E849B81784734E91BEBA
+extractor_sha256=DD197C1F3E21360C223163DB04AD0877DC9211F85E26B677046D5C0445B5A7AB

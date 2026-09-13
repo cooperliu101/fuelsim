@@ -1,0 +1,9 @@
+# Preserve native output bytes for SHA256SUMS, including Windows line endings.
+# Source input cards, Python scripts and Markdown retain normal whitespace checks.
+*.csv -text whitespace=cr-at-eol
+*.dat -text -whitespace
+*.msg -text -whitespace
+*.sta -text -whitespace
+*.log -text -whitespace
+*_provenance.txt -text -whitespace
+*_export_complete.txt -text -whitespace

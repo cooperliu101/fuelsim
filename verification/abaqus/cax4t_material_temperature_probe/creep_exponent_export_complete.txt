@@ -1,0 +1,4 @@
+accepted_frames=9
+position=INTEGRATION_POINT
+component_order=11,22,33,12
+strain_shear=tensor
