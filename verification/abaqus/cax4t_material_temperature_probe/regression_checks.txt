@@ -1,0 +1,45 @@
+2026-09-13 CAX4T material temperature production update
+Build: cmake --build build --parallel 4
+Release, warnings-as-errors, ADlite 0.2.3, moose PETSc, independent Exodus.
+
+Full suite command: ctest --test-dir build -j4 --output-on-failure
+304 of 305 tests passed; all numerical tests passed.
+The only failure was fuelsim_verification_matrix_tests:
+Verification matrix status counts differ from release schema
+The new verified entry requires the count to change from 186 to 187.
+The audit executable was rebuilt after this metadata correction.
+No production algorithm, physical input, reference value or tolerance was changed.
+
+Correction check: ctest --test-dir build -j4 --rerun-failed --output-on-failure
+Start testing: Sep 13 09:22 CST
+----------------------------------------------------------
+300/305 Testing: fuelsim_verification_matrix_tests
+300/305 Test: fuelsim_verification_matrix_tests
+Command: "/home/cooper/ai_project/fuelsim/build/fuelsim_verification_matrix_tests" "/home/cooper/ai_project/fuelsim/verification/verification_matrix.tsv" "/home/cooper/ai_project/fuelsim" "/home/cooper/ai_project/fuelsim/build/fuelsim_registered_tests.txt" "/home/cooper/ai_project/fuelsim/verification/abaqus/c3d8t_validation_contract.tsv"
+Directory: /home/cooper/ai_project/fuelsim/build
+"fuelsim_verification_matrix_tests" start time: Sep 13 09:22 CST
+Output:
+----------------------------------------------------------
+c3d8t_validation_contract_rows=28
+verification_matrix_rows=217
+verification_matrix_verified=187
+verification_matrix_qualified=13
+verification_matrix_measured=12
+verification_matrix_limitations=5
+[PASS] engineering verification matrix is complete
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"fuelsim_verification_matrix_tests" end time: Sep 13 09:22 CST
+"fuelsim_verification_matrix_tests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Sep 13 09:22 CST
+
+audit =   0.01 sec*proc
+
+release =   0.01 sec*proc
+
+
+All 305 registered tests have passed on the final source.

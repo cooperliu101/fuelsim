@@ -721,6 +721,9 @@ int main(int argc, char** argv) {
         } else if (mode == "rz8-recovery-abaqus") {
             require_argument_count(mode, argc, 7);
             passed = fuelsim::test::check_rz8_recovery_abaqus(argv[2], argv[4], argv[5], argv[6]);
+        } else if (mode == "cax4t-material-temperature") {
+            require_argument_count(mode, argc, 5);
+            passed = fuelsim::test::check_cax4t_material_temperature(argv[2], argv[3], argv[4]);
         } else if (mode == "rz-abaqus") {
             require_argument_count(mode, argc, 7);
             passed = fuelsim::test::check_rz_abaqus(argv[2], argv[4], argv[5], argv[6]);

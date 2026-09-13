@@ -6,7 +6,8 @@
 线性各向同性硬化斜率、Norton 蠕变系数及应力指数。四角点温度互异，原生结果
 支持配对角点温度，并排除积分点插值温度和单元平均温度。完整输入、分析关系、
 误差和适用边界见 [材料取温探测记录](cax4t_material_temperature_probe/README.md)。
-这是 Abaqus 原生规则鉴定，不表示当前 Fuelsim 的 CAX4T 材料取温已经修正。
+原生规则鉴定与 Fuelsim 对标分别记录；对应算法修改和生产入口验证见
+[CAX4T 取温修正记录](cax4t_material_temperature_probe/production_update.md)。
 
 ## B8.0—B8.1 轴对称摩擦与有限滑移
 

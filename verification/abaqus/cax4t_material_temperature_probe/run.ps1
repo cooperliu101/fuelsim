@@ -5,7 +5,7 @@ param(
 $ErrorActionPreference = "Stop"
 $env:OMP_NUM_THREADS = "1"
 $env:MKL_NUM_THREADS = "1"
-$AllowedCases = @("elastic_moduli", "elastic_moduli_finite", "plastic_yield", "plastic_yield_finite", "plastic_hardening", "plastic_hardening_finite", "creep_coefficient", "creep_coefficient_finite", "creep_exponent", "creep_exponent_finite")
+$AllowedCases = @("elastic_moduli", "elastic_moduli_finite", "plastic_yield", "plastic_yield_finite", "plastic_hardening", "plastic_hardening_finite", "creep_coefficient", "creep_coefficient_finite", "creep_exponent", "creep_exponent_finite", "production_creep_coefficient_finite", "production_creep_exponent_finite")
 New-Item -ItemType Directory -Force -Path $DestinationDirectory | Out-Null
 foreach ($Case in ($Cases -join ',').Split(',')) {
     if ($Case -notin $AllowedCases) { throw "Unexpected case: $Case" }

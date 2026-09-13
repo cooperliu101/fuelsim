@@ -126,12 +126,15 @@ AxisymmetricKinematics evaluate_axisymmetric_kinematics_from_point(const RzQuadr
 
 // CAX4T uses point-local width-six kinematics and width-five constitutive AD.
 // Cross-point volume/pressure dependencies are assembled through explicit nodal chains.
-Cax4LocalValues cax4t_nodal_chain(const adlite::Scalar& value, const RzQuadraturePoint& point) {
+// The sixth input is the paired corner temperature, so its derivative returns to
+// that corner only; the separate mean-expansion chain still reaches all four corners.
+Cax4LocalValues
+cax4t_nodal_chain(const adlite::Scalar& value, const RzQuadraturePoint& point, std::size_t material_node) {
     std::array<double, 6> d{};
     value.copy_derivatives(d.data(), d.size());
     Cax4LocalValues result{};
+    result[material_node] = d[5];
     for (std::size_t n = 0; n < 4; ++n) {
-        result[n] = d[5] * point.shape[n];
         result[4 + n] = d[0] * point.gradient_r[n] + d[1] * point.gradient_z[n] + d[4] * point.shape[n];
         result[8 + n] = d[2] * point.gradient_r[n] + d[3] * point.gradient_z[n];
     }
@@ -166,12 +169,13 @@ evaluate_cax4t_kinematics(const Cax4Input& data, bool jacobian, std::array<Cax4t
     for (std::size_t q = 0; q < 4; ++q) {
         const auto& point = geometry.points[q];
         auto& s = systems[q];
+        // Fuelsim orders these four Gauss stations like the four reference corners.
         const std::array<double, 6> seeds = {interpolate(point.gradient_r, state, 4),
             interpolate(point.gradient_z, state, 4),
             interpolate(point.gradient_r, state, 8),
             interpolate(point.gradient_z, state, 8),
             interpolate(point.shape, state, 4),
-            interpolate(point.shape, state, 0)};
+            state[q]};
         std::array<adlite::Scalar, 6> active;
         for (std::size_t i = 0; i < 6; ++i)
             active[i] = jacobian ? adlite::Scalar::independent(seeds[i], i, 6) : adlite::Scalar(seeds[i]);
@@ -195,9 +199,9 @@ evaluate_cax4t_kinematics(const Cax4Input& data, bool jacobian, std::array<Cax4t
         for (std::size_t n = 0; n < 4; ++n)
             hoop_shape[4 + n] += point.weighted_measure * point.shape[n] / point.radius;
         if (jacobian) {
-            const auto a = cax4t_nodal_chain(weighted_trace, point);
-            const auto b = cax4t_nodal_chain(k.midpoint_weighted_measure, point);
-            const auto c = cax4t_nodal_chain(k.weighted_measure, point);
+            const auto a = cax4t_nodal_chain(weighted_trace, point, q);
+            const auto b = cax4t_nodal_chain(k.midpoint_weighted_measure, point, q);
+            const auto c = cax4t_nodal_chain(k.weighted_measure, point, q);
             for (std::size_t j = 0; j < 12; ++j) {
                 numerator_derivatives[j] += a[j];
                 midpoint_derivatives[j] += b[j];
@@ -262,8 +266,8 @@ Cax4tStressAverages evaluate_cax4t_material(const Cax4Input& data,
         k.strain_hoop = averages.average_hoop;
         std::array<adlite::Scalar, 5> inputs = {k.strain_rr, k.strain_zz, k.strain_hoop, k.strain_rz, s.temperature};
         const MaterialFunctionContext context = {data.time, point.radius, 0.0, point.axial_coordinate};
-        // CAX4T uses the arithmetic corner temperature for expansion, while
-        // constitutive properties retain the point temperature. CAX4RT differs.
+        // CAX4T evaluates constitutive properties at the paired corner temperature.
+        // Expansion alone uses the arithmetic mean of all four corner temperatures.
         const auto point_eigen = data.material.eigenstrain_rz(s.temperature, context);
         const auto center_eigen = data.material.eigenstrain_rz(
             jacobian ? adlite::Scalar::independent(center_temperature, 0, 1) : adlite::Scalar(center_temperature),
@@ -280,8 +284,7 @@ Cax4tStressAverages evaluate_cax4t_material(const Cax4Input& data,
         if (old_history && finite_strain) {
             auto old_context = context;
             old_context.time -= time_step;
-            const auto op =
-                data.material.eigenstrain_rz(adlite::Scalar(interpolate(point.shape, old_state, 0)), old_context);
+            const auto op = data.material.eigenstrain_rz(adlite::Scalar(old_state[q]), old_context);
             const auto oc = data.material.eigenstrain_rz(adlite::Scalar(old_center_temperature), old_context);
             old_imposed = {op.rr.value(), op.zz.value(), op.hoop.value(), op.rz.value()};
             const std::array<double, 4> difference = {op.rr.value() - oc.rr.value(),
@@ -326,7 +329,7 @@ Cax4tStressAverages evaluate_cax4t_material(const Cax4Input& data,
             }
             const std::array<adlite::Scalar, 4> final_sigma = {s.stress.rr, s.stress.zz, s.stress.hoop, s.stress.rz};
             for (std::size_t i = 0; i < 4; ++i) {
-                s.stress_derivatives[i] = cax4t_nodal_chain(final_sigma[i], point);
+                s.stress_derivatives[i] = cax4t_nodal_chain(final_sigma[i], point, q);
                 for (std::size_t j = 0; j < 12; ++j)
                     s.stress_derivatives[i][j] += trace_response[i] * averages.average_derivatives[j]
                                                   + hoop_response[i] * averages.hoop_derivatives[j];
@@ -398,7 +401,7 @@ void assemble_cax4t(const Cax4Input& data,
             scale * deviator[1] + stresses.pressure,
             stresses.pressure,
             scale * deviator[3]};
-        const auto wd = jacobian ? cax4t_nodal_chain(k.weighted_measure, point) : Cax4LocalValues{};
+        const auto wd = jacobian ? cax4t_nodal_chain(k.weighted_measure, point, q) : Cax4LocalValues{};
         std::array<Cax4LocalValues, 4> sd{};
         if (jacobian)
             for (std::size_t j = 0; j < 12; ++j) {
@@ -411,8 +414,7 @@ void assemble_cax4t(const Cax4Input& data,
                                             + (i < 2 ? stresses.pressure_derivatives[j] : 0.0);
             }
         const MaterialFunctionContext context = {data.time, point.radius, 0.0, point.axial_coordinate};
-        // CAX4T uses the temperature corner associated with this Gauss station
-        // for conductivity; mechanical properties retain point temperature.
+        // Conductivity uses the same paired corner temperature as mechanical properties.
         const auto conductivity = data.material.conductivity(jacobian ? adlite::Scalar::independent(state[q], 0, 1)
                                                                       : adlite::Scalar(state[q]),
             context);
@@ -448,7 +450,7 @@ void assemble_cax4t(const Cax4Input& data,
                     for (std::size_t j = 0; j < 12; ++j)
                         result.jacobian[row * 12 + j] += wd[j] * contraction;
                     for (std::size_t i = 0; i < 4; ++i) {
-                        const auto bd = cax4t_nodal_chain(b[i], point);
+                        const auto bd = cax4t_nodal_chain(b[i], point, q);
                         for (std::size_t j = 0; j < 12; ++j)
                             result.jacobian[row * 12 + j] += w * (bd[j] * stress[i] + b[i].value() * sd[i][j]);
                     }
@@ -467,7 +469,7 @@ void assemble_cax4t(const Cax4Input& data,
             }
             result.residual[n] += thermal.value();
             if (jacobian) {
-                const auto td = cax4t_nodal_chain(thermal, point);
+                const auto td = cax4t_nodal_chain(thermal, point, q);
                 for (std::size_t j = 0; j < 12; ++j)
                     result.jacobian[n * 12 + j] += td[j];
                 result.jacobian[n * 12 + q] += conduction_measure * conductivity_derivative * conduction.value();

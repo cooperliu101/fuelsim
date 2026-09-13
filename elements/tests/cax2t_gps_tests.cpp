@@ -23,7 +23,8 @@ double error(double actual, double expected) {
     return std::abs(actual - expected) / std::max({1.0, std::abs(actual), std::abs(expected)});
 }
 
-IsotropicThermoelasticMaterial make_material(bool inelastic = false, bool varying = false) {
+IsotropicThermoelasticMaterial
+make_material(bool inelastic = false, bool varying = false, bool varying_elasticity = true) {
     const auto registry = make_builtin_material_function_registry();
     auto functions = std::make_shared<MaterialFunctionSet>();
     functions->name = "cax2t_gps_test";
@@ -39,8 +40,8 @@ IsotropicThermoelasticMaterial make_material(bool inelastic = false, bool varyin
         {{"young_modulus", young},
             {"poisson_ratio", poisson},
             {"reference_temperature", 600.0},
-            {"young_modulus_temperature_coefficient", varying ? -8.0e7 : 0.0},
-            {"poisson_ratio_temperature_coefficient", varying ? 2.0e-5 : 0.0}});
+            {"young_modulus_temperature_coefficient", varying && varying_elasticity ? -8.0e7 : 0.0},
+            {"poisson_ratio_temperature_coefficient", varying && varying_elasticity ? 2.0e-5 : 0.0}});
     functions->eigenstrains.push_back(registry.bind_eigenstrain("thermal",
         "linear_temperature_isotropic_thermal_expansion",
         {{"thermal_expansion", expansion},
@@ -448,7 +449,10 @@ void check_finite_mean_hoop_history_and_geometry() {
 }
 
 void check_cax4t_mechanical_projection(StrainFormulation formulation) {
-    const auto material = make_material(false, true);
+    // GPS uses interpolated material temperatures; CAX4T uses paired corners.
+    // Compare their mechanical projection with constant E/nu, retaining the
+    // nonuniform temperatures and temperature-dependent mean expansion.
+    const auto material = make_material(false, true, false);
     const auto radial_geometry = make_cax2t_gps_geometry({1.0, 2.0}, 0.0, 2.0);
     const auto quad_geometry = make_cax4t_geometry({{{1.0, 0.0}, {2.0, 0.0}, {2.0, 2.0}, {1.0, 2.0}}});
     const Cax2tGpsLocalValues initial{600.0, 600.0, 0.0, 0.0, 0.0, 0.0};

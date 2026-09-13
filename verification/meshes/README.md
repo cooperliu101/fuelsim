@@ -1,5 +1,11 @@
 # 显式生产测试网格
 
+- `cax4t_material_temperature.e` 是半径 4—5 mm、高度 10 mm 的单个四节点
+  轴对称单元，与 `abaqus/cax4t_material_temperature_probe` 中的原生参考使用
+  相同节点编号。`solid` 元素块按 `1,2,3,4` 连接四角，`n1`—`n4` 分别仅含
+  一个节点，供四个不同温度及全部位移约束使用。该文件复用
+  `b9_rz_rectangle.e` 的拓扑和命名，将四个径向坐标改为
+  `[0.004,0.005,0.005,0.004]` m、轴向坐标改为 `[0,0,0.01,0.01]` m。
 - `b7_rz_material.e` 是半径和高度均为 1 mm 的单个轴对称四节点单元，
   与 `verification/abaqus/b7_rz_material_mesh.inc` 使用相同坐标和节点编号。
   文件逐字复用已有 `m22_coupled_plastic_creep_traction_rz_mesh.e`，不改变几何。

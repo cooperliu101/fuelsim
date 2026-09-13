@@ -233,6 +233,7 @@ if(BUILD_TESTING)
     add_executable(fuelsim_production_result_tests
         tests/production_result_tests.cpp
         tests/production_rz_abaqus.cpp
+        tests/production_cax4t_material_temperature.cpp
         tests/production_hex20_contact.cpp
         tests/production_hex8_contact.cpp
         tests/production_hex8_plate.cpp
@@ -294,6 +295,25 @@ if(BUILD_TESTING)
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
         set_tests_properties("${test_name}" PROPERTIES LABELS "${test_labels}")
     endfunction()
+
+    foreach(material_case IN ITEMS elastic_moduli elastic_moduli_finite
+        plastic_yield plastic_yield_finite plastic_hardening plastic_hardening_finite
+        creep_coefficient_finite creep_exponent_finite)
+        set(test_name "fuelsim_cax4t_material_${material_case}_abaqus")
+        set(input_stem "transient_cax4t_${material_case}")
+        fuelsim_stage_blackbox_case(staged_input "${test_name}" "${input_stem}.fsi")
+        get_filename_component(case_directory "${staged_input}" DIRECTORY)
+        set(results "${case_directory}/${input_stem}_results.e")
+        add_test(NAME "${test_name}"
+            COMMAND "${CMAKE_COMMAND}"
+                "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+                "-DINPUT_FILE=${staged_input}"
+                "-DOUTPUT_FILE=${results}"
+                "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+                "-DCHECK_ARGUMENTS=cax4t-material-temperature;${results};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cax4t_material_temperature_probe;${material_case}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
+        set_tests_properties("${test_name}" PROPERTIES LABELS "abaqus;production;axisymmetric")
+    endforeach()
 
     function(fuelsim_add_radial_case test_name input_stem mode)
         fuelsim_stage_blackbox_case(staged_input "${test_name}" "${input_stem}.fsi")

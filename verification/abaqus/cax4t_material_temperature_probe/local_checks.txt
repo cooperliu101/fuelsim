@@ -1,0 +1,31 @@
+Source: ctest --test-dir build-elements -j4 --output-on-failure
+All 17 independent element-library tests passed on 2026-09-13.
+Selected unchanged test output:
+
+fuelsim_cax4t_tests
+CAX4T_small_directional_jacobian_error=4.162368349159e-09
+CAX4T_finite_directional_jacobian_error=4.541676223635e-11
+CAX4T_inelastic_0_0_jacobian_error=1.663664133461e-08
+CAX4T_inelastic_0_1_jacobian_error=3.669330722905e-08
+CAX4T_inelastic_0_2_jacobian_error=1.680094547871e-08
+CAX4T_inelastic_1_0_jacobian_error=1.647757749312e-08
+CAX4T_inelastic_1_1_jacobian_error=3.641166009031e-08
+CAX4T_inelastic_1_2_jacobian_error=1.664142721578e-08
+active_thermoelastic_temperature_tangent_error=2.903199421196e-10
+small coupled directional derivative error=4.955426164402e-08
+small elastic corner material temperature tangent error=8.856157763626e-08
+small coupled corner material temperature tangent error=2.132610348163e-08
+finite coupled directional derivative error=4.928290615872e-08
+finite elastic corner material temperature tangent error=3.036122641979e-08
+finite coupled corner material temperature tangent error=5.548812376940e-09
+CAX4T independent library contracts passed
+
+fuelsim_cax2t_gps_tests
+cax2t_gps_small_mean_temperature_jacobian_error=7.450580596924e-09
+cax2t_gps_finite_mean_temperature_jacobian_error=7.450580596924e-09
+cax2t_gps_small_mean_hoop_jacobian_error=1.020262669291e-10
+cax2t_gps_finite_mean_hoop_jacobian_error=1.238236904051e-09
+cax2t_gps_small_cax4t_mechanical_projection_error=1.329735007644e-15
+cax2t_gps_finite_cax4t_mechanical_projection_error=8.108885402497e-16
+cax2t_gps_small_coupled_directional_jacobian_error=4.885133912894e-09
+cax2t_gps_finite_coupled_directional_jacobian_error=1.057285160704e-08

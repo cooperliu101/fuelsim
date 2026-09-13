@@ -101,6 +101,174 @@ bool same_history(const Quad4MaterialHistory& a, const Quad4MaterialHistory& b) 
     return true;
 }
 
+IsotropicThermoelasticMaterial corner_temperature_material(bool inelastic) {
+    const auto registry = make_builtin_material_function_registry();
+    auto functions = std::make_shared<MaterialFunctionSet>();
+    functions->name = "cax4t_corner_temperature_test";
+    functions->thermal = registry.bind_thermal("inverse_temperature_thermophysical",
+        {{"conductivity_inverse_temperature", 120.0},
+            {"conductivity_constant", 3.0},
+            {"density", 1000.0},
+            {"specific_heat", 500.0}});
+    functions->elasticity = registry.bind_elasticity("linear_temperature_isotropic",
+        {{"young_modulus", 1e9},
+            {"poisson_ratio", 0.25},
+            {"reference_temperature", 600.0},
+            {"young_modulus_temperature_coefficient", -1e6},
+            {"poisson_ratio_temperature_coefficient", 3e-4}});
+    functions->eigenstrains.push_back(registry.bind_eigenstrain("thermal",
+        "linear_temperature_isotropic_thermal_expansion",
+        {{"thermal_expansion", 1e-5},
+            {"reference_temperature", 600.0},
+            {"thermal_expansion_temperature_coefficient", 2e-9}}));
+    if (inelastic) {
+        functions->plasticity = registry.bind_plasticity("linear_temperature_isotropic_hardening",
+            {{"yield_stress", 2e6},
+                {"hardening_modulus", 2e7},
+                {"reference_temperature", 600.0},
+                {"yield_stress_temperature_coefficient", 1e4},
+                {"hardening_temperature_coefficient", 4e5}});
+        functions->creep = registry.bind_creep("linear_temperature_norton",
+            {{"coefficient", 1e-4},
+                {"reference_stress", 2e6},
+                {"stress_exponent", 2.0},
+                {"reference_temperature", 600.0},
+                {"coefficient_temperature_coefficient", 1e-6},
+                {"reference_stress_temperature_coefficient", 0.0},
+                {"stress_exponent_temperature_coefficient", 4e-3}});
+    }
+    return IsotropicThermoelasticMaterial({functions, 1e9});
+}
+
+void check_corner_temperature_materials(StrainFormulation form, bool inelastic) {
+    const auto m = corner_temperature_material(inelastic);
+    const auto g = make_cax4t_geometry({{{1.0, 0.0}, {2.0, 0.0}, {2.0, 1.0}, {1.0, 1.0}}});
+    const std::array<std::array<double, 4>, 2> temperatures = {
+        {{610.0, 640.0, 700.0, 750.0}, {750.0, 700.0, 650.0, 620.0}}};
+    Cax4LocalValues old{};
+    std::fill_n(old.begin(), 4, 600.0);
+    Quad4MaterialHistory history{};
+    double accumulated_trace = 0.0;
+    double tangent_error = 0.0;
+    double previous_radial_stretch = 1.0, previous_axial_stretch = 1.0;
+    constexpr double dt = 0.25;
+    for (std::size_t increment = 0; increment < temperatures.size(); ++increment) {
+        Cax4LocalValues state{};
+        const double radial_strain = 0.001 * static_cast<double>(increment + 1);
+        const double axial_strain = 0.02 * static_cast<double>(increment + 1);
+        double mean_temperature = 0.0;
+        for (std::size_t node = 0; node < 4; ++node) {
+            state[node] = temperatures[increment][node];
+            state[4 + node] = radial_strain * g.coordinates[node].r;
+            state[8 + node] = axial_strain * g.coordinates[node].z;
+            mean_temperature += 0.25 * state[node];
+        }
+        const double radial_stretch = 1.0 + radial_strain, axial_stretch = 1.0 + axial_strain;
+        if (form == StrainFormulation::finite)
+            accumulated_trace +=
+                4.0 * (radial_stretch - previous_radial_stretch) / (radial_stretch + previous_radial_stretch)
+                + 2.0 * (axial_stretch - previous_axial_stretch) / (axial_stretch + previous_axial_stretch);
+        else
+            accumulated_trace = 2.0 * radial_strain + axial_strain;
+        const auto saved_history = history;
+        const auto saved_state = state, saved_old = old;
+        // The existing transaction test covers nodal heat capacity.  Isolate
+        // conduction here so its small off-diagonal temperature derivatives
+        // remain resolved when perturbing the material-temperature columns.
+        const Cax4Input
+            input{m, g, state, old, &history, dt, dt * static_cast<double>(increment + 1), 0.0, form, false};
+        const auto active = evaluate_cax4t(input, {true, true, true, false});
+        const auto passive = evaluate_cax4t(input);
+        require(active.residual == passive.residual && same_history(active.history, passive.history),
+            "Corner-temperature material paths must return identical residual and trial history");
+        for (std::size_t q = 0; q < 4; ++q) {
+            const auto& point = active.history[q];
+            const auto& strain = point.elastic_strain;
+            const auto& stress = point.stress;
+            const double trace = strain[0] + strain[1] + strain[2];
+            const double shear = (stress.zz - stress.rr) / (2.0 * (strain[1] - strain[0]));
+            const double bulk = (stress.rr + stress.zz + stress.hoop) / (3.0 * trace);
+            const double inferred_young = 9.0 * bulk * shear / (3.0 * bulk + shear);
+            const double inferred_poisson = (3.0 * bulk - 2.0 * shear) / (2.0 * (3.0 * bulk + shear));
+            const double temperature_change = state[q] - 600.0;
+            double interpolated_temperature = 0.0;
+            for (std::size_t node = 0; node < 4; ++node)
+                interpolated_temperature += g.points[q].shape[node] * state[node];
+            const double interpolated_change = interpolated_temperature - 600.0;
+            require(relative_difference(inferred_young, 1e9 - 1e6 * temperature_change) < 1e-11,
+                "Young modulus must use the paired corner temperature");
+            require(relative_difference(inferred_poisson, 0.25 + 3e-4 * temperature_change) < 1e-11,
+                "Poisson ratio must use the paired corner temperature");
+            require(relative_difference(inferred_young, 1e9 - 1e6 * interpolated_change) > 1e-4
+                        && relative_difference(inferred_poisson, 0.25 + 3e-4 * interpolated_change) > 1e-4,
+                "Elastic probe must distinguish interpolated temperature for each parameter");
+            const double mean_change = mean_temperature - 600.0;
+            const double thermal_strain = (1e-5 + 2e-9 * mean_change) * mean_change;
+            require(std::abs(trace - accumulated_trace + 3.0 * thermal_strain) < 1e-12,
+                "Thermal expansion must retain mean temperature across changing corner histories");
+            if (inelastic) {
+                const double equivalent = std::sqrt(0.5
+                                                        * ((stress.rr - stress.zz) * (stress.rr - stress.zz)
+                                                            + (stress.zz - stress.hoop) * (stress.zz - stress.hoop)
+                                                            + (stress.hoop - stress.rr) * (stress.hoop - stress.rr))
+                                                    + 3.0 * stress.rz * stress.rz);
+                const double yield = 2e6 + 1e4 * temperature_change;
+                const double hardening = 2e7 + 4e5 * temperature_change;
+                const double plastic = point.equivalent_plastic_strain;
+                const double creep_rate = (point.equivalent_creep_strain - history[q].equivalent_creep_strain) / dt;
+                require(plastic > history[q].equivalent_plastic_strain && creep_rate > 0.0,
+                    "Every corner probe point must activate plasticity and creep in every increment");
+                require(relative_difference(equivalent, yield + hardening * plastic) < 1e-10,
+                    "Plastic yield stress and hardening must use paired corner temperature");
+                require(relative_difference(equivalent, 2e6 + 1e4 * interpolated_change + hardening * plastic) > 1e-4
+                            && relative_difference(equivalent, yield + (2e7 + 4e5 * interpolated_change) * plastic)
+                                   > 1e-4,
+                    "Plastic probe must independently distinguish yield and hardening temperature");
+                const double coefficient = 1e-4 + 1e-6 * temperature_change;
+                const double exponent = 2.0 + 4e-3 * temperature_change;
+                require(relative_difference(creep_rate, coefficient * std::pow(equivalent / 2e6, exponent)) < 1e-10,
+                    "Backward Euler creep coefficient and exponent must use paired corner temperature");
+                require(relative_difference(creep_rate,
+                            (1e-4 + 1e-6 * interpolated_change) * std::pow(equivalent / 2e6, exponent))
+                                > 1e-4
+                            && relative_difference(creep_rate,
+                                   coefficient * std::pow(equivalent / 2e6, 2.0 + 4e-3 * interpolated_change))
+                                   > 1e-4,
+                    "Creep probe must independently distinguish coefficient and exponent temperature");
+            }
+        }
+        // Each temperature column resolves corner material derivatives and the
+        // independent arithmetic-mean thermal-expansion chain simultaneously.
+        constexpr double step = 1e-3;
+        for (std::size_t node = 0; node < 4; ++node) {
+            auto plus = state, minus = state;
+            plus[node] += step;
+            minus[node] -= step;
+            const auto rp = evaluate_cax4t({m, g, plus, old, &history, dt, input.time, 0.0, form, false});
+            const auto rm = evaluate_cax4t({m, g, minus, old, &history, dt, input.time, 0.0, form, false});
+            for (std::size_t row = 0; row < 12; ++row) {
+                const double numerical = (rp.residual[row] - rm.residual[row]) / (2.0 * step);
+                const double analytic = active.jacobian[12 * row + node];
+                const double error =
+                    std::abs(analytic - numerical) / std::max({1.0, std::abs(analytic), std::abs(numerical)});
+                tangent_error = std::max(tangent_error, error);
+                if (error >= 2e-7)
+                    std::cerr << "corner temperature derivative row=" << row << " node=" << node
+                              << " analytic=" << analytic << " numerical=" << numerical << " error=" << error << '\n';
+            }
+        }
+        require(tangent_error < 2e-7, "Corner-temperature tangent columns must agree with centered differences");
+        require(same_history(history, saved_history) && old == saved_old && state == saved_state,
+            "Corner-temperature perturbations must not change accepted history or nodal inputs");
+        history = active.history;
+        old = state;
+        previous_radial_stretch = radial_stretch;
+        previous_axial_stretch = axial_stretch;
+    }
+    std::cout << (form == StrainFormulation::finite ? "finite" : "small") << (inelastic ? " coupled" : " elastic")
+              << " corner material temperature tangent error=" << tangent_error << '\n';
+}
+
 void check_analytic_and_contract(StrainFormulation form) {
     const auto m = material(false);
     const auto g = fuelsim::elements::make_cax4t_geometry({{{1.0, 0.0}, {2.0, 0.0}, {2.0, 1.0}, {1.0, 1.0}}});
@@ -269,6 +437,8 @@ int main() {
         for (const auto form : {StrainFormulation::small, StrainFormulation::finite}) {
             check_analytic_and_contract(form);
             check_nonlinear_transaction(form);
+            check_corner_temperature_materials(form, false);
+            check_corner_temperature_materials(form, true);
         }
         std::cout << "CAX4T independent library contracts passed\n";
         return 0;

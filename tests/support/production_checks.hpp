@@ -3,6 +3,9 @@
 #include <string>
 
 namespace fuelsim::test {
+bool check_cax4t_material_temperature(const std::string& output,
+    const std::string& references,
+    const std::string& case_name);
 bool check_rz8_recovery_abaqus(const std::string& output_path,
     const std::string& node_path,
     const std::string& point_path,
