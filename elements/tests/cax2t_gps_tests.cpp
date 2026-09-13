@@ -23,8 +23,7 @@ double error(double actual, double expected) {
     return std::abs(actual - expected) / std::max({1.0, std::abs(actual), std::abs(expected)});
 }
 
-IsotropicThermoelasticMaterial
-make_material(bool inelastic = false, bool varying = false, bool varying_elasticity = true) {
+IsotropicThermoelasticMaterial make_material(bool inelastic = false, bool varying = false) {
     const auto registry = make_builtin_material_function_registry();
     auto functions = std::make_shared<MaterialFunctionSet>();
     functions->name = "cax2t_gps_test";
@@ -40,18 +39,28 @@ make_material(bool inelastic = false, bool varying = false, bool varying_elastic
         {{"young_modulus", young},
             {"poisson_ratio", poisson},
             {"reference_temperature", 600.0},
-            {"young_modulus_temperature_coefficient", varying && varying_elasticity ? -8.0e7 : 0.0},
-            {"poisson_ratio_temperature_coefficient", varying && varying_elasticity ? 2.0e-5 : 0.0}});
+            {"young_modulus_temperature_coefficient", varying ? -8.0e7 : 0.0},
+            {"poisson_ratio_temperature_coefficient", varying ? 2.0e-5 : 0.0}});
     functions->eigenstrains.push_back(registry.bind_eigenstrain("thermal",
         "linear_temperature_isotropic_thermal_expansion",
         {{"thermal_expansion", expansion},
             {"reference_temperature", 600.0},
             {"thermal_expansion_temperature_coefficient", varying ? 3.0e-9 : 0.0}}));
     if (inelastic) {
-        functions->creep = registry.bind_creep("norton",
-            {{"coefficient", 1.0e-5}, {"reference_stress", 1.0e8}, {"stress_exponent", 3.0}});
-        functions->plasticity = registry.bind_plasticity("linear_isotropic_hardening",
-            {{"yield_stress", 2.0e8}, {"hardening_modulus", 1.0e9}});
+        functions->creep = registry.bind_creep("linear_temperature_norton",
+            {{"coefficient", 1.0e-5},
+                {"reference_stress", 1.0e8},
+                {"stress_exponent", 3.0},
+                {"reference_temperature", 600.0},
+                {"coefficient_temperature_coefficient", varying ? 1.0e-7 : 0.0},
+                {"reference_stress_temperature_coefficient", 0.0},
+                {"stress_exponent_temperature_coefficient", varying ? 4.0e-3 : 0.0}});
+        functions->plasticity = registry.bind_plasticity("linear_temperature_isotropic_hardening",
+            {{"yield_stress", 2.0e8},
+                {"hardening_modulus", 1.0e9},
+                {"reference_temperature", 600.0},
+                {"yield_stress_temperature_coefficient", varying ? 2.0e5 : 0.0},
+                {"hardening_temperature_coefficient", varying ? 2.0e7 : 0.0}});
     }
     return IsotropicThermoelasticMaterial({functions, young});
 }
@@ -164,6 +173,36 @@ void check_thermal_operators() {
         require(error(point.zz, stress) < 1e-13,
             "Thermal expansion must use the arithmetic mean of the two radial nodal temperatures");
     }
+    const auto variable_material = make_material(false, true);
+    const auto nonlinear_thermal = evaluate_cax2t_gps(
+        {variable_material, geometry, nonuniform, initial, &history, 0.5, 0.5, 0.0, StrainFormulation::small, true});
+    std::array<double, 2> expected_heat{}, endpoint_heat{};
+    for (std::size_t q = 0; q < 2; ++q) {
+        const double station = (q == 0 ? -1.0 : 1.0) / std::sqrt(3.0);
+        const std::array<double, 2> shape = {0.5 * (1.0 - station), 0.5 * (1.0 + station)};
+        const double radius = 1.5 + 0.5 * station;
+        const double temperature = shape[0] * nonuniform[0] + shape[1] * nonuniform[1];
+        const double density = 1000.0 + 10.0 * radius + 0.5;
+        const double temperature_rate = (temperature - 600.0) / 0.5;
+        const double measure = 2.0 * pi * radius;
+        for (std::size_t node = 0; node < 2; ++node) {
+            const double gradient = node == 0 ? -1.0 : 1.0;
+            expected_heat[node] +=
+                measure
+                * ((3.0 + 120.0 / temperature) * gradient * 40.0
+                    + shape[node] * density * (500.0 + 0.1 * (temperature - 600.0)) * temperature_rate);
+            endpoint_heat[node] +=
+                measure
+                * ((3.0 + 120.0 / nonuniform[q]) * gradient * 40.0
+                    + shape[node] * density * (500.0 + 0.1 * (nonuniform[q] - 600.0)) * temperature_rate);
+        }
+    }
+    for (std::size_t node = 0; node < 2; ++node) {
+        require(error(nonlinear_thermal.residual[node], expected_heat[node]) < 1e-13,
+            "Small-strain conductivity and consistent heat capacity must retain Gauss-interpolated temperature");
+        require(std::abs(expected_heat[node] - endpoint_heat[node]) > 1e3,
+            "The variable-property thermal probe must distinguish endpoint from interpolated temperature");
+    }
 }
 
 void check_mean_thermal_expansion(StrainFormulation formulation) {
@@ -191,19 +230,17 @@ void check_mean_thermal_expansion(StrainFormulation formulation) {
                 {true, true, true, true});
         const double mean_change = 60.0;
         const double eigenstrain = (expansion + (temperature_dependent ? 3.0e-9 * mean_change : 0.0)) * mean_change;
-        const double gauss = 1.0 / std::sqrt(3.0);
         for (std::size_t q = 0; q < response.stress.size(); ++q) {
-            const double station = q == 0 ? -gauss : gauss;
             for (const bool perturb_mean_preserving : {false, true}) {
                 const auto& checked = perturb_mean_preserving ? same_mean : response;
-                const double point_change = mean_change + (perturb_mean_preserving ? 28.0 : 40.0) * station;
-                const double modulus = young + (temperature_dependent ? -8.0e7 * point_change : 0.0);
-                const double ratio = poisson + (temperature_dependent ? 2.0e-5 * point_change : 0.0);
+                const double material_change = (perturb_mean_preserving ? redistributed[q] : state[q]) - 600.0;
+                const double modulus = young + (temperature_dependent ? -8.0e7 * material_change : 0.0);
+                const double ratio = poisson + (temperature_dependent ? 2.0e-5 * material_change : 0.0);
                 const double expected = -modulus * eigenstrain / (1.0 - 2.0 * ratio);
                 const auto& stress = checked.stress[q];
                 require(error(stress.rr, expected) < 1e-13 && error(stress.zz, expected) < 1e-13
                             && error(stress.hoop, expected) < 1e-13 && stress.rz == 0.0,
-                    "Mean thermal expansion must coexist with integration-point elastic properties");
+                    "Mean thermal expansion must coexist with paired-endpoint elastic properties");
                 for (std::size_t component = 0; component < 3; ++component)
                     require(std::abs(checked.history[q].elastic_strain[component] + eigenstrain) < 1e-15,
                         "Nonuniform temperatures with the same arithmetic mean must give the same thermal strain");
@@ -364,8 +401,9 @@ void check_finite_mean_hoop_history_and_geometry() {
             const double reference_radius = 1.5 + 0.5 * station;
             const double point_change = 90.0 + 40.0 * station;
             const double point_temperature = 600.0 + point_change;
-            const double modulus = young + (temperature_dependent ? -8.0e7 * point_change : 0.0);
-            const double ratio = poisson + (temperature_dependent ? 2.0e-5 * point_change : 0.0);
+            const double material_change = state[q] - 600.0;
+            const double modulus = young + (temperature_dependent ? -8.0e7 * material_change : 0.0);
+            const double ratio = poisson + (temperature_dependent ? 2.0e-5 * material_change : 0.0);
             const double thermal = (expansion + (temperature_dependent ? 3.0e-9 * 90.0 : 0.0)) * 90.0;
             const double old_thermal = (expansion + (temperature_dependent ? 3.0e-9 * 40.0 : 0.0)) * 40.0;
             std::array<double, 3> elastic{};
@@ -389,7 +427,8 @@ void check_finite_mean_hoop_history_and_geometry() {
                 pressure + 2.0 * shear * elastic[2]};
             require(error(response.stress[q].rr, stress[0]) < 1e-13 && error(response.stress[q].zz, stress[1]) < 1e-13
                         && error(response.stress[q].hoop, stress[2]) < 1e-13 && response.stress[q].rz == 0.0,
-                "Finite mean hoop stretch must coexist with point-temperature elastic properties and mean expansion");
+                "Finite mean hoop stretch must coexist with endpoint-temperature elastic properties and mean "
+                "expansion");
             const double mechanical_measure =
                 2.0 * pi * reference_radius * current_stretch[0] * current_stretch[1] * current_stretch[2];
             // Thermal integration uses the actual deformed annulus at each Gauss point.
@@ -449,10 +488,9 @@ void check_finite_mean_hoop_history_and_geometry() {
 }
 
 void check_cax4t_mechanical_projection(StrainFormulation formulation) {
-    // GPS uses interpolated material temperatures; CAX4T uses paired corners.
-    // Compare their mechanical projection with constant E/nu, retaining the
-    // nonuniform temperatures and temperature-dependent mean expansion.
-    const auto material = make_material(false, true, false);
+    // Paired radial temperatures expand to matching CAX4T corner temperatures.
+    // Both elastic properties and mean expansion vary with temperature.
+    const auto material = make_material(false, true);
     const auto radial_geometry = make_cax2t_gps_geometry({1.0, 2.0}, 0.0, 2.0);
     const auto quad_geometry = make_cax4t_geometry({{{1.0, 0.0}, {2.0, 0.0}, {2.0, 2.0}, {1.0, 2.0}}});
     const Cax2tGpsLocalValues initial{600.0, 600.0, 0.0, 0.0, 0.0, 0.0};
@@ -512,6 +550,128 @@ void check_cax4t_mechanical_projection(StrainFormulation formulation) {
         "Nonuniform CAX4T mechanical force and all tangent columns must reduce to the radial assumed-strain element");
     std::cout << "cax2t_gps_" << (formulation == StrainFormulation::finite ? "finite" : "small")
               << "_cax4t_mechanical_projection_error=" << maximum_error << '\n';
+}
+
+void check_paired_material_temperatures(StrainFormulation formulation, bool inelastic) {
+    const auto material = make_material(inelastic, true);
+    const auto geometry = make_cax2t_gps_geometry({1.0, 2.0}, 0.0, 2.0);
+    const std::array<std::array<double, 2>, 2> temperatures = {{{620.0, 740.0}, {730.0, 650.0}}};
+    Cax2tGpsLocalValues old{600.0, 600.0, 0.0, 0.0, 0.0, 0.0};
+    Cax2tGpsMaterialHistory history{};
+    double previous_radial_stretch = 1.0, previous_axial_stretch = 1.0;
+    double accumulated_trace = 0.0, maximum_error = 0.0;
+    constexpr double dt = 0.25;
+    const auto relative = [](double actual, double expected) {
+        return std::abs(actual / expected - 1.0);
+    };
+    for (std::size_t increment = 0; increment < temperatures.size(); ++increment) {
+        const double radial_strain = 0.0001 * static_cast<double>(increment + 1);
+        const double axial_strain = 0.004 * static_cast<double>(increment + 1);
+        const Cax2tGpsLocalValues state{temperatures[increment][0],
+            temperatures[increment][1],
+            radial_strain,
+            2.0 * radial_strain,
+            0.0,
+            2.0 * axial_strain};
+        const double radial_stretch = 1.0 + radial_strain, axial_stretch = 1.0 + axial_strain;
+        if (formulation == StrainFormulation::finite)
+            accumulated_trace +=
+                4.0 * (radial_stretch - previous_radial_stretch) / (radial_stretch + previous_radial_stretch)
+                + 2.0 * (axial_stretch - previous_axial_stretch) / (axial_stretch + previous_axial_stretch);
+        else
+            accumulated_trace = 2.0 * radial_strain + axial_strain;
+        const auto saved_history = history;
+        const auto saved_state = state, saved_old = old;
+        // Separate analytical tests cover consistent heat storage.  This test
+        // resolves the small conduction terms alongside material derivatives.
+        const Cax2tGpsInput input{material,
+            geometry,
+            state,
+            old,
+            &history,
+            dt,
+            dt * static_cast<double>(increment + 1),
+            0.0,
+            formulation};
+        const auto active = evaluate_cax2t_gps(input, {true, true, true, true});
+        const auto passive = evaluate_cax2t_gps(input);
+        require(active.residual == passive.residual && same_history(active.history, passive.history),
+            "Paired-temperature material paths must return identical residual and trial history");
+        const double mean_change = 0.5 * (state[0] + state[1]) - 600.0;
+        const double thermal_strain = (expansion + 3.0e-9 * mean_change) * mean_change;
+        for (std::size_t q = 0; q < 2; ++q) {
+            const auto& point = active.history[q];
+            const auto& strain = point.elastic_strain;
+            const auto& stress = point.stress;
+            const double trace = strain[0] + strain[1] + strain[2];
+            const double shear = (stress.zz - stress.rr) / (2.0 * (strain[1] - strain[0]));
+            const double bulk = (stress.rr + stress.zz + stress.hoop) / (3.0 * trace);
+            const double inferred_young = 9.0 * bulk * shear / (3.0 * bulk + shear);
+            const double inferred_poisson = (3.0 * bulk - 2.0 * shear) / (2.0 * (3.0 * bulk + shear));
+            const double change = state[q] - 600.0;
+            const double station = (q == 0 ? -1.0 : 1.0) / std::sqrt(3.0);
+            const double interpolated_change = 0.5 * ((1.0 - station) * state[0] + (1.0 + station) * state[1]) - 600.0;
+            require(relative(inferred_young, young - 8.0e7 * change) < 1e-11,
+                "GPS Young modulus must use the paired radial endpoint temperature");
+            require(relative(inferred_poisson, poisson + 2.0e-5 * change) < 1e-11,
+                "GPS Poisson ratio must use the paired radial endpoint temperature");
+            require(relative(inferred_young, young - 8.0e7 * interpolated_change) > 1e-4
+                        && relative(inferred_poisson, poisson + 2.0e-5 * interpolated_change) > 1e-4,
+                "The elastic probe must independently distinguish both parameter temperatures");
+            require(std::abs(trace - accumulated_trace + 3.0 * thermal_strain) < 1e-12,
+                "GPS mean thermal expansion must persist across changing endpoint temperature histories");
+            if (inelastic) {
+                const double equivalent = std::sqrt(0.5
+                                                        * ((stress.rr - stress.zz) * (stress.rr - stress.zz)
+                                                            + (stress.zz - stress.hoop) * (stress.zz - stress.hoop)
+                                                            + (stress.hoop - stress.rr) * (stress.hoop - stress.rr))
+                                                    + 3.0 * stress.rz * stress.rz);
+                const double yield = 2.0e8 + 2.0e5 * change, hardening = 1.0e9 + 2.0e7 * change;
+                const double plastic = point.equivalent_plastic_strain;
+                const double creep_rate = (point.equivalent_creep_strain - history[q].equivalent_creep_strain) / dt;
+                require(plastic > history[q].equivalent_plastic_strain && creep_rate > 0.0,
+                    "Both mechanisms must activate at both GPS points in every temperature increment");
+                require(relative(equivalent, yield + hardening * plastic) < 1e-10,
+                    "GPS yield stress and hardening must use paired radial temperatures");
+                require(relative(equivalent, 2.0e8 + 2.0e5 * interpolated_change + hardening * plastic) > 1e-4
+                            && relative(equivalent, yield + (1.0e9 + 2.0e7 * interpolated_change) * plastic) > 1e-4,
+                    "The plastic probe must distinguish yield and hardening temperature separately");
+                const double coefficient = 1.0e-5 + 1.0e-7 * change, exponent = 3.0 + 4.0e-3 * change;
+                require(relative(creep_rate, coefficient * std::pow(equivalent / 1.0e8, exponent)) < 1e-10,
+                    "GPS backward Euler creep coefficient and exponent must use paired radial temperatures");
+                require(relative(creep_rate,
+                            (1.0e-5 + 1.0e-7 * interpolated_change) * std::pow(equivalent / 1.0e8, exponent))
+                                > 1e-4
+                            && relative(creep_rate,
+                                   coefficient * std::pow(equivalent / 1.0e8, 3.0 + 4.0e-3 * interpolated_change))
+                                   > 1e-4,
+                    "The creep probe must distinguish coefficient and exponent temperature separately");
+            }
+        }
+        constexpr double step = 1e-3;
+        for (std::size_t node = 0; node < 2; ++node) {
+            auto plus = state, minus = state;
+            plus[node] += step;
+            minus[node] -= step;
+            const auto rp =
+                evaluate_cax2t_gps({material, geometry, plus, old, &history, dt, input.time, 0.0, formulation});
+            const auto rm =
+                evaluate_cax2t_gps({material, geometry, minus, old, &history, dt, input.time, 0.0, formulation});
+            for (std::size_t row = 0; row < state.size(); ++row)
+                maximum_error = std::max(maximum_error,
+                    error(active.jacobian[6 * row + node], (rp.residual[row] - rm.residual[row]) / (2.0 * step)));
+        }
+        require(maximum_error < 2e-7, "GPS endpoint-temperature tangent columns must agree with centered differences");
+        require(same_history(history, saved_history) && state == saved_state && old == saved_old,
+            "Endpoint-temperature perturbations must preserve accepted material history and nodal fields");
+        history = active.history;
+        old = state;
+        previous_radial_stretch = radial_stretch;
+        previous_axial_stretch = axial_stretch;
+    }
+    std::cout << "cax2t_gps_" << (formulation == StrainFormulation::finite ? "finite" : "small")
+              << (inelastic ? "_coupled" : "_elastic") << "_paired_temperature_jacobian_error=" << maximum_error
+              << '\n';
 }
 
 void check_nonlinear_transaction(StrainFormulation formulation) {
@@ -777,6 +937,9 @@ int main() {
         check_finite_mean_hoop_history_and_geometry();
         check_cax4t_mechanical_projection(StrainFormulation::small);
         check_cax4t_mechanical_projection(StrainFormulation::finite);
+        for (const auto formulation : {StrainFormulation::small, StrainFormulation::finite})
+            for (const bool inelastic : {false, true})
+                check_paired_material_temperatures(formulation, inelastic);
         check_nonlinear_transaction(StrainFormulation::small);
         check_nonlinear_transaction(StrainFormulation::finite);
         check_finite_mechanics_and_thermal_history();

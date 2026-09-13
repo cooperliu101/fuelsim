@@ -86,7 +86,8 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
         const std::array<double, 2> shape = {0.5 * (1.0 - stations[q]), 0.5 * (1.0 + stations[q])};
         const double radius = shape[0] * geometry.radii[0] + shape[1] * geometry.radii[1];
         double measure = pi * radius * thickness * height;
-        const double temperature = shape[0] * state[0] + shape[1] * state[1];
+        const double material_temperature = state[q];
+        const double thermal_temperature = shape[0] * state[0] + shape[1] * state[1];
         const double radial_displacement = shape[0] * state[2] + shape[1] * state[3];
         std::array<double, 4> strain = {radial_strain, axial_strain, hoop_strain, 0.0};
         const MaterialFunctionContext context{input.time, radius, 0.0, axial_coordinate};
@@ -181,16 +182,17 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
                                          + old_history.creep_strain[component] + imposed[component];
             }
         }
-        // The material interface retains point temperature for elastic and inelastic
-        // properties. Correct its total-strain input so that it subtracts the
+        // Each radial material point uses its paired endpoint temperature for
+        // elastic and inelastic properties. Correct the total-strain input to subtract the
         // eigenstrain at the arithmetic mean of the two radial-node temperatures.
         // Only temperature is seeded here; the four-strain material seed stays width five.
-        const adlite::Scalar point_temperature =
-            request.jacobian ? adlite::Scalar::independent(temperature, 0, 1) : adlite::Scalar(temperature);
+        const adlite::Scalar active_material_temperature = request.jacobian
+                                                               ? adlite::Scalar::independent(material_temperature, 0, 1)
+                                                               : adlite::Scalar(material_temperature);
         const adlite::Scalar mean_temperature = request.jacobian
                                                     ? adlite::Scalar::independent(expansion_temperature, 0, 1)
                                                     : adlite::Scalar(expansion_temperature);
-        const auto point_eigen = input.material.eigenstrain_rz(point_temperature, context);
+        const auto point_eigen = input.material.eigenstrain_rz(active_material_temperature, context);
         const auto mean_eigen = input.material.eigenstrain_rz(mean_temperature, context);
         const std::array<adlite::Scalar, 4> point_imposed = {point_eigen.rr,
             point_eigen.zz,
@@ -208,12 +210,12 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
                 const double mean_derivative =
                     mean_imposed[component].derivative_size() == 0 ? 0.0 : mean_imposed[component].derivative(0);
                 for (std::size_t column = 0; column < 2; ++column)
-                    strain_chain[component][column] += point_derivative * shape[column] - 0.5 * mean_derivative;
+                    strain_chain[component][column] += (column == q ? point_derivative : 0.0) - 0.5 * mean_derivative;
             }
         }
         const auto response = evaluate_axisymmetric_material_response(input.material,
             strain,
-            temperature,
+            material_temperature,
             input.time_step,
             input.committed_history ? &(*input.committed_history)[q] : nullptr,
             context,
@@ -245,7 +247,7 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
                 for (std::size_t column = 0; column < state.size(); ++column) {
                     double tangent = 0.0;
                     for (std::size_t component = 0; component < 4; ++component) {
-                        double derivative = column < 2 ? response.thermal[component] * shape[column] : 0.0;
+                        double derivative = column == q ? response.thermal[component] : 0.0;
                         for (std::size_t strain_component = 0; strain_component < 4; ++strain_component)
                             derivative +=
                                 response.tangent[component][strain_component] * strain_chain[strain_component][column];
@@ -261,8 +263,9 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
 
         // Only the integration-point temperature is seeded for thermal
         // properties; the two nodal derivatives are attached in closed form.
-        const adlite::Scalar active_temperature =
-            request.jacobian ? adlite::Scalar::independent(temperature, 0, 1) : adlite::Scalar(temperature);
+        const adlite::Scalar active_temperature = request.jacobian
+                                                      ? adlite::Scalar::independent(thermal_temperature, 0, 1)
+                                                      : adlite::Scalar(thermal_temperature);
         const adlite::Scalar conductivity = input.material.conductivity(active_temperature, context);
         const double conductivity_derivative =
             request.jacobian && conductivity.derivative_size() != 0 ? conductivity.derivative(0) : 0.0;
@@ -270,7 +273,7 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
         if (input.include_thermal_time_term) {
             const double committed_temperature =
                 shape[0] * input.committed_state[0] + shape[1] * input.committed_state[1];
-            const double temperature_rate = (temperature - committed_temperature) / input.time_step;
+            const double temperature_rate = (thermal_temperature - committed_temperature) / input.time_step;
             const adlite::Scalar capacity = input.material.heat_capacity(active_temperature, context);
             stored_rate = capacity.value() * temperature_rate;
             if (request.jacobian)

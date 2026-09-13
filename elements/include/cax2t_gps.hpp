@@ -47,9 +47,10 @@ struct Cax2tGpsResult final {
     double stored_heat_rate = 0.0, generated_heat_rate = 0.0;
 };
 
-// Two radial Gauss points, consistent heat capacity, and integration-point
-// material temperature, except eigenstrain temperature uses the arithmetic mean
-// of the two radial nodes. Mechanical hoop strain uses a reference-volume mean;
+// Two radial Gauss points use paired radial-endpoint temperatures for elastic and
+// inelastic properties. Eigenstrain uses the arithmetic mean of the two radial
+// temperatures; thermal operators retain interpolated temperature and consistent
+// heat capacity. Mechanical hoop strain uses a reference-volume mean;
 // finite strain averages the hoop stretch before its midpoint increment. Mechanical
 // point weights scale with the whole-element volume ratio, while thermal measures
 // retain the actual pointwise current geometry.

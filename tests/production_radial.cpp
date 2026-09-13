@@ -380,7 +380,10 @@ bool uniform(const std::string& output,
     return passed;
 }
 
-bool nonuniform_finite(const std::string& output, const std::string& summary, const std::filesystem::path& references) {
+bool nonuniform_finite(const std::string& output,
+    const std::string& summary,
+    const std::filesystem::path& references,
+    bool temperature_dependent_elasticity) {
     require_summary(summary, 1.0);
     const auto frames = fuelsim::test::read_exodus_history(output);
     const auto native_nodes = read_rows(references / "gps_nonuniform_finite_nodes.csv");
@@ -519,7 +522,9 @@ bool nonuniform_finite(const std::string& output, const std::string& summary, co
     passed = check("inactive_inelastic_history", zero_mechanism, 1e-13) && passed;
     std::cout << "native_node_samples=" << displacement.group_count
               << "\nnative_material_point_samples=" << stress.group_count
-              << "\nqualification_scope=prescribed_nonuniform_finite_mechanics_with_constant_elasticity\n"
+              << "\nqualification_scope=prescribed_nonuniform_finite_mechanics_with_"
+              << (temperature_dependent_elasticity ? "paired_endpoint_material_temperature" : "constant_elasticity")
+              << "\nthermal_operator_cross_comparison=excluded_different_discretizations\n"
               << "radial_gps_nonuniform_finite_abaqus_qualification=" << (passed ? "passed" : "failed") << '\n';
     return passed;
 }
@@ -939,7 +944,8 @@ bool contact_small(const std::string& output, const std::string& summary, const 
 int main(int argc, char** argv) {
     if (argc != 5) {
         std::cerr << "usage: production_radial "
-                     "<uniform-small|uniform-finite|nonuniform-finite|contact-small|chain-small|steady-finite> "
+                     "<uniform-small|uniform-finite|nonuniform-finite|material-temperature-finite|contact-small|chain-"
+                     "small|steady-finite> "
                      "<results.e> "
                      "<summary.csv> "
                      "<reference_dir>\n";
@@ -950,7 +956,14 @@ int main(int argc, char** argv) {
         if (mode == "uniform-small" || mode == "uniform-finite")
             return uniform(argv[2], argv[3], argv[4], mode == "uniform-finite") ? 0 : 1;
         if (mode == "nonuniform-finite")
-            return nonuniform_finite(argv[2], argv[3], argv[4]) ? 0 : 1;
+            return nonuniform_finite(argv[2], argv[3], argv[4], false) ? 0 : 1;
+        if (mode == "material-temperature-finite")
+            return nonuniform_finite(argv[2],
+                       argv[3],
+                       std::filesystem::path(argv[4]) / "nonuniform_elastic_temperature_probe",
+                       true)
+                       ? 0
+                       : 1;
         if (mode == "chain-small")
             return chain_small(argv[2], argv[3], argv[4]) ? 0 : 1;
         if (mode == "contact-small")

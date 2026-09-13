@@ -331,6 +331,8 @@ if(BUILD_TESTING)
     fuelsim_add_radial_case(fuelsim_gps_uniform_small_abaqus transient_gps_uniform_small uniform-small)
     fuelsim_add_radial_case(fuelsim_gps_uniform_finite_abaqus transient_gps_uniform_finite uniform-finite)
     fuelsim_add_radial_case(fuelsim_gps_nonuniform_finite_abaqus transient_gps_nonuniform_finite nonuniform-finite)
+    fuelsim_add_radial_case(fuelsim_gps_material_temperature_finite_abaqus
+        transient_gps_material_temperature_finite material-temperature-finite)
     fuelsim_add_radial_case(fuelsim_gps_contact_abaqus transient_gps_contact_small contact-small)
     fuelsim_stage_blackbox_case(gps_steady_input gps_steady steady_gps_uniform_finite.fsi)
     get_filename_component(gps_steady_directory "${gps_steady_input}" DIRECTORY)

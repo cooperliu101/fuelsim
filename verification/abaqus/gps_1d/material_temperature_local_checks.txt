@@ -1,0 +1,17 @@
+2026-09-13; Release, ADlite 0.2.3
+Source: ctest --test-dir build-elements -j4 --output-on-failure
+All 17 independent element-library tests passed.
+Selected unchanged CAX2T_GPS test output:
+
+cax2t_gps_small_mean_temperature_jacobian_error=1.754572710772e-09
+cax2t_gps_finite_mean_temperature_jacobian_error=1.754572710772e-09
+cax2t_gps_small_mean_hoop_jacobian_error=1.003494713089e-10
+cax2t_gps_finite_mean_hoop_jacobian_error=4.153439259971e-09
+cax2t_gps_small_cax4t_mechanical_projection_error=1.541022394144e-15
+cax2t_gps_finite_cax4t_mechanical_projection_error=9.967554463474e-16
+cax2t_gps_small_elastic_paired_temperature_jacobian_error=4.274486468657e-11
+cax2t_gps_small_coupled_paired_temperature_jacobian_error=3.817729837048e-11
+cax2t_gps_finite_elastic_paired_temperature_jacobian_error=4.043097909805e-11
+cax2t_gps_finite_coupled_paired_temperature_jacobian_error=8.834760887302e-11
+cax2t_gps_small_coupled_directional_jacobian_error=4.885133912894e-09
+cax2t_gps_finite_coupled_directional_jacobian_error=1.088573141620e-08
