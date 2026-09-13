@@ -122,7 +122,7 @@
   load_ramp_time = 0
 []
 [Solver]
-  absolute_tolerance = 1e-8
+  absolute_tolerance = 1e-12
   relative_tolerance = 1e-13
   step_tolerance = 1e-12
   maximum_iterations = 20
@@ -130,7 +130,9 @@
   preconditioner = lu
   line_search = basic
   backtracking_fallback = true
-  field_residual_scaling = true
+  field_residual_scaling = false
+  temperature_residual_scale = 1e8
+  mechanical_residual_scale = 1e6
   residual_reduction_tolerance = 1e-11
   temperature_residual_absolute_tolerance = 1e-8
   mechanical_residual_absolute_tolerance = 1e-3

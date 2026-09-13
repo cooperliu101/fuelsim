@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -235,6 +236,68 @@ fuelsim::Hex8Element append_cuboid(std::vector<fuelsim::CartesianPoint3>& nodes,
 
 fuelsim::ThermoelasticProperties material() {
     return fuelsim::test::thermoelastic(0.0, 10.0, 1.0e9, 0.25, 1.0e-5, 300.0, 0.0, 0.0, 0.0, 6000.0, 1000.0);
+}
+
+bool test_reference_mass_conservation() {
+    const auto registry = fuelsim::make_builtin_material_function_registry();
+    auto functions = std::make_shared<fuelsim::MaterialFunctionSet>();
+    functions->name = "hex8_reference_mass_conservation";
+    functions->thermal = registry.bind_thermal("constant_thermophysical",
+        {{"conductivity", 4.0}, {"density", 2.0}, {"specific_heat", 3.0}});
+    functions->thermal.function = [](const fuelsim::ThermoelasticFunctionInput& input,
+                                      fuelsim::ThermalPropertyOutput& output) {
+        output.conductivity = 4.0;
+        output.density = 2.0 + 0.01 * (input.temperature - 300.0) + 5.0 * input.context.time + 0.2 * input.context.x;
+        output.specific_heat = 3.0 + 0.02 * (input.temperature - 300.0);
+    };
+    functions->elasticity =
+        registry.bind_elasticity("constant_isotropic", {{"young_modulus", 2.0e5}, {"poisson_ratio", 0.25}});
+    const auto mesh = two_element_mesh();
+    bool passed = true;
+    for (const auto element_formulation :
+        {fuelsim::Hex8ElementFormulation::c3d8t, fuelsim::Hex8ElementFormulation::c3d8rt}) {
+        for (const auto strain_formulation : {fuelsim::StrainFormulation::small, fuelsim::StrainFormulation::finite}) {
+            fuelsim::SpatialDefinition definition;
+            definition.regions.push_back({"solid", "solid", {functions, 2.0e5}, 2.0, 300.0});
+            definition.regions[0].hex8_element_formulation = element_formulation;
+            definition.regions[0].strain_formulation = strain_formulation;
+            definition.boundary_conditions.push_back(
+                {"temperature", fuelsim::BoundaryConditionType::dirichlet, "all", fuelsim::Field::temperature, 300.0});
+            fuelsim::TransientProblem problem(definition, mesh);
+            problem.begin_time_step({0.5, 1.0});
+            auto trial = problem.committed_solution();
+            const auto& view = fuelsim::cartesian::ProblemAccess::view(problem);
+            const auto& region_mesh = view.region_mesh(0);
+            for (std::size_t node = 0; node < region_mesh.nodes().size(); ++node) {
+                const auto& position = region_mesh.nodes()[node];
+                const std::size_t global = view.global_node(0, node);
+                trial[view.dof(fuelsim::Field::temperature, global)] = 360.0;
+                trial[view.dof(fuelsim::Field::displacement_x, global)] = position.x + 0.1 * position.y * position.z;
+                trial[view.dof(fuelsim::Field::displacement_y, global)] =
+                    0.2 * position.y + 0.08 * position.x * position.z;
+                trial[view.dof(fuelsim::Field::displacement_z, global)] =
+                    0.1 * position.z + 0.06 * position.x * position.y;
+            }
+            problem.commit_time_step(trial);
+            const auto& conservation = problem.last_conservation_summary();
+            const bool finite = strain_formulation == fuelsim::StrainFormulation::finite;
+            const bool reduced = element_formulation == fuelsim::Hex8ElementFormulation::c3d8rt;
+            // On [0,2]x[0,1]x[0,1], J=2.64+.00096*XYZ-.0096*X^2-.0072*Y^2-.0088*Z^2.
+            // The center rule deliberately differs from the fully integrated current volume.
+            const double current_source_volume = reduced ? 5.28 + 0.00048 - 0.024 - 0.0036 - 0.0044
+                                                         : 5.28 + 0.00048 - 0.0256 - 0.0048 - 0.0088 * 2.0 / 3.0;
+            const double expected_generated = 2.0 * (finite ? current_source_volume : 2.0);
+            const double expected_stored = 4.4 * 4.2 * 60.0 / 0.5;
+            passed = check(std::abs(conservation.stored_heat_rate - expected_stored) < 1e-9,
+                         "HEX8 committed storage preserves initial mass under nonuniform finite deformation")
+                     && check(std::abs(conservation.generated_heat_rate - expected_generated) < 1e-11,
+                         "HEX8 committed source preserves its full or center current-volume integration rule")
+                     && check(std::abs(conservation.global_thermal_balance) < 1e-9,
+                         "HEX8 independent storage/source diagnostics balance the assembled nodal heat reactions")
+                     && passed;
+        }
+    }
+    return passed;
 }
 
 fuelsim::SpatialDefinition steady_definition() {
@@ -1120,6 +1183,7 @@ int main(int argc, char** argv) {
     passed = test_finite_sliding_end_to_end() && passed;
     if (!mpi_only) {
         passed = test_small_strain_steady_predictor(mesh) && passed;
+        passed = test_reference_mass_conservation() && passed;
         passed = test_convection_boundary(mesh) && passed;
         passed = test_multiple_regions() && passed;
         passed = test_contact_projection_transfer() && passed;

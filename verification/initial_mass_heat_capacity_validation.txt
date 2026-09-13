@@ -1,0 +1,26 @@
+date=2026-09-13
+physics=initial density at region initial temperature and time zero; reference mass times current specific heat
+independent_elements_command=ctest --test-dir build-elements -j4 --output-on-failure
+independent_elements_passed=17/17
+unified_command=ctest --test-dir build -j4 --output-on-failure
+unified_registered_tests=310
+unified_initial_passed=308
+unified_initial_failures=B58 solver scaling and tolerance; updated report SHA256 records
+corrected_B58_retest=passed with fixed thermal/mechanical residual scales and absolute_tolerance=1e-12
+corrected_SHA256_retest=passed; native historical files unchanged
+all_registered_checks_after_corrections=passed
+GPS_free_temperature_max_absolute_error_K=0
+GPS_initial_mass_max_relative_error=3.79696e-14
+GPS_heat_balance_max_absolute_error_W=1.64313e-13
+GPS_disk_restart=passed; all six suffix frames and all output fields
+finite_integrated_independent_storage_cases=12
+finite_integrated_max_pointwise_relative_storage_error=1.53353e-14
+finite_integrated_max_relative_thermal_balance=1.75802e-11
+finite_integrated_storage_relative_tolerance=1e-9
+finite_integrated_old_Abaqus_2018_full_field_qualification=not claimed; preserved as historical manual comparison
+RZ_reference_counterexamples=9/9 rejected; 9/9 unmodified baselines passed
+mass_storage_counterexamples=2/2 rejected; includes modification preserving global heat balance
+B58_new_native_reference=3DEXPERIENCE R2018x; fixed initial density; four increments; original physics otherwise unchanged
+B58_native_node_rows=48
+B58_native_material_rows=64
+new_Abaqus_versions_not_run=true

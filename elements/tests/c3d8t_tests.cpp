@@ -831,6 +831,7 @@ int run_c3d8t_tests() {
     passed = test_free_thermal_expansion_and_jacobian() && passed;
     passed = test_element_average_thermal_expansion_temperature() && passed;
     passed = test_transient_capacity_and_faces() && passed;
+    passed = test_fixed_initial_mass_capacity(false) && passed;
     passed = test_cartesian_inelastic_material() && passed;
     passed = test_finite_strain_kinematics_and_coupled_jacobian() && passed;
     if (!passed)

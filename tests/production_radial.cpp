@@ -117,6 +117,46 @@ bool check(const std::string& name, const FieldErrorMetrics& metric, double zero
            && metric.maximum_zero_reference_difference <= zero_tolerance;
 }
 
+bool initial_mass(const std::string& output, const std::string& summary) {
+    require_summary(summary, 1.0);
+    const auto frames = fuelsim::test::read_exodus_history(output);
+    if (frames.size() != 11)
+        throw std::runtime_error("Initial-mass heating requires all ten increments");
+    const double reference_volume = std::acos(-1.0) * (0.005 * 0.005 - 0.004 * 0.004) * 0.01;
+    const double initial_mass = 1000.0 * reference_volume;
+    double temperature = 600.0;
+    double maximum_temperature_error = 0.0, maximum_mass_error = 0.0, maximum_balance_error = 0.0;
+    for (std::size_t step = 1; step < frames.size(); ++step) {
+        const auto& frame = frames[step];
+        const double time = static_cast<double>(step) / 10.0;
+        require_time(frame.time, time);
+        const double jacobian = std::pow(1.0 + 0.2 * time, 2) * (1.0 + 0.1 * time);
+        const double cp_old = 1000.0 + 5.0 * (temperature - 600.0);
+        const double heat_per_mass = 0.1 * 1e7 * jacobian / 1000.0;
+        // Backward Euler with cp(T_new): 5*dT^2 + cp(T_old)*dT = dt*Q*J/rho0.
+        const double increment = 2.0 * heat_per_mass / (cp_old + std::sqrt(cp_old * cp_old + 20.0 * heat_per_mass));
+        temperature += increment;
+        const auto& actual_temperature = frame.nodal("temperature");
+        for (std::size_t node = 0; node < 2; ++node)
+            maximum_temperature_error =
+                std::max(maximum_temperature_error, std::abs(actual_temperature.at(node) - temperature));
+        const double generated = 1e7 * jacobian * reference_volume;
+        const double stored = frame.global("conservation_stored_heat_rate");
+        const double measured_mass = stored * 0.1 / ((1000.0 + 5.0 * (temperature - 600.0)) * increment);
+        maximum_mass_error = std::max(maximum_mass_error, std::abs(measured_mass / initial_mass - 1.0));
+        maximum_balance_error = std::max({maximum_balance_error,
+            std::abs(stored - generated),
+            std::abs(frame.global("conservation_generated_heat_rate") - generated),
+            std::abs(frame.global("conservation_global_thermal_balance")),
+            std::abs(frame.global("conservation_dirichlet_heat_input_rate"))});
+    }
+    std::cout << "initial_mass_kg=" << initial_mass
+              << "\ninitial_mass_temperature_maximum_absolute_error_K=" << maximum_temperature_error
+              << "\ninitial_mass_maximum_relative_error=" << maximum_mass_error
+              << "\ninitial_mass_heat_balance_maximum_absolute_error_W=" << maximum_balance_error << '\n';
+    return maximum_temperature_error < 1e-8 && maximum_mass_error < 1e-9 && maximum_balance_error < 1e-9;
+}
+
 bool check(const std::string& name, const GroupedFieldErrorMetrics& metric, double zero_tolerance) {
     if (metric.group_count == 0)
         throw std::runtime_error("Empty tensor acceptance metric");
@@ -327,8 +367,11 @@ bool uniform(const std::string& output,
             midpoint_displacement.add(uz.at(n), 0.5 * (uz.at(2) + uz.at(3)));
             radial_reaction.add(rr.at(n), constrained_zero(native_nodes[(step - 1) * 4 + n].at("rf_r"), 1e-8));
         }
-        heat_reaction.add(heat.at(0), bottom_inner.at("reaction_heat") + top_inner.at("reaction_heat"));
-        heat_reaction.add(heat.at(1), bottom_outer.at("reaction_heat") + top_outer.at("reaction_heat"));
+        // The uniform prescribed temperature has no conductive contribution.
+        // Fixed initial mass gives these independent reference annular weights.
+        const double mass_weight_factor = std::acos(-1.0) * 0.01 * 0.001 / 3.0;
+        heat_reaction.add(heat.at(0), mass_weight_factor * 0.013 * 1e6 * 50.0);
+        heat_reaction.add(heat.at(1), mass_weight_factor * 0.014 * 1e6 * 50.0);
         axial_reaction.add(rz.at(2), bottom_inner.at("rf_z") + bottom_outer.at("rf_z"));
         axial_reaction.add(rz.at(3), constrained_zero(top_inner.at("rf_z") + top_outer.at("rf_z"), 1e-8));
         axial_strain.add(frame.element("axial_strain").at(0), (top_inner.at("uz") - bottom_inner.at("uz")) / 0.01);
@@ -406,7 +449,7 @@ bool nonuniform(const std::string& output,
     FieldErrorMetrics midpoint_displacement, prescribed_zero_displacement, zero_stress_shear, zero_elastic_shear;
     FieldErrorMetrics zero_mechanism, elastic_energy_change;
     FieldErrorMetrics heat_reaction, stored_heat_rate, generated_heat_rate, dirichlet_heat_rate, thermal_balance;
-    FieldErrorMetrics source_node_reaction_change;
+    FieldErrorMetrics source_node_reaction_change, native_storage_identity;
     GroupedFieldErrorMetrics displacement, stress, elastic;
     GroupedFieldErrorMetrics reconstructed_heat_flux_diagnostic;
     double previous_native_elastic_energy = 0.0;
@@ -448,8 +491,6 @@ bool nonuniform(const std::string& output,
         const auto& top_inner = native_nodes[(step - 1) * 4 + 3];
         const std::array<double, 2> native_heat = {bottom_inner.at("reaction_heat") + top_inner.at("reaction_heat"),
             bottom_outer.at("reaction_heat") + top_outer.at("reaction_heat")};
-        for (std::size_t n = 0; n < 2; ++n)
-            heat_reaction.add(heat.at(n), native_heat[n]);
         if (variable_thermal && step == 8) {
             const auto& old_heat = frames[step - 1].nodal("reaction_heat_flux");
             const std::size_t offset = (step - 2) * 4;
@@ -500,11 +541,35 @@ bool nonuniform(const std::string& output,
         const double native_generated = source * active_volume;
         const double native_total_heat = native_heat[0] + native_heat[1];
         const double native_stored = native_total_heat + native_generated;
+        // Independent annular row-sum integrals. The raw Abaqus 2018 reactions
+        // retain their original thermal-density law; replace only their storage
+        // contribution to obtain a labeled, mass-conserving derived reference.
+        const auto annular_weights = [](double inner, double outer, double height) {
+            const double factor = std::acos(-1.0) * height * (outer - inner) / 3.0;
+            return std::array<double, 2>{factor * (2.0 * inner + outer), factor * (inner + 2.0 * outer)};
+        };
+        const auto initial_weights = annular_weights(reference_inner_radius, reference_outer_radius, reference_height);
+        const auto native_weights =
+            finite ? annular_weights(current_inner_radius, current_outer_radius, current_height) : initial_weights;
+        std::array<double, 2> initial_storage{}, original_storage{}, derived_heat{};
+        for (std::size_t n = 0; n < 2; ++n) {
+            const double current_temperature = native_nodes[(step - 1) * 4 + n].at("temperature");
+            const double previous_temperature = step == 1 ? 600.0 : native_nodes[(step - 2) * 4 + n].at("temperature");
+            const double cp = variable_thermal ? 1000.0 + 5.0 * (current_temperature - 600.0) : 1000.0;
+            const double old_density = variable_thermal ? 1000.0 + 2.0 * (current_temperature - 600.0) : 1000.0;
+            const double rate = (current_temperature - previous_temperature) / 0.1;
+            initial_storage[n] = initial_weights[n] * 1000.0 * cp * rate;
+            original_storage[n] = native_weights[n] * old_density * cp * rate;
+            derived_heat[n] = native_heat[n] - original_storage[n] + initial_storage[n];
+            heat_reaction.add(heat.at(n), derived_heat[n]);
+        }
+        native_storage_identity.add(native_stored, original_storage[0] + original_storage[1]);
+        const double initial_mass_stored = initial_storage[0] + initial_storage[1];
+        const double derived_total_heat = derived_heat[0] + derived_heat[1];
         generated_heat_rate.add(frame.global("conservation_generated_heat_rate"), native_generated);
-        stored_heat_rate.add(frame.global("conservation_stored_heat_rate"),
-            variable_thermal && step >= 7 ? constrained_zero(native_stored, 1e-10) : native_stored);
+        stored_heat_rate.add(frame.global("conservation_stored_heat_rate"), initial_mass_stored);
         dirichlet_heat_rate.add(frame.global("conservation_dirichlet_heat_input_rate"),
-            variable_thermal && step == 7 ? constrained_zero(native_total_heat, 1e-10) : native_total_heat);
+            variable_thermal && step == 7 ? constrained_zero(derived_total_heat, 1e-10) : derived_total_heat);
         thermal_balance.add(frame.global("conservation_global_thermal_balance"), 0.0);
         const auto& previous_ur = frames[step - 1].nodal("displacement_r");
         const double conduction_length =
@@ -582,7 +647,8 @@ bool nonuniform(const std::string& output,
     passed = check("analytical_zero_stress_shear", zero_stress_shear, 1e-4) && passed;
     passed = check("analytical_zero_elastic_shear", zero_elastic_shear, 1e-13) && passed;
     passed = check("inactive_inelastic_history", zero_mechanism, 1e-13) && passed;
-    passed = check("body_boundary_heat_reaction", heat_reaction, 1e-10) && passed;
+    passed = check("mass_conserving_derived_heat_reaction", heat_reaction, 1e-10) && passed;
+    passed = check("native_2018_storage_identity", native_storage_identity, 1e-10) && passed;
     passed = check("stored_heat_rate", stored_heat_rate, 1e-10) && passed;
     passed = check("generated_heat_rate", generated_heat_rate, 1e-10) && passed;
     passed = check("dirichlet_heat_input_rate", dirichlet_heat_rate, 1e-10) && passed;
@@ -596,7 +662,7 @@ bool nonuniform(const std::string& output,
               << "\nqualification_scope=prescribed_nonuniform_" << (finite ? "finite" : "small")
               << "_thermomechanics_with_"
               << (temperature_dependent_elasticity ? "paired_endpoint_material_temperature" : "constant_elasticity")
-              << "\nthermal_operator_cross_comparison=nodal_heat_reactions_and_actual_conservation_outputs\n"
+              << "\nthermal_operator_cross_comparison=native_conduction_source_plus_analytical_initial_mass_storage\n"
               << "body_heat_flux_comparison=diagnostic_reconstruction_not_production_field_output\n"
               << "radial_gps_nonuniform_abaqus_qualification=" << (passed ? "passed" : "failed") << '\n';
     return passed;
@@ -1027,6 +1093,8 @@ int main(int argc, char** argv) {
     }
     try {
         const std::string mode = argv[1];
+        if (mode == "initial-mass")
+            return initial_mass(argv[2], argv[3]) ? 0 : 1;
         if (mode == "uniform-small" || mode == "uniform-finite")
             return uniform(argv[2], argv[3], argv[4], mode == "uniform-finite") ? 0 : 1;
         if (mode == "nonuniform-finite")

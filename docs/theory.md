@@ -184,26 +184,27 @@ R_T_i = integral_V0 [
 
 ### 4.3 Backward Euler 瞬态热方程
 
-默认轴对称离散的瞬态热方程在同一参考构形上增加一致热容矩阵；显式选择
-CAX4T 时使用下文说明的节点集总规则：
+各体单元的瞬态热方程使用固定初始质量；以下为小应变的一致积分表达式，
+一阶型号按各自既有规则进行节点集总：
 
 ```text
 R_T_i = integral_V0 [
-    N_i*rho*cp*(T_new-T_old)/dt
+    N_i*rho_initial*cp(T_new)*(T_new-T_old)/dt
   + k(T_new)*grad(N_i).grad(T_new)
   - N_i*Q_new
 ] dV0
 ```
 
-`rho*cp` 是体积热容。时间离散是一阶 Backward Euler，位移没有惯性项，
+`rho_initial*cp` 是单位参考体积的热容。时间离散是一阶 Backward Euler，位移没有惯性项，
 因此力学在每个物理时刻保持准静态。界面没有单独的热容。
 
-CAX4T 的热容在节点求密度、比热及温度变化率，节点权重为 `integral(N_i*dV)`。
-小应变使用参考构形，有限应变使用当前构形。CAX4T 热传导采用 2×2 Gauss
+CAX4T 热容在节点求初始密度、当前比热及温度变化率，节点权重为
+`integral(N_i*dV_reference)`，小应变和有限应变均使用固定初始质量。CAX4T 热传导采用 2×2 Gauss
 梯度与对应角点温度计算的导热系数；有限应变梯度取增量中间构形，参考积分
 测度乘单元当前体积与参考体积之比。体热源在小应变时取参考测度，有限应变
-时取逐积分点当前测度。这些规则由独立非仿射、变温探测识别，并保留全部
-温度和几何导数，详见 [CAX4T 热算子验证](../verification/abaqus/B15_CAX4T.md)。
+时取逐积分点当前测度。导热和源项规则由独立非仿射、变温探测识别，并保留相应
+温度和几何导数；热容采用[初始质量规则](initial-mass-heat-capacity.md)，
+旧原生热容结果的适用边界见 [CAX4T 热算子验证](../verification/abaqus/B15_CAX4T.md)。
 
 ### 4.4 小应变力学弱式
 

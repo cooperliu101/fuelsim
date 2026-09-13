@@ -10,6 +10,7 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -60,6 +61,69 @@ fuelsim::UnstructuredHex20Mesh unit_mesh() {
 
 fuelsim::ThermoelasticProperties material() {
     return fuelsim::test::thermoelastic(0.0, 10.0, 1.0e9, 0.25, 1.0e-5, 300.0, 0.0, 0.0, 0.0, 6000.0, 1000.0);
+}
+
+bool test_reference_mass_conservation() {
+    const auto registry = fuelsim::make_builtin_material_function_registry();
+    auto functions = std::make_shared<fuelsim::MaterialFunctionSet>();
+    functions->name = "hex20_reference_mass_conservation";
+    functions->thermal = registry.bind_thermal("constant_thermophysical",
+        {{"conductivity", 4.0}, {"density", 2.0}, {"specific_heat", 3.0}});
+    functions->thermal.function = [](const fuelsim::ThermoelasticFunctionInput& input,
+                                      fuelsim::ThermalPropertyOutput& output) {
+        output.conductivity = 4.0;
+        output.density = 2.0 + 0.01 * (input.temperature - 300.0) + 5.0 * input.context.time + 0.2 * input.context.x;
+        const adlite::Scalar scaled_temperature = (input.temperature - 300.0) / 20.0;
+        output.specific_heat = 3.0 + scaled_temperature * scaled_temperature * scaled_temperature;
+    };
+    functions->elasticity =
+        registry.bind_elasticity("constant_isotropic", {{"young_modulus", 2.0e5}, {"poisson_ratio", 0.25}});
+    const auto mesh = unit_mesh();
+    bool passed = true;
+    for (const auto element_formulation :
+        {fuelsim::Hex20ElementFormulation::c3d20t, fuelsim::Hex20ElementFormulation::c3d20rt}) {
+        for (const auto strain_formulation : {fuelsim::StrainFormulation::small, fuelsim::StrainFormulation::finite}) {
+            fuelsim::SpatialDefinition definition;
+            definition.regions.push_back({"solid", "solid", {functions, 2.0e5}, 2.0, 300.0});
+            definition.regions[0].hex20_element_formulation = element_formulation;
+            definition.regions[0].strain_formulation = strain_formulation;
+            definition.boundary_conditions.push_back(
+                {"temperature", fuelsim::BoundaryConditionType::dirichlet, "all", fuelsim::Field::temperature, 300.0});
+            fuelsim::TransientProblem problem(definition, mesh);
+            problem.begin_time_step({0.5, 1.0});
+            auto trial = problem.committed_solution();
+            const auto& view = fuelsim::cartesian::ProblemAccess::view(problem);
+            const auto& region_mesh = view.hex20_region_mesh(0);
+            for (std::size_t node = 0; node < region_mesh.nodes().size(); ++node) {
+                const auto& position = region_mesh.nodes()[node];
+                const std::size_t global = view.global_node(0, node);
+                if (region_mesh.temperature_nodes()[node])
+                    trial[view.global_temperature_node(0, node)] = 300.0 + 20.0 * position.x;
+                trial[view.dof(fuelsim::Field::displacement_x, global)] =
+                    position.x + (region_mesh.source_node_ids()[node] == 8 ? 0.04 : 0.0);
+                trial[view.dof(fuelsim::Field::displacement_y, global)] = 0.2 * position.y;
+                trial[view.dof(fuelsim::Field::displacement_z, global)] = 0.1 * position.z;
+            }
+            problem.commit_time_step(trial);
+            const auto& conservation = problem.last_conservation_summary();
+            const bool finite = strain_formulation == fuelsim::StrainFormulation::finite;
+            const bool three_point = finite && element_formulation == fuelsim::Hex20ElementFormulation::c3d20t;
+            // rho0=2+0.2*x, cp=3+x^3, Tdot=40*x on the reference unit cube.
+            // The x^4/x^5 moments distinguish the original two- and three-point capacity rules.
+            const double fourth_moment = three_point ? 1.0 / 5.0 : 7.0 / 36.0;
+            const double fifth_moment = three_point ? 1.0 / 6.0 : 11.0 / 72.0;
+            const double expected_stored = 40.0 * (3.0 + 0.2 + 2.0 * fourth_moment + 0.2 * fifth_moment);
+            const double expected_generated = 2.0 * (finite ? 2.0 * 1.2 * 1.1 : 1.0);
+            passed = check(std::abs(conservation.stored_heat_rate - expected_stored) < 1e-10,
+                         "HEX20 committed storage preserves initial mass and the selected capacity quadrature")
+                     && check(std::abs(conservation.generated_heat_rate - expected_generated) < 1e-12,
+                         "HEX20 committed source uses the current corner volume independently of midside motion")
+                     && check(std::abs(conservation.global_thermal_balance) < 1e-10,
+                         "HEX20 independent storage/source diagnostics balance the assembled nodal heat reactions")
+                     && passed;
+        }
+    }
+    return passed;
 }
 
 fuelsim::Hex20Element append_cuboid(std::vector<fuelsim::CartesianPoint3>& nodes,
@@ -1072,7 +1136,7 @@ int main(int argc, char** argv) {
     if (!mpi_only)
         passed = test_hex20_node_set_constraints() && test_multiblock_shared_nodes() && test_contact_projection(mesh)
                  && test_surface_contact_fixed_reference_graph() && test_surface_contact_finite_sliding()
-                 && test_finite_sliding_search_tree() && passed;
+                 && test_finite_sliding_search_tree() && test_reference_mass_conservation() && passed;
     session.collective_root_action([&]() {
         (void)std::remove(argv[1]);
         (void)std::remove(argv[2]);

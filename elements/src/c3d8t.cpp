@@ -200,7 +200,7 @@ void add_hex8_lumped_capacity(const Hex8Geometry& geometry,
     const IsotropicThermoelasticMaterial& material,
     double time,
     double time_step,
-    StrainFormulation strain_formulation,
+    double initial_temperature,
     Hex8LocalAdValues& residual);
 void add_hex8_lumped_capacity_system(const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
@@ -208,7 +208,7 @@ void add_hex8_lumped_capacity_system(const Hex8Geometry& geometry,
     const IsotropicThermoelasticMaterial& material,
     double time,
     double time_step,
-    StrainFormulation strain_formulation,
+    double initial_temperature,
     Hex8LocalAdValues& residual,
     Hex8LocalJacobian& jacobian);
 void assemble_c3d8t_finite_strain_system(const elements::C3d8Input& data,
@@ -657,10 +657,12 @@ Hex8LocalResidual c3d8t_finite_residual_values(const elements::C3d8Input& data,
         residual[node] -= nodal_measure * data.volumetric_heat_source;
         if (committed_state != nullptr && include_thermal_time_term) {
             const double capacity = data.material
-                                        .heat_capacity(adlite::Scalar(state[node]),
+                                        .reference_heat_capacity(adlite::Scalar(state[node]),
+                                            data.initial_temperature,
                                             material_context(data.time, geometry.capacity_points[node].position))
                                         .value();
-            residual[node] += nodal_measure * capacity * (state[node] - (*committed_state)[node]) / time_step;
+            residual[node] += geometry.capacity_points[node].weighted_measure * capacity
+                              * (state[node] - (*committed_state)[node]) / time_step;
         }
     }
     return residual;
@@ -1376,13 +1378,13 @@ void add_hex8_lumped_capacity(const Hex8Geometry& geometry,
     const IsotropicThermoelasticMaterial& material,
     double time,
     double time_step,
-    StrainFormulation strain_formulation,
+    double initial_temperature,
     Hex8LocalAdValues& residual) {
     for (std::size_t node = 0; node < hex8_node_count; ++node) {
         const Hex8CapacityPoint& point = geometry.capacity_points[node];
-        const adlite::Scalar capacity = material.heat_capacity(state[node], material_context(time, point.position));
-        residual[node] += hex8_nodal_volume_measure(geometry, node, state, strain_formulation) * capacity
-                          * (state[node] - committed_state[node]) / time_step;
+        const adlite::Scalar capacity =
+            material.reference_heat_capacity(state[node], initial_temperature, material_context(time, point.position));
+        residual[node] += point.weighted_measure * capacity * (state[node] - committed_state[node]) / time_step;
     }
 }
 
@@ -1392,27 +1394,18 @@ void add_hex8_lumped_capacity_system(const Hex8Geometry& geometry,
     const IsotropicThermoelasticMaterial& material,
     double time,
     double time_step,
-    StrainFormulation strain_formulation,
+    double initial_temperature,
     Hex8LocalAdValues& residual,
     Hex8LocalJacobian& jacobian) {
     for (std::size_t node = 0; node < hex8_node_count; ++node) {
         const Hex8CapacityPoint& point = geometry.capacity_points[node];
-        const Hex8QuadraturePoint& geometry_point = geometry.points[hex8_node_gauss_permutation[node]];
-        const Hex8NodalVolumeSystem measure = hex8_nodal_volume_system(geometry, node, state, strain_formulation);
         const adlite::Scalar temperature = adlite::Scalar::independent(state[node], 0, 1);
-        const adlite::Scalar capacity = material.heat_capacity(temperature, material_context(time, point.position));
+        const adlite::Scalar capacity =
+            material.reference_heat_capacity(temperature, initial_temperature, material_context(time, point.position));
         const adlite::Scalar rate = capacity * (temperature - committed_state[node]) / time_step;
-        const adlite::Scalar term = measure.value * rate;
+        const adlite::Scalar term = point.weighted_measure * rate;
         residual[node] += term.value();
         jacobian[node * hex8_local_dof_count + node] += term.derivative(0);
-        for (std::size_t component = 0; component < 3; ++component)
-            for (std::size_t other = 0; other < hex8_node_count; ++other) {
-                double derivative = 0.0;
-                for (std::size_t direction = 0; direction < 3; ++direction)
-                    derivative += measure.gradient_derivatives[component * 3 + direction]
-                                  * geometry_point.gradient[other][direction];
-                jacobian[node * hex8_local_dof_count + 8 * (component + 1) + other] += rate.value() * derivative;
-            }
     }
 }
 
@@ -1491,7 +1484,7 @@ void assemble_c3d8t_finite_strain_system(const elements::C3d8Input& data,
             data.material,
             data.time,
             time_step,
-            StrainFormulation::finite,
+            data.initial_temperature,
             residual,
             *jacobian);
 }
@@ -1535,7 +1528,7 @@ void assemble_c3d8t_small_strain_system(const elements::C3d8Input& data,
                 data.material,
                 data.time,
                 time_step,
-                StrainFormulation::small,
+                data.initial_temperature,
                 residual);
         return;
     }
@@ -1577,7 +1570,7 @@ void assemble_c3d8t_small_strain_system(const elements::C3d8Input& data,
             data.material,
             data.time,
             time_step,
-            StrainFormulation::small,
+            data.initial_temperature,
             residual,
             *jacobian);
 }

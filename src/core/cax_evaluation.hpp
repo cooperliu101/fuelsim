@@ -55,7 +55,8 @@ inline elements::Cax8Result compute_cax8(const AxisymmetricRegionData& data,
         data.time,
         data.volumetric_heat_source,
         data.strain_formulation,
-        thermal_time};
+        thermal_time,
+        data.initial_temperature};
     switch (data.element_formulation) {
     case RzElementFormulation::cax8t:
         return elements::evaluate_cax8t(input, request);

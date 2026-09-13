@@ -110,6 +110,251 @@ bool same_time(double reference, double actual) {
     return std::abs(reference - actual) <= 8e-8 * std::max(std::abs(reference), std::abs(actual)) + 1e-16;
 }
 
+bool reference_case(const std::string& path, const std::string& name) {
+    const auto separator = path.find_last_of("/\\");
+    return path.substr(separator == std::string::npos ? 0 : separator + 1) == name + "_nodes.csv";
+}
+
+bool initial_mass_probe(const std::string& path) {
+    for (const auto* name : {"b91_cax4rt_finite_probe",
+             "b101_cax8t_finite_probe",
+             "b121_cax8rt_finite_probe",
+             "b150_cax4t_finite_thermal_operator",
+             "b917_cax4rt_finite_thermal_operators"})
+        if (reference_case(path, name))
+            return true;
+    return false;
+}
+
+// Independent integration of the prescribed-field probe's storage term.  The
+// four temperature basis functions are bilinear; the eight-node probe has its
+// own quadratic displacement geometry.  This checker reads no element kernels.
+std::array<double, 4> probe_storage(const std::vector<std::array<double, 3>>& coordinates,
+    const std::array<double, 4>& temperature_rate,
+    bool full_quadratic) {
+    const bool quadratic = coordinates.size() == 8;
+    if (coordinates.size() != 4 && !quadratic)
+        throw std::runtime_error("Initial-mass probe must contain one four- or eight-node element");
+    const std::array<double, 3> abscissa =
+        full_quadratic ? std::array<double, 3>{-std::sqrt(.6), 0.0, std::sqrt(.6)}
+                       : std::array<double, 3>{-1.0 / std::sqrt(3.0), 1.0 / std::sqrt(3.0), 0.0};
+    const std::array<double, 3> weights =
+        full_quadratic ? std::array<double, 3>{5.0 / 9, 8.0 / 9, 5.0 / 9} : std::array<double, 3>{1.0, 1.0, 0.0};
+    constexpr std::array<double, 4> sx = {-1, 1, 1, -1}, sy = {-1, -1, 1, 1};
+    std::array<double, 4> storage{};
+    const std::size_t count = full_quadratic ? 3 : 2;
+    for (std::size_t j = 0; j < count; ++j)
+        for (std::size_t i = 0; i < count; ++i) {
+            const double x = abscissa[i], y = abscissa[j];
+            std::array<double, 4> temperature_shape{};
+            std::array<double, 8> shape{}, dx{}, dy{};
+            for (std::size_t n = 0; n < 4; ++n) {
+                temperature_shape[n] = .25 * (1 + sx[n] * x) * (1 + sy[n] * y);
+                if (quadratic) {
+                    shape[n] = temperature_shape[n] * (sx[n] * x + sy[n] * y - 1);
+                    dx[n] = .25 * sx[n] * (1 + sy[n] * y) * (2 * sx[n] * x + sy[n] * y);
+                    dy[n] = .25 * sy[n] * (1 + sx[n] * x) * (sx[n] * x + 2 * sy[n] * y);
+                } else {
+                    shape[n] = temperature_shape[n];
+                    dx[n] = .25 * sx[n] * (1 + sy[n] * y);
+                    dy[n] = .25 * sy[n] * (1 + sx[n] * x);
+                }
+            }
+            if (quadratic) {
+                shape[4] = .5 * (1 - x * x) * (1 - y);
+                shape[5] = .5 * (1 + x) * (1 - y * y);
+                shape[6] = .5 * (1 - x * x) * (1 + y);
+                shape[7] = .5 * (1 - x) * (1 - y * y);
+                dx[4] = -x * (1 - y);
+                dx[5] = .5 * (1 - y * y);
+                dx[6] = -x * (1 + y);
+                dx[7] = -.5 * (1 - y * y);
+                dy[4] = -.5 * (1 - x * x);
+                dy[5] = -(1 + x) * y;
+                dy[6] = .5 * (1 - x * x);
+                dy[7] = -(1 - x) * y;
+            }
+            double radius = 0, rx = 0, ry = 0, zx = 0, zy = 0, rate = 0;
+            for (std::size_t n = 0; n < coordinates.size(); ++n) {
+                radius += shape[n] * coordinates[n][0];
+                rx += dx[n] * coordinates[n][0];
+                ry += dy[n] * coordinates[n][0];
+                zx += dx[n] * coordinates[n][1];
+                zy += dy[n] * coordinates[n][1];
+            }
+            for (std::size_t n = 0; n < 4; ++n)
+                rate += temperature_shape[n] * temperature_rate[n];
+            const double volume = 2 * std::acos(-1.0) * radius * (rx * zy - ry * zx) * weights[i] * weights[j];
+            if (!(volume > 0))
+                throw std::runtime_error("Initial-mass probe reference geometry is invalid");
+            for (std::size_t n = 0; n < 4; ++n)
+                storage[n] += 1000 * 100 * volume * temperature_shape[n] * (quadratic ? rate : temperature_rate[n]);
+        }
+    return storage;
+}
+
+std::array<double, 4> initial_mass_probe_heat(const fuelsim::test::ExodusResults& frame,
+    const std::vector<Row>& native_nodes,
+    std::size_t first_node,
+    bool full_quadratic) {
+    // All five native input cards prescribe every T and U, rho=1000, cp=100,
+    // initial T=600, and fixed 0.1-second increments.  Subsequent steady probe
+    // frames hold T fixed, so both storage contributions vanish there.
+    std::array<double, 4> rate{};
+    for (std::size_t n = 0; n < 4; ++n) {
+        const double old_temperature =
+            first_node == 0 ? 600.0 : native_nodes.at(first_node - frame.nodes.size() + n).at("temperature");
+        rate[n] = (native_nodes.at(first_node + n).at("temperature") - old_temperature) / .1;
+    }
+    auto current = frame.nodes;
+    for (std::size_t n = 0; n < current.size(); ++n) {
+        current[n][0] += native_nodes.at(first_node + n).at("ur");
+        current[n][1] += native_nodes.at(first_node + n).at("uz");
+    }
+    const auto native_current_mass_storage = probe_storage(current, rate, full_quadratic);
+    const auto initial_reference_mass_storage = probe_storage(frame.nodes, rate, full_quadratic);
+    std::array<double, 4> reference{};
+    for (std::size_t n = 0; n < 4; ++n) {
+        const double native_conduction_and_source =
+            native_nodes.at(first_node + n).at("reaction_heat") - native_current_mass_storage[n];
+        reference[n] = native_conduction_and_source + initial_reference_mass_storage[n];
+        std::cout << "rz_initial_mass_probe_time=" << frame.time << " node=" << n + 1
+                  << " native_conduction_and_source=" << native_conduction_and_source
+                  << " initial_reference_mass_storage=" << initial_reference_mass_storage[n] << '\n';
+    }
+    return reference;
+}
+
+bool initial_mass_uniform_heating(const std::string& path) {
+    for (const auto* name : {"b77_rz_finite_thermal",
+             "b910_cax4rt_finite_thermal",
+             "b111_cax8t_finite_thermal",
+             "b1211_cax8rt_finite_thermal"})
+        if (reference_case(path, name))
+            return true;
+    return false;
+}
+
+bool check_uniform_initial_mass_heating(const std::string& output_path,
+    const std::string& node_path,
+    const std::string& point_path) {
+    using namespace fuelsim::test;
+    const auto frames = read_exodus_history(output_path);
+    const auto nodes = read_rows(node_path), points = read_rows(point_path);
+    if (frames.size() != 6)
+        throw std::runtime_error("Uniform finite heating requires five fixed increments");
+    // The fully constrained axial direction and free radial surface give
+    // d(e_rr)=(1+nu)*alpha*dT.  The Hughes-Winget midpoint increment gives
+    // lambda_new/lambda_old=(2+d(e_rr))/(2-d(e_rr)).  Backward Euler energy
+    // balance is dT=20*lambda_new^2 for initial mass, and dT=20 for the native
+    // constant-density/current-volume convention.  These scalar equations are
+    // independent of the finite-element assembly and its material integrator.
+    std::array<double, 2> temperature_value = {600, 600}, stretch = {1, 1};
+    std::array<FieldErrorMetrics, 2> temperature, reaction, plastic, creep, heat;
+    std::array<GroupedFieldErrorMetrics, 2> displacement;
+    std::array<std::array<GroupedFieldErrorMetrics, 4>, 2> tensors;
+    constexpr std::array<std::size_t, 4> point_map = {0, 1, 3, 2};
+    const std::array<std::string, 4> prefixes = {"stress_", "elastic_", "plastic_", "creep_"};
+    const std::array<std::string, 4> components = {"rr", "zz", "hoop", "rz"};
+    std::size_t node_index = 0, point_index = 0;
+    for (std::size_t step = 1; step < frames.size(); ++step) {
+        const auto& frame = frames[step];
+        if (!same_time(frame.time, .2 * static_cast<double>(step)) || frame.element("material_point_count").size() != 1)
+            throw std::runtime_error("Uniform finite heating time grid or specimen changed");
+        double lower = 0, upper = 40;
+        const auto balance = [old_stretch = stretch[0]](double increment) {
+            const double strain_increment = 1.3e-4 * increment;
+            const double next_stretch = old_stretch * (2 + strain_increment) / (2 - strain_increment);
+            return increment - 20 * next_stretch * next_stretch;
+        };
+        if (balance(lower) >= 0 || balance(upper) <= 0)
+            throw std::runtime_error("Uniform finite heating scalar root is not bracketed");
+        for (std::size_t iteration = 0; iteration < 80; ++iteration) {
+            const double midpoint = .5 * (lower + upper);
+            if (balance(midpoint) > 0)
+                upper = midpoint;
+            else
+                lower = midpoint;
+        }
+        const std::array<double, 2> increment = {.5 * (lower + upper), 20.0};
+        for (std::size_t solver = 0; solver < 2; ++solver) {
+            temperature_value[solver] += increment[solver];
+            const double strain_increment = 1.3e-4 * increment[solver];
+            stretch[solver] *= (2 + strain_increment) / (2 - strain_increment);
+        }
+        std::array<double, 2> bottom_force{};
+        for (std::size_t n = 0; n < frame.nodes.size(); ++n) {
+            const auto& row = nodes.at(node_index++);
+            if (!same_time(row.at("time"), frame.time) || row.at("node") != static_cast<double>(n + 1))
+                throw std::runtime_error("Uniform heating native node history mismatch");
+            for (std::size_t solver = 0; solver < 2; ++solver) {
+                temperature[solver].add(solver == 0 ? frame.nodal("temperature")[n] : row.at("temperature"),
+                    temperature_value[solver]);
+                const std::array<double, 2> actual =
+                    solver == 0
+                        ? std::array<double, 2>{frame.nodal("displacement_r")[n], frame.nodal("displacement_z")[n]}
+                        : std::array<double, 2>{row.at("ur"), row.at("uz")};
+                const std::array<double, 2> expected = {frame.nodes[n][0] * (stretch[solver] - 1), 0};
+                displacement[solver].add(actual.data(), expected.data(), 2);
+                heat[solver].add(solver == 0 ? frame.nodal("reaction_heat_flux")[n] : row.at("reaction_heat"), 0);
+                if (frame.nodes[n][1] == 0)
+                    bottom_force[solver] += solver == 0 ? frame.nodal("reaction_force_z")[n] : row.at("rf_z");
+            }
+        }
+        for (std::size_t solver = 0; solver < 2; ++solver)
+            reaction[solver].add(bottom_force[solver],
+                std::acos(-1.0) * 1e-6 * stretch[solver] * stretch[solver] * 2e7 * (temperature_value[solver] - 600));
+        const auto count = static_cast<std::size_t>(frame.element("material_point_count")[0]);
+        if (count != 1 && count != 4 && count != 9)
+            throw std::runtime_error("Uniform heating has an invalid material point count");
+        for (std::size_t q = 0; q < count; ++q) {
+            const auto& row = points.at(point_index++);
+            if (!same_time(row.at("time"), frame.time) || row.at("element") != 1
+                || row.at("point") != static_cast<double>(q + 1))
+                throw std::runtime_error("Uniform heating native material point history mismatch");
+            const auto suffix = "_q" + std::to_string(count == 9 ? q : point_map[q]);
+            for (std::size_t solver = 0; solver < 2; ++solver) {
+                const double theta = 1e-4 * (temperature_value[solver] - 600);
+                const std::array<std::array<double, 4>, 4> expected = {
+                    {{0, -2e11 * theta, 0, 0}, {.3 * theta, -theta, .3 * theta, 0}, {}, {}}};
+                for (std::size_t t = 0; t < prefixes.size(); ++t) {
+                    std::array<double, 4> actual{};
+                    for (std::size_t c = 0; c < components.size(); ++c) {
+                        const auto key = prefixes[t] + components[c];
+                        actual[c] = solver == 0 ? frame.element(key + suffix)[0] : row.at(key);
+                        if (c == 3)
+                            actual[c] *= std::sqrt(2.0);
+                    }
+                    tensors[solver][t].add(actual.data(), expected[t].data(), 4);
+                }
+                plastic[solver].add(solver == 0 ? frame.element("equiv_plastic" + suffix)[0] : row.at("equiv_plastic"),
+                    0);
+                creep[solver].add(solver == 0 ? frame.element("equiv_creep" + suffix)[0] : row.at("equiv_creep"), 0);
+            }
+        }
+    }
+    bool passed = node_index == nodes.size() && point_index == points.size();
+    for (std::size_t solver = 0; solver < 2; ++solver) {
+        const std::string name = solver == 0 ? "rz_initial_mass_analytic_" : "abaqus_current_mass_analytic_";
+        passed = check_scalar(name + "temperature", temperature[solver], rz_temperature_zero_tolerance) && passed;
+        passed = check_group(name + "displacement", displacement[solver], rz_displacement_zero_tolerance) && passed;
+        passed = check_scalar(name + "bottom_axial_reaction", reaction[solver], rz_force_zero_tolerance) && passed;
+        passed = check_scalar(name + "free_heat_reaction", heat[solver], rz_heat_rate_zero_tolerance) && passed;
+        passed = check_scalar(name + "equivalent_plastic_strain", plastic[solver], rz_strain_zero_tolerance) && passed;
+        passed = check_scalar(name + "equivalent_creep_strain", creep[solver], rz_strain_zero_tolerance) && passed;
+        for (std::size_t t = 0; t < prefixes.size(); ++t)
+            passed = check_group(name + prefixes[t] + "tensor",
+                         tensors[solver][t],
+                         t == 0 ? rz_stress_zero_tolerance : rz_strain_zero_tolerance)
+                     && passed;
+        std::cout << name << "final_temperature=" << temperature_value[solver] << '\n';
+    }
+    std::cout << "rz_reference_mode=independent_uniform_heating_for_each_mass_convention\n"
+              << "rz_accepted_frames=" << frames.size() - 1 << '\n'
+              << "rz_initial_mass_qualification=" << (passed ? "passed" : "failed") << '\n';
+    return passed;
+}
+
 bool check_creep_integration(const std::string& output, const std::string& node_path, const std::string& point_path) {
     using namespace fuelsim::test;
     const auto frames = read_exodus_history(output);
@@ -323,8 +568,13 @@ bool check_rz_abaqus(const std::string& output_path,
     bool prescribed_state_absolute_check) {
     if (mechanisms == "creep-integration")
         return check_creep_integration(output_path, node_path, point_path);
+    if (mechanisms == "thermal" && initial_mass_uniform_heating(node_path))
+        return check_uniform_initial_mass_heating(output_path, node_path, point_path);
     const auto nodes = read_rows(node_path), points = read_rows(point_path);
     const auto frames = read_exodus_history(output_path);
+    const bool derive_probe_storage = mechanisms == "probe" && initial_mass_probe(node_path);
+    if (derive_probe_storage)
+        std::cout << "rz_reference_mode=native_conduction_and_source_plus_independent_initial_mass_storage\n";
     const bool contact = mechanisms == "contact";
     if (!contact && mechanisms != "plastic" && mechanisms != "creep" && mechanisms != "coupled"
         && mechanisms != "thermal" && mechanisms != "sliding" && mechanisms != "probe")
@@ -345,6 +595,13 @@ bool check_rz_abaqus(const std::string& output_path,
         if (frame.time == 0.0)
             continue;
         ++accepted;
+        std::array<double, 4> derived_probe_heat{};
+        if (derive_probe_storage) {
+            if (!same_time(frame.time, .1 * static_cast<double>(accepted)))
+                throw std::runtime_error("Initial-mass prescribed probe time grid changed");
+            derived_probe_heat =
+                initial_mass_probe_heat(frame, nodes, node_row, reference_case(node_path, "b101_cax8t_finite_probe"));
+        }
         double actual_reaction = 0.0, reference_reaction = 0.0;
         double reference_force = 0.0, reference_heat = 0.0, reference_opposite_force = 0.0;
         double bottom_z = frame.nodes.front()[1];
@@ -376,7 +633,8 @@ bool check_rz_abaqus(const std::string& output_path,
                     frame.nodal("reaction_force_z")[n]};
                 const std::array<double, 2> reference_force_vector = {row.at("rf_r"), row.at("rf_z")};
                 support_reaction.add(force.data(), reference_force_vector.data(), 2);
-                reaction_heat.add(frame.nodal("reaction_heat_flux")[n], row.at("reaction_heat"));
+                reaction_heat.add(frame.nodal("reaction_heat_flux")[n],
+                    derive_probe_storage && n < 4 ? derived_probe_heat[n] : row.at("reaction_heat"));
             }
             if (mechanisms == "sliding") {
                 const std::array<double, 2> force = {frame.nodal("reaction_force_r")[n],

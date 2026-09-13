@@ -37,6 +37,7 @@ struct Cax2tGpsInput final {
     double volumetric_heat_source = 0.0;
     StrainFormulation strain_formulation = StrainFormulation::small;
     bool include_thermal_time_term = false;
+    double initial_temperature = 600.0;
 };
 
 struct Cax2tGpsResult final {
@@ -54,6 +55,7 @@ struct Cax2tGpsResult final {
 // finite strain averages the hoop stretch before its midpoint increment. Mechanical
 // point weights and conduction weights scale with the whole-element volume ratio.
 // Finite conduction gradients use the incremental midpoint configuration; heat
-// capacity and source measures retain the actual pointwise current geometry.
+// capacity uses fixed initial mass and current specific heat; source measures
+// retain the actual pointwise current geometry.
 Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest request = {});
 } // namespace fuelsim::elements

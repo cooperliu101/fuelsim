@@ -1,0 +1,28 @@
+﻿Analysis initiated from SIMULIA established products
+Abaqus JOB b58_hex8_c3d8t_reference_mass
+Abaqus 3DEXPERIENCE R2018x
+abaqus.bat : Abaqus License Manager checked out the following licenses:
+所在位置 \\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_b58_reference_mass.ps1:14 字符: 5
++     & C:\SIMULIA\Commands\abaqus.bat job=$JobName input="$JobName.inp ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Abaqus License ...owing licenses::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Abaqus/Standard checked out 5 tokens from Flexnet server localhost.
+<1019 out of 1024 licenses remain available>.
+Begin Analysis Input File Processor
+9/13/2026 1:19:53 PM
+Run pre.exe
+9/13/2026 1:19:55 PM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/13/2026 1:19:55 PM
+Run standard.exe
+9/13/2026 1:19:56 PM
+End Abaqus/Standard Analysis
+Begin Convert MFS to SFS
+9/13/2026 1:19:57 PM
+Run SMASimUtility.exe
+9/13/2026 1:19:57 PM
+End Convert MFS to SFS
+Abaqus JOB b58_hex8_c3d8t_reference_mass COMPLETED

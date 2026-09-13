@@ -415,6 +415,7 @@ void add_hourglass(const Cax4Input& data,
 }
 
 void assemble_thermal(const Cax4Input& data,
+    const ReducedGeometry& reference,
     const ReducedGeometry& current,
     const Cax4rtPointSystem& point,
     bool jacobian,
@@ -461,17 +462,16 @@ void assemble_thermal(const Cax4Input& data,
                                                - data.volumetric_heat_source * current.measure_derivative[n][j];
             }
         if (history && thermal_time) {
-            const auto cap = data.material.heat_capacity(jacobian ? adlite::Scalar::independent(state[n], 0, 1)
-                                                                  : adlite::Scalar(state[n]),
+            const auto cap = data.material.reference_heat_capacity(
+                jacobian ? adlite::Scalar::independent(state[n], 0, 1) : adlite::Scalar(state[n]),
+                data.initial_temperature,
                 {data.time, geometry.coordinates[n].r, 0.0, geometry.coordinates[n].z});
             const double rate = (state[n] - committed[n]) / time_step;
-            result.residual[n] += current.measures[n] * cap.value() * rate;
-            result.stored_heat_rate += current.measures[n] * cap.value() * (state[n] - committed[n]) / time_step;
+            result.residual[n] += reference.measures[n] * cap.value() * rate;
+            result.stored_heat_rate += reference.measures[n] * cap.value() * rate;
             if (jacobian) {
-                for (std::size_t j = 4; j < 12; ++j)
-                    result.jacobian[n * 12 + j] += current.measure_derivative[n][j] * cap.value() * rate;
                 result.jacobian[n * 12 + n] +=
-                    current.measures[n]
+                    reference.measures[n]
                     * (cap.value() / time_step + (cap.is_active() ? cap.derivative(0) : 0.0) * rate);
             }
         }
@@ -490,7 +490,7 @@ Cax4Result evaluate_cax4rt(const Cax4Input& data, ElementRequest request) {
     const auto point = evaluate_material_point(data, request, reference, current, position, result);
     assemble_mechanics(reference, current, point, finite, request.jacobian, result);
     add_hourglass(data, reference, position, request.jacobian, result);
-    assemble_thermal(data, current, point, request.jacobian, result);
+    assemble_thermal(data, reference, current, point, request.jacobian, result);
     finish_cax4_result(result, request);
     return result;
 }

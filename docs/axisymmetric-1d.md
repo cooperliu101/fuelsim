@@ -31,8 +31,8 @@ dV_reference = 2*pi*R*H*dR
 弹性模量、泊松比以及塑性、蠕变参数采用与径向积分点配对的端节点温度：
 内侧积分点使用 `T0`，外侧积分点使用 `T1`，空间位置仍是积分点位置。
 导热系数同样使用配对端节点温度，温度梯度仍由两节点温度和形函数梯度形成。
-热容采用节点对角权重 `w_i=integral(N_i*dV)`，密度、比热和温度变化率均在
-对应节点求值。该权重为一致几何积分矩阵的行和，物性另在节点求值；不是直接在节点取体积权重。
+热容采用参考节点对角权重 `w_i=integral(N_i*dV_reference)`，密度在初始温度、
+时间零和参考节点位置确定，比热和温度变化率在当前节点求值。该权重为一致几何积分矩阵的行和，物性另在节点求值；不是直接在节点取体积权重。
 环向机械应变按单元参考体积平均，即 `(ur0+ur1)/(R0+R1)`；其对两个径向
 位移的导数均为 `1/(R0+R1)`。同一平均规则进入材料、虚应变、内力与切线。
 这对应矩形 CAX4T 在广义平面应变运动下的力学约束；径向和轴向应变本来就是
@@ -56,9 +56,11 @@ delta_e_i = 2*(lambda_i_new-lambda_i_old)/(lambda_i_new+lambda_i_old)
 `1/((R0+R1)*lambda_hoop_bar_current)`。力学材料点测度为参考测度乘
 `lambda_r*lambda_z*lambda_hoop_bar`，即单元整体当前/参考体积比。
 热传导使用增量中间构形梯度，径向梯度除以新旧径向伸长比的平均值；导热积分
-权重使用参考权重乘上述单元整体当前/参考体积比。热容和体热源采用逐点真实
-伸长比 `(R+u_r)/R` 对应的当前体积。两套测度、导热梯度和虚应变的全部几何
-导数进入切线；热容的温度块虽为对角矩阵，其位移导数一般不为零。
+权重使用参考权重乘上述单元整体当前/参考体积比。体热源采用逐点真实
+伸长比 `(R+u_r)/R` 对应的当前体积。热容采用固定初始质量，等价于密度随
+真实体积比更新后与当前体积相乘；热容位移导数为零，比热温度导数保留。
+导热、体热源和力学测度的全部几何导数仍进入切线。详见
+[初始质量热容规则](initial-mass-heat-capacity.md)。
 本模型不表示二维局部剪切、弯曲和端部应力集中。
 
 有限应变材料历史中的热应变更新使用 `eigenstrain(T_exp_new)-eigenstrain(T_exp_old)`，
@@ -144,7 +146,7 @@ Exodus 使用二维 RZ 坐标和真实 `BAR2` 径向连接，在同一节点表�
 | [uniform_finite](../verification/fuelsim/transient_gps_uniform_finite.fsi) | 有限应变温升与轴向力，同步增量的 Abaqus 全场比较 |
 | [nonuniform_finite](../verification/fuelsim/transient_gps_nonuniform_finite.fsi) | 非比例径向位移与非均匀温度，Abaqus 有限应变应力、历史和反力比较 |
 | [thermal_small](../verification/fuelsim/transient_gps_thermal_small.fsi) | 温变热物性，节点热反力、储热及体热源的小应变比较 |
-| [thermal_finite](../verification/fuelsim/transient_gps_thermal_finite.fsi) | 同一热历程与非比例有限应变，检验中间构形导热和当前体积热容 |
+| [thermal_finite](../verification/fuelsim/transient_gps_thermal_finite.fsi) | 同一热历程与非比例有限应变，检验中间构形导热、固定初始质量热容及当前体积热源 |
 | [contact_small](../verification/fuelsim/transient_gps_contact_small.fsi) | 两种切片高度、径向导热及接触粘着、滑动、反向、张开和再接触 |
 | [chain_small](../verification/fuelsim/transient_gps_chain_small.fsi) | 两条两切片轴向链，内部控制节点自由，解析解与原生 Abaqus 连续网格共同检验摩擦传力 |
 | [chain_finite](../verification/fuelsim/transient_gps_chain_finite.fsi) | 总轴向伸长达到 10%，当前面积和分片轴向力平衡的解析检验 |

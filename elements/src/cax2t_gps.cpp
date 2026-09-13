@@ -87,8 +87,9 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
             const auto temperature =
                 request.jacobian ? adlite::Scalar::independent(state[node], 0, 1) : adlite::Scalar(state[node]);
             const MaterialFunctionContext node_context{input.time, geometry.radii[node], 0.0, axial_coordinate};
-            const auto rate = input.material.heat_capacity(temperature, node_context)
-                              * (temperature - input.committed_state[node]) / input.time_step;
+            const auto rate =
+                input.material.reference_heat_capacity(temperature, input.initial_temperature, node_context)
+                * (temperature - input.committed_state[node]) / input.time_step;
             capacity_rates[node] = rate.value();
             if (request.jacobian)
                 rate.copy_derivatives(&capacity_derivatives[node], 1);
@@ -97,7 +98,8 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
     for (std::size_t q = 0; q < stations.size(); ++q) {
         const std::array<double, 2> shape = {0.5 * (1.0 - stations[q]), 0.5 * (1.0 + stations[q])};
         const double radius = shape[0] * geometry.radii[0] + shape[1] * geometry.radii[1];
-        double measure = pi * radius * thickness * height;
+        const double reference_measure = pi * radius * thickness * height;
+        double measure = reference_measure;
         const double material_temperature = state[q];
         const double radial_displacement = shape[0] * state[2] + shape[1] * state[3];
         std::array<double, 4> strain = {radial_strain, axial_strain, hoop_strain, 0.0};
@@ -164,8 +166,8 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
             measure *= stretch[0] * stretch[1] * stretch[2];
             // The GPS restriction of CAX4T virtual work uses reference point
             // weights times the whole-element current/reference volume ratio.
-            // Conduction uses this same whole-element volume ratio. Capacity and
-            // source terms retain the actual pointwise current volume.
+            // Conduction uses this same whole-element volume ratio. Capacity uses
+            // fixed reference mass; sources retain actual current volume.
             mechanical_measure *= mechanical_stretch[0] * mechanical_stretch[1] * mechanical_stretch[2];
             if (!std::isfinite(measure) || !(measure > 0.0) || !std::isfinite(committed_measure)
                 || !(committed_measure > 0.0) || !std::isfinite(midpoint_measure) || !(midpoint_measure > 0.0)
@@ -285,9 +287,10 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
         for (std::size_t row = 0; row < 2; ++row) {
             const double thermal_gradient = gradient[row] / thermal_radial_stretch;
             const double conduction = conductivity.value() * thermal_gradient * thermal_temperature_gradient;
-            const double storage_and_source = shape[row] * (capacity_rates[row] - input.volumetric_heat_source);
-            result.residual[row] += mechanical_measure * conduction + measure * storage_and_source;
-            result.stored_heat_rate += measure * shape[row] * capacity_rates[row];
+            const double storage = reference_measure * shape[row] * capacity_rates[row];
+            result.residual[row] +=
+                mechanical_measure * conduction + storage - measure * shape[row] * input.volumetric_heat_source;
+            result.stored_heat_rate += storage;
             if (request.jacobian) {
                 for (std::size_t column = 0; column < 2; ++column)
                     result.jacobian[row * state.size() + column] += mechanical_measure * conductivity.value()
@@ -295,11 +298,11 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
                                                                     / thermal_radial_stretch;
                 result.jacobian[row * state.size() + q] +=
                     mechanical_measure * conductivity_derivative * thermal_gradient * thermal_temperature_gradient;
-                result.jacobian[row * state.size() + row] += measure * shape[row] * capacity_derivatives[row];
+                result.jacobian[row * state.size() + row] += reference_measure * shape[row] * capacity_derivatives[row];
                 for (std::size_t column = 2; column < state.size(); ++column)
                     result.jacobian[row * state.size() + column] +=
                         mechanical_measure_derivative[column] * conduction
-                        + measure_derivative[column] * storage_and_source
+                        - measure_derivative[column] * shape[row] * input.volumetric_heat_source
                         - (finite
                                 ? mechanical_measure * conduction * reference_chain[0][column] / thermal_radial_stretch
                                 : 0.0);

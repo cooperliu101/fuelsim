@@ -1730,24 +1730,50 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                         old,
                         _impl->cartesian_material_histories[region][element],
                         _impl->active_time_step);
-                    for (const Hex20ThermalQuadraturePoint& point : geometry.thermal_points) {
+                    const bool finite =
+                        _impl->cartesian->region(region).strain_formulation == StrainFormulation::finite;
+                    const double heat_source = _impl->cartesian->region_heat_source_average(region,
+                        _impl->committed_time,
+                        _impl->active_end_time);
+                    const auto accumulate_stored_heat = [&](const std::array<double, 8>& shape,
+                                                            const CartesianPoint3& position,
+                                                            double reference_measure) {
+                        if (!_impl->include_thermal_time_term)
+                            return;
                         double current_temperature = 0.0, old_temperature = 0.0;
                         for (std::size_t node = 0; node < hex20_temperature_node_count; ++node) {
-                            current_temperature += point.temperature_shape[node] * current[node];
-                            old_temperature += point.temperature_shape[node] * old[node];
+                            current_temperature += shape[node] * current[node];
+                            old_temperature += shape[node] * old[node];
                         }
-                        if (_impl->include_thermal_time_term)
-                            conservation.stored_heat_rate +=
-                                point.weighted_measure
-                                * _impl->cartesian->heat_capacity(region, current_temperature, point.position)
-                                * (current_temperature - old_temperature) / _impl->active_time_step;
-                        conservation.generated_heat_rate += point.weighted_measure
-                                                            * _impl->cartesian->region_heat_source_average(region,
-                                                                _impl->committed_time,
-                                                                _impl->active_end_time);
+                        conservation.stored_heat_rate +=
+                            reference_measure
+                            * _impl->cartesian->reference_heat_capacity(region, current_temperature, position)
+                            * (current_temperature - old_temperature) / _impl->active_time_step;
+                    };
+                    if (!finite) {
+                        for (const Hex20ThermalQuadraturePoint& point : geometry.thermal_points) {
+                            accumulate_stored_heat(point.temperature_shape, point.position, point.weighted_measure);
+                            conservation.generated_heat_rate += point.weighted_measure * heat_source;
+                        }
+                    } else if (heat_source != 0.0) {
+                        // The finite source uses the linear corner geometry, independently of the midside motion.
+                        const Hex20RegionMesh& mesh = _impl->cartesian->hex20_region_mesh(region);
+                        Hex8Coordinates current_corners{};
+                        for (std::size_t node = 0; node < hex20_temperature_node_count; ++node) {
+                            const CartesianPoint3& reference = mesh.nodes()[mesh.elements()[element].nodes[node]];
+                            current_corners[node] = {reference.x + current[8 + node],
+                                reference.y + current[28 + node],
+                                reference.z + current[48 + node]};
+                        }
+                        // Two-point Gauss integration is exact for this trilinear geometric volume, as is
+                        // the local source's three-point rule in C3D20T (two-point rule in C3D20RT).
+                        conservation.generated_heat_rate +=
+                            elements::make_c3d8t_geometry(current_corners).reference_volume * heat_source;
                     }
                     for (std::size_t q = 0; q < geometry.mechanical_points.size(); ++q) {
                         const Hex20MechanicalQuadraturePoint& point = geometry.mechanical_points[q];
+                        if (finite)
+                            accumulate_stored_heat(point.temperature_shape, point.position, point.weighted_measure);
                         const CartesianMaterialPointState& old_history =
                             _impl->cartesian_material_histories[region][element][q];
                         const CartesianMaterialPointState& new_history = update[q];
@@ -1788,20 +1814,30 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                         const Hex8CapacityPoint& point = capacity_points[node];
                         conservation.stored_heat_rate +=
                             point.weighted_measure
-                            * _impl->cartesian->heat_capacity(region, current[node], point.position)
+                            * _impl->cartesian->reference_heat_capacity(region, current[node], point.position)
                             * (current[node] - old[node]) / _impl->active_time_step;
                     }
-                if (reduced)
-                    conservation.generated_heat_rate += geometry.reduced_body_source_measure
-                                                        * _impl->cartesian->region_heat_source_average(region,
-                                                            _impl->committed_time,
-                                                            _impl->active_end_time);
-                else
-                    for (const Hex8CapacityPoint& point : capacity_points)
-                        conservation.generated_heat_rate += point.weighted_measure
-                                                            * _impl->cartesian->region_heat_source_average(region,
-                                                                _impl->committed_time,
-                                                                _impl->active_end_time);
+                const double heat_source =
+                    _impl->cartesian->region_heat_source_average(region, _impl->committed_time, _impl->active_end_time);
+                if (heat_source != 0.0) {
+                    double source_measure = reduced ? geometry.reduced_body_source_measure : geometry.reference_volume;
+                    if (_impl->cartesian->region(region).strain_formulation == StrainFormulation::finite) {
+                        if (reduced) {
+                            Hex8Coordinates current_coordinates{};
+                            for (std::size_t node = 0; node < hex8_node_count; ++node) {
+                                const CartesianPoint3& reference = geometry.capacity_points[node].position;
+                                current_coordinates[node] = {reference.x + current[8 + node],
+                                    reference.y + current[16 + node],
+                                    reference.z + current[24 + node]};
+                            }
+                            source_measure =
+                                elements::make_c3d8rt_geometry(current_coordinates).reduced_body_source_measure;
+                        } else {
+                            source_measure = element_result.current_volume;
+                        }
+                    }
+                    conservation.generated_heat_rate += source_measure * heat_source;
+                }
                 if (reduced) {
                     const double current_hourglass =
                         _impl->cartesian->mechanical_hourglass_energy(region, element, current);

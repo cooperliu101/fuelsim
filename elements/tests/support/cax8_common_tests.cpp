@@ -8,10 +8,102 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <stdexcept>
+
+namespace {
+void check_reference_consistent_heat_capacity(fuelsim::RzElementFormulation selected) {
+    using namespace fuelsim;
+    using namespace fuelsim::elements;
+    auto properties = test::thermoelastic(0, 3, 1e6, .25, 1e-5, 600, 0, 0, 0, 1000, 100);
+    auto functions = std::make_shared<MaterialFunctionSet>(*properties.functions);
+    functions->thermal.function = [](const ThermoelasticFunctionInput& input, ThermalPropertyOutput& output) {
+        output.conductivity = 3.0;
+        output.density = 1000.0 + 2.0 * (input.temperature - 600.0) + 5.0 * input.context.time + 10.0 * input.context.x
+                         + 20.0 * input.context.z;
+        output.specific_heat = 200.0 + 0.3 * (input.temperature - 600.0) + 0.5 * input.context.time;
+    };
+    properties.functions = functions;
+    const IsotropicThermoelasticMaterial material(properties);
+    const Quad8RzCoordinates coordinates = {{{1, 0}, {2, 0}, {2, 1}, {1, 1}, {1.5, 0}, {2, .5}, {1.5, 1}, {1, .5}}};
+    const auto geometry = test::make_cax8_geometry(coordinates, selected);
+    const auto evaluate = [selected](const Cax8Input& input) {
+        return selected == RzElementFormulation::cax8rt ? evaluate_cax8rt(input, {true, true, true, false})
+                                                        : evaluate_cax8t(input, {true, true, true, false});
+    };
+    Quad8RzValues old{}, state{};
+    const std::array<double, 4> old_temperature = {680.0, 700.0, 720.0, 740.0};
+    const std::array<double, 4> temperature = {700.0, 740.0, 760.0, 790.0};
+    for (std::size_t n = 0; n < 4; ++n) {
+        old[n] = old_temperature[n];
+        state[n] = temperature[n];
+    }
+    for (std::size_t n = 0; n < 8; ++n) {
+        state[4 + n] = 0.2 * coordinates[n].r;
+        state[12 + n] = 0.1 * coordinates[n].z;
+    }
+    const Quad8MaterialHistory history{};
+    const auto error = [](double actual, double expected) {
+        return std::abs(actual - expected) / std::max({1.0, std::abs(actual), std::abs(expected)});
+    };
+    for (const auto form : {StrainFormulation::small, StrainFormulation::finite})
+        for (const double time : {2.0, 5.0}) {
+            const Cax8Input input{material, geometry, state, old, &history, 0.25, time, 0.0, form, true, 650.0};
+            auto without_capacity = input;
+            without_capacity.include_thermal_time_term = false;
+            const auto active = evaluate(input), stationary = evaluate(without_capacity);
+            std::array<double, 4> expected{};
+            std::array<std::array<double, 4>, 4> tangent{};
+            for (std::size_t q = 0; q < geometry.point_count; ++q) {
+                const auto& point = geometry.points[q];
+                double t = 0.0, previous_t = 0.0;
+                for (std::size_t n = 0; n < 4; ++n) {
+                    t += point.temperature_shape[n] * state[n];
+                    previous_t += point.temperature_shape[n] * old[n];
+                }
+                const double density = 1100.0 + 10.0 * point.radius + 20.0 * point.axial_coordinate;
+                const double cp = 200.0 + 0.3 * (t - 600.0) + 0.5 * time;
+                const double rate = (t - previous_t) / input.time_step;
+                for (std::size_t n = 0; n < 4; ++n) {
+                    expected[n] += point.weighted_measure * point.temperature_shape[n] * density * cp * rate;
+                    for (std::size_t j = 0; j < 4; ++j)
+                        tangent[n][j] += point.weighted_measure * point.temperature_shape[n]
+                                         * point.temperature_shape[j] * density * (cp / input.time_step + 0.3 * rate);
+                }
+            }
+            double expected_storage = 0.0;
+            for (std::size_t n = 0; n < 4; ++n) {
+                expected_storage += expected[n];
+                if (error(active.residual[n] - stationary.residual[n], expected[n]) > 1e-12)
+                    throw std::runtime_error(
+                        "CAX8 storage must use initial density and reference consistent integration");
+                for (std::size_t j = 0; j < 20; ++j) {
+                    const double value = active.jacobian[20 * n + j] - stationary.jacobian[20 * n + j];
+                    if (error(value, j < 4 ? tangent[n][j] : 0.0) > 1e-12)
+                        throw std::runtime_error(
+                            "CAX8 capacity must retain current cp derivatives and zero geometry derivatives");
+                }
+            }
+            if (error(active.stored_heat_rate, expected_storage) > 1e-12)
+                throw std::runtime_error("CAX8 fixed-mass storage must conserve the summed thermal residual");
+            auto uniform = state, uniform_old = old;
+            for (std::size_t n = 0; n < 4; ++n) {
+                uniform[n] = 740.0;
+                uniform_old[n] = 700.0;
+            }
+            const auto heated =
+                evaluate({material, geometry, uniform, uniform_old, &history, 0.25, time, 0.0, form, true, 650.0});
+            const double inferred_mass = heated.stored_heat_rate / ((242.0 + 0.5 * time) * 160.0);
+            const double exact_mass = 3.0 * std::acos(-1.0) * (1100.0 + 140.0 / 9.0 + 10.0);
+            if (error(inferred_mass, exact_mass) > 1e-12)
+                throw std::runtime_error("CAX8 exact initial annular mass must be independent of time and deformation");
+        }
+}
+} // namespace
 
 int run_cax8_tests(fuelsim::RzElementFormulation selected) {
     try {
+        check_reference_consistent_heat_capacity(selected);
         const auto evaluate = [selected](const fuelsim::elements::Cax8Input& input,
                                   fuelsim::elements::ElementRequest request) {
             return selected == fuelsim::RzElementFormulation::cax8rt

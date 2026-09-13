@@ -111,7 +111,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     stress(std::size_t region, std::size_t element, const std::vector<double>& state) const;
     std::vector<SymmetricTensor3Values>
     hex20_stress(std::size_t region, std::size_t element, const std::vector<double>& state) const;
-    double heat_capacity(std::size_t region, double temperature, const CartesianPoint3& position) const;
+    double reference_heat_capacity(std::size_t region, double temperature, const CartesianPoint3& position) const;
     double mechanical_hourglass_energy(std::size_t region, std::size_t element, const Hex8LocalValues& state) const;
 
   private:

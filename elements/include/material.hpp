@@ -28,7 +28,13 @@ class IsotropicThermoelasticMaterial final {
     const MaterialFunctionSet& functions() const noexcept { return *_properties.functions; }
 
     adlite::Scalar conductivity(const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;
-    adlite::Scalar heat_capacity(const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;
+    // Density is anchored to the initial temperature, time zero and reference
+    // position. Capacity per reference volume retains only the current cp(T).
+    double initial_density(double initial_temperature, MaterialFunctionContext context = {}) const;
+    adlite::Scalar specific_heat(const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;
+    adlite::Scalar reference_heat_capacity(const adlite::Scalar& temperature,
+        double initial_temperature,
+        MaterialFunctionContext context = {}) const;
     ActiveThermoelasticProperties active_properties(const adlite::Scalar& temperature,
         MaterialFunctionContext context = {}) const;
     AxisymmetricStrain eigenstrain_rz(const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;

@@ -114,6 +114,20 @@ NodalValues capacity_reference(const StateReference& state) {
     return result;
 }
 
+NodalValues derived_reference_mass_capacity(const StateReference& state) {
+    NodalValues result = capacity_reference(state);
+    // The native input has nonuniform initial temperatures. This derived case
+    // explicitly anchors mass at a uniform 300 K, independently of the retained
+    // nonuniform committed temperature used by the subsequent increment.
+    for (std::size_t node = 0; node < node_count; ++node) {
+        const double native_density = 2000.0 - (state.temperature[node] - 300.0);
+        if (!std::isfinite(native_density) || !(native_density > 0.0))
+            throw std::invalid_argument("Native B5.7 temperature must give a positive density");
+        result[node] *= 2000.0 / native_density;
+    }
+    return result;
+}
+
 double relative_error(const NodalValues& actual, const NodalValues& expected) {
     double difference_squared = 0.0, expected_squared = 0.0;
     for (std::size_t node = 0; node < node_count; ++node) {
@@ -147,7 +161,12 @@ int main(int argc, char** argv) {
         const std::map<std::string, StateReference> reference = read_reference(argv[1]);
         const StateReference& base = reference.at("BASE");
         const fuelsim::Hex8Geometry geometry = fuelsim::elements::make_c3d8t_geometry(distorted_coordinates());
-        const fuelsim::CartesianRegionData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 0.0, 1.0};
+        const fuelsim::CartesianRegionData data{fuelsim::IsotropicThermoelasticMaterial(properties()),
+            0.0,
+            1.0,
+            fuelsim::StrainFormulation::small,
+            fuelsim::Hex8ElementFormulation::c3d8t,
+            300.0};
         fuelsim::Hex8LocalValues committed_state{}, state{};
         for (std::size_t node = 0; node < node_count; ++node) {
             committed_state[node] = old_temperature[node];
@@ -165,32 +184,34 @@ int main(int argc, char** argv) {
             1.0,
             &steady_jacobian,
             false);
-        NodalValues fuelsim_capacity{}, analytic_capacity{}, enthalpy_capacity{};
+        NodalValues fuelsim_capacity{}, native_analytic_capacity{}, analytic_capacity{}, enthalpy_capacity{};
         for (std::size_t node = 0; node < node_count; ++node) {
             fuelsim_capacity[node] = transient[node] - steady[node];
             const double temperature = state[node], increment = temperature - committed_state[node];
             const double density = 2000.0 - (temperature - 300.0);
             const double specific_heat = 3000.0 + 4.0 * (temperature - 300.0);
-            analytic_capacity[node] =
+            native_analytic_capacity[node] =
                 geometry.capacity_points[node].weighted_measure * density * specific_heat * increment;
+            analytic_capacity[node] =
+                geometry.capacity_points[node].weighted_measure * 2000.0 * specific_heat * increment;
             const double integrated_specific_heat =
                 3000.0 * increment
                 + 2.0
                       * ((temperature - 300.0) * (temperature - 300.0)
                           - (committed_state[node] - 300.0) * (committed_state[node] - 300.0));
             enthalpy_capacity[node] =
-                geometry.capacity_points[node].weighted_measure * density * integrated_specific_heat;
+                geometry.capacity_points[node].weighted_measure * 2000.0 * integrated_specific_heat;
         }
 
-        Matrix8 abaqus_jacobian{}, fuelsim_jacobian{};
+        Matrix8 derived_reference_jacobian{}, fuelsim_jacobian{};
         for (std::size_t column = 0; column < node_count; ++column) {
             std::ostringstream plus_name, minus_name;
             plus_name << 'D' << (column < 10 ? "0" : "") << column << "_PLUS";
             minus_name << 'D' << (column < 10 ? "0" : "") << column << "_MINUS";
-            const NodalValues plus = capacity_reference(reference.at(plus_name.str()));
-            const NodalValues minus = capacity_reference(reference.at(minus_name.str()));
+            const NodalValues plus = derived_reference_mass_capacity(reference.at(plus_name.str()));
+            const NodalValues minus = derived_reference_mass_capacity(reference.at(minus_name.str()));
             for (std::size_t row = 0; row < node_count; ++row)
-                abaqus_jacobian[row * node_count + column] = (plus[row] - minus[row]) / (2.0 * perturbation);
+                derived_reference_jacobian[row * node_count + column] = (plus[row] - minus[row]) / (2.0 * perturbation);
         }
         for (std::size_t row = 0; row < node_count; ++row)
             for (std::size_t column = 0; column < node_count; ++column)
@@ -198,38 +219,44 @@ int main(int argc, char** argv) {
                     transient_jacobian[row * 32 + column] - steady_jacobian[row * 32 + column];
 
         const NodalValues abaqus_capacity = capacity_reference(base);
-        const double residual_error = relative_error(fuelsim_capacity, abaqus_capacity);
-        const double analytic_error = relative_error(analytic_capacity, abaqus_capacity);
-        const double enthalpy_difference = relative_error(enthalpy_capacity, abaqus_capacity);
-        const double jacobian_error = relative_error(fuelsim_jacobian, abaqus_jacobian);
-        double abaqus_off_diagonal = 0.0, fuelsim_off_diagonal = 0.0;
+        const NodalValues derived_reference_mass = derived_reference_mass_capacity(base);
+        const double native_analytic_error = relative_error(native_analytic_capacity, abaqus_capacity);
+        const double residual_error = relative_error(fuelsim_capacity, derived_reference_mass);
+        const double analytic_error = relative_error(analytic_capacity, derived_reference_mass);
+        const double enthalpy_difference = relative_error(enthalpy_capacity, derived_reference_mass);
+        const double jacobian_error = relative_error(fuelsim_jacobian, derived_reference_jacobian);
+        double derived_reference_off_diagonal = 0.0, fuelsim_off_diagonal = 0.0;
         for (std::size_t row = 0; row < node_count; ++row)
             for (std::size_t column = 0; column < node_count; ++column)
                 if (row != column) {
-                    abaqus_off_diagonal =
-                        std::max(abaqus_off_diagonal, std::abs(abaqus_jacobian[row * node_count + column]));
+                    derived_reference_off_diagonal = std::max(derived_reference_off_diagonal,
+                        std::abs(derived_reference_jacobian[row * node_count + column]));
                     fuelsim_off_diagonal =
                         std::max(fuelsim_off_diagonal, std::abs(fuelsim_jacobian[row * node_count + column]));
                 }
 
-        std::cout << std::scientific << "b57_temperature_capacity_residual_relative_error=" << residual_error << '\n'
-                  << "b57_temperature_capacity_analytic_relative_error=" << analytic_error << '\n'
-                  << "b57_temperature_capacity_jacobian_relative_frobenius_error=" << jacobian_error << '\n'
+        std::cout << std::scientific << "b57_native_current_density_analytic_relative_error=" << native_analytic_error
+                  << '\n'
+                  << "b57_derived_reference_mass_capacity_residual_relative_error=" << residual_error << '\n'
+                  << "b57_derived_reference_mass_capacity_analytic_relative_error=" << analytic_error << '\n'
+                  << "b57_derived_reference_mass_capacity_jacobian_relative_frobenius_error=" << jacobian_error << '\n'
                   << "b57_enthalpy_increment_relative_difference=" << enthalpy_difference << '\n'
-                  << "b57_abaqus_capacity_maximum_off_diagonal=" << abaqus_off_diagonal << '\n'
+                  << "b57_derived_reference_mass_capacity_maximum_off_diagonal=" << derived_reference_off_diagonal
+                  << '\n'
                   << "b57_fuelsim_capacity_maximum_off_diagonal=" << fuelsim_off_diagonal << '\n';
         const bool passed =
-            check(residual_error < 2.0e-12, "Fuelsim temperature-dependent lumped-capacity residual matches Abaqus")
-            && check(analytic_error < 2.0e-12,
-                "Abaqus uses current rho(T) times cp(T) times the backward-Euler temperature increment")
+            check(residual_error < 2.0e-12, "Fuelsim lumped-capacity residual matches the derived reference mass")
+            && check(native_analytic_error < 2.0e-12,
+                "Unchanged native data retain the identified current rho(T)*cp(T)*DeltaT rule")
+            && check(analytic_error < 2.0e-12, "Derived reference mass uses rho(300 K)*cp(T)*DeltaT")
             && check(jacobian_error < 2.0e-9,
-                "Fuelsim temperature-dependent lumped-capacity Jacobian matches the Abaqus centered tangent")
+                "Fuelsim lumped-capacity Jacobian matches the centered tangent of all derived native perturbations")
             && check(enthalpy_difference > 1.0e-3,
                 "the finite temperature increments distinguish the identified rule from an integrated-enthalpy rule")
-            && check(abaqus_off_diagonal < 2.0e-4 && fuelsim_off_diagonal == 0.0,
-                "Abaqus and Fuelsim temperature-dependent capacity tangents remain diagonal");
+            && check(derived_reference_off_diagonal < 2.0e-4 && fuelsim_off_diagonal == 0.0,
+                "Derived reference and Fuelsim temperature-dependent capacity tangents remain diagonal");
         if (passed)
-            std::cout << "[PASS] B5.7 Abaqus C3D8T temperature-dependent heat capacity\n";
+            std::cout << "[PASS] B5.7 derived reference-mass capacity from unchanged Abaqus perturbations\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] " << error.what() << '\n';

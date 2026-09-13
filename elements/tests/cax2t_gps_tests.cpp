@@ -212,7 +212,7 @@ void check_thermal_operators() {
     double expected_storage = 0.0;
     for (std::size_t node = 0; node < 2; ++node) {
         const double change = nonuniform[node] - 600.0;
-        const double density = 1000.0 + 10.0 * geometry.radii[node] + 0.5 + 0.2 * change;
+        const double density = 1000.0 + 10.0 * geometry.radii[node];
         const double heat_capacity = 500.0 + 0.1 * change;
         const double storage = nodal_volumes[node] * density * heat_capacity * change / 0.5;
         expected_storage += storage;
@@ -226,16 +226,14 @@ void check_thermal_operators() {
             const double conduction =
                 sign * ((column == 0 ? -1.0 : 1.0) * integrated_conductivity + 40.0 * conductivity_derivative[column]);
             const double capacity =
-                node == column ? nodal_volumes[node]
-                                     * ((0.2 * heat_capacity + 0.1 * density) * change + density * heat_capacity) / 0.5
-                               : 0.0;
+                node == column ? nodal_volumes[node] * (0.1 * density * change + density * heat_capacity) / 0.5 : 0.0;
             require(error(nonlinear_conduction.jacobian[6 * node + column], conduction) < 1e-13,
                 "Each nodal conductivity derivative must enter the appropriate temperature column");
             require(
                 error(nonlinear_thermal.jacobian[6 * node + column] - nonlinear_conduction.jacobian[6 * node + column],
                     capacity)
                     < 1e-13,
-                "Temperature-dependent lumped capacity must remain diagonal and differentiate both rho and cp");
+                "Fixed initial density and current specific heat must retain a diagonal temperature tangent");
         }
         for (std::size_t column = 2; column < nonuniform.size(); ++column)
             require(nonlinear_thermal.jacobian[6 * node + column] == 0.0,
@@ -484,16 +482,17 @@ void check_finite_mean_hoop_history_and_geometry() {
                 expected[2 + node] += mechanical_measure * force_density;
                 expected[4 + node] += mechanical_measure * (node == 0 ? -1.0 : 1.0) * stress[1] / (2.22 - 0.04);
                 const double change = state[node] - 600.0;
-                const double density =
-                    temperature_dependent ? 1000.0 + 10.0 * geometry.radii[node] + 20.0 + 0.2 + 0.2 * change : 1000.0;
+                const double density = temperature_dependent ? 1000.0 + 10.0 * geometry.radii[node] + 20.0 : 1000.0;
                 const double capacity = density * (temperature_dependent ? 500.0 + 0.1 * change : 500.0);
                 const double storage = capacity * (state[node] - first[node]) / 0.1;
                 const double conduction = mechanical_measure * conductivity * (node == 0 ? -1.0 : 1.0) * (730.0 - 650.0)
                                           / (midpoint_span * midpoint_span);
                 expected_conduction[node] += conduction;
-                nodal_volumes[node] += thermal_measure * shape[node];
-                stored += thermal_measure * shape[node] * storage;
-                expected[node] += conduction + thermal_measure * shape[node] * (storage - 2.0e6);
+                const double reference_measure = 2.0 * pi * reference_radius;
+                nodal_volumes[node] += reference_measure * shape[node];
+                stored += reference_measure * shape[node] * storage;
+                expected[node] +=
+                    conduction + reference_measure * shape[node] * storage - thermal_measure * shape[node] * 2.0e6;
                 if (node == 0) {
                     wrong_mechanical_force += thermal_measure * force_density;
                     wrong_thermal_residual += conduction + mechanical_measure * shape[node] * (storage - 2.0e6);
@@ -502,11 +501,11 @@ void check_finite_mean_hoop_history_and_geometry() {
         }
         for (std::size_t row = 0; row < state.size(); ++row)
             require(error(response.residual[row], expected[row]) < 1e-13,
-                "Finite conduction must use midpoint gradients and whole-volume weights, with nodal current-volume "
-                "storage and source");
+                "Finite conduction must use midpoint gradients and whole-volume weights, with fixed-mass nodal "
+                "storage and current-volume source");
         require(error(response.stored_heat_rate, stored) < 1e-13
                     && error(response.generated_heat_rate, generated) < 1e-13,
-            "Finite lumped storage and source diagnostics must retain actual current-volume nodal weights");
+            "Finite storage must retain initial mass while source retains current-volume nodal weights");
         require(error(response.residual[0] + response.residual[1], stored - generated) < 1e-13,
             "Finite nodal heat residuals must conserve stored minus generated heat");
         require(std::abs(expected[0] - wrong_thermal_residual) > 1e6,
@@ -525,10 +524,9 @@ void check_finite_mean_hoop_history_and_geometry() {
             require(error(conduction_only.residual[row], expected_conduction[row]) < 1e-13,
                 "Finite conduction alone must use paired conductivity, midpoint gradients and whole-volume weights");
             const double change = state[row] - 600.0;
-            const double density =
-                temperature_dependent ? 1000.0 + 10.0 * geometry.radii[row] + 20.0 + 0.2 + 0.2 * change : 1000.0;
+            const double density = temperature_dependent ? 1000.0 + 10.0 * geometry.radii[row] + 20.0 : 1000.0;
             const double cp = temperature_dependent ? 500.0 + 0.1 * change : 500.0;
-            const double slope = temperature_dependent ? 0.2 * cp + 0.1 * density : 0.0;
+            const double slope = temperature_dependent ? 0.1 * density : 0.0;
             for (std::size_t column = 0; column < 2; ++column) {
                 const double capacity =
                     row == column ? nodal_volumes[row] * (density * cp + slope * (state[row] - first[row])) / 0.1 : 0.0;
@@ -543,8 +541,7 @@ void check_finite_mean_hoop_history_and_geometry() {
                     std::max(conduction_geometry, std::abs(conduction_only.jacobian[6 * row + column]));
             }
         }
-        require(capacity_geometry > 1.0,
-            "Current nodal heat-capacity weights must have nonzero displacement derivatives");
+        require(capacity_geometry == 0.0, "Fixed initial nodal mass must have exactly zero displacement derivatives");
         require(conduction_geometry > 1.0
                     && std::abs(conduction_only.residual[0] + conduction_only.residual[1]) < 1e-10,
             "Finite conduction must preserve heat and have nonzero midpoint and volume geometry derivatives");
@@ -897,8 +894,8 @@ void check_finite_mechanics_and_thermal_history() {
     require(error(result.residual[2], -2.0 * pi * radial_stretch * height * sigma_r) < 1e-13
                 && error(result.residual[3], 4.0 * pi * radial_stretch * height * sigma_r) < 1e-13,
         "Finite radial reactions must use the current radius and axial length");
-    require(error(result.stored_heat_rate, area * height * 5.0e5 * 20.0 / 0.5) < 1e-13,
-        "Finite lumped heat storage must use the complete current volume");
+    require(error(result.stored_heat_rate, 6.0 * pi * 5.0e5 * 20.0 / 0.5) < 1e-13,
+        "Finite lumped heat storage must use the complete initial mass");
 
     const double free_increment = expansion * 1000.0;
     const double free_stretch = (2.0 + free_increment) / (2.0 - free_increment);
