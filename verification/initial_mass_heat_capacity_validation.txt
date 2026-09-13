@@ -24,3 +24,12 @@ B58_new_native_reference=3DEXPERIENCE R2018x; fixed initial density; four increm
 B58_native_node_rows=48
 B58_native_material_rows=64
 new_Abaqus_versions_not_run=true
+
+comprehensive_density_input_revision_date=2026-09-13
+comprehensive_density_input_revision=B544 coefficient -0.5 to 0; B58 coefficient -1 to 0; other comprehensive cards already constant
+comprehensive_density_input_retest_command=ctest --test-dir build -j4 --output-on-failure -R "initial_mass_tests|b58_hex8_c3d8t_multistep_abaqus_tests"
+comprehensive_density_input_retest_passed=13/13
+comprehensive_density_input_retest_scope=12 independent initial-mass storage tests and B58 native small-strain full-field comparison
+Abaqus_2018_user_subroutine_environment_command=abaqus verify -user_std -retainFiles
+Abaqus_2018_user_subroutine_environment_result=failed during compilation of std_user.for; ifort command not found; license checkout succeeded
+Abaqus_2018_finite_comprehensive_total_volume_density_reference=not implemented or qualified; requires working user-subroutine compiler environment

@@ -23,7 +23,7 @@
       specific_heat = 500
       reference_temperature = 300
       conductivity_temperature_coefficient = 0.02
-      density_temperature_coefficient = -0.5
+      density_temperature_coefficient = 0
       specific_heat_temperature_coefficient = 1.25
     []
     [elasticity]
