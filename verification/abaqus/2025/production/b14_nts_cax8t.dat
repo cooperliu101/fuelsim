@@ -1,6 +1,6 @@
 1
 
-   Abaqus 2025                                  Date 13-9月-2026   Time 23:10:00
+   Abaqus 2025                                  Date 14-9月-2026   Time 14:40:01
    For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
 
 
@@ -183,6 +183,10 @@
   *elementoutput, directions=YES
   *elementoutput, directions=YES
   *elementoutput, directions=YES
+ 
+      ELEMENT CONSTRUCTION EXECUTED IN PARALLEL USING 8 THREADS
+ 
+      ELEMENT GEOMETRY CALCULATIONS EXECUTED IN PARALLEL USING 8 THREADS
   *step, name=CLOSE, nlgeom=YES, inc=10
   *step, name=SLIDE, nlgeom=YES, inc=10
   *step, name=CURVE, nlgeom=YES, inc=10
@@ -284,13 +288,13 @@
 
 
      JOB TIME SUMMARY
-       USER TIME (SEC)      =      1.0    
-       SYSTEM TIME (SEC)    =     0.40    
-       TOTAL CPU TIME (SEC) =      1.4    
-       WALLCLOCK TIME (SEC) =            0
+       USER TIME (SEC)      =     0.20    
+       SYSTEM TIME (SEC)    =     0.10    
+       TOTAL CPU TIME (SEC) =     0.30    
+       WALLCLOCK TIME (SEC) =            1
 1
 
-   Abaqus 2025                                  Date 13-9月-2026   Time 23:10:01
+   Abaqus 2025                                  Date 14-9月-2026   Time 14:40:02
    For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
 
                                                                                                STEP    1  INCREMENT    1
@@ -361,7 +365,7 @@
       (6) USING "*RESTART, WRITE" CAN GENERATE A LARGE AMOUNT OF DATA WRITTEN IN THE WORK DIRECTORY.
 1
 
-   Abaqus 2025                                  Date 13-9月-2026   Time 23:10:01
+   Abaqus 2025                                  Date 14-9月-2026   Time 14:40:03
    For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
 
                                                                                                STEP    2  INCREMENT    1
@@ -432,7 +436,7 @@
       (6) USING "*RESTART, WRITE" CAN GENERATE A LARGE AMOUNT OF DATA WRITTEN IN THE WORK DIRECTORY.
 1
 
-   Abaqus 2025                                  Date 13-9月-2026   Time 23:10:01
+   Abaqus 2025                                  Date 14-9月-2026   Time 14:40:03
    For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
 
                                                                                                STEP    3  INCREMENT    1
@@ -503,7 +507,7 @@
       (6) USING "*RESTART, WRITE" CAN GENERATE A LARGE AMOUNT OF DATA WRITTEN IN THE WORK DIRECTORY.
 1
 
-   Abaqus 2025                                  Date 13-9月-2026   Time 23:10:01
+   Abaqus 2025                                  Date 14-9月-2026   Time 14:40:03
    For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
 
                                                                                                STEP    4  INCREMENT    1
@@ -585,7 +589,7 @@
 
 
      JOB TIME SUMMARY
-       USER TIME (SEC)      =      1.1    
-       SYSTEM TIME (SEC)    =     0.50    
-       TOTAL CPU TIME (SEC) =      1.6    
-       WALLCLOCK TIME (SEC) =            0
+       USER TIME (SEC)      =     0.90    
+       SYSTEM TIME (SEC)    =     0.60    
+       TOTAL CPU TIME (SEC) =      1.5    
+       WALLCLOCK TIME (SEC) =            1

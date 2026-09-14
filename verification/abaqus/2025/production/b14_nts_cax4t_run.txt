@@ -1,0 +1,9 @@
+case=b14_nts_cax4t
+abaqus_version=Abaqus 2025 RELr427
+
+output_precision=full
+cpus=8
+completed_utc=2026-09-14T06:39:46.0811447Z
+work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_pcmi_7f052d4deed44cbfbc99708e070f0d08
+input_sha256=650DE8E8943F7E07F1DB9DE05E155094633BE3271B8070F3D003590D8B4C8145
+extractor_sha256=5C72977BAF9E2675FA500B3F7BA5F74509319C7E22B66EC687329ED1D59D162B

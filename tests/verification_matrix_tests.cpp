@@ -458,7 +458,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 184 || qualified != 23 || measured != 12 || limitations != 5 || unverified != 2)
+        if (verified != 184 || qualified != 25 || measured != 12 || limitations != 5 || unverified != 0)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         check_c3d8t_contract(argv[4], registered_tests);
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'

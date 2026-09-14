@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory = $true)][string[]]$Cases,
     [Parameter(Mandatory = $true)][string]$DestinationDirectory,
-    [string]$InputDirectory = ""
+    [string]$InputDirectory = "",
+    [ValidateRange(1, 8)][int]$Cpus = 1
 )
 function Invoke-Abaqus {
     $ErrorActionPreference = "Continue"
@@ -27,7 +28,7 @@ foreach ($Case in ($Cases -join ',').Split(',')) {
     Write-Output "case=$Case work_directory=$Work"
     Push-Location $Work
     try {
-        Invoke-Abaqus job=$Case input="$Case.inp" output_precision=full ask_delete=OFF cpus=1 interactive
+        Invoke-Abaqus job=$Case input="$Case.inp" output_precision=full ask_delete=OFF cpus=$Cpus interactive
         foreach ($Extension in @("dat", "msg", "sta")) {
             if (Test-Path "$Case.$Extension") { Copy-Item "$Case.$Extension" $DestinationDirectory }
         }
@@ -46,7 +47,7 @@ foreach ($Case in ($Cases -join ',').Split(',')) {
             }
             Copy-Item $Output $DestinationDirectory
         }
-        @("case=$Case", "abaqus_version=Abaqus 2025 RELr427", "", "output_precision=full",
+        @("case=$Case", "abaqus_version=Abaqus 2025 RELr427", "", "output_precision=full", "cpus=$Cpus",
             "completed_utc=$([DateTime]::UtcNow.ToString('o'))", "work_directory=$Work",
             "input_sha256=$((Get-FileHash "$Case.inp" -Algorithm SHA256).Hash)",
             "extractor_sha256=$((Get-FileHash $Extractor -Algorithm SHA256).Hash)") |

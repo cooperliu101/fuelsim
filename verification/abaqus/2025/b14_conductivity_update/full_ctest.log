@@ -1,0 +1,713 @@
+Internal ctest changing into directory: /home/cooper/ai_project/fuelsim/build
+Test project /home/cooper/ai_project/fuelsim/build
+        Start 120: fuelsim_b40_hex8_sts_friction_abaqus_tests
+        Start  56: fuelsim_m52_transient_reference
+        Start 149: fuelsim_b33_frictionless_baseline
+        Start 146: fuelsim_b36_plate_meat_clad_moose_tests
+        Start 175: fuelsim_b555_c3d20t_friction_abaqus_tests
+        Start 130: fuelsim_b48_hex8_multi_contact_path_abaqus_tests
+        Start 174: fuelsim_b550_c3d20t_contact_abaqus_tests
+        Start 173: fuelsim_b549_c3d20t_abaqus_tests
+  1/314 Test #149: fuelsim_b33_frictionless_baseline ..............................   Passed    2.47 sec
+        Start 141: fuelsim_h20_inelastic_coupled_moose_tests
+  2/314 Test  #56: fuelsim_m52_transient_reference ................................   Passed    3.75 sec
+        Start 282: fuelsim_b1213_cax8rt_finite_sliding_abaqus_tests
+  3/314 Test #141: fuelsim_h20_inelastic_coupled_moose_tests ......................   Passed    3.10 sec
+        Start 152: fuelsim_b34_transient_sliding_checkpoint
+  4/314 Test #282: fuelsim_b1213_cax8rt_finite_sliding_abaqus_tests ...............   Passed    1.87 sec
+        Start 186: fuelsim_b32_hex8_creep_moose_tests
+  5/314 Test #173: fuelsim_b549_c3d20t_abaqus_tests ...............................   Passed    6.40 sec
+        Start  57: fuelsim_m52_large_sliding_restart_tests
+  6/314 Test #120: fuelsim_b40_hex8_sts_friction_abaqus_tests .....................   Passed    6.60 sec
+        Start 121: fuelsim_b40_production_restart
+  7/314 Test #152: fuelsim_b34_transient_sliding_checkpoint .......................   Passed    2.08 sec
+        Start 184: fuelsim_b3_hex8_coupled_moose_tests
+  8/314 Test #186: fuelsim_b32_hex8_creep_moose_tests .............................   Passed    2.09 sec
+        Start 188: fuelsim_b32_hex8_coupled_moose_tests
+  9/314 Test  #57: fuelsim_m52_large_sliding_restart_tests ........................   Passed    2.60 sec
+        Start 182: fuelsim_b3_hex8_creep_moose_tests
+ 10/314 Test #184: fuelsim_b3_hex8_coupled_moose_tests ............................   Passed    2.15 sec
+        Start 290: fuelsim_b914_cax4rt_finite_sliding_abaqus_tests
+ 11/314 Test #188: fuelsim_b32_hex8_coupled_moose_tests ...........................   Passed    2.11 sec
+        Start 238: fuelsim_b81_rz_finite_sliding_abaqus_tests
+ 12/314 Test #121: fuelsim_b40_production_restart .................................   Passed    3.55 sec
+        Start 205: fuelsim_c3d8rt_contact_one_rank_reference
+ 13/314 Test #182: fuelsim_b3_hex8_creep_moose_tests ..............................   Passed    1.56 sec
+        Start  38: fuelsim_gps_chain_finite
+ 14/314 Test #174: fuelsim_b550_c3d20t_contact_abaqus_tests .......................   Passed   11.07 sec
+        Start  34: fuelsim_gps_contact_abaqus
+ 15/314 Test #205: fuelsim_c3d8rt_contact_one_rank_reference ......................   Passed    0.97 sec
+        Start  36: fuelsim_gps_chain_small
+ 16/314 Test #238: fuelsim_b81_rz_finite_sliding_abaqus_tests .....................   Passed    1.61 sec
+        Start 159: fuelsim_h20_30_faceted_cylinder_abaqus_tests
+ 17/314 Test #290: fuelsim_b914_cax4rt_finite_sliding_abaqus_tests ................   Passed    1.83 sec
+        Start 161: fuelsim_h20_30_quadratic_cylinder_abaqus_tests
+ 18/314 Test  #38: fuelsim_gps_chain_finite .......................................   Passed    1.09 sec
+        Start  97: fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
+ 19/314 Test #175: fuelsim_b555_c3d20t_friction_abaqus_tests ......................   Passed   12.12 sec
+        Start 101: fuelsim_b515_hex8_c3d8t_finite_j2_abaqus_tests
+ 20/314 Test  #34: fuelsim_gps_contact_abaqus .....................................   Passed    1.41 sec
+        Start 272: fuelsim_b125_cax8rt_finite_coupled_abaqus_tests
+ 21/314 Test  #36: fuelsim_gps_chain_small ........................................   Passed    1.44 sec
+        Start 257: fuelsim_b105_cax8t_finite_coupled_abaqus_tests
+ 22/314 Test #130: fuelsim_b48_hex8_multi_contact_path_abaqus_tests ...............   Passed   12.61 sec
+        Start 164: fuelsim_h20_35_curved_friction_abaqus_tests
+ 23/314 Test #159: fuelsim_h20_30_faceted_cylinder_abaqus_tests ...................   Passed    1.87 sec
+        Start 211: fuelsim_rz_contact_mpi_reference
+ 24/314 Test #161: fuelsim_h20_30_quadratic_cylinder_abaqus_tests .................   Passed    2.08 sec
+        Start 116: fuelsim_b39_hex8_sts_nonmatching_abaqus_tests
+ 25/314 Test  #97: fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests ..................   Passed    2.60 sec
+        Start 114: fuelsim_b39_hex8_sts_matching_abaqus_tests
+ 26/314 Test #272: fuelsim_b125_cax8rt_finite_coupled_abaqus_tests ................   Passed    2.12 sec
+        Start 196: fuelsim_b534_hex8_c3d8rt_finite_transient_abaqus_tests
+ 27/314 Test #257: fuelsim_b105_cax8t_finite_coupled_abaqus_tests .................   Passed    2.12 sec
+        Start 195: fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests
+ 28/314 Test #211: fuelsim_rz_contact_mpi_reference ...............................   Passed    1.41 sec
+        Start 118: fuelsim_b39_hex8_sts_tilted_gap_abaqus_tests
+ 29/314 Test #101: fuelsim_b515_hex8_c3d8t_finite_j2_abaqus_tests .................   Passed    2.65 sec
+        Start 180: fuelsim_h20_24_hex20_nonmatching_abaqus_tests
+ 30/314 Test #164: fuelsim_h20_35_curved_friction_abaqus_tests ....................   Passed    2.33 sec
+        Start 150: fuelsim_b33_hex8_contact_moose_tests
+ 31/314 Test #116: fuelsim_b39_hex8_sts_nonmatching_abaqus_tests ..................   Passed    1.42 sec
+        Start 223: fuelsim_transient_mpi_reference
+ 32/314 Test #146: fuelsim_b36_plate_meat_clad_moose_tests ........................   Passed   15.49 sec
+        Start 145: fuelsim_b35_hex8_shared_nodes_moose_tests
+ 33/314 Test #114: fuelsim_b39_hex8_sts_matching_abaqus_tests .....................   Passed    1.68 sec
+        Start 214: fuelsim_b521_thermal_contact_mpi_reference
+ 34/314 Test #118: fuelsim_b39_hex8_sts_tilted_gap_abaqus_tests ...................   Passed    2.56 sec
+        Start 217: fuelsim_b41_hex8_finite_sliding_mpi_reference
+ 35/314 Test #196: fuelsim_b534_hex8_c3d8rt_finite_transient_abaqus_tests .........   Passed    2.77 sec
+        Start  62: fuelsim_c3d20rt_finite_frictionless_abaqus_tests
+ 36/314 Test #195: fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests ................   Passed    2.79 sec
+        Start  61: fuelsim_c3d20rt_contact_friction_abaqus_tests
+ 37/314 Test #180: fuelsim_h20_24_hex20_nonmatching_abaqus_tests ..................   Passed    2.74 sec
+        Start 302: fuelsim_b13_integrated_cax8t_abaqus_tests
+ 38/314 Test #223: fuelsim_transient_mpi_reference ................................   Passed    2.40 sec
+        Start 303: fuelsim_b13_integrated_cax8rt_abaqus_tests
+ 39/314 Test #150: fuelsim_b33_hex8_contact_moose_tests ...........................   Passed    2.60 sec
+        Start 300: fuelsim_b13_integrated_cax4t_abaqus_tests
+ 40/314 Test #214: fuelsim_b521_thermal_contact_mpi_reference .....................   Passed    1.72 sec
+        Start 168: fuelsim_h20_36_friction_transaction_contract
+ 41/314 Test #145: fuelsim_b35_hex8_shared_nodes_moose_tests ......................   Passed    2.17 sec
+        Start  55: fuelsim_b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests
+ 42/314 Test #217: fuelsim_b41_hex8_finite_sliding_mpi_reference ..................   Passed    2.09 sec
+        Start 171: fuelsim_h20_40_curved_finite_sliding_finite_abaqus_tests
+ 43/314 Test #300: fuelsim_b13_integrated_cax4t_abaqus_tests ......................   Passed    9.96 sec
+        Start  54: fuelsim_b60_c3d8rt_finite_transient_bending_tests
+ 44/314 Test #168: fuelsim_h20_36_friction_transaction_contract ...................   Passed   10.16 sec
+        Start 166: fuelsim_h20_36_curved_friction_path_abaqus_tests
+ 45/314 Test  #55: fuelsim_b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests ....   Passed   11.64 sec
+        Start  86: fuelsim_b540_c3d8rt_nonmatching_contact_abaqus_tests
+ 46/314 Test #166: fuelsim_h20_36_curved_friction_path_abaqus_tests ...............   Passed    6.73 sec
+        Start 301: fuelsim_b13_integrated_cax4rt_abaqus_tests
+ 47/314 Test  #54: fuelsim_b60_c3d8rt_finite_transient_bending_tests ..............   Passed    7.21 sec
+        Start  45: fuelsim_m3_load_boundary_tests
+ 48/314 Test #303: fuelsim_b13_integrated_cax8rt_abaqus_tests .....................   Passed   17.39 sec
+        Start 107: fuelsim_b545_hex8_c3d8rt_finite_noncoaxial_abaqus_tests
+ 49/314 Test #171: fuelsim_h20_40_curved_finite_sliding_finite_abaqus_tests .......   Passed   16.83 sec
+        Start 163: fuelsim_h20_friction_path_abaqus_tests
+ 50/314 Test #302: fuelsim_b13_integrated_cax8t_abaqus_tests ......................   Passed   21.01 sec
+        Start  88: fuelsim_b527_medium_abaqus_tests
+ 51/314 Test  #86: fuelsim_b540_c3d8rt_nonmatching_contact_abaqus_tests ...........   Passed    9.35 sec
+        Start  96: fuelsim_b59_hex8_c3d8t_multimaterial_abaqus_tests
+ 52/314 Test  #45: fuelsim_m3_load_boundary_tests .................................   Passed    4.65 sec
+        Start 167: fuelsim_h20_33_friction_transaction_contract
+ 53/314 Test #301: fuelsim_b13_integrated_cax4rt_abaqus_tests .....................   Passed    5.66 sec
+        Start 202: fuelsim_production_hex20_restart
+ 54/314 Test #163: fuelsim_h20_friction_path_abaqus_tests .........................   Passed    4.11 sec
+        Start 139: fuelsim_h20_inelastic_plastic_moose_tests
+ 55/314 Test #107: fuelsim_b545_hex8_c3d8rt_finite_noncoaxial_abaqus_tests ........   Passed    7.36 sec
+        Start  66: fuelsim_c3d20rt_finite_plastic_abaqus_tests
+ 56/314 Test #167: fuelsim_h20_33_friction_transaction_contract ...................   Passed    3.20 sec
+        Start 140: fuelsim_h20_inelastic_creep_moose_tests
+ 57/314 Test  #88: fuelsim_b527_medium_abaqus_tests ...............................   Passed    4.92 sec
+        Start  63: fuelsim_c3d20rt_small_coupled_abaqus_tests
+ 58/314 Test #202: fuelsim_production_hex20_restart ...............................   Passed    3.46 sec
+        Start  68: fuelsim_c3d20rt_small_creep_hold_abaqus_tests
+ 59/314 Test #139: fuelsim_h20_inelastic_plastic_moose_tests ......................   Passed    3.45 sec
+        Start  64: fuelsim_c3d20rt_finite_coupled_abaqus_tests
+ 60/314 Test  #96: fuelsim_b59_hex8_c3d8t_multimaterial_abaqus_tests ..............   Passed    6.30 sec
+        Start  67: fuelsim_c3d20rt_finite_creep_abaqus_tests
+ 61/314 Test  #66: fuelsim_c3d20rt_finite_plastic_abaqus_tests ....................   Passed    3.04 sec
+        Start  65: fuelsim_c3d20rt_small_plastic_abaqus_tests
+ 62/314 Test #140: fuelsim_h20_inelastic_creep_moose_tests ........................   Passed    3.03 sec
+        Start 298: fuelsim_b13_finite_cax8t_abaqus_tests
+ 63/314 Test  #63: fuelsim_c3d20rt_small_coupled_abaqus_tests .....................   Passed    3.16 sec
+        Start  85: fuelsim_b539_friction_reversal_c3d8rt_abaqus_tests
+ 64/314 Test  #68: fuelsim_c3d20rt_small_creep_hold_abaqus_tests ..................   Passed    3.47 sec
+        Start  83: fuelsim_b526_hex8_c3d8t_friction_reversal_abaqus_tests
+ 65/314 Test  #64: fuelsim_c3d20rt_finite_coupled_abaqus_tests ....................   Passed    3.49 sec
+        Start 299: fuelsim_b13_finite_cax8rt_abaqus_tests
+ 66/314 Test  #67: fuelsim_c3d20rt_finite_creep_abaqus_tests ......................   Passed    2.99 sec
+        Start  81: fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests
+ 67/314 Test  #65: fuelsim_c3d20rt_small_plastic_abaqus_tests .....................   Passed    3.05 sec
+        Start 285: fuelsim_b1213_cax8rt_finite_sliding_restart_tests
+ 68/314 Test #298: fuelsim_b13_finite_cax8t_abaqus_tests ..........................   Passed    2.87 sec
+        Start 177: fuelsim_b550_output_contract
+ 69/314 Test #299: fuelsim_b13_finite_cax8rt_abaqus_tests .........................   Passed    2.74 sec
+        Start 178: fuelsim_b555_output_contract
+ 70/314 Test #285: fuelsim_b1213_cax8rt_finite_sliding_restart_tests ..............   Passed    2.33 sec
+        Start  84: fuelsim_b538_contact_cycle_c3d8rt_abaqus_tests
+ 71/314 Test #177: fuelsim_b550_output_contract ...................................   Passed    2.46 sec
+        Start  82: fuelsim_b526_hex8_c3d8t_contact_cycle_abaqus_tests
+ 72/314 Test  #85: fuelsim_b539_friction_reversal_c3d8rt_abaqus_tests .............   Passed    4.63 sec
+        Start 294: fuelsim_b13_small_cax8t_abaqus_tests
+ 73/314 Test  #83: fuelsim_b526_hex8_c3d8t_friction_reversal_abaqus_tests .........   Passed    4.66 sec
+        Start  71: fuelsim_c3d20rt_small_probe_abaqus_tests
+ 74/314 Test #178: fuelsim_b555_output_contract ...................................   Passed    2.50 sec
+        Start  70: fuelsim_c3d20rt_nonaffine_probe_abaqus_tests
+ 75/314 Test  #81: fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests ................   Passed    4.68 sec
+        Start  69: fuelsim_c3d20rt_thermal_probe_abaqus_tests
+ 76/314 Test #294: fuelsim_b13_small_cax8t_abaqus_tests ...........................   Passed    2.36 sec
+        Start 295: fuelsim_b13_small_cax8rt_abaqus_tests
+ 77/314 Test  #71: fuelsim_c3d20rt_small_probe_abaqus_tests .......................   Passed    2.62 sec
+        Start 176: fuelsim_b549_output_contract
+ 78/314 Test  #84: fuelsim_b538_contact_cycle_c3d8rt_abaqus_tests .................   Passed    4.37 sec
+        Start 125: fuelsim_b43_hex8_finite_strain_contact_abaqus_tests
+ 79/314 Test  #70: fuelsim_c3d20rt_nonaffine_probe_abaqus_tests ...................   Passed    2.77 sec
+        Start 267: fuelsim_b113_cax8t_finite_sliding_abaqus_tests
+ 80/314 Test  #69: fuelsim_c3d20rt_thermal_probe_abaqus_tests .....................   Passed    2.73 sec
+        Start 268: fuelsim_b114_cax8t_recovery_abaqus_tests
+ 81/314 Test  #82: fuelsim_b526_hex8_c3d8t_contact_cycle_abaqus_tests .............   Passed    4.60 sec
+        Start  59: fuelsim_m54_transient_augmented_contact_tests
+ 82/314 Test #295: fuelsim_b13_small_cax8rt_abaqus_tests ..........................   Passed    2.15 sec
+        Start 172: fuelsim_h20_41_hex20_partial_contact_abaqus_tests
+ 83/314 Test #176: fuelsim_b549_output_contract ...................................   Passed    2.32 sec
+        Start  40: fuelsim_gps_contact_restart
+ 84/314 Test #267: fuelsim_b113_cax8t_finite_sliding_abaqus_tests .................   Passed    2.62 sec
+        Start 266: fuelsim_b112_cax8t_small_friction_abaqus_tests
+ 85/314 Test #268: fuelsim_b114_cax8t_recovery_abaqus_tests .......................   Passed    2.73 sec
+        Start 281: fuelsim_b1212_cax8rt_small_friction_abaqus_tests
+ 86/314 Test  #40: fuelsim_gps_contact_restart ....................................   Passed    1.72 sec
+        Start 283: fuelsim_b105_cax8t_finite_coupled_restart_tests
+ 87/314 Test #125: fuelsim_b43_hex8_finite_strain_contact_abaqus_tests ............   Passed    3.41 sec
+        Start 284: fuelsim_b125_cax8rt_finite_coupled_restart_tests
+ 88/314 Test  #59: fuelsim_m54_transient_augmented_contact_tests ..................   Passed    2.99 sec
+        Start 296: fuelsim_b13_finite_cax4t_abaqus_tests
+ 89/314 Test #172: fuelsim_h20_41_hex20_partial_contact_abaqus_tests ..............   Passed    2.79 sec
+        Start  53: fuelsim_b60_c3d8rt_finite_steady_bending_tests
+ 90/314 Test #266: fuelsim_b112_cax8t_small_friction_abaqus_tests .................   Passed    1.99 sec
+        Start  44: fuelsim_checkpoint_results_tests
+ 91/314 Test #281: fuelsim_b1212_cax8rt_small_friction_abaqus_tests ...............   Passed    2.14 sec
+        Start 137: fuelsim_h20_06_transient_moose_tests
+ 92/314 Test #296: fuelsim_b13_finite_cax4t_abaqus_tests ..........................   Passed    2.57 sec
+        Start 297: fuelsim_b13_finite_cax4rt_abaqus_tests
+ 93/314 Test  #53: fuelsim_b60_c3d8rt_finite_steady_bending_tests .................   Passed    2.77 sec
+        Start 305: fuelsim_b14_nts_cax8t_abaqus_tests
+ 94/314 Test #283: fuelsim_b105_cax8t_finite_coupled_restart_tests ................   Passed    3.00 sec
+        Start 292: fuelsim_b13_small_cax4t_abaqus_tests
+ 95/314 Test #284: fuelsim_b125_cax8rt_finite_coupled_restart_tests ...............   Passed    3.06 sec
+        Start 108: fuelsim_b518_hex8_c3d8t_finite_noncoaxial_abaqus_tests
+ 96/314 Test  #44: fuelsim_checkpoint_results_tests ...............................   Passed    1.92 sec
+        Start  99: fuelsim_b513_hex8_c3d8t_small_noncoaxial_abaqus_tests
+ 97/314 Test #297: fuelsim_b13_finite_cax4rt_abaqus_tests .........................   Passed    1.95 sec
+        Start  30: fuelsim_gps_nonuniform_finite_abaqus
+ 98/314 Test #137: fuelsim_h20_06_transient_moose_tests ...........................   Passed    3.24 sec
+        Start  48: fuelsim_gravity_hex8
+ 99/314 Test #305: fuelsim_b14_nts_cax8t_abaqus_tests .............................   Passed    2.29 sec
+        Start 293: fuelsim_b13_small_cax4rt_abaqus_tests
+100/314 Test #292: fuelsim_b13_small_cax4t_abaqus_tests ...........................   Passed    2.22 sec
+        Start 113: fuelsim_b542_hex8_c3d8rt_small_norton_abaqus_tests
+101/314 Test  #30: fuelsim_gps_nonuniform_finite_abaqus ...........................   Passed    0.79 sec
+        Start 105: fuelsim_b541_hex8_c3d8rt_small_j2_abaqus_tests
+102/314 Test  #48: fuelsim_gravity_hex8 ...........................................   Passed    1.07 sec
+        Start  31: fuelsim_gps_material_temperature_finite_abaqus
+103/314 Test #108: fuelsim_b518_hex8_c3d8t_finite_noncoaxial_abaqus_tests .........   Passed    3.09 sec
+        Start  33: fuelsim_gps_thermal_finite_abaqus
+104/314 Test  #99: fuelsim_b513_hex8_c3d8t_small_noncoaxial_abaqus_tests ..........   Passed    2.91 sec
+        Start 237: fuelsim_b80_rz_small_friction_abaqus_tests
+105/314 Test #293: fuelsim_b13_small_cax4rt_abaqus_tests ..........................   Passed    1.78 sec
+        Start 289: fuelsim_b913_cax4rt_small_friction_abaqus_tests
+106/314 Test  #61: fuelsim_c3d20rt_contact_friction_abaqus_tests ..................   Passed   48.45 sec
+        Start  87: fuelsim_b544_hex8_c3d8rt_distorted_bending_abaqus_tests
+107/314 Test #113: fuelsim_b542_hex8_c3d8rt_small_norton_abaqus_tests .............   Passed    2.25 sec
+        Start 106: fuelsim_b543_hex8_c3d8rt_small_coupled_abaqus_tests
+108/314 Test  #31: fuelsim_gps_material_temperature_finite_abaqus .................   Passed    1.51 sec
+        Start  22: fuelsim_cax4t_material_plastic_yield_abaqus
+109/314 Test #105: fuelsim_b541_hex8_c3d8rt_small_j2_abaqus_tests .................   Passed    2.29 sec
+        Start  23: fuelsim_cax4t_material_plastic_yield_finite_abaqus
+110/314 Test  #33: fuelsim_gps_thermal_finite_abaqus ..............................   Passed    1.51 sec
+        Start 104: fuelsim_b537_hex8_c3d8rt_finite_coupled_abaqus_tests
+111/314 Test #237: fuelsim_b80_rz_small_friction_abaqus_tests .....................   Passed    1.89 sec
+        Start  29: fuelsim_gps_uniform_finite_abaqus
+112/314 Test #289: fuelsim_b913_cax4rt_small_friction_abaqus_tests ................   Passed    1.78 sec
+        Start 103: fuelsim_b535_hex8_c3d8rt_finite_j2_abaqus_tests
+113/314 Test  #22: fuelsim_cax4t_material_plastic_yield_abaqus ....................   Passed    2.24 sec
+        Start 112: fuelsim_b536_hex8_c3d8rt_finite_norton_abaqus_tests
+114/314 Test  #23: fuelsim_cax4t_material_plastic_yield_finite_abaqus .............   Passed    2.28 sec
+        Start  51: fuelsim_gravity_quad4
+115/314 Test  #29: fuelsim_gps_uniform_finite_abaqus ..............................   Passed    1.94 sec
+        Start  50: fuelsim_gravity_gps
+116/314 Test #106: fuelsim_b543_hex8_c3d8rt_small_coupled_abaqus_tests ............   Passed    2.84 sec
+        Start  25: fuelsim_cax4t_material_plastic_hardening_finite_abaqus
+117/314 Test  #87: fuelsim_b544_hex8_c3d8rt_distorted_bending_abaqus_tests ........   Passed    2.98 sec
+        Start  26: fuelsim_cax4t_material_creep_coefficient_finite_abaqus
+118/314 Test #104: fuelsim_b537_hex8_c3d8rt_finite_coupled_abaqus_tests ...........   Passed    3.01 sec
+        Start  24: fuelsim_cax4t_material_plastic_hardening_abaqus
+119/314 Test #103: fuelsim_b535_hex8_c3d8rt_finite_j2_abaqus_tests ................   Passed    2.25 sec
+        Start 110: fuelsim_b511_hex8_c3d8t_small_norton_abaqus_tests
+120/314 Test  #51: fuelsim_gravity_quad4 ..........................................   Passed    1.40 sec
+        Start 258: fuelsim_b106_cax8t_small_creep_abaqus_tests
+121/314 Test #112: fuelsim_b536_hex8_c3d8rt_finite_norton_abaqus_tests ............   Passed    1.85 sec
+        Start 102: fuelsim_b517_hex8_c3d8t_finite_coupled_abaqus_tests
+122/314 Test  #50: fuelsim_gravity_gps ............................................   Passed    1.61 sec
+        Start  39: fuelsim_gps_inelastic_finite
+123/314 Test  #25: fuelsim_cax4t_material_plastic_hardening_finite_abaqus .........   Passed    1.98 sec
+        Start  20: fuelsim_cax4t_material_elastic_moduli_abaqus
+124/314 Test  #26: fuelsim_cax4t_material_creep_coefficient_finite_abaqus .........   Passed    2.08 sec
+        Start  27: fuelsim_cax4t_material_creep_exponent_finite_abaqus
+125/314 Test  #24: fuelsim_cax4t_material_plastic_hardening_abaqus ................   Passed    2.21 sec
+        Start  32: fuelsim_gps_thermal_small_abaqus
+126/314 Test #258: fuelsim_b106_cax8t_small_creep_abaqus_tests ....................   Passed    2.43 sec
+        Start 273: fuelsim_b126_cax8rt_small_creep_abaqus_tests
+127/314 Test  #39: fuelsim_gps_inelastic_finite ...................................   Passed    2.13 sec
+        Start  21: fuelsim_cax4t_material_elastic_moduli_finite_abaqus
+128/314 Test #110: fuelsim_b511_hex8_c3d8t_small_norton_abaqus_tests ..............   Passed    2.95 sec
+        Start  49: fuelsim_gravity_hex20
+129/314 Test  #20: fuelsim_cax4t_material_elastic_moduli_abaqus ...................   Passed    1.90 sec
+        Start 111: fuelsim_b516_hex8_c3d8t_finite_norton_abaqus_tests
+130/314 Test  #27: fuelsim_cax4t_material_creep_exponent_finite_abaqus ............   Passed    1.83 sec
+        Start 156: fuelsim_h20_29_hex20_sts_tilted_abaqus_tests
+131/314 Test #102: fuelsim_b517_hex8_c3d8t_finite_coupled_abaqus_tests ............   Passed    2.93 sec
+        Start 278: fuelsim_b1211_cax8rt_finite_thermal_abaqus_tests
+132/314 Test  #32: fuelsim_gps_thermal_small_abaqus ...............................   Passed    1.70 sec
+        Start  28: fuelsim_gps_uniform_small_abaqus
+133/314 Test  #21: fuelsim_cax4t_material_elastic_moduli_finite_abaqus ............   Passed    2.14 sec
+        Start 275: fuelsim_b128_cax8rt_small_plastic_abaqus_tests
+134/314 Test  #49: fuelsim_gravity_hex20 ..........................................   Passed    2.13 sec
+        Start 274: fuelsim_b127_cax8rt_finite_creep_abaqus_tests
+135/314 Test #273: fuelsim_b126_cax8rt_small_creep_abaqus_tests ...................   Passed    2.28 sec
+        Start 261: fuelsim_b109_cax8t_finite_plastic_abaqus_tests
+136/314 Test  #28: fuelsim_gps_uniform_small_abaqus ...............................   Passed    2.12 sec
+        Start  52: fuelsim_gravity_quad8
+137/314 Test #156: fuelsim_h20_29_hex20_sts_tilted_abaqus_tests ...................   Passed    2.48 sec
+        Start  98: fuelsim_b512_hex8_c3d8t_small_coupled_abaqus_tests
+138/314 Test #278: fuelsim_b1211_cax8rt_finite_thermal_abaqus_tests ...............   Passed    2.25 sec
+        Start 271: fuelsim_b124_cax8rt_small_coupled_abaqus_tests
+139/314 Test #111: fuelsim_b516_hex8_c3d8t_finite_norton_abaqus_tests .............   Passed    2.92 sec
+        Start 260: fuelsim_b108_cax8t_small_plastic_abaqus_tests
+140/314 Test #275: fuelsim_b128_cax8rt_small_plastic_abaqus_tests .................   Passed    1.89 sec
+        Start 256: fuelsim_b104_cax8t_small_coupled_abaqus_tests
+141/314 Test #274: fuelsim_b127_cax8rt_finite_creep_abaqus_tests ..................   Passed    1.92 sec
+        Start 262: fuelsim_b110_cax8t_small_thermal_abaqus_tests
+142/314 Test #261: fuelsim_b109_cax8t_finite_plastic_abaqus_tests .................   Passed    1.99 sec
+        Start 259: fuelsim_b107_cax8t_finite_creep_abaqus_tests
+143/314 Test  #52: fuelsim_gravity_quad8 ..........................................   Passed    2.05 sec
+        Start 304: fuelsim_b14_nts_cax4t_abaqus_tests
+144/314 Test #271: fuelsim_b124_cax8rt_small_coupled_abaqus_tests .................   Passed    2.30 sec
+        Start  35: fuelsim_gps_steady_finite
+145/314 Test #260: fuelsim_b108_cax8t_small_plastic_abaqus_tests ..................   Passed    2.24 sec
+        Start 158: fuelsim_h20_29_hex20_sts_initial_gap_abaqus_tests
+146/314 Test  #98: fuelsim_b512_hex8_c3d8t_small_coupled_abaqus_tests .............   Passed    2.88 sec
+        Start 263: fuelsim_b111_cax8t_finite_thermal_abaqus_tests
+147/314 Test #256: fuelsim_b104_cax8t_small_coupled_abaqus_tests ..................   Passed    2.14 sec
+        Start 276: fuelsim_b129_cax8rt_finite_plastic_abaqus_tests
+148/314 Test #262: fuelsim_b110_cax8t_small_thermal_abaqus_tests ..................   Passed    2.14 sec
+        Start 277: fuelsim_b1210_cax8rt_small_thermal_abaqus_tests
+149/314 Test #259: fuelsim_b107_cax8t_finite_creep_abaqus_tests ...................   Passed    2.12 sec
+        Start 245: fuelsim_b94_cax4rt_finite_coupled_abaqus_tests
+150/314 Test #304: fuelsim_b14_nts_cax4t_abaqus_tests .............................   Passed    1.94 sec
+        Start 269: fuelsim_b120_cax8rt_small_probe_abaqus_tests
+151/314 Test  #35: fuelsim_gps_steady_finite ......................................   Passed    1.86 sec
+        Start 229: fuelsim_b72_rz_small_creep_abaqus_tests
+152/314 Test #158: fuelsim_h20_29_hex20_sts_initial_gap_abaqus_tests ..............   Passed    2.38 sec
+        Start 254: fuelsim_b100_cax8t_small_probe_abaqus_tests
+153/314 Test #263: fuelsim_b111_cax8t_finite_thermal_abaqus_tests .................   Passed    2.27 sec
+        Start 246: fuelsim_b95_cax4rt_small_creep_abaqus_tests
+154/314 Test #276: fuelsim_b129_cax8rt_finite_plastic_abaqus_tests ................   Passed    2.36 sec
+        Start 255: fuelsim_b101_cax8t_finite_probe_abaqus_tests
+155/314 Test #245: fuelsim_b94_cax4rt_finite_coupled_abaqus_tests .................   Passed    2.19 sec
+        Start 157: fuelsim_h20_29_hex20_sts_graded_abaqus_tests
+156/314 Test #277: fuelsim_b1210_cax8rt_small_thermal_abaqus_tests ................   Passed    2.38 sec
+        Start 231: fuelsim_b74_rz_small_plastic_abaqus_tests
+157/314 Test #269: fuelsim_b120_cax8rt_small_probe_abaqus_tests ...................   Passed    2.01 sec
+        Start 233: fuelsim_b76_rz_small_thermal_abaqus_tests
+158/314 Test #229: fuelsim_b72_rz_small_creep_abaqus_tests ........................   Passed    2.06 sec
+        Start 280: fuelsim_b123_cax8rt_finite_contact_abaqus_tests
+159/314 Test #254: fuelsim_b100_cax8t_small_probe_abaqus_tests ....................   Passed    1.97 sec
+        Start 234: fuelsim_b77_rz_finite_thermal_abaqus_tests
+160/314 Test #246: fuelsim_b95_cax4rt_small_creep_abaqus_tests ....................   Passed    2.02 sec
+        Start 250: fuelsim_b99_cax4rt_small_thermal_abaqus_tests
+161/314 Test #255: fuelsim_b101_cax8t_finite_probe_abaqus_tests ...................   Passed    2.41 sec
+        Start 228: fuelsim_b71_rz_finite_coupled_abaqus_tests
+162/314 Test #231: fuelsim_b74_rz_small_plastic_abaqus_tests ......................   Passed    2.33 sec
+        Start 251: fuelsim_b910_cax4rt_finite_thermal_abaqus_tests
+163/314 Test #233: fuelsim_b76_rz_small_thermal_abaqus_tests ......................   Passed    2.27 sec
+        Start 244: fuelsim_b93_cax4rt_small_coupled_abaqus_tests
+164/314 Test #157: fuelsim_h20_29_hex20_sts_graded_abaqus_tests ...................   Passed    2.70 sec
+        Start 249: fuelsim_b98_cax4rt_finite_plastic_abaqus_tests
+165/314 Test #280: fuelsim_b123_cax8rt_finite_contact_abaqus_tests ................   Passed    2.03 sec
+        Start 248: fuelsim_b97_cax4rt_small_plastic_abaqus_tests
+166/314 Test #234: fuelsim_b77_rz_finite_thermal_abaqus_tests .....................   Passed    1.98 sec
+        Start 230: fuelsim_b73_rz_finite_creep_abaqus_tests
+167/314 Test #250: fuelsim_b99_cax4rt_small_thermal_abaqus_tests ..................   Passed    1.92 sec
+        Start 247: fuelsim_b96_cax4rt_finite_creep_abaqus_tests
+168/314 Test #228: fuelsim_b71_rz_finite_coupled_abaqus_tests .....................   Passed    2.25 sec
+        Start 270: fuelsim_b121_cax8rt_finite_probe_abaqus_tests
+169/314 Test #251: fuelsim_b910_cax4rt_finite_thermal_abaqus_tests ................   Passed    2.25 sec
+        Start 279: fuelsim_b122_cax8rt_small_contact_abaqus_tests
+170/314 Test #244: fuelsim_b93_cax4rt_small_coupled_abaqus_tests ..................   Passed    2.32 sec
+        Start 154: fuelsim_h20_hex20_thermal_contact_reference_tests
+171/314 Test #249: fuelsim_b98_cax4rt_finite_plastic_abaqus_tests .................   Passed    2.31 sec
+        Start 232: fuelsim_b75_rz_finite_plastic_abaqus_tests
+172/314 Test #248: fuelsim_b97_cax4rt_small_plastic_abaqus_tests ..................   Passed    2.28 sec
+        Start 264: fuelsim_b102_cax8t_small_contact_abaqus_tests
+173/314 Test #230: fuelsim_b73_rz_finite_creep_abaqus_tests .......................   Passed    2.11 sec
+        Start 241: fuelsim_b151_cax4t_small_conductivity_abaqus_tests
+174/314 Test #247: fuelsim_b96_cax4rt_finite_creep_abaqus_tests ...................   Passed    2.13 sec
+        Start 287: fuelsim_b916_cax4rt_variable_conductivity_abaqus_tests
+175/314 Test #270: fuelsim_b121_cax8rt_finite_probe_abaqus_tests ..................   Passed    2.19 sec
+        Start 265: fuelsim_b103_cax8t_finite_contact_abaqus_tests
+176/314 Test #279: fuelsim_b122_cax8rt_small_contact_abaqus_tests .................   Passed    2.21 sec
+        Start 240: fuelsim_b150_cax4t_finite_thermal_operator_abaqus_tests
+177/314 Test #264: fuelsim_b102_cax8t_small_contact_abaqus_tests ..................   Passed    2.22 sec
+        Start 286: fuelsim_b915_cax4rt_thermal_identification_abaqus_tests
+178/314 Test #232: fuelsim_b75_rz_finite_plastic_abaqus_tests .....................   Passed    2.27 sec
+        Start 288: fuelsim_b917_cax4rt_finite_thermal_operators_abaqus_tests
+179/314 Test #154: fuelsim_h20_hex20_thermal_contact_reference_tests ..............   Passed    2.44 sec
+        Start 227: fuelsim_b70_rz_small_coupled_abaqus_tests
+180/314 Test #241: fuelsim_b151_cax4t_small_conductivity_abaqus_tests .............   Passed    2.15 sec
+        Start 243: fuelsim_b92_cax4rt_rectangle_probe_abaqus_tests
+181/314 Test #287: fuelsim_b916_cax4rt_variable_conductivity_abaqus_tests .........   Passed    2.10 sec
+        Start 242: fuelsim_b91_cax4rt_finite_probe_abaqus_tests
+182/314 Test #265: fuelsim_b103_cax8t_finite_contact_abaqus_tests .................   Passed    2.05 sec
+        Start 155: fuelsim_h20_29_hex20_sts_biaxial_abaqus_tests
+183/314 Test #240: fuelsim_b150_cax4t_finite_thermal_operator_abaqus_tests ........   Passed    2.05 sec
+        Start 252: fuelsim_b911_cax4rt_small_contact_abaqus_tests
+184/314 Test #286: fuelsim_b915_cax4rt_thermal_identification_abaqus_tests ........   Passed    2.24 sec
+        Start 253: fuelsim_b912_cax4rt_finite_contact_abaqus_tests
+185/314 Test #288: fuelsim_b917_cax4rt_finite_thermal_operators_abaqus_tests ......   Passed    2.29 sec
+        Start 235: fuelsim_b78_rz_small_contact_abaqus_tests
+186/314 Test #227: fuelsim_b70_rz_small_coupled_abaqus_tests ......................   Passed    2.32 sec
+        Start  95: fuelsim_b58_hex8_c3d8t_multistep_abaqus_tests
+187/314 Test #243: fuelsim_b92_cax4rt_rectangle_probe_abaqus_tests ................   Passed    2.26 sec
+        Start 236: fuelsim_b79_rz_finite_contact_abaqus_tests
+188/314 Test #242: fuelsim_b91_cax4rt_finite_probe_abaqus_tests ...................   Passed    2.18 sec
+        Start  46: fuelsim_pressure_cylinder_analytic_tests
+189/314 Test #252: fuelsim_b911_cax4rt_small_contact_abaqus_tests .................   Passed    2.10 sec
+        Start 131: fuelsim_hex20_solver_tests
+190/314 Test #155: fuelsim_h20_29_hex20_sts_biaxial_abaqus_tests ..................   Passed    2.48 sec
+        Start 181: fuelsim_b37_hex8_multi_contact_moose_tests
+191/314 Test #253: fuelsim_b912_cax4rt_finite_contact_abaqus_tests ................   Passed    2.08 sec
+        Start 226: fuelsim_m21_manufactured_heat_tests
+192/314 Test #235: fuelsim_b78_rz_small_contact_abaqus_tests ......................   Passed    2.17 sec
+        Start  92: fuelsim_b55_hex8_c3d8t_transient_abaqus_tests
+193/314 Test #236: fuelsim_b79_rz_finite_contact_abaqus_tests .....................   Passed    2.17 sec
+        Start  72: fuelsim_hex8_solver_tests
+194/314 Test  #46: fuelsim_pressure_cylinder_analytic_tests .......................   Passed    2.12 sec
+        Start 135: fuelsim_h20_04_traction_moose_tests
+195/314 Test  #95: fuelsim_b58_hex8_c3d8t_multistep_abaqus_tests ..................   Passed    3.11 sec
+        Start 142: fuelsim_h20_10_finite_strain_moose_tests
+196/314 Test #181: fuelsim_b37_hex8_multi_contact_moose_tests .....................   Passed    2.17 sec
+        Start 151: fuelsim_b34_hex8_sliding_contact_abaqus_tests
+197/314 Test #226: fuelsim_m21_manufactured_heat_tests ............................   Passed    1.98 sec
+        Start 133: fuelsim_h20_02_convection_moose_tests
+198/314 Test  #92: fuelsim_b55_hex8_c3d8t_transient_abaqus_tests ..................   Passed    2.23 sec
+        Start 132: fuelsim_b6_hex20_moose_tests
+199/314 Test  #72: fuelsim_hex8_solver_tests ......................................   Passed    2.02 sec
+        Start 136: fuelsim_h20_05_thermo_mechanical_moose_tests
+200/314 Test #135: fuelsim_h20_04_traction_moose_tests ............................   Passed    1.91 sec
+        Start 144: fuelsim_b3_hex8_moose_tests
+201/314 Test #131: fuelsim_hex20_solver_tests .....................................   Passed    3.30 sec
+        Start 134: fuelsim_h20_03_pressure_moose_tests
+202/314 Test #142: fuelsim_h20_10_finite_strain_moose_tests .......................   Passed    1.55 sec
+        Start  73: fuelsim_b38_hex8_sts_identification_tests
+203/314 Test #151: fuelsim_b34_hex8_sliding_contact_abaqus_tests ..................   Passed    1.88 sec
+        Start 100: fuelsim_b514_hex8_c3d8t_finite_elastic_abaqus_tests
+204/314 Test #133: fuelsim_h20_02_convection_moose_tests ..........................   Passed    1.95 sec
+        Start 199: fuelsim_multi_region_tests
+205/314 Test #132: fuelsim_b6_hex20_moose_tests ...................................   Passed    2.22 sec
+        Start 201: fuelsim_solver_tests
+206/314 Test #144: fuelsim_b3_hex8_moose_tests ....................................   Passed    2.23 sec
+        Start 306: fuelsim_transient_jacobian_check
+207/314 Test #136: fuelsim_h20_05_thermo_mechanical_moose_tests ...................   Passed    2.29 sec
+        Start 153: fuelsim_b34_friction_checkpoint_contract
+208/314 Test  #73: fuelsim_b38_hex8_sts_identification_tests ......................   Passed    2.05 sec
+        Start 148: fuelsim_b36_shared_nodes_contract
+209/314 Test #134: fuelsim_h20_03_pressure_moose_tests ............................   Passed    2.23 sec
+        Start 143: fuelsim_h20_24_hex20_nonmatching_contact_tests
+210/314 Test #143: fuelsim_h20_24_hex20_nonmatching_contact_tests .................   Passed    0.29 sec
+        Start 197: fuelsim_b531_history_contract
+211/314 Test #153: fuelsim_b34_friction_checkpoint_contract .......................   Passed    0.72 sec
+        Start 198: fuelsim_b534_history_contract
+212/314 Test #197: fuelsim_b531_history_contract ..................................   Passed    0.24 sec
+        Start 189: fuelsim_b32_coupled_history_contract
+213/314 Test #148: fuelsim_b36_shared_nodes_contract ..............................   Passed    0.67 sec
+        Start 190: fuelsim_b510_history_contract
+214/314 Test #100: fuelsim_b514_hex8_c3d8t_finite_elastic_abaqus_tests ............   Passed    1.70 sec
+        Start 185: fuelsim_b3_coupled_history_contract
+215/314 Test #199: fuelsim_multi_region_tests .....................................   Passed    1.63 sec
+        Start 187: fuelsim_b32_creep_history_contract
+216/314 Test #198: fuelsim_b534_history_contract ..................................   Passed    0.24 sec
+        Start 191: fuelsim_b515_history_contract
+217/314 Test #190: fuelsim_b510_history_contract ..................................   Passed    0.23 sec
+        Start 183: fuelsim_b3_creep_history_contract
+218/314 Test #189: fuelsim_b32_coupled_history_contract ...........................   Passed    0.25 sec
+        Start 162: fuelsim_h20_30_quadratic_cylinder_contract
+219/314 Test #185: fuelsim_b3_coupled_history_contract ............................   Passed    0.24 sec
+        Start 165: fuelsim_h20_35_curved_friction_contract
+220/314 Test #187: fuelsim_b32_creep_history_contract .............................   Passed    0.24 sec
+        Start 160: fuelsim_h20_30_faceted_cylinder_contract
+221/314 Test #306: fuelsim_transient_jacobian_check ...............................   Passed    1.18 sec
+        Start  37: fuelsim_gps_chain_abaqus
+222/314 Test #201: fuelsim_solver_tests ...........................................   Passed    1.24 sec
+        Start 312: fuelsim_element_library_boundaries
+223/314 Test #191: fuelsim_b515_history_contract ..................................   Passed    0.23 sec
+        Start 311: fuelsim_abaqus_reference_sha256
+224/314 Test  #37: fuelsim_gps_chain_abaqus .......................................   Passed    0.14 sec
+        Start 239: fuelsim_b81_rz_friction_history_contract
+225/314 Test #183: fuelsim_b3_creep_history_contract ..............................   Passed    0.25 sec
+        Start 291: fuelsim_b914_cax4rt_friction_history_contract
+226/314 Test #162: fuelsim_h20_30_quadratic_cylinder_contract .....................   Passed    0.25 sec
+        Start   4: fuelsim_bar2_io_tests
+227/314 Test #165: fuelsim_h20_35_curved_friction_contract ........................   Passed    0.27 sec
+        Start 119: fuelsim_b39_tilted_gap_contact_contract
+228/314 Test #160: fuelsim_h20_30_faceted_cylinder_contract .......................   Passed    0.25 sec
+        Start 117: fuelsim_b39_nonmatching_contact_contract
+229/314 Test #239: fuelsim_b81_rz_friction_history_contract .......................   Passed    0.13 sec
+        Start  80: fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests
+230/314 Test   #4: fuelsim_bar2_io_tests ..........................................   Passed    0.11 sec
+        Start 115: fuelsim_b39_matching_contact_contract
+231/314 Test #291: fuelsim_b914_cax4rt_friction_history_contract ..................   Passed    0.12 sec
+        Start  42: fuelsim_input_tests
+232/314 Test #119: fuelsim_b39_tilted_gap_contact_contract ........................   Passed    0.11 sec
+        Start 147: fuelsim_b35_shared_nodes_contract
+233/314 Test #117: fuelsim_b39_nonmatching_contact_contract .......................   Passed    0.10 sec
+        Start 307: fuelsim_reproducible_build_tests
+234/314 Test #312: fuelsim_element_library_boundaries .............................   Passed    0.36 sec
+        Start 170: fuelsim_h20_39_finite_sliding_abaqus_tests
+235/314 Test #311: fuelsim_abaqus_reference_sha256 ................................   Passed    0.31 sec
+        Start  58: fuelsim_m52_restart_step_contract
+236/314 Test #115: fuelsim_b39_matching_contact_contract ..........................   Passed    0.10 sec
+        Start 122: fuelsim_b40_friction_history_contract
+237/314 Test  #80: fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests ...   Passed    0.12 sec
+        Start  47: fuelsim_rz_contact_projection_contract
+238/314 Test #147: fuelsim_b35_shared_nodes_contract ..............................   Passed    0.10 sec
+        Start 138: fuelsim_hex20_history_contract_tests
+239/314 Test  #58: fuelsim_m52_restart_step_contract ..............................   Passed    0.07 sec
+        Start 127: fuelsim_b45_hex8_nonplanar_sts_abaqus_tests
+240/314 Test  #47: fuelsim_rz_contact_projection_contract .........................   Passed    0.07 sec
+        Start  43: fuelsim_exodus_mesh_io_tests
+241/314 Test #170: fuelsim_h20_39_finite_sliding_abaqus_tests .....................   Passed    0.10 sec
+        Start  19: fuelsim_radial_transaction_tests
+242/314 Test #122: fuelsim_b40_friction_history_contract ..........................   Passed    0.08 sec
+        Start 129: fuelsim_b47_hex8_scale_parameter_abaqus_tests
+243/314 Test #307: fuelsim_reproducible_build_tests ...............................   Passed    0.14 sec
+        Start  41: fuelsim_hex8_result_fields_tests
+244/314 Test #138: fuelsim_hex20_history_contract_tests ...........................   Passed    0.08 sec
+        Start 126: fuelsim_b44_hex8_nonmatching_partial_contact_abaqus_tests
+245/314 Test  #42: fuelsim_input_tests ............................................   Passed    0.20 sec
+        Start 124: fuelsim_b42_hex8_friction_objectivity_abaqus_tests
+246/314 Test #127: fuelsim_b45_hex8_nonplanar_sts_abaqus_tests ....................   Passed    0.09 sec
+        Start 123: fuelsim_b41_hex8_finite_sliding_abaqus_tests
+247/314 Test  #41: fuelsim_hex8_result_fields_tests ...............................   Passed    0.06 sec
+        Start 179: fuelsim_h20_31_hex20_curved_sts_identification_tests
+248/314 Test  #19: fuelsim_radial_transaction_tests ...............................   Passed    0.07 sec
+        Start 169: fuelsim_h20_38_friction_objectivity_abaqus_tests
+249/314 Test  #43: fuelsim_exodus_mesh_io_tests ...................................   Passed    0.08 sec
+        Start  79: fuelsim_b521_hex8_c3d8t_thermal_contact_path_abaqus_tests
+250/314 Test #129: fuelsim_b47_hex8_scale_parameter_abaqus_tests ..................   Passed    0.08 sec
+        Start 128: fuelsim_b46_hex8_release_recontact_abaqus_tests
+251/314 Test #126: fuelsim_b44_hex8_nonmatching_partial_contact_abaqus_tests ......   Passed    0.08 sec
+        Start 310: fuelsim_moose_reference_sha256
+252/314 Test #124: fuelsim_b42_hex8_friction_objectivity_abaqus_tests .............   Passed    0.08 sec
+        Start   7: fuelsim_cax8t_tests
+253/314 Test   #7: fuelsim_cax8t_tests ............................................   Passed    0.02 sec
+        Start   8: fuelsim_cax8rt_tests
+254/314 Test #179: fuelsim_h20_31_hex20_curved_sts_identification_tests ...........   Passed    0.07 sec
+        Start  11: fuelsim_c3d20t_tests
+255/314 Test #123: fuelsim_b41_hex8_finite_sliding_abaqus_tests ...................   Passed    0.07 sec
+        Start 308: fuelsim_geometry_independence_audit
+256/314 Test #169: fuelsim_h20_38_friction_objectivity_abaqus_tests ...............   Passed    0.07 sec
+        Start  12: fuelsim_c3d20rt_tests
+257/314 Test #310: fuelsim_moose_reference_sha256 .................................   Passed    0.03 sec
+        Start   9: fuelsim_c3d8t_tests
+258/314 Test   #8: fuelsim_cax8rt_tests ...........................................   Passed    0.01 sec
+        Start   5: fuelsim_cax4t_tests
+259/314 Test #308: fuelsim_geometry_independence_audit ............................   Passed    0.01 sec
+        Start  89: fuelsim_b552_hex8_c3d8t_sts_cross_face_abaqus_tests
+260/314 Test  #12: fuelsim_c3d20rt_tests ..........................................   Passed    0.01 sec
+        Start  13: fuelsim_body_acceleration_tests
+261/314 Test  #79: fuelsim_b521_hex8_c3d8t_thermal_contact_path_abaqus_tests ......   Passed    0.07 sec
+        Start 192: fuelsim_b528_hex8_c3d8rt_operator_abaqus_tests
+262/314 Test   #5: fuelsim_cax4t_tests ............................................   Passed    0.01 sec
+        Start  74: fuelsim_b49_hex8_c3d8t_operator_abaqus_tests
+263/314 Test  #11: fuelsim_c3d20t_tests ...........................................   Passed    0.02 sec
+        Start  93: fuelsim_b56_hex8_c3d8t_temperature_operator_abaqus_tests
+264/314 Test #128: fuelsim_b46_hex8_release_recontact_abaqus_tests ................   Passed    0.07 sec
+        Start  17: fuelsim_quad8_face_tests
+265/314 Test   #9: fuelsim_c3d8t_tests ............................................   Passed    0.02 sec
+        Start   1: fuelsim_cax2t_gps_tests
+266/314 Test  #89: fuelsim_b552_hex8_c3d8t_sts_cross_face_abaqus_tests ............   Passed    0.01 sec
+        Start  10: fuelsim_c3d8rt_tests
+267/314 Test  #13: fuelsim_body_acceleration_tests ................................   Passed    0.01 sec
+        Start  18: fuelsim_radial_assembly_tests
+268/314 Test #192: fuelsim_b528_hex8_c3d8rt_operator_abaqus_tests .................   Passed    0.01 sec
+        Start   2: fuelsim_ring_gps_tests
+269/314 Test  #74: fuelsim_b49_hex8_c3d8t_operator_abaqus_tests ...................   Passed    0.01 sec
+        Start 313: fuelsim_common_math_tests
+270/314 Test  #93: fuelsim_b56_hex8_c3d8t_temperature_operator_abaqus_tests .......   Passed    0.01 sec
+        Start  16: fuelsim_quad4_face_tests
+271/314 Test  #17: fuelsim_quad8_face_tests .......................................   Passed    0.01 sec
+        Start  14: fuelsim_line2_rz_tests
+272/314 Test   #1: fuelsim_cax2t_gps_tests ........................................   Passed    0.01 sec
+        Start 314: fuelsim_contact_common_tests
+273/314 Test  #10: fuelsim_c3d8rt_tests ...........................................   Passed    0.01 sec
+        Start   6: fuelsim_cax4rt_tests
+274/314 Test  #18: fuelsim_radial_assembly_tests ..................................   Passed    0.01 sec
+        Start   3: fuelsim_bar2_mesh_tests
+275/314 Test   #2: fuelsim_ring_gps_tests .........................................   Passed    0.01 sec
+        Start  60: fuelsim_core_tests
+276/314 Test #313: fuelsim_common_math_tests ......................................   Passed    0.01 sec
+        Start 309: fuelsim_verification_matrix_tests
+277/314 Test  #16: fuelsim_quad4_face_tests .......................................   Passed    0.01 sec
+        Start 200: fuelsim_m2_core_tests
+278/314 Test  #14: fuelsim_line2_rz_tests .........................................   Passed    0.01 sec
+        Start  15: fuelsim_line3_rz_tests
+279/314 Test #314: fuelsim_contact_common_tests ...................................   Passed    0.01 sec
+        Start 194: fuelsim_b530_hex8_c3d8rt_thermal_load_abaqus_tests
+280/314 Test   #6: fuelsim_cax4rt_tests ...........................................   Passed    0.01 sec
+        Start 193: fuelsim_b529_hex8_c3d8rt_capacity_abaqus_tests
+281/314 Test   #3: fuelsim_bar2_mesh_tests ........................................   Passed    0.01 sec
+        Start  75: fuelsim_b50_hex8_c3d8t_capacity_abaqus_tests
+282/314 Test  #60: fuelsim_core_tests .............................................   Passed    0.01 sec
+        Start  76: fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests
+283/314 Test #309: fuelsim_verification_matrix_tests ..............................   Passed    0.01 sec
+        Start  78: fuelsim_b520_hex8_c3d8t_gap_conductance_abaqus_tests
+284/314 Test #200: fuelsim_m2_core_tests ..........................................   Passed    0.01 sec
+        Start  91: fuelsim_b54_hex8_c3d8t_finite_thermal_load_abaqus_tests
+285/314 Test  #15: fuelsim_line3_rz_tests .........................................   Passed    0.01 sec
+        Start  94: fuelsim_b57_hex8_c3d8t_temperature_capacity_abaqus_tests
+286/314 Test #194: fuelsim_b530_hex8_c3d8rt_thermal_load_abaqus_tests .............   Passed    0.01 sec
+        Start  77: fuelsim_b52_hex8_c3d8t_thermal_contact_abaqus_tests
+287/314 Test #193: fuelsim_b529_hex8_c3d8rt_capacity_abaqus_tests .................   Passed    0.01 sec
+        Start 109: fuelsim_b519_hex8_c3d8t_finite_selective_abaqus_tests
+288/314 Test  #75: fuelsim_b50_hex8_c3d8t_capacity_abaqus_tests ...................   Passed    0.01 sec
+        Start  90: fuelsim_b53_hex8_c3d8t_thermal_load_abaqus_tests
+289/314 Test  #76: fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests ................   Passed    0.01 sec
+290/314 Test  #78: fuelsim_b520_hex8_c3d8t_gap_conductance_abaqus_tests ...........   Passed    0.01 sec
+        Start 207: fuelsim_mpi_hex8_solver_tests
+291/314 Test  #91: fuelsim_b54_hex8_c3d8t_finite_thermal_load_abaqus_tests ........   Passed    0.01 sec
+292/314 Test  #94: fuelsim_b57_hex8_c3d8t_temperature_capacity_abaqus_tests .......   Passed    0.01 sec
+        Start 215: fuelsim_b521_thermal_contact_mpi_equivalence
+293/314 Test  #77: fuelsim_b52_hex8_c3d8t_thermal_contact_abaqus_tests ............   Passed    0.01 sec
+294/314 Test #109: fuelsim_b519_hex8_c3d8t_finite_selective_abaqus_tests ..........   Passed    0.01 sec
+        Start 225: fuelsim_mpi_root_io_failure
+295/314 Test  #90: fuelsim_b53_hex8_c3d8t_thermal_load_abaqus_tests ...............   Passed    0.01 sec
+296/314 Test #225: fuelsim_mpi_root_io_failure ....................................   Passed    2.15 sec
+        Start 213: fuelsim_b33_mpi_equivalence
+297/314 Test #215: fuelsim_b521_thermal_contact_mpi_equivalence ...................   Passed    2.21 sec
+        Start 224: fuelsim_transient_mpi_equivalence
+298/314 Test #207: fuelsim_mpi_hex8_solver_tests ..................................   Passed    2.28 sec
+        Start 218: fuelsim_b41_hex8_finite_sliding_mpi_equivalence
+299/314 Test #213: fuelsim_b33_mpi_equivalence ....................................   Passed    2.16 sec
+        Start 212: fuelsim_mpi_equivalence
+300/314 Test #218: fuelsim_b41_hex8_finite_sliding_mpi_equivalence ................   Passed    2.06 sec
+        Start 208: fuelsim_mpi_hex20_solver_tests
+301/314 Test #224: fuelsim_transient_mpi_equivalence ..............................   Passed    2.40 sec
+        Start 216: fuelsim_b39_hex8_sts_mpi_equivalence
+302/314 Test #212: fuelsim_mpi_equivalence ........................................   Passed    1.84 sec
+        Start 210: fuelsim_mpi_runtime_layout_field_split
+303/314 Test #216: fuelsim_b39_hex8_sts_mpi_equivalence ...........................   Passed    1.91 sec
+        Start 209: fuelsim_mpi_solver_tests
+304/314 Test #208: fuelsim_mpi_hex20_solver_tests .................................   Passed    2.45 sec
+        Start 220: fuelsim_mpi_field_split
+305/314 Test #210: fuelsim_mpi_runtime_layout_field_split .........................   Passed    1.52 sec
+        Start 222: fuelsim_mpi_hypre
+306/314 Test #209: fuelsim_mpi_solver_tests .......................................   Passed    1.99 sec
+        Start 221: fuelsim_mpi_block_jacobi
+307/314 Test #220: fuelsim_mpi_field_split ........................................   Passed    1.96 sec
+        Start 219: fuelsim_b48_hex8_multi_contact_path_mpi_equivalence
+308/314 Test #222: fuelsim_mpi_hypre ..............................................   Passed    1.98 sec
+        Start 206: fuelsim_c3d8rt_contact_two_rank_equivalence
+309/314 Test #221: fuelsim_mpi_block_jacobi .......................................   Passed    1.99 sec
+        Start 204: fuelsim_production_hex20_mpi_equivalence
+310/314 Test #206: fuelsim_c3d8rt_contact_two_rank_equivalence ....................   Passed    1.75 sec
+        Start 203: fuelsim_gps_finite_mpi_equivalence
+311/314 Test #219: fuelsim_b48_hex8_multi_contact_path_mpi_equivalence ............   Passed    3.88 sec
+312/314 Test #203: fuelsim_gps_finite_mpi_equivalence .............................   Passed    1.53 sec
+313/314 Test  #62: fuelsim_c3d20rt_finite_frictionless_abaqus_tests ...............   Passed   95.04 sec
+314/314 Test #204: fuelsim_production_hex20_mpi_equivalence .......................   Passed    3.83 sec
+
+100% tests passed, 0 tests failed out of 314
+
+Label Time Summary:
+abaqus                     = 498.38 sec*proc (113 tests)
+acceptance                 = 597.04 sec*proc (202 tests)
+analytic                   =   0.06 sec*proc (1 test)
+architecture               =   3.05 sec*proc (2 tests)
+audit                      =   0.51 sec*proc (5 tests)
+axisymmetric               =  16.65 sec*proc (8 tests)
+bending                    =  24.60 sec*proc (4 tests)
+c3d20t                     =  29.59 sec*proc (3 tests)
+c3d8rt                     =  69.27 sec*proc (16 tests)
+c3d8t                      =   0.01 sec*proc (1 test)
+cax8rt                     =   5.39 sec*proc (2 tests)
+cax8t                      =   3.00 sec*proc (1 test)
+checkpoint                 =  19.21 sec*proc (14 tests)
+conservation               =   2.14 sec*proc (9 tests)
+contact                    = 345.64 sec*proc (74 tests)
+creep                      =  80.88 sec*proc (16 tests)
+curved                     =  30.13 sec*proc (8 tests)
+dependency                 =   0.08 sec*proc (1 test)
+distorted                  =   6.30 sec*proc (1 test)
+distorted-mesh             =   2.98 sec*proc (1 test)
+elasticity                 =   1.71 sec*proc (2 tests)
+engineering                =   4.92 sec*proc (1 test)
+equivalence                =   3.51 sec*proc (1 test)
+finite-sliding             =  73.32 sec*proc (16 tests)
+finite-strain              = 131.49 sec*proc (33 tests)
+friction                   = 179.77 sec*proc (30 tests)
+hex20                      = 103.19 sec*proc (27 tests)
+hex8                       = 182.22 sec*proc (68 tests)
+identification             =   2.22 sec*proc (10 tests)
+inelastic                  =  34.68 sec*proc (7 tests)
+integration                =  43.80 sec*proc (15 tests)
+io                         =   7.35 sec*proc (4 tests)
+jacobian                   =   8.73 sec*proc (11 tests)
+large-rotation             =   7.36 sec*proc (1 test)
+mechanical                 = 149.53 sec*proc (36 tests)
+moose                      =   2.74 sec*proc (1 test)
+mpi                        =  20.63 sec*proc (4 tests)
+mpi-reference              =   2.38 sec*proc (2 tests)
+multi-contact              =  20.37 sec*proc (2 tests)
+multiblock                 =   3.30 sec*proc (1 test)
+multimaterial              =   6.30 sec*proc (1 test)
+noncoaxial                 =  13.36 sec*proc (3 tests)
+nonmatching                =  26.60 sec*proc (9 tests)
+objectivity                =   0.15 sec*proc (2 tests)
+operator-identification    =   0.01 sec*proc (1 test)
+parallel                   =  62.33 sec*proc (16 tests)
+partial-contact            =   2.79 sec*proc (1 test)
+pcmi                       =  72.65 sec*proc (12 tests)
+plasticity                 =  80.70 sec*proc (16 tests)
+production                 = 315.85 sec*proc (117 tests)
+projection                 =   0.07 sec*proc (1 test)
+quadratic                  = 194.75 sec*proc (22 tests)
+recontact                  =   0.07 sec*proc (1 test)
+reduced-integration        =  70.87 sec*proc (21 tests)
+release                    =   0.57 sec*proc (5 tests)
+restart                    =  43.33 sec*proc (10 tests)
+reversal                   =  13.19 sec*proc (5 tests)
+rotation                   =   1.70 sec*proc (1 test)
+scale                      =   0.08 sec*proc (1 test)
+selective-integration      =   0.01 sec*proc (1 test)
+shared-nodes               =   0.77 sec*proc (2 tests)
+sliding                    =   0.07 sec*proc (1 test)
+small-sliding              =   0.08 sec*proc (1 test)
+small-strain               =   7.37 sec*proc (3 tests)
+split-case                 =  10.03 sec*proc (4 tests)
+steady                     =   2.78 sec*proc (2 tests)
+surface-to-surface         =  17.82 sec*proc (5 tests)
+temperature-dependent      =   6.12 sec*proc (4 tests)
+thermal                    = 257.20 sec*proc (32 tests)
+thermo-mechanical          =  11.92 sec*proc (8 tests)
+three-dimensional          = 492.38 sec*proc (117 tests)
+time-control               =   4.65 sec*proc (1 test)
+transaction                =  20.79 sec*proc (14 tests)
+transient                  = 326.38 sec*proc (50 tests)
+transition                 =  27.61 sec*proc (5 tests)
+unit                       =  32.31 sec*proc (35 tests)
+warped-geometry            =   0.09 sec*proc (1 test)
+
+Total Test time (real) = 113.26 sec

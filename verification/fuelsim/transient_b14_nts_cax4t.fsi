@@ -11,7 +11,7 @@
   [solid]
     [thermal]
       function = constant_thermophysical
-      conductivity = 1e-12
+      conductivity = 1e-6
       density = 1
       specific_heat = 1
     []

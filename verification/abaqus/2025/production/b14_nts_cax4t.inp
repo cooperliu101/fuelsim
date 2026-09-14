@@ -6,7 +6,7 @@
 *Elastic
 1e6, 0.3
 *Conductivity
-1e-12
+1e-6
 *Density
 1
 *Specific Heat

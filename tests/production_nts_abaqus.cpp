@@ -88,12 +88,10 @@ int main(int argc, char** argv) {
                 if (interface_node[n] && (!quadratic || frame.nodal("temperature_active")[n] == 1))
                     metrics["nodal_heat_reaction"].add(frame.nodal("reaction_heat_flux")[n], row.at("reaction_heat"));
                 else
-                    // The probe has bulk conductivity 1e-12. Its negligible
-                    // noninterface heat is checked absolutely, independently of
-                    // the strict relative gate on actual contact heat transfer.
-                    bulk_heat_absolute_error = std::max({bulk_heat_absolute_error,
-                        std::abs(frame.nodal("reaction_heat_flux")[n]),
-                        std::abs(row.at("reaction_heat"))});
+                    // Noninterface bulk heat is nonzero. Compare its difference
+                    // against the native value with an independent absolute gate.
+                    bulk_heat_absolute_error = std::max(bulk_heat_absolute_error,
+                        std::abs(frame.nodal("reaction_heat_flux")[n] - row.at("reaction_heat")));
             }
             while (ci < contacts.size() && std::abs(contacts[ci].at("time") - frame.time) < 1e-12) {
                 const auto& row = contacts[ci++];
@@ -131,7 +129,7 @@ int main(int argc, char** argv) {
                      && m.maximum_zero_reference_difference < zero;
         }
         std::cout << "prescribed_temperature_maximum_absolute_error=" << prescribed_temperature << '\n'
-                  << "noninterface_heat_maximum_absolute_value=" << bulk_heat_absolute_error << '\n'
+                  << "noninterface_heat_maximum_absolute_error=" << bulk_heat_absolute_error << '\n'
                   << "prescribed_displacement_maximum_absolute_error=" << prescribed_displacement << '\n';
         return passed ? 0 : 1;
     } catch (const std::exception& error) {

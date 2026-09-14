@@ -1,6 +1,6 @@
 1
 
-   Abaqus 2025                                  Date 13-9月-2026   Time 23:10:01
+   Abaqus 2025                                  Date 14-9月-2026   Time 14:39:42
    For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
 
                                                                                  
@@ -114,29 +114,45 @@
 
      PRINT OF INCREMENT NUMBER, TIME, ETC., TO THE MESSAGE FILE EVERY     1  INCREMENTS
 
+     ELEMENT OPERATIONS WILL BE CARRIED OUT IN PARALLEL USING   8 THREADS ON 1 DOMAIN
+
+     PARALLEL CONTACT TRACKING ENABLED
+
+
      COLLECTING MODEL CONSTRAINT INFORMATION FOR OVERCONSTRAINT CHECKS
 
      COLLECTING STEP CONSTRAINT INFORMATION FOR OVERCONSTRAINT CHECKS
 
 
   INCREMENT     1 STARTS. ATTEMPT NUMBER  1, TIME INCREMENT   1.00    
+ 
+     INITIAL ELEMENT LOAD BALANCE
+            DOMAIN    1     THREAD    NUMBER OF ELEMENTS
+                              1            4
+                              2            5
+                              3            6
+                              4            4
+                              5            5
+                              6            5
+                              7            5
+                              8            5
 
                     5 CONDUCTIVITY DISCONTINUITIES OCCURRED DURING INCREMENT ATTEMPT INITIALIZATION.
                     5 POINTS CHANGED FROM NOT CONDUCTING TEMPERATURE TO CONDUCTING TEMPERATURE
  
 	UNSYMMETRIC PURE THREAD-BASED DIRECT SPARSE SOLVER RUNNING ON
- 	1 HOST x 1 MPI RANK PER HOST x 1 THREAD PER RANK
+ 	1 HOST x 1 MPI RANK PER HOST x 8 THREADS PER RANK
         NUMBER OF EQUATIONS:  159
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.980e+05
-        SOLVER ELAPSED TIME:  14ms
+        SOLVER ELAPSED TIME:  25ms
 
                     5 SEVERE DISCONTINUITIES OCCURRED DURING THIS ITERATION.
                     5 POINTS CHANGED FROM OPEN TO CLOSED
 
                CONVERGENCE CHECKS FOR SEVERE DISCONTINUITY ITERATION     1
 
-   MAX. PENETRATION ERROR 1.E-06      AT NODE 13 OF CONTACT PAIR 
+   MAX. PENETRATION ERROR 1.E-06      AT NODE 35 OF CONTACT PAIR 
    (S_FUEL_RIGHT,S_CLAD_LEFT)
    MAX. CONTACT FORCE ERROR 145.236E-03   AT NODE 14 OF CONTACT PAIR 
    (S_FUEL_RIGHT,S_CLAD_LEFT)
@@ -148,7 +164,7 @@
  LARGEST CORRECTION TO DISP.        1.002E-03   AT NODE         13   DOF  1
           THE FORCE     EQUILIBRIUM EQUATIONS HAVE CONVERGED
 
- AVERAGE HEAT FLUX                  9.512E-07   TIME AVG. HEAT FLUX   9.512E-07
+ AVERAGE HEAT FLUX                  0.599       TIME AVG. HEAT FLUX   0.599    
  ALL HEAT FLUX RESIDUALS ARE ZERO
  LARGEST INCREMENT OF TEMP.          104.       AT NODE         35   DOF 11
  LARGEST CORRECTION TO TEMP.         104.       AT NODE         35   DOF 11
@@ -156,7 +172,7 @@
  
 
  ***WARNING: THE AVERAGE HEAT FLUX USED TO ENFORCE CONTACT CONSTRAINTS AT NODE 
-             28 IS 193.165E+06   TIMES LARGER THAN THE AVERAGE AT THE OTHER 
+             28 IS 121.586E+06   TIMES LARGER THAN THE AVERAGE AT THE OTHER 
              NODES IN THE MODEL.
 
  ITERATION SUMMARY FOR THE INCREMENT:   1 TOTAL ITERATIONS, OF WHICH
@@ -166,7 +182,7 @@
  STEP TIME COMPLETED        1.00    ,  TOTAL TIME COMPLETED         1.00    
 1
 
-   Abaqus 2025                                  Date 13-9月-2026   Time 23:10:01
+   Abaqus 2025                                  Date 14-9月-2026   Time 14:39:42
    For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
 
                                                                                  
@@ -280,17 +296,30 @@
 
      PRINT OF INCREMENT NUMBER, TIME, ETC., TO THE MESSAGE FILE EVERY     1  INCREMENTS
 
+     ELEMENT OPERATIONS WILL BE CARRIED OUT IN PARALLEL USING   8 THREADS ON 1 DOMAIN
+
      COLLECTING STEP CONSTRAINT INFORMATION FOR OVERCONSTRAINT CHECKS
 
 
   INCREMENT     1 STARTS. ATTEMPT NUMBER  1, TIME INCREMENT   1.00    
  
+     INITIAL ELEMENT LOAD BALANCE
+            DOMAIN    1     THREAD    NUMBER OF ELEMENTS
+                              1            4
+                              2            5
+                              3            5
+                              4            4
+                              5            5
+                              6            4
+                              7            6
+                              8            6
+ 
 	UNSYMMETRIC PURE THREAD-BASED DIRECT SPARSE SOLVER RUNNING ON
- 	1 HOST x 1 MPI RANK PER HOST x 1 THREAD PER RANK
+ 	1 HOST x 1 MPI RANK PER HOST x 8 THREADS PER RANK
         NUMBER OF EQUATIONS:  159
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.980e+05
-        SOLVER ELAPSED TIME:  8ms
+        SOLVER ELAPSED TIME:  14ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -306,10 +335,10 @@
  LARGEST CORRECTION TO DISP.        1.000E-05   AT NODE          1   DOF  2
           THE FORCE     EQUILIBRIUM RESPONSE WAS LINEAR IN THIS INCREMENT
 
- AVERAGE HEAT FLUX                  9.510E-06   TIME AVG. HEAT FLUX   9.510E-06
+ AVERAGE HEAT FLUX                   5.99       TIME AVG. HEAT FLUX    5.99    
  ALL HEAT FLUX RESIDUALS ARE ZERO
- LARGEST INCREMENT OF TEMP.        -2.007E-41   AT NODE         28   DOF 11
- LARGEST CORRECTION TO TEMP.       -2.007E-41   AT NODE         28   DOF 11
+ LARGEST INCREMENT OF TEMP.        -1.263E-35   AT NODE         28   DOF 11
+ LARGEST CORRECTION TO TEMP.       -1.263E-35   AT NODE         28   DOF 11
           THE HEAT FLUX EQUILIBRIUM RESPONSE WAS LINEAR IN THIS INCREMENT
 
  ITERATION SUMMARY FOR THE INCREMENT:   1 TOTAL ITERATIONS, OF WHICH
@@ -319,7 +348,7 @@
  STEP TIME COMPLETED        1.00    ,  TOTAL TIME COMPLETED         2.00    
 1
 
-   Abaqus 2025                                  Date 13-9月-2026   Time 23:10:01
+   Abaqus 2025                                  Date 14-9月-2026   Time 14:39:42
    For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
 
                                                                                  
@@ -433,17 +462,30 @@
 
      PRINT OF INCREMENT NUMBER, TIME, ETC., TO THE MESSAGE FILE EVERY     1  INCREMENTS
 
+     ELEMENT OPERATIONS WILL BE CARRIED OUT IN PARALLEL USING   8 THREADS ON 1 DOMAIN
+
      COLLECTING STEP CONSTRAINT INFORMATION FOR OVERCONSTRAINT CHECKS
 
 
   INCREMENT     1 STARTS. ATTEMPT NUMBER  1, TIME INCREMENT   1.00    
  
+     INITIAL ELEMENT LOAD BALANCE
+            DOMAIN    1     THREAD    NUMBER OF ELEMENTS
+                              1            4
+                              2            7
+                              3            6
+                              4            4
+                              5            3
+                              6            5
+                              7            5
+                              8            5
+ 
 	UNSYMMETRIC PURE THREAD-BASED DIRECT SPARSE SOLVER RUNNING ON
- 	1 HOST x 1 MPI RANK PER HOST x 1 THREAD PER RANK
+ 	1 HOST x 1 MPI RANK PER HOST x 8 THREADS PER RANK
         NUMBER OF EQUATIONS:  159
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.980e+05
-        SOLVER ELAPSED TIME:  2ms
+        SOLVER ELAPSED TIME:  18ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -459,10 +501,10 @@
  LARGEST CORRECTION TO DISP.        1.504E-04   AT NODE         51   DOF  1
           THE FORCE     EQUILIBRIUM RESPONSE WAS LINEAR IN THIS INCREMENT
 
- AVERAGE HEAT FLUX                  9.648E-06   TIME AVG. HEAT FLUX   9.648E-06
+ AVERAGE HEAT FLUX                   6.07       TIME AVG. HEAT FLUX    6.07    
  ALL HEAT FLUX RESIDUALS ARE ZERO
- LARGEST INCREMENT OF TEMP.        -2.007E-41   AT NODE         28   DOF 11
- LARGEST CORRECTION TO TEMP.       -2.007E-41   AT NODE         28   DOF 11
+ LARGEST INCREMENT OF TEMP.        -1.263E-35   AT NODE         28   DOF 11
+ LARGEST CORRECTION TO TEMP.       -1.263E-35   AT NODE         28   DOF 11
           THE HEAT FLUX EQUILIBRIUM RESPONSE WAS LINEAR IN THIS INCREMENT
 
  ITERATION SUMMARY FOR THE INCREMENT:   1 TOTAL ITERATIONS, OF WHICH
@@ -472,7 +514,7 @@
  STEP TIME COMPLETED        1.00    ,  TOTAL TIME COMPLETED         3.00    
 1
 
-   Abaqus 2025                                  Date 13-9月-2026   Time 23:10:01
+   Abaqus 2025                                  Date 14-9月-2026   Time 14:39:43
    For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
 
                                                                                  
@@ -586,17 +628,30 @@
 
      PRINT OF INCREMENT NUMBER, TIME, ETC., TO THE MESSAGE FILE EVERY     1  INCREMENTS
 
+     ELEMENT OPERATIONS WILL BE CARRIED OUT IN PARALLEL USING   8 THREADS ON 1 DOMAIN
+
      COLLECTING STEP CONSTRAINT INFORMATION FOR OVERCONSTRAINT CHECKS
 
 
   INCREMENT     1 STARTS. ATTEMPT NUMBER  1, TIME INCREMENT   1.00    
  
+     INITIAL ELEMENT LOAD BALANCE
+            DOMAIN    1     THREAD    NUMBER OF ELEMENTS
+                              1            0
+                              2            0
+                              3            24
+                              4            0
+                              5            0
+                              6            0
+                              7            0
+                              8            15
+ 
 	UNSYMMETRIC PURE THREAD-BASED DIRECT SPARSE SOLVER RUNNING ON
- 	1 HOST x 1 MPI RANK PER HOST x 1 THREAD PER RANK
+ 	1 HOST x 1 MPI RANK PER HOST x 8 THREADS PER RANK
         NUMBER OF EQUATIONS:  159
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.980e+05
-        SOLVER ELAPSED TIME:  2ms
+        SOLVER ELAPSED TIME:  14ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -612,10 +667,10 @@
  LARGEST CORRECTION TO DISP.       -2.000E-05   AT NODE          1   DOF  2
           THE FORCE     EQUILIBRIUM RESPONSE WAS LINEAR IN THIS INCREMENT
 
- AVERAGE HEAT FLUX                  9.656E-06   TIME AVG. HEAT FLUX   9.656E-06
+ AVERAGE HEAT FLUX                   6.08       TIME AVG. HEAT FLUX    6.08    
  ALL HEAT FLUX RESIDUALS ARE ZERO
- LARGEST INCREMENT OF TEMP.        -2.049E-41   AT NODE         28   DOF 11
- LARGEST CORRECTION TO TEMP.       -2.049E-41   AT NODE         28   DOF 11
+ LARGEST INCREMENT OF TEMP.        -1.290E-35   AT NODE         28   DOF 11
+ LARGEST CORRECTION TO TEMP.       -1.290E-35   AT NODE         28   DOF 11
           THE HEAT FLUX EQUILIBRIUM RESPONSE WAS LINEAR IN THIS INCREMENT
 
  ITERATION SUMMARY FOR THE INCREMENT:   1 TOTAL ITERATIONS, OF WHICH
@@ -648,8 +703,8 @@
 
 
      JOB TIME SUMMARY
-       USER TIME (SEC)      =      1.1    
-       SYSTEM TIME (SEC)    =     0.30    
-       TOTAL CPU TIME (SEC) =      1.4    
-       WALLCLOCK TIME (SEC) =            0
+       USER TIME (SEC)      =      1.4    
+       SYSTEM TIME (SEC)    =     0.80    
+       TOTAL CPU TIME (SEC) =      2.2    
+       WALLCLOCK TIME (SEC) =            1
        MEMORY PEAK (GB)     =            0
