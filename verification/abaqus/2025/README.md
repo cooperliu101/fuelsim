@@ -1,5 +1,8 @@
 # Abaqus 2025 参考
 
+2026-09-14 用户已授权实施 B5.23 和 B11.4 的分项容差，见
+[当前两项容差约定](two_case_tolerance_qualification.md)。两个 B14 保持原设置。
+
 四项失败的后续探测、热反力分解与尚未采用的调整建议见
 [独立诊断报告](four_case_diagnosis.md)。
 

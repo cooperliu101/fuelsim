@@ -333,7 +333,11 @@ bool check_rz_abaqus(const std::string& output_path,
                                 || reference_name == "b91_cax4rt_finite_probe_nodes.csv"
                                 || reference_name == "b917_cax4rt_finite_thermal_operators_nodes.csv";
     const double heat_tolerance = qualified_heat ? 0.02 : rz_relative_tolerance;
-    std::cout << "rz_reaction_heat_relative_tolerance=" << heat_tolerance << '\n';
+    const bool qualified_recovery_heat =
+        prescribed_state_absolute_check && mechanisms == "probe" && reference_name == "b114_cax8t_recovery_nodes.csv";
+    const double heat_absolute_tolerance = qualified_recovery_heat ? 2e-11 : rz_heat_rate_zero_tolerance;
+    std::cout << "rz_reaction_heat_relative_tolerance=" << heat_tolerance << '\n'
+              << "rz_reaction_heat_absolute_tolerance=" << heat_absolute_tolerance << '\n';
     if (!contact && mechanisms != "plastic" && mechanisms != "creep" && mechanisms != "coupled"
         && mechanisms != "thermal" && mechanisms != "sliding" && mechanisms != "probe")
         throw std::runtime_error("Unknown RZ qualification mechanism");
@@ -496,7 +500,7 @@ bool check_rz_abaqus(const std::string& output_path,
         if (mechanisms == "probe")
             passed = check_scalar("rz_reaction_heat",
                          reaction_heat,
-                         rz_heat_rate_zero_tolerance,
+                         heat_absolute_tolerance,
                          prescribed_state_absolute_check,
                          heat_tolerance)
                      && passed;

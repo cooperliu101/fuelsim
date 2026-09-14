@@ -1,0 +1,4209 @@
+Internal ctest changing into directory: /home/cooper/ai_project/fuelsim/build
+Test project /home/cooper/ai_project/fuelsim/build
+        Start 120: fuelsim_b40_hex8_sts_friction_abaqus_tests
+        Start  56: fuelsim_m52_transient_reference
+        Start 149: fuelsim_b33_frictionless_baseline
+        Start 146: fuelsim_b36_plate_meat_clad_moose_tests
+        Start 175: fuelsim_b555_c3d20t_friction_abaqus_tests
+        Start 130: fuelsim_b48_hex8_multi_contact_path_abaqus_tests
+        Start 174: fuelsim_b550_c3d20t_contact_abaqus_tests
+        Start 173: fuelsim_b549_c3d20t_abaqus_tests
+  1/314 Test #149: fuelsim_b33_frictionless_baseline ..............................   Passed    3.04 sec
+        Start 141: fuelsim_h20_inelastic_coupled_moose_tests
+  2/314 Test  #56: fuelsim_m52_transient_reference ................................   Passed    3.54 sec
+        Start 282: fuelsim_b1213_cax8rt_finite_sliding_abaqus_tests
+  3/314 Test #282: fuelsim_b1213_cax8rt_finite_sliding_abaqus_tests ...............   Passed    1.91 sec
+        Start 152: fuelsim_b34_transient_sliding_checkpoint
+  4/314 Test #141: fuelsim_h20_inelastic_coupled_moose_tests ......................   Passed    2.98 sec
+        Start 186: fuelsim_b32_hex8_creep_moose_tests
+  5/314 Test #173: fuelsim_b549_c3d20t_abaqus_tests ...............................   Passed    6.25 sec
+        Start 184: fuelsim_b3_hex8_coupled_moose_tests
+  6/314 Test #120: fuelsim_b40_hex8_sts_friction_abaqus_tests .....................   Passed    6.71 sec
+        Start 121: fuelsim_b40_production_restart
+  7/314 Test #152: fuelsim_b34_transient_sliding_checkpoint .......................   Passed    1.82 sec
+        Start  57: fuelsim_m52_large_sliding_restart_tests
+  8/314 Test #186: fuelsim_b32_hex8_creep_moose_tests .............................   Passed    1.69 sec
+        Start 188: fuelsim_b32_hex8_coupled_moose_tests
+  9/314 Test #184: fuelsim_b3_hex8_coupled_moose_tests ............................   Passed    1.69 sec
+        Start 290: fuelsim_b914_cax4rt_finite_sliding_abaqus_tests
+ 10/314 Test #188: fuelsim_b32_hex8_coupled_moose_tests ...........................   Passed    2.01 sec
+        Start 182: fuelsim_b3_hex8_creep_moose_tests
+ 11/314 Test  #57: fuelsim_m52_large_sliding_restart_tests ........................   Passed    2.49 sec
+        Start 238: fuelsim_b81_rz_finite_sliding_abaqus_tests
+ 12/314 Test #290: fuelsim_b914_cax4rt_finite_sliding_abaqus_tests ................   Passed    1.83 sec
+        Start 205: fuelsim_c3d8rt_contact_one_rank_reference
+ 13/314 Test #121: fuelsim_b40_production_restart .................................   Passed    3.18 sec
+        Start  38: fuelsim_gps_chain_finite
+ 14/314 Test #174: fuelsim_b550_c3d20t_contact_abaqus_tests .......................   Passed   11.07 sec
+        Start  34: fuelsim_gps_contact_abaqus
+ 15/314 Test #205: fuelsim_c3d8rt_contact_one_rank_reference ......................   Passed    1.39 sec
+        Start 159: fuelsim_h20_30_faceted_cylinder_abaqus_tests
+ 16/314 Test  #38: fuelsim_gps_chain_finite .......................................   Passed    1.74 sec
+        Start  36: fuelsim_gps_chain_small
+ 17/314 Test #238: fuelsim_b81_rz_finite_sliding_abaqus_tests .....................   Passed    2.03 sec
+        Start 161: fuelsim_h20_30_quadratic_cylinder_abaqus_tests
+ 18/314 Test #182: fuelsim_b3_hex8_creep_moose_tests ..............................   Passed    2.28 sec
+        Start  97: fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
+ 19/314 Test #175: fuelsim_b555_c3d20t_friction_abaqus_tests ......................   Passed   12.18 sec
+        Start 101: fuelsim_b515_hex8_c3d8t_finite_j2_abaqus_tests
+ 20/314 Test  #34: fuelsim_gps_contact_abaqus .....................................   Passed    1.20 sec
+        Start 272: fuelsim_b125_cax8rt_finite_coupled_abaqus_tests
+ 21/314 Test #130: fuelsim_b48_hex8_multi_contact_path_abaqus_tests ...............   Passed   12.34 sec
+        Start 257: fuelsim_b105_cax8t_finite_coupled_abaqus_tests
+ 22/314 Test #159: fuelsim_h20_30_faceted_cylinder_abaqus_tests ...................   Passed    1.28 sec
+        Start 164: fuelsim_h20_35_curved_friction_abaqus_tests
+ 23/314 Test  #36: fuelsim_gps_chain_small ........................................   Passed    1.54 sec
+        Start 211: fuelsim_rz_contact_mpi_reference
+ 24/314 Test #161: fuelsim_h20_30_quadratic_cylinder_abaqus_tests .................   Passed    1.79 sec
+        Start 195: fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests
+ 25/314 Test #272: fuelsim_b125_cax8rt_finite_coupled_abaqus_tests ................   Passed    2.33 sec
+        Start 196: fuelsim_b534_hex8_c3d8rt_finite_transient_abaqus_tests
+ 26/314 Test  #97: fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests ..................   Passed    2.65 sec
+        Start 116: fuelsim_b39_hex8_sts_nonmatching_abaqus_tests
+ 27/314 Test #211: fuelsim_rz_contact_mpi_reference ...............................   Passed    1.50 sec
+        Start 118: fuelsim_b39_hex8_sts_tilted_gap_abaqus_tests
+ 28/314 Test #257: fuelsim_b105_cax8t_finite_coupled_abaqus_tests .................   Passed    2.36 sec
+        Start 114: fuelsim_b39_hex8_sts_matching_abaqus_tests
+ 29/314 Test #164: fuelsim_h20_35_curved_friction_abaqus_tests ....................   Passed    2.58 sec
+        Start 180: fuelsim_h20_24_hex20_nonmatching_abaqus_tests
+ 30/314 Test #101: fuelsim_b515_hex8_c3d8t_finite_j2_abaqus_tests .................   Passed    2.99 sec
+        Start 150: fuelsim_b33_hex8_contact_moose_tests
+ 31/314 Test #195: fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests ................   Passed    1.61 sec
+        Start 223: fuelsim_transient_mpi_reference
+ 32/314 Test #146: fuelsim_b36_plate_meat_clad_moose_tests ........................   Passed   15.55 sec
+        Start 145: fuelsim_b35_hex8_shared_nodes_moose_tests
+ 33/314 Test #116: fuelsim_b39_hex8_sts_nonmatching_abaqus_tests ..................   Passed    2.15 sec
+        Start 214: fuelsim_b521_thermal_contact_mpi_reference
+ 34/314 Test #196: fuelsim_b534_hex8_c3d8rt_finite_transient_abaqus_tests .........   Passed    2.20 sec
+        Start 217: fuelsim_b41_hex8_finite_sliding_mpi_reference
+ 35/314 Test #118: fuelsim_b39_hex8_sts_tilted_gap_abaqus_tests ...................   Passed    2.28 sec
+        Start  62: fuelsim_c3d20rt_finite_frictionless_abaqus_tests
+ 36/314 Test #114: fuelsim_b39_hex8_sts_matching_abaqus_tests .....................   Passed    2.26 sec
+        Start  61: fuelsim_c3d20rt_contact_friction_abaqus_tests
+ 37/314 Test #180: fuelsim_h20_24_hex20_nonmatching_abaqus_tests ..................   Passed    2.58 sec
+        Start 302: fuelsim_b13_integrated_cax8t_abaqus_tests
+ 38/314 Test #223: fuelsim_transient_mpi_reference ................................   Passed    2.43 sec
+        Start 303: fuelsim_b13_integrated_cax8rt_abaqus_tests
+ 39/314 Test #150: fuelsim_b33_hex8_contact_moose_tests ...........................   Passed    2.50 sec
+        Start 300: fuelsim_b13_integrated_cax4t_abaqus_tests
+ 40/314 Test #145: fuelsim_b35_hex8_shared_nodes_moose_tests ......................   Passed    2.36 sec
+        Start 168: fuelsim_h20_36_friction_transaction_contract
+ 41/314 Test #214: fuelsim_b521_thermal_contact_mpi_reference .....................   Passed    2.38 sec
+        Start  55: fuelsim_b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests
+ 42/314 Test #217: fuelsim_b41_hex8_finite_sliding_mpi_reference ..................   Passed    2.38 sec
+        Start 171: fuelsim_h20_40_curved_finite_sliding_finite_abaqus_tests
+ 43/314 Test #300: fuelsim_b13_integrated_cax4t_abaqus_tests ......................   Passed    9.63 sec
+        Start  54: fuelsim_b60_c3d8rt_finite_transient_bending_tests
+ 44/314 Test #168: fuelsim_h20_36_friction_transaction_contract ...................   Passed    9.87 sec
+        Start 166: fuelsim_h20_36_curved_friction_path_abaqus_tests
+ 45/314 Test  #55: fuelsim_b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests ....   Passed   10.28 sec
+        Start  86: fuelsim_b540_c3d8rt_nonmatching_contact_abaqus_tests
+ 46/314 Test  #54: fuelsim_b60_c3d8rt_finite_transient_bending_tests ..............   Passed    7.13 sec
+        Start 301: fuelsim_b13_integrated_cax4rt_abaqus_tests
+ 47/314 Test #166: fuelsim_h20_36_curved_friction_path_abaqus_tests ...............   Passed    6.72 sec
+        Start  45: fuelsim_m3_load_boundary_tests
+ 48/314 Test #303: fuelsim_b13_integrated_cax8rt_abaqus_tests .....................   Passed   17.06 sec
+        Start 107: fuelsim_b545_hex8_c3d8rt_finite_noncoaxial_abaqus_tests
+ 49/314 Test #171: fuelsim_h20_40_curved_finite_sliding_finite_abaqus_tests .......   Passed   16.80 sec
+        Start 163: fuelsim_h20_friction_path_abaqus_tests
+ 50/314 Test #302: fuelsim_b13_integrated_cax8t_abaqus_tests ......................   Passed   20.73 sec
+        Start  88: fuelsim_b527_medium_abaqus_tests
+ 51/314 Test  #86: fuelsim_b540_c3d8rt_nonmatching_contact_abaqus_tests ...........   Passed    9.24 sec
+        Start  96: fuelsim_b59_hex8_c3d8t_multimaterial_abaqus_tests
+ 52/314 Test  #45: fuelsim_m3_load_boundary_tests .................................   Passed    4.72 sec
+        Start 167: fuelsim_h20_33_friction_transaction_contract
+ 53/314 Test #163: fuelsim_h20_friction_path_abaqus_tests .........................   Passed    4.10 sec
+        Start 202: fuelsim_production_hex20_restart
+ 54/314 Test #301: fuelsim_b13_integrated_cax4rt_abaqus_tests .....................   Passed    5.78 sec
+        Start 139: fuelsim_h20_inelastic_plastic_moose_tests
+ 55/314 Test #107: fuelsim_b545_hex8_c3d8rt_finite_noncoaxial_abaqus_tests ........   Passed    7.47 sec
+        Start  66: fuelsim_c3d20rt_finite_plastic_abaqus_tests
+ 56/314 Test #167: fuelsim_h20_33_friction_transaction_contract ...................   Passed    3.25 sec
+        Start 140: fuelsim_h20_inelastic_creep_moose_tests
+ 57/314 Test  #88: fuelsim_b527_medium_abaqus_tests ...............................   Passed    4.78 sec
+        Start  68: fuelsim_c3d20rt_small_creep_hold_abaqus_tests
+ 58/314 Test #202: fuelsim_production_hex20_restart ...............................   Passed    3.44 sec
+        Start  63: fuelsim_c3d20rt_small_coupled_abaqus_tests
+ 59/314 Test #139: fuelsim_h20_inelastic_plastic_moose_tests ......................   Passed    3.34 sec
+        Start  64: fuelsim_c3d20rt_finite_coupled_abaqus_tests
+ 60/314 Test  #96: fuelsim_b59_hex8_c3d8t_multimaterial_abaqus_tests ..............   Passed    6.01 sec
+        Start  65: fuelsim_c3d20rt_small_plastic_abaqus_tests
+ 61/314 Test  #66: fuelsim_c3d20rt_finite_plastic_abaqus_tests ....................   Passed    2.94 sec
+        Start  67: fuelsim_c3d20rt_finite_creep_abaqus_tests
+ 62/314 Test #140: fuelsim_h20_inelastic_creep_moose_tests ........................   Passed    3.03 sec
+        Start 298: fuelsim_b13_finite_cax8t_abaqus_tests
+ 63/314 Test  #68: fuelsim_c3d20rt_small_creep_hold_abaqus_tests ..................   Passed    2.96 sec
+        Start  85: fuelsim_b539_friction_reversal_c3d8rt_abaqus_tests
+ 64/314 Test  #64: fuelsim_c3d20rt_finite_coupled_abaqus_tests ....................   Passed    3.40 sec
+        Start  83: fuelsim_b526_hex8_c3d8t_friction_reversal_abaqus_tests
+ 65/314 Test  #63: fuelsim_c3d20rt_small_coupled_abaqus_tests .....................   Passed    3.42 sec
+        Start 299: fuelsim_b13_finite_cax8rt_abaqus_tests
+ 66/314 Test  #65: fuelsim_c3d20rt_small_plastic_abaqus_tests .....................   Passed    2.96 sec
+        Start  81: fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests
+ 67/314 Test  #67: fuelsim_c3d20rt_finite_creep_abaqus_tests ......................   Passed    2.99 sec
+        Start 285: fuelsim_b1213_cax8rt_finite_sliding_restart_tests
+ 68/314 Test #298: fuelsim_b13_finite_cax8t_abaqus_tests ..........................   Passed    2.77 sec
+        Start 177: fuelsim_b550_output_contract
+ 69/314 Test #299: fuelsim_b13_finite_cax8rt_abaqus_tests .........................   Passed    2.86 sec
+        Start 178: fuelsim_b555_output_contract
+ 70/314 Test #285: fuelsim_b1213_cax8rt_finite_sliding_restart_tests ..............   Passed    2.41 sec
+        Start  84: fuelsim_b538_contact_cycle_c3d8rt_abaqus_tests
+ 71/314 Test  #85: fuelsim_b539_friction_reversal_c3d8rt_abaqus_tests .............   Passed    4.44 sec
+        Start  82: fuelsim_b526_hex8_c3d8t_contact_cycle_abaqus_tests
+ 72/314 Test #177: fuelsim_b550_output_contract ...................................   Passed    2.41 sec
+        Start 294: fuelsim_b13_small_cax8t_abaqus_tests
+ 73/314 Test  #83: fuelsim_b526_hex8_c3d8t_friction_reversal_abaqus_tests .........   Passed    4.72 sec
+        Start  71: fuelsim_c3d20rt_small_probe_abaqus_tests
+ 74/314 Test #178: fuelsim_b555_output_contract ...................................   Passed    2.42 sec
+        Start  70: fuelsim_c3d20rt_nonaffine_probe_abaqus_tests
+ 75/314 Test  #81: fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests ................***Failed    4.67 sec
+CMake Error at /home/cooper/ai_project/fuelsim/tests/run_fuelsim_case.cmake:52 (message):
+  Result verification failed with status 1
+
+  fuelsim stdout:
+
+
+
+  fuelsim stderr:
+
+
+
+  verification stdout:
+
+  b523_temperature_relative_l2=2.347149363936e-05
+
+  b523_temperature_relative_absolute_peak=0.000000000000e+00
+
+  b523_temperature_maximum_pointwise_relative=2.668399165465e-04
+
+  b523_temperature_maximum_pointwise_relative_index=469
+
+  b523_temperature_maximum_pointwise_relative_actual=3.160685946393e+02
+
+  b523_temperature_maximum_pointwise_relative_reference=3.161529568680e+02
+
+  b523_temperature_maximum_absolute_difference_index=469
+
+  b523_temperature_maximum_absolute_difference_actual=3.160685946393e+02
+
+  b523_temperature_maximum_absolute_difference_reference=3.161529568680e+02
+
+  b523_temperature_zero_reference_count=0
+
+  
+  b523_temperature_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_displacement_x_relative_l2=2.200553266935e-04
+
+  b523_displacement_x_relative_absolute_peak=1.695155427431e-04
+
+  b523_displacement_x_maximum_pointwise_relative=3.515217490055e-02
+
+  b523_displacement_x_maximum_pointwise_relative_index=324
+
+  b523_displacement_x_maximum_pointwise_relative_actual=3.723970349255e-05
+
+  b523_displacement_x_maximum_pointwise_relative_reference=3.859645275016e-05
+
+  b523_displacement_x_maximum_absolute_difference_index=478
+
+  b523_displacement_x_maximum_absolute_difference_actual=-2.508873683976e-02
+
+  
+  b523_displacement_x_maximum_absolute_difference_reference=-2.509456825495e-02
+
+  b523_displacement_x_zero_reference_count=80
+
+  
+  b523_displacement_x_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_displacement_y_relative_l2=1.528550392807e-04
+
+  b523_displacement_y_relative_absolute_peak=0.000000000000e+00
+
+  b523_displacement_y_maximum_pointwise_relative=1.369496419308e-01
+
+  b523_displacement_y_maximum_pointwise_relative_index=337
+
+  b523_displacement_y_maximum_pointwise_relative_actual=-7.513346110125e-07
+
+  
+  b523_displacement_y_maximum_pointwise_relative_reference=-8.705570932076e-07
+
+  b523_displacement_y_maximum_absolute_difference_index=468
+
+  b523_displacement_y_maximum_absolute_difference_actual=5.659341175982e-04
+
+  
+  b523_displacement_y_maximum_absolute_difference_reference=5.607080838858e-04
+
+  b523_displacement_y_zero_reference_count=80
+
+  
+  b523_displacement_y_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_displacement_z_relative_l2=2.175381056433e-04
+
+  b523_displacement_z_relative_absolute_peak=1.023376344455e-04
+
+  b523_displacement_z_maximum_pointwise_relative=3.157386985883e-01
+
+  b523_displacement_z_maximum_pointwise_relative_index=423
+
+  b523_displacement_z_maximum_pointwise_relative_actual=1.379908028464e-05
+
+  b523_displacement_z_maximum_pointwise_relative_reference=1.048770572717e-05
+
+  b523_displacement_z_maximum_absolute_difference_index=471
+
+  b523_displacement_z_maximum_absolute_difference_actual=-5.780034689336e-04
+
+  
+  b523_displacement_z_maximum_absolute_difference_reference=-5.820796490901e-04
+
+  b523_displacement_z_zero_reference_count=80
+
+  
+  b523_displacement_z_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_reaction_heat_flux_relative_l2=2.612094089828e-03
+
+  b523_reaction_heat_flux_relative_absolute_peak=7.285398811950e-03
+
+  b523_reaction_heat_flux_maximum_pointwise_relative=7.285398811950e-03
+
+  b523_reaction_heat_flux_maximum_pointwise_relative_index=479
+
+  
+  b523_reaction_heat_flux_maximum_pointwise_relative_actual=4.793706483779e+03
+
+  
+  b523_reaction_heat_flux_maximum_pointwise_relative_reference=4.828886850301e+03
+
+  b523_reaction_heat_flux_maximum_absolute_difference_index=479
+
+  
+  b523_reaction_heat_flux_maximum_absolute_difference_actual=4.793706483779e+03
+
+  
+  b523_reaction_heat_flux_maximum_absolute_difference_reference=4.828886850301e+03
+
+  b523_reaction_heat_flux_zero_reference_count=320
+
+  
+  b523_reaction_heat_flux_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_reaction_force_x_relative_l2=4.971694499229e-05
+
+  b523_reaction_force_x_relative_absolute_peak=5.574592330579e-05
+
+  b523_reaction_force_x_maximum_pointwise_relative=1.044701755455e-04
+
+  b523_reaction_force_x_maximum_pointwise_relative_index=168
+
+  b523_reaction_force_x_maximum_pointwise_relative_actual=2.519672668922e+04
+
+  
+  b523_reaction_force_x_maximum_pointwise_relative_reference=2.519935927070e+04
+
+  b523_reaction_force_x_maximum_absolute_difference_index=456
+
+  b523_reaction_force_x_maximum_absolute_difference_actual=6.953140206300e+04
+
+  
+  b523_reaction_force_x_maximum_absolute_difference_reference=6.953793082283e+04
+
+  b523_reaction_force_x_zero_reference_count=400
+
+  
+  b523_reaction_force_x_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_reaction_force_y_relative_l2=3.816346848696e-05
+
+  b523_reaction_force_y_relative_absolute_peak=7.237803828222e-06
+
+  b523_reaction_force_y_maximum_pointwise_relative=1.977148134582e-04
+
+  b523_reaction_force_y_maximum_pointwise_relative_index=174
+
+  b523_reaction_force_y_maximum_pointwise_relative_actual=2.391790085073e+03
+
+  
+  b523_reaction_force_y_maximum_pointwise_relative_reference=2.392263070920e+03
+
+  b523_reaction_force_y_maximum_absolute_difference_index=459
+
+  
+  b523_reaction_force_y_maximum_absolute_difference_actual=-1.445768356087e+04
+
+  
+  b523_reaction_force_y_maximum_absolute_difference_reference=-1.445655508379e+04
+
+  b523_reaction_force_y_zero_reference_count=320
+
+  
+  b523_reaction_force_y_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_reaction_force_z_relative_l2=4.585510175696e-05
+
+  b523_reaction_force_z_relative_absolute_peak=6.392277968472e-06
+
+  b523_reaction_force_z_maximum_pointwise_relative=1.547378626841e-04
+
+  b523_reaction_force_z_maximum_pointwise_relative_index=171
+
+  b523_reaction_force_z_maximum_pointwise_relative_actual=2.520579187241e+03
+
+  
+  b523_reaction_force_z_maximum_pointwise_relative_reference=2.520969276639e+03
+
+  b523_reaction_force_z_maximum_absolute_difference_index=462
+
+  
+  b523_reaction_force_z_maximum_absolute_difference_actual=-1.459763789718e+04
+
+  
+  b523_reaction_force_z_maximum_absolute_difference_reference=-1.459558967812e+04
+
+  b523_reaction_force_z_zero_reference_count=320
+
+  
+  b523_reaction_force_z_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_displacement_vector_relative_l2=1.888703859094e-04
+
+  b523_displacement_vector_relative_absolute_peak=1.708897967644e-04
+
+  b523_displacement_vector_maximum_pointwise_relative=2.898623303216e-03
+
+  b523_displacement_vector_maximum_pointwise_relative_index=444
+
+  b523_displacement_vector_maximum_pointwise_actual_norm=2.123050377205e-03
+
+  
+  b523_displacement_vector_maximum_pointwise_reference_norm=2.122863376238e-03
+
+  b523_displacement_vector_maximum_difference_index=468
+
+  
+  b523_displacement_vector_maximum_absolute_group_difference=6.759624240246e-06
+
+  b523_displacement_vector_zero_reference_count=80
+
+  
+  b523_displacement_vector_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_reaction_force_vector_relative_l2=4.880933386936e-05
+
+  b523_reaction_force_vector_relative_absolute_peak=6.127713005079e-05
+
+  b523_reaction_force_vector_maximum_pointwise_relative=1.022936095274e-04
+
+  b523_reaction_force_vector_maximum_pointwise_relative_index=168
+
+  b523_reaction_force_vector_maximum_pointwise_actual_norm=2.593307689765e+04
+
+  
+  b523_reaction_force_vector_maximum_pointwise_reference_norm=2.593563810209e+04
+
+  b523_reaction_force_vector_maximum_difference_index=456
+
+  
+  b523_reaction_force_vector_maximum_absolute_group_difference=6.534407100198e+00
+
+  b523_reaction_force_vector_zero_reference_count=320
+
+  
+  b523_reaction_force_vector_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_heat_flux_x_relative_l2=1.582533605014e-04
+
+  b523_heat_flux_x_relative_absolute_peak=3.177213191297e-05
+
+  b523_heat_flux_x_maximum_pointwise_relative=1.813437462546e-02
+
+  b523_heat_flux_x_maximum_pointwise_relative_index=329
+
+  b523_heat_flux_x_maximum_pointwise_relative_actual=-2.528447745310e+00
+
+  b523_heat_flux_x_maximum_pointwise_relative_reference=-2.575146415117e+00
+
+  b523_heat_flux_x_maximum_absolute_difference_index=633
+
+  b523_heat_flux_x_maximum_absolute_difference_actual=-4.446613372626e+03
+
+  b523_heat_flux_x_maximum_absolute_difference_reference=-4.445159254005e+03
+
+  b523_heat_flux_x_zero_reference_count=0
+
+  
+  b523_heat_flux_x_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_heat_flux_y_relative_l2=7.184472070556e-03
+
+  b523_heat_flux_y_relative_absolute_peak=2.125549503023e-03
+
+  b523_heat_flux_y_maximum_pointwise_relative=2.913294325485e-01
+
+  b523_heat_flux_y_maximum_pointwise_relative_index=134
+
+  b523_heat_flux_y_maximum_pointwise_relative_actual=-6.316605322354e-06
+
+  b523_heat_flux_y_maximum_pointwise_relative_reference=-4.891552196629e-06
+
+  b523_heat_flux_y_maximum_absolute_difference_index=631
+
+  b523_heat_flux_y_maximum_absolute_difference_actual=-4.427106973369e+00
+
+  b523_heat_flux_y_maximum_absolute_difference_reference=-3.812592503771e+00
+
+  b523_heat_flux_y_zero_reference_count=0
+
+  
+  b523_heat_flux_y_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_heat_flux_z_relative_l2=7.135342050635e-03
+
+  b523_heat_flux_z_relative_absolute_peak=1.967499049772e-03
+
+  b523_heat_flux_z_maximum_pointwise_relative=2.900967527877e-01
+
+  b523_heat_flux_z_maximum_pointwise_relative_index=333
+
+  b523_heat_flux_z_maximum_pointwise_relative_actual=-1.072346067397e-01
+
+  b523_heat_flux_z_maximum_pointwise_relative_reference=-8.312136784161e-02
+
+  b523_heat_flux_z_maximum_absolute_difference_index=631
+
+  b523_heat_flux_z_maximum_absolute_difference_actual=-2.221882037260e+00
+
+  b523_heat_flux_z_maximum_absolute_difference_reference=-1.910787451326e+00
+
+  b523_heat_flux_z_zero_reference_count=0
+
+  
+  b523_heat_flux_z_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_stress_xx_relative_l2=4.899493168381e-05
+
+  b523_stress_xx_relative_absolute_peak=7.393832670016e-05
+
+  b523_stress_xx_maximum_pointwise_relative=1.658669511808e-04
+
+  b523_stress_xx_maximum_pointwise_relative_index=224
+
+  b523_stress_xx_maximum_pointwise_relative_actual=-8.090769378327e+04
+
+  b523_stress_xx_maximum_pointwise_relative_reference=-8.092111592205e+04
+
+  b523_stress_xx_maximum_absolute_difference_index=623
+
+  b523_stress_xx_maximum_absolute_difference_actual=-4.202210040255e+05
+
+  b523_stress_xx_maximum_absolute_difference_reference=-4.201699256107e+05
+
+  b523_stress_xx_zero_reference_count=0
+
+  
+  b523_stress_xx_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_stress_yy_relative_l2=1.958739538961e-04
+
+  b523_stress_yy_relative_absolute_peak=1.691726390368e-04
+
+  b523_stress_yy_maximum_pointwise_relative=1.039288024953e-01
+
+  b523_stress_yy_maximum_pointwise_relative_index=597
+
+  b523_stress_yy_maximum_pointwise_relative_actual=8.494658729195e+01
+
+  b523_stress_yy_maximum_pointwise_relative_reference=9.479892616624e+01
+
+  b523_stress_yy_maximum_absolute_difference_index=623
+
+  b523_stress_yy_maximum_absolute_difference_actual=5.491643243036e+04
+
+  b523_stress_yy_maximum_absolute_difference_reference=5.486675613064e+04
+
+  b523_stress_yy_zero_reference_count=0
+
+  
+  b523_stress_yy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_stress_zz_relative_l2=1.291089735742e-04
+
+  b523_stress_zz_relative_absolute_peak=1.592497278432e-04
+
+  b523_stress_zz_maximum_pointwise_relative=7.857218165479e-02
+
+  b523_stress_zz_maximum_pointwise_relative_index=167
+
+  b523_stress_zz_maximum_pointwise_relative_actual=-3.318128177993e+01
+
+  b523_stress_zz_maximum_pointwise_relative_reference=-3.601072283613e+01
+
+  b523_stress_zz_maximum_absolute_difference_index=622
+
+  b523_stress_zz_maximum_absolute_difference_actual=4.406173908810e+04
+
+  b523_stress_zz_maximum_absolute_difference_reference=4.403158134091e+04
+
+  b523_stress_zz_zero_reference_count=0
+
+  
+  b523_stress_zz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_stress_xy_relative_l2=2.267473627021e-04
+
+  b523_stress_xy_relative_absolute_peak=2.131378761429e-04
+
+  b523_stress_xy_maximum_pointwise_relative=5.730206109492e-02
+
+  b523_stress_xy_maximum_pointwise_relative_index=77
+
+  b523_stress_xy_maximum_pointwise_relative_actual=6.003339889706e+00
+
+  b523_stress_xy_maximum_pointwise_relative_reference=6.368253967626e+00
+
+  b523_stress_xy_maximum_absolute_difference_index=621
+
+  b523_stress_xy_maximum_absolute_difference_actual=-9.409744850625e+03
+
+  b523_stress_xy_maximum_absolute_difference_reference=-9.379562957505e+03
+
+  b523_stress_xy_zero_reference_count=0
+
+  
+  b523_stress_xy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_stress_yz_relative_l2=5.083989557388e-04
+
+  b523_stress_yz_relative_absolute_peak=1.824732306583e-04
+
+  b523_stress_yz_maximum_pointwise_relative=2.961300626783e-02
+
+  b523_stress_yz_maximum_pointwise_relative_index=346
+
+  b523_stress_yz_maximum_pointwise_relative_actual=1.435211973598e+01
+
+  b523_stress_yz_maximum_pointwise_relative_reference=1.479009903129e+01
+
+  b523_stress_yz_maximum_absolute_difference_index=617
+
+  b523_stress_yz_maximum_absolute_difference_actual=1.925751647998e+04
+
+  b523_stress_yz_maximum_absolute_difference_reference=1.923785281695e+04
+
+  b523_stress_yz_zero_reference_count=0
+
+  
+  b523_stress_yz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_stress_xz_relative_l2=2.267193799690e-04
+
+  b523_stress_xz_relative_absolute_peak=4.303313507708e-05
+
+  b523_stress_xz_maximum_pointwise_relative=7.495314314522e-02
+
+  b523_stress_xz_maximum_pointwise_relative_index=427
+
+  b523_stress_xz_maximum_pointwise_relative_actual=1.267115795921e+02
+
+  b523_stress_xz_maximum_pointwise_relative_reference=1.369785526572e+02
+
+  b523_stress_xz_maximum_absolute_difference_index=619
+
+  b523_stress_xz_maximum_absolute_difference_actual=-2.989294485162e+03
+
+  b523_stress_xz_maximum_absolute_difference_reference=-2.961280676712e+03
+
+  b523_stress_xz_zero_reference_count=0
+
+  
+  b523_stress_xz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_logarithmic_strain_xx_relative_l2=4.936520212278e-05
+
+  b523_logarithmic_strain_xx_relative_absolute_peak=2.326887316166e-05
+
+  b523_logarithmic_strain_xx_maximum_pointwise_relative=3.285292369514e-04
+
+  b523_logarithmic_strain_xx_maximum_pointwise_relative_index=224
+
+  
+  b523_logarithmic_strain_xx_maximum_pointwise_relative_actual=-4.359484231213e-04
+
+  
+  b523_logarithmic_strain_xx_maximum_pointwise_relative_reference=-4.360916919921e-04
+
+  b523_logarithmic_strain_xx_maximum_absolute_difference_index=624
+
+  
+  b523_logarithmic_strain_xx_maximum_absolute_difference_actual=-1.211491950656e-02
+
+  
+  b523_logarithmic_strain_xx_maximum_absolute_difference_reference=-1.211684673306e-02
+
+  b523_logarithmic_strain_xx_zero_reference_count=0
+
+  
+  b523_logarithmic_strain_xx_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_logarithmic_strain_yy_relative_l2=7.980621694044e-05
+
+  b523_logarithmic_strain_yy_relative_absolute_peak=4.734190844077e-05
+
+  b523_logarithmic_strain_yy_maximum_pointwise_relative=4.020809253732e-02
+
+  b523_logarithmic_strain_yy_maximum_pointwise_relative_index=481
+
+  
+  b523_logarithmic_strain_yy_maximum_pointwise_relative_actual=3.234431674449e-06
+
+  
+  b523_logarithmic_strain_yy_maximum_pointwise_relative_reference=3.369930137252e-06
+
+  b523_logarithmic_strain_yy_maximum_absolute_difference_index=624
+
+  
+  b523_logarithmic_strain_yy_maximum_absolute_difference_actual=5.266566359968e-03
+
+  
+  b523_logarithmic_strain_yy_maximum_absolute_difference_reference=5.268030489075e-03
+
+  b523_logarithmic_strain_yy_zero_reference_count=0
+
+  
+  b523_logarithmic_strain_yy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_logarithmic_strain_zz_relative_l2=5.398423405766e-05
+
+  b523_logarithmic_strain_zz_relative_absolute_peak=3.806285271462e-05
+
+  b523_logarithmic_strain_zz_maximum_pointwise_relative=1.186439611843e-02
+
+  b523_logarithmic_strain_zz_maximum_pointwise_relative_index=289
+
+  
+  b523_logarithmic_strain_zz_maximum_pointwise_relative_actual=4.538824971730e-06
+
+  
+  b523_logarithmic_strain_zz_maximum_pointwise_relative_reference=4.593321962998e-06
+
+  b523_logarithmic_strain_zz_maximum_absolute_difference_index=624
+
+  
+  b523_logarithmic_strain_zz_maximum_absolute_difference_actual=5.838055486645e-03
+
+  
+  b523_logarithmic_strain_zz_maximum_absolute_difference_reference=5.839007973602e-03
+
+  b523_logarithmic_strain_zz_zero_reference_count=0
+
+  
+  b523_logarithmic_strain_zz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_logarithmic_strain_xy_relative_l2=1.450146328935e-04
+
+  b523_logarithmic_strain_xy_relative_absolute_peak=4.227667095427e-06
+
+  b523_logarithmic_strain_xy_maximum_pointwise_relative=9.237391957864e-02
+
+  b523_logarithmic_strain_xy_maximum_pointwise_relative_index=77
+
+  
+  b523_logarithmic_strain_xy_maximum_pointwise_relative_actual=3.827134428711e-08
+
+  
+  b523_logarithmic_strain_xy_maximum_pointwise_relative_reference=4.216642195798e-08
+
+  b523_logarithmic_strain_xy_maximum_absolute_difference_index=630
+
+  
+  b523_logarithmic_strain_xy_maximum_absolute_difference_actual=3.735437032247e-03
+
+  
+  b523_logarithmic_strain_xy_maximum_absolute_difference_reference=3.734503188994e-03
+
+  b523_logarithmic_strain_xy_zero_reference_count=0
+
+  
+  b523_logarithmic_strain_xy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_logarithmic_strain_yz_relative_l2=2.817156267986e-04
+
+  b523_logarithmic_strain_yz_relative_absolute_peak=6.961726156349e-05
+
+  b523_logarithmic_strain_yz_maximum_pointwise_relative=1.961824662494e-02
+
+  b523_logarithmic_strain_yz_maximum_pointwise_relative_index=346
+
+  
+  b523_logarithmic_strain_yz_maximum_pointwise_relative_actual=2.878603061197e-07
+
+  
+  b523_logarithmic_strain_yz_maximum_pointwise_relative_reference=2.936206280143e-07
+
+  b523_logarithmic_strain_yz_maximum_absolute_difference_index=617
+
+  
+  b523_logarithmic_strain_yz_maximum_absolute_difference_actual=2.055129889299e-04
+
+  
+  b523_logarithmic_strain_yz_maximum_absolute_difference_reference=2.053053220385e-04
+
+  b523_logarithmic_strain_yz_zero_reference_count=0
+
+  
+  b523_logarithmic_strain_yz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_logarithmic_strain_xz_relative_l2=1.115176309978e-04
+
+  b523_logarithmic_strain_xz_relative_absolute_peak=2.485118283408e-05
+
+  b523_logarithmic_strain_xz_maximum_pointwise_relative=8.222702126301e-02
+
+  b523_logarithmic_strain_xz_maximum_pointwise_relative_index=427
+
+  
+  b523_logarithmic_strain_xz_maximum_pointwise_relative_actual=1.222977820937e-06
+
+  
+  b523_logarithmic_strain_xz_maximum_pointwise_relative_reference=1.332549387780e-06
+
+  b523_logarithmic_strain_xz_maximum_absolute_difference_index=628
+
+  
+  b523_logarithmic_strain_xz_maximum_absolute_difference_actual=2.112180034745e-03
+
+  
+  b523_logarithmic_strain_xz_maximum_absolute_difference_reference=2.111609866964e-03
+
+  b523_logarithmic_strain_xz_zero_reference_count=0
+
+  
+  b523_logarithmic_strain_xz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_elastic_strain_xx_relative_l2=6.040942940198e-05
+
+  b523_elastic_strain_xx_relative_absolute_peak=9.751974614583e-06
+
+  b523_elastic_strain_xx_maximum_pointwise_relative=3.285451810198e-04
+
+  b523_elastic_strain_xx_maximum_pointwise_relative_index=224
+
+  
+  b523_elastic_strain_xx_maximum_pointwise_relative_actual=-4.359477160993e-04
+
+  
+  b523_elastic_strain_xx_maximum_pointwise_relative_reference=-4.360909916931e-04
+
+  b523_elastic_strain_xx_maximum_absolute_difference_index=623
+
+  
+  b523_elastic_strain_xx_maximum_absolute_difference_actual=-3.729409467686e-03
+
+  
+  b523_elastic_strain_xx_maximum_absolute_difference_reference=-3.728778176116e-03
+
+  b523_elastic_strain_xx_zero_reference_count=0
+
+  
+  b523_elastic_strain_xx_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_elastic_strain_yy_relative_l2=1.497891480031e-04
+
+  b523_elastic_strain_yy_relative_absolute_peak=5.321075209620e-05
+
+  b523_elastic_strain_yy_maximum_pointwise_relative=4.060905237642e-02
+
+  b523_elastic_strain_yy_maximum_pointwise_relative_index=481
+
+  b523_elastic_strain_yy_maximum_pointwise_relative_actual=3.198020730519e-06
+
+  
+  b523_elastic_strain_yy_maximum_pointwise_relative_reference=3.333386393149e-06
+
+  b523_elastic_strain_yy_maximum_absolute_difference_index=623
+
+  
+  b523_elastic_strain_yy_maximum_absolute_difference_actual=1.341864200895e-03
+
+  
+  b523_elastic_strain_yy_maximum_absolute_difference_reference=1.341391875289e-03
+
+  b523_elastic_strain_yy_zero_reference_count=0
+
+  
+  b523_elastic_strain_yy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_elastic_strain_zz_relative_l2=9.539333337064e-05
+
+  b523_elastic_strain_zz_relative_absolute_peak=3.351476560145e-05
+
+  b523_elastic_strain_zz_maximum_pointwise_relative=1.186680259019e-02
+
+  b523_elastic_strain_zz_maximum_pointwise_relative_index=289
+
+  b523_elastic_strain_zz_maximum_pointwise_relative_actual=4.536941666485e-06
+
+  
+  b523_elastic_strain_zz_maximum_pointwise_relative_reference=4.591427226995e-06
+
+  b523_elastic_strain_zz_maximum_absolute_difference_index=622
+
+  
+  b523_elastic_strain_zz_maximum_absolute_difference_actual=1.225733244342e-03
+
+  
+  b523_elastic_strain_zz_maximum_absolute_difference_reference=1.225472657829e-03
+
+  b523_elastic_strain_zz_zero_reference_count=0
+
+  
+  b523_elastic_strain_zz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_elastic_strain_xy_relative_l2=2.025095112697e-04
+
+  b523_elastic_strain_xy_relative_absolute_peak=5.712799752948e-05
+
+  b523_elastic_strain_xy_maximum_pointwise_relative=5.730206380528e-02
+
+  b523_elastic_strain_xy_maximum_pointwise_relative_index=77
+
+  b523_elastic_strain_xy_maximum_pointwise_relative_actual=6.403568538113e-08
+
+  
+  b523_elastic_strain_xy_maximum_pointwise_relative_reference=6.792810604807e-08
+
+  b523_elastic_strain_xy_maximum_absolute_difference_index=621
+
+  
+  b523_elastic_strain_xy_maximum_absolute_difference_actual=-1.004270010397e-04
+
+  
+  b523_elastic_strain_xy_maximum_absolute_difference_reference=-1.001050744540e-04
+
+  b523_elastic_strain_xy_zero_reference_count=0
+
+  
+  b523_elastic_strain_xy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_elastic_strain_yz_relative_l2=4.938449747542e-04
+
+  b523_elastic_strain_yz_relative_absolute_peak=1.822635203891e-04
+
+  b523_elastic_strain_yz_maximum_pointwise_relative=2.961348828707e-02
+
+  b523_elastic_strain_yz_maximum_pointwise_relative_index=346
+
+  b523_elastic_strain_yz_maximum_pointwise_relative_actual=1.870569477671e-07
+
+  
+  b523_elastic_strain_yz_maximum_pointwise_relative_reference=1.927654037946e-07
+
+  b523_elastic_strain_yz_maximum_absolute_difference_index=617
+
+  
+  b523_elastic_strain_yz_maximum_absolute_difference_actual=2.055204572045e-04
+
+  
+  b523_elastic_strain_yz_maximum_absolute_difference_reference=2.053127998012e-04
+
+  b523_elastic_strain_yz_zero_reference_count=0
+
+  
+  b523_elastic_strain_yz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_elastic_strain_xz_relative_l2=1.949988011797e-04
+
+  b523_elastic_strain_xz_relative_absolute_peak=4.303313507771e-05
+
+  b523_elastic_strain_xz_maximum_pointwise_relative=7.495164886047e-02
+
+  b523_elastic_strain_xz_maximum_pointwise_relative_index=427
+
+  b523_elastic_strain_xz_maximum_pointwise_relative_actual=1.351842269050e-06
+
+  
+  b523_elastic_strain_xz_maximum_pointwise_relative_reference=1.461374713425e-06
+
+  b523_elastic_strain_xz_maximum_absolute_difference_index=619
+
+  
+  b523_elastic_strain_xz_maximum_absolute_difference_actual=-3.190475074848e-05
+
+  
+  b523_elastic_strain_xz_maximum_absolute_difference_reference=-3.160566150526e-05
+
+  b523_elastic_strain_xz_zero_reference_count=0
+
+  
+  b523_elastic_strain_xz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_plastic_strain_xx_relative_l2=5.744865650044e-05
+
+  b523_plastic_strain_xx_relative_absolute_peak=3.149920685854e-05
+
+  b523_plastic_strain_xx_maximum_pointwise_relative=3.032998681115e-03
+
+  b523_plastic_strain_xx_maximum_pointwise_relative_index=247
+
+  
+  b523_plastic_strain_xx_maximum_pointwise_relative_actual=-3.646779791102e-05
+
+  
+  b523_plastic_strain_xx_maximum_pointwise_relative_reference=-3.635752558388e-05
+
+  b523_plastic_strain_xx_maximum_absolute_difference_index=624
+
+  
+  b523_plastic_strain_xx_maximum_absolute_difference_actual=-9.200905830944e-03
+
+  
+  b523_plastic_strain_xx_maximum_absolute_difference_reference=-9.202825327958e-03
+
+  b523_plastic_strain_xx_zero_reference_count=485
+
+  
+  b523_plastic_strain_xx_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_plastic_strain_yy_relative_l2=6.891501068509e-05
+
+  b523_plastic_strain_yy_relative_absolute_peak=3.564285999615e-05
+
+  b523_plastic_strain_yy_maximum_pointwise_relative=3.035133980151e-03
+
+  b523_plastic_strain_yy_maximum_pointwise_relative_index=247
+
+  b523_plastic_strain_yy_maximum_pointwise_relative_actual=1.855610250393e-05
+
+  
+  b523_plastic_strain_yy_maximum_pointwise_relative_reference=1.849995266895e-05
+
+  b523_plastic_strain_yy_maximum_absolute_difference_index=624
+
+  
+  b523_plastic_strain_yy_maximum_absolute_difference_actual=4.372534413043e-03
+
+  
+  b523_plastic_strain_yy_maximum_absolute_difference_reference=4.373682731259e-03
+
+  b523_plastic_strain_yy_zero_reference_count=485
+
+  
+  b523_plastic_strain_yy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_plastic_strain_zz_relative_l2=4.866699611477e-05
+
+  b523_plastic_strain_zz_relative_absolute_peak=2.725359955506e-05
+
+  b523_plastic_strain_zz_maximum_pointwise_relative=3.030786570245e-03
+
+  b523_plastic_strain_zz_maximum_pointwise_relative_index=247
+
+  b523_plastic_strain_zz_maximum_pointwise_relative_actual=1.791169540709e-05
+
+  
+  b523_plastic_strain_zz_maximum_pointwise_relative_reference=1.785757291493e-05
+
+  b523_plastic_strain_zz_maximum_absolute_difference_index=624
+
+  
+  b523_plastic_strain_zz_maximum_absolute_difference_actual=4.828371417901e-03
+
+  
+  b523_plastic_strain_zz_maximum_absolute_difference_reference=4.829142596699e-03
+
+  b523_plastic_strain_zz_zero_reference_count=485
+
+  
+  b523_plastic_strain_zz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_plastic_strain_xy_relative_l2=1.313679218064e-04
+
+  b523_plastic_strain_xy_relative_absolute_peak=6.579741036778e-06
+
+  b523_plastic_strain_xy_maximum_pointwise_relative=5.444564341354e-03
+
+  b523_plastic_strain_xy_maximum_pointwise_relative_index=631
+
+  
+  b523_plastic_strain_xy_maximum_pointwise_relative_actual=-1.033349928486e-04
+
+  
+  b523_plastic_strain_xy_maximum_pointwise_relative_reference=-1.039006868231e-04
+
+  b523_plastic_strain_xy_maximum_absolute_difference_index=630
+
+  
+  b523_plastic_strain_xy_maximum_absolute_difference_actual=3.211637762749e-03
+
+  
+  b523_plastic_strain_xy_maximum_absolute_difference_reference=3.210920048522e-03
+
+  b523_plastic_strain_xy_zero_reference_count=485
+
+  
+  b523_plastic_strain_xy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_plastic_strain_yz_relative_l2=1.393279877076e-04
+
+  b523_plastic_strain_yz_relative_absolute_peak=5.781554136111e-05
+
+  b523_plastic_strain_yz_maximum_pointwise_relative=3.673097678306e-02
+
+  b523_plastic_strain_yz_maximum_pointwise_relative_index=467
+
+  
+  b523_plastic_strain_yz_maximum_pointwise_relative_actual=-4.077350836675e-07
+
+  
+  b523_plastic_strain_yz_maximum_pointwise_relative_reference=-4.232826695763e-07
+
+  b523_plastic_strain_yz_maximum_absolute_difference_index=631
+
+  
+  b523_plastic_strain_yz_maximum_absolute_difference_actual=-4.673505290477e-04
+
+  
+  b523_plastic_strain_yz_maximum_absolute_difference_reference=-4.674529501817e-04
+
+  b523_plastic_strain_yz_zero_reference_count=485
+
+  
+  b523_plastic_strain_yz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_plastic_strain_xz_relative_l2=9.153764523413e-05
+
+  b523_plastic_strain_xz_relative_absolute_peak=1.935599688689e-05
+
+  b523_plastic_strain_xz_maximum_pointwise_relative=1.031417828642e-02
+
+  b523_plastic_strain_xz_maximum_pointwise_relative_index=533
+
+  
+  b523_plastic_strain_xz_maximum_pointwise_relative_actual=-1.727236677241e-05
+
+  
+  b523_plastic_strain_xz_maximum_pointwise_relative_reference=-1.745237366592e-05
+
+  b523_plastic_strain_xz_maximum_absolute_difference_index=626
+
+  
+  b523_plastic_strain_xz_maximum_absolute_difference_actual=2.376694971874e-04
+
+  
+  b523_plastic_strain_xz_maximum_absolute_difference_reference=2.380935491081e-04
+
+  b523_plastic_strain_xz_zero_reference_count=485
+
+  
+  b523_plastic_strain_xz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_equivalent_plastic_strain_relative_l2=5.241971126068e-05
+
+  b523_equivalent_plastic_strain_relative_absolute_peak=3.133038797379e-05
+
+  
+  b523_equivalent_plastic_strain_maximum_pointwise_relative=3.032487559743e-03
+
+  b523_equivalent_plastic_strain_maximum_pointwise_relative_index=247
+
+  
+  b523_equivalent_plastic_strain_maximum_pointwise_relative_actual=3.696404918535e-05
+
+  
+  b523_equivalent_plastic_strain_maximum_pointwise_relative_reference=3.685229505903e-05
+
+  b523_equivalent_plastic_strain_maximum_absolute_difference_index=624
+
+  
+  b523_equivalent_plastic_strain_maximum_absolute_difference_actual=9.442809133556e-03
+
+  
+  b523_equivalent_plastic_strain_maximum_absolute_difference_reference=9.444685921871e-03
+
+  b523_equivalent_plastic_strain_zero_reference_count=485
+
+  
+  b523_equivalent_plastic_strain_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_creep_strain_xx_relative_l2=3.816238867298e-05
+
+  b523_creep_strain_xx_relative_absolute_peak=1.382541466647e-05
+
+  b523_creep_strain_xx_maximum_pointwise_relative=1.792263410570e-04
+
+  b523_creep_strain_xx_maximum_pointwise_relative_index=246
+
+  b523_creep_strain_xx_maximum_pointwise_relative_actual=-3.503892310580e-06
+
+  
+  b523_creep_strain_xx_maximum_pointwise_relative_reference=-3.503264433313e-06
+
+  b523_creep_strain_xx_maximum_absolute_difference_index=628
+
+  b523_creep_strain_xx_maximum_absolute_difference_actual=-5.389626696941e-05
+
+  
+  b523_creep_strain_xx_maximum_absolute_difference_reference=-5.390157820796e-05
+
+  b523_creep_strain_xx_zero_reference_count=320
+
+  
+  b523_creep_strain_xx_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_creep_strain_yy_relative_l2=4.944709756943e-05
+
+  b523_creep_strain_yy_relative_absolute_peak=1.870465308952e-05
+
+  b523_creep_strain_yy_maximum_pointwise_relative=1.773781049183e-04
+
+  b523_creep_strain_yy_maximum_pointwise_relative_index=246
+
+  b523_creep_strain_yy_maximum_pointwise_relative_actual=1.788083522726e-06
+
+  
+  b523_creep_strain_yy_maximum_pointwise_relative_reference=1.787766412108e-06
+
+  b523_creep_strain_yy_maximum_absolute_difference_index=628
+
+  b523_creep_strain_yy_maximum_absolute_difference_actual=2.423252977318e-05
+
+  
+  b523_creep_strain_yy_maximum_absolute_difference_reference=2.423594382008e-05
+
+  b523_creep_strain_yy_zero_reference_count=320
+
+  
+  b523_creep_strain_yy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_creep_strain_zz_relative_l2=3.265850028337e-05
+
+  b523_creep_strain_zz_relative_absolute_peak=8.809862998851e-06
+
+  b523_creep_strain_zz_maximum_pointwise_relative=1.811524374147e-04
+
+  b523_creep_strain_zz_maximum_pointwise_relative_index=246
+
+  b523_creep_strain_zz_maximum_pointwise_relative_actual=1.715808787853e-06
+
+  
+  b523_creep_strain_zz_maximum_pointwise_relative_reference=1.715498021205e-06
+
+  b523_creep_strain_zz_maximum_absolute_difference_index=629
+
+  b523_creep_strain_zz_maximum_absolute_difference_actual=3.155762309796e-05
+
+  
+  b523_creep_strain_zz_maximum_absolute_difference_reference=3.156010428247e-05
+
+  b523_creep_strain_zz_zero_reference_count=320
+
+  
+  b523_creep_strain_zz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_creep_strain_xy_relative_l2=1.495183400768e-04
+
+  b523_creep_strain_xy_relative_absolute_peak=2.749403096553e-04
+
+  b523_creep_strain_xy_maximum_pointwise_relative=4.738658531070e-02
+
+  b523_creep_strain_xy_maximum_pointwise_relative_index=276
+
+  b523_creep_strain_xy_maximum_pointwise_relative_actual=-2.556460527362e-09
+
+  
+  b523_creep_strain_xy_maximum_pointwise_relative_reference=-2.683628519125e-09
+
+  b523_creep_strain_xy_maximum_absolute_difference_index=630
+
+  b523_creep_strain_xy_maximum_absolute_difference_actual=1.462394013609e-05
+
+  
+  b523_creep_strain_xy_maximum_absolute_difference_reference=1.461992053061e-05
+
+  b523_creep_strain_xy_zero_reference_count=320
+
+  
+  b523_creep_strain_xy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_creep_strain_yz_relative_l2=1.219857185286e-04
+
+  b523_creep_strain_yz_relative_absolute_peak=7.081622751809e-05
+
+  b523_creep_strain_yz_maximum_pointwise_relative=2.003856679056e-02
+
+  b523_creep_strain_yz_maximum_pointwise_relative_index=370
+
+  b523_creep_strain_yz_maximum_pointwise_relative_actual=-3.135516516218e-09
+
+  
+  b523_creep_strain_yz_maximum_pointwise_relative_reference=-3.199632567120e-09
+
+  b523_creep_strain_yz_maximum_absolute_difference_index=631
+
+  b523_creep_strain_yz_maximum_absolute_difference_actual=-2.333077130680e-06
+
+  
+  b523_creep_strain_yz_maximum_absolute_difference_reference=-2.333586287494e-06
+
+  b523_creep_strain_yz_zero_reference_count=320
+
+  
+  b523_creep_strain_yz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_creep_strain_xz_relative_l2=8.707583817178e-05
+
+  b523_creep_strain_xz_relative_absolute_peak=1.679533367938e-05
+
+  b523_creep_strain_xz_maximum_pointwise_relative=2.459067061084e-02
+
+  b523_creep_strain_xz_maximum_pointwise_relative_index=626
+
+  b523_creep_strain_xz_maximum_pointwise_relative_actual=-7.991258176703e-08
+
+  
+  b523_creep_strain_xz_maximum_pointwise_relative_reference=-7.799464123501e-08
+
+  b523_creep_strain_xz_maximum_absolute_difference_index=626
+
+  b523_creep_strain_xz_maximum_absolute_difference_actual=-7.991258176703e-08
+
+  
+  b523_creep_strain_xz_maximum_absolute_difference_reference=-7.799464123501e-08
+
+  b523_creep_strain_xz_zero_reference_count=320
+
+  
+  b523_creep_strain_xz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_equivalent_creep_strain_relative_l2=3.355103692553e-05
+
+  b523_equivalent_creep_strain_relative_absolute_peak=1.326265921340e-05
+
+  b523_equivalent_creep_strain_maximum_pointwise_relative=1.900220009651e-04
+
+  b523_equivalent_creep_strain_maximum_pointwise_relative_index=246
+
+  
+  b523_equivalent_creep_strain_maximum_pointwise_relative_actual=3.668035918553e-06
+
+  
+  b523_equivalent_creep_strain_maximum_pointwise_relative_reference=3.667339043450e-06
+
+  b523_equivalent_creep_strain_maximum_absolute_difference_index=628
+
+  
+  b523_equivalent_creep_strain_maximum_absolute_difference_actual=5.509957574453e-05
+
+  
+  b523_equivalent_creep_strain_maximum_absolute_difference_reference=5.510434917793e-05
+
+  b523_equivalent_creep_strain_zero_reference_count=320
+
+  
+  b523_equivalent_creep_strain_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_material_temperature_relative_l2=2.885913138793e-05
+
+  b523_material_temperature_relative_absolute_peak=0.000000000000e+00
+
+  b523_material_temperature_maximum_pointwise_relative=2.668399165465e-04
+
+  b523_material_temperature_maximum_pointwise_relative_index=625
+
+  
+  b523_material_temperature_maximum_pointwise_relative_actual=3.160685946393e+02
+
+  
+  b523_material_temperature_maximum_pointwise_relative_reference=3.161529568680e+02
+
+  b523_material_temperature_maximum_absolute_difference_index=625
+
+  
+  b523_material_temperature_maximum_absolute_difference_actual=3.160685946393e+02
+
+  
+  b523_material_temperature_maximum_absolute_difference_reference=3.161529568680e+02
+
+  b523_material_temperature_zero_reference_count=0
+
+  
+  b523_material_temperature_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_integration_volume_relative_l2=1.090582383022e-07
+
+  b523_integration_volume_relative_absolute_peak=3.781903417279e-07
+
+  b523_integration_volume_maximum_pointwise_relative=4.893894522671e-07
+
+  b523_integration_volume_maximum_pointwise_relative_index=624
+
+  
+  b523_integration_volume_maximum_pointwise_relative_actual=6.243688828243e-02
+
+  
+  b523_integration_volume_maximum_pointwise_relative_reference=6.243691883840e-02
+
+  b523_integration_volume_maximum_absolute_difference_index=624
+
+  
+  b523_integration_volume_maximum_absolute_difference_actual=6.243688828243e-02
+
+  
+  b523_integration_volume_maximum_absolute_difference_reference=6.243691883840e-02
+
+  b523_integration_volume_zero_reference_count=0
+
+  
+  b523_integration_volume_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_integration_position_relative_l2=9.472998659185e-07
+
+  b523_integration_position_relative_absolute_peak=2.553360964280e-06
+
+  b523_integration_position_maximum_pointwise_relative=4.333832437818e-06
+
+  b523_integration_position_maximum_pointwise_relative_index=624
+
+  b523_integration_position_maximum_pointwise_actual_norm=1.143648359726e+00
+
+  
+  b523_integration_position_maximum_pointwise_reference_norm=1.143647660331e+00
+
+  b523_integration_position_maximum_difference_index=630
+
+  
+  b523_integration_position_maximum_absolute_group_difference=5.616343146748e-06
+
+  b523_integration_position_zero_reference_count=0
+
+  
+  b523_integration_position_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_stress_tensor_relative_l2=7.176858268392e-05
+
+  b523_stress_tensor_relative_absolute_peak=1.768085712437e-04
+
+  b523_stress_tensor_maximum_pointwise_relative=1.896993697510e-04
+
+  b523_stress_tensor_maximum_pointwise_relative_index=623
+
+  b523_stress_tensor_maximum_pointwise_actual_norm=4.267294653775e+05
+
+  b523_stress_tensor_maximum_pointwise_reference_norm=4.266691545460e+05
+
+  b523_stress_tensor_maximum_difference_index=623
+
+  b523_stress_tensor_maximum_absolute_group_difference=8.093886970956e+01
+
+  b523_stress_tensor_zero_reference_count=0
+
+  
+  b523_stress_tensor_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_logarithmic_strain_tensor_relative_l2=6.044855865191e-05
+
+  b523_logarithmic_strain_tensor_relative_absolute_peak=7.876507782833e-05
+
+  
+  b523_logarithmic_strain_tensor_maximum_pointwise_relative=3.906582109679e-04
+
+  b523_logarithmic_strain_tensor_maximum_pointwise_relative_index=224
+
+  
+  b523_logarithmic_strain_tensor_maximum_pointwise_actual_norm=4.758034116731e-04
+
+  
+  b523_logarithmic_strain_tensor_maximum_pointwise_reference_norm=4.758917434044e-04
+
+  b523_logarithmic_strain_tensor_maximum_difference_index=624
+
+  
+  b523_logarithmic_strain_tensor_maximum_absolute_group_difference=2.604283911748e-06
+
+  b523_logarithmic_strain_tensor_zero_reference_count=0
+
+  
+  b523_logarithmic_strain_tensor_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_elastic_strain_tensor_relative_l2=8.239884641714e-05
+
+  b523_elastic_strain_tensor_relative_absolute_peak=1.876341147773e-04
+
+  b523_elastic_strain_tensor_maximum_pointwise_relative=3.906647850876e-04
+
+  b523_elastic_strain_tensor_maximum_pointwise_relative_index=224
+
+  b523_elastic_strain_tensor_maximum_pointwise_actual_norm=4.758057488344e-04
+
+  
+  b523_elastic_strain_tensor_maximum_pointwise_reference_norm=4.758940845532e-04
+
+  b523_elastic_strain_tensor_maximum_difference_index=623
+
+  
+  b523_elastic_strain_tensor_maximum_absolute_group_difference=8.698376994990e-07
+
+  b523_elastic_strain_tensor_zero_reference_count=0
+
+  
+  b523_elastic_strain_tensor_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_plastic_strain_tensor_relative_l2=6.094128699275e-05
+
+  b523_plastic_strain_tensor_relative_absolute_peak=8.353639631340e-05
+
+  b523_plastic_strain_tensor_maximum_pointwise_relative=3.032755568458e-03
+
+  b523_plastic_strain_tensor_maximum_pointwise_relative_index=247
+
+  b523_plastic_strain_tensor_maximum_pointwise_actual_norm=4.496982018664e-05
+
+  
+  b523_plastic_strain_tensor_maximum_pointwise_reference_norm=4.483385050620e-05
+
+  b523_plastic_strain_tensor_maximum_difference_index=624
+
+  
+  b523_plastic_strain_tensor_maximum_absolute_group_difference=2.368467702363e-06
+
+  b523_plastic_strain_tensor_zero_reference_count=485
+
+  
+  b523_plastic_strain_tensor_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_creep_strain_tensor_relative_l2=4.519398959524e-05
+
+  b523_creep_strain_tensor_relative_absolute_peak=5.227756228030e-05
+
+  b523_creep_strain_tensor_maximum_pointwise_relative=1.868745457480e-04
+
+  b523_creep_strain_tensor_maximum_pointwise_relative_index=246
+
+  b523_creep_strain_tensor_maximum_pointwise_actual_norm=4.393004340632e-06
+
+  
+  b523_creep_strain_tensor_maximum_pointwise_reference_norm=4.392192573828e-06
+
+  b523_creep_strain_tensor_maximum_difference_index=628
+
+  
+  b523_creep_strain_tensor_maximum_absolute_group_difference=6.833959844499e-09
+
+  b523_creep_strain_tensor_zero_reference_count=320
+
+  
+  b523_creep_strain_tensor_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_equivalent_plastic_strain_relative_l2=5.241971126068e-05
+
+  b523_equivalent_plastic_strain_relative_absolute_peak=3.133038797379e-05
+
+  
+  b523_equivalent_plastic_strain_maximum_pointwise_relative=3.032487559743e-03
+
+  b523_equivalent_plastic_strain_maximum_pointwise_relative_index=247
+
+  
+  b523_equivalent_plastic_strain_maximum_pointwise_relative_actual=3.696404918535e-05
+
+  
+  b523_equivalent_plastic_strain_maximum_pointwise_relative_reference=3.685229505903e-05
+
+  b523_equivalent_plastic_strain_maximum_absolute_difference_index=624
+
+  
+  b523_equivalent_plastic_strain_maximum_absolute_difference_actual=9.442809133556e-03
+
+  
+  b523_equivalent_plastic_strain_maximum_absolute_difference_reference=9.444685921871e-03
+
+  b523_equivalent_plastic_strain_zero_reference_count=485
+
+  
+  b523_equivalent_plastic_strain_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_equivalent_creep_strain_relative_l2=3.355103692553e-05
+
+  b523_equivalent_creep_strain_relative_absolute_peak=1.326265921340e-05
+
+  b523_equivalent_creep_strain_maximum_pointwise_relative=1.900220009651e-04
+
+  b523_equivalent_creep_strain_maximum_pointwise_relative_index=246
+
+  
+  b523_equivalent_creep_strain_maximum_pointwise_relative_actual=3.668035918553e-06
+
+  
+  b523_equivalent_creep_strain_maximum_pointwise_relative_reference=3.667339043450e-06
+
+  b523_equivalent_creep_strain_maximum_absolute_difference_index=628
+
+  
+  b523_equivalent_creep_strain_maximum_absolute_difference_actual=5.509957574453e-05
+
+  
+  b523_equivalent_creep_strain_maximum_absolute_difference_reference=5.510434917793e-05
+
+  b523_equivalent_creep_strain_zero_reference_count=320
+
+  
+  b523_equivalent_creep_strain_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_material_temperature_relative_l2=2.885913138793e-05
+
+  b523_material_temperature_relative_absolute_peak=0.000000000000e+00
+
+  b523_material_temperature_maximum_pointwise_relative=2.668399165465e-04
+
+  b523_material_temperature_maximum_pointwise_relative_index=625
+
+  
+  b523_material_temperature_maximum_pointwise_relative_actual=3.160685946393e+02
+
+  
+  b523_material_temperature_maximum_pointwise_relative_reference=3.161529568680e+02
+
+  b523_material_temperature_maximum_absolute_difference_index=625
+
+  
+  b523_material_temperature_maximum_absolute_difference_actual=3.160685946393e+02
+
+  
+  b523_material_temperature_maximum_absolute_difference_reference=3.161529568680e+02
+
+  b523_material_temperature_zero_reference_count=0
+
+  
+  b523_material_temperature_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_integration_volume_relative_l2=1.090582383022e-07
+
+  b523_integration_volume_relative_absolute_peak=3.781903417279e-07
+
+  b523_integration_volume_maximum_pointwise_relative=4.893894522671e-07
+
+  b523_integration_volume_maximum_pointwise_relative_index=624
+
+  
+  b523_integration_volume_maximum_pointwise_relative_actual=6.243688828243e-02
+
+  
+  b523_integration_volume_maximum_pointwise_relative_reference=6.243691883840e-02
+
+  b523_integration_volume_maximum_absolute_difference_index=624
+
+  
+  b523_integration_volume_maximum_absolute_difference_actual=6.243688828243e-02
+
+  
+  b523_integration_volume_maximum_absolute_difference_reference=6.243691883840e-02
+
+  b523_integration_volume_zero_reference_count=0
+
+  
+  b523_integration_volume_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_heat_flux_vector_relative_l2=1.889459295407e-04
+
+  b523_heat_flux_vector_relative_absolute_peak=3.290450650652e-04
+
+  b523_heat_flux_vector_maximum_pointwise_relative=2.555220111881e-02
+
+  b523_heat_flux_vector_maximum_pointwise_relative_index=329
+
+  b523_heat_flux_vector_maximum_pointwise_actual_norm=2.538175144047e+00
+
+  b523_heat_flux_vector_maximum_pointwise_reference_norm=2.581118162164e+00
+
+  b523_heat_flux_vector_maximum_difference_index=633
+
+  b523_heat_flux_vector_maximum_absolute_group_difference=1.471441781304e+00
+
+  b523_heat_flux_vector_zero_reference_count=0
+
+  
+  b523_heat_flux_vector_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_maximum_integration_coordinate_difference=5.616343146748e-06
+
+  b523_internal_energy_relative_l2=4.806237081712e-04
+
+  b523_internal_energy_relative_absolute_peak=5.310933646397e-04
+
+  b523_internal_energy_maximum_pointwise_relative=5.310933646397e-04
+
+  b523_internal_energy_maximum_pointwise_relative_index=19
+
+  b523_internal_energy_maximum_pointwise_relative_actual=4.626594275183e+03
+
+  
+  b523_internal_energy_maximum_pointwise_relative_reference=4.629052734375e+03
+
+  b523_internal_energy_maximum_absolute_difference_index=19
+
+  b523_internal_energy_maximum_absolute_difference_actual=4.626594275183e+03
+
+  
+  b523_internal_energy_maximum_absolute_difference_reference=4.629052734375e+03
+
+  b523_internal_energy_zero_reference_count=0
+
+  
+  b523_internal_energy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_elastic_energy_relative_l2=2.722028529003e-05
+
+  b523_elastic_energy_relative_absolute_peak=2.690440920424e-05
+
+  b523_elastic_energy_maximum_pointwise_relative=3.823013565935e-05
+
+  b523_elastic_energy_maximum_pointwise_relative_index=7
+
+  b523_elastic_energy_maximum_pointwise_relative_actual=1.943921359435e+02
+
+  b523_elastic_energy_maximum_pointwise_relative_reference=1.943847045898e+02
+
+  b523_elastic_energy_maximum_absolute_difference_index=19
+
+  b523_elastic_energy_maximum_absolute_difference_actual=1.141040219671e+03
+
+  
+  b523_elastic_energy_maximum_absolute_difference_reference=1.141009521484e+03
+
+  b523_elastic_energy_zero_reference_count=0
+
+  
+  b523_elastic_energy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_plastic_dissipation_relative_l2=6.808339005578e-04
+
+  b523_plastic_dissipation_relative_absolute_peak=7.167071179373e-04
+
+  b523_plastic_dissipation_maximum_pointwise_relative=3.054326307021e-03
+
+  b523_plastic_dissipation_maximum_pointwise_relative_index=7
+
+  
+  b523_plastic_dissipation_maximum_pointwise_relative_actual=4.337483002874e-01
+
+  
+  b523_plastic_dissipation_maximum_pointwise_relative_reference=4.324275255203e-01
+
+  b523_plastic_dissipation_maximum_absolute_difference_index=19
+
+  
+  b523_plastic_dissipation_maximum_absolute_difference_actual=3.470713367667e+03
+
+  
+  b523_plastic_dissipation_maximum_absolute_difference_reference=3.473202636719e+03
+
+  b523_plastic_dissipation_zero_reference_count=7
+
+  
+  b523_plastic_dissipation_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_creep_dissipation_relative_l2=2.428075982282e-05
+
+  b523_creep_dissipation_relative_absolute_peak=2.383922385396e-06
+
+  b523_creep_dissipation_maximum_pointwise_relative=1.083495696057e-04
+
+  b523_creep_dissipation_maximum_pointwise_relative_index=11
+
+  b523_creep_dissipation_maximum_pointwise_relative_actual=1.355778829655e+00
+
+  
+  b523_creep_dissipation_maximum_pointwise_relative_reference=1.355631947517e+00
+
+  b523_creep_dissipation_maximum_absolute_difference_index=15
+
+  
+  b523_creep_dissipation_maximum_absolute_difference_actual=5.125315994340e+00
+
+  
+  b523_creep_dissipation_maximum_absolute_difference_reference=5.125091552734e+00
+
+  b523_creep_dissipation_zero_reference_count=0
+
+  
+  b523_creep_dissipation_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_friction_dissipation_relative_l2=6.920223441509e-02
+
+  b523_friction_dissipation_relative_absolute_peak=6.920223441509e-02
+
+  b523_friction_dissipation_maximum_pointwise_relative=6.920223441509e-02
+
+  b523_friction_dissipation_maximum_pointwise_relative_index=8
+
+  
+  b523_friction_dissipation_maximum_pointwise_relative_actual=1.945915493255e+00
+
+  
+  b523_friction_dissipation_maximum_pointwise_relative_reference=1.819969534874e+00
+
+  b523_friction_dissipation_maximum_absolute_difference_index=8
+
+  
+  b523_friction_dissipation_maximum_absolute_difference_actual=1.945915493255e+00
+
+  
+  b523_friction_dissipation_maximum_absolute_difference_reference=1.819969534874e+00
+
+  b523_friction_dissipation_zero_reference_count=8
+
+  
+  b523_friction_dissipation_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_external_work_relative_l2=5.333078510338e-04
+
+  b523_external_work_relative_absolute_peak=4.669146033347e-04
+
+  b523_external_work_maximum_pointwise_relative=8.421061449018e-04
+
+  b523_external_work_maximum_pointwise_relative_index=11
+
+  b523_external_work_maximum_pointwise_relative_actual=6.333862011131e+02
+
+  b523_external_work_maximum_pointwise_relative_reference=6.328532714844e+02
+
+  b523_external_work_maximum_absolute_difference_index=19
+
+  b523_external_work_maximum_absolute_difference_actual=4.531609516094e+03
+
+  b523_external_work_maximum_absolute_difference_reference=4.529494628906e+03
+
+  b523_external_work_zero_reference_count=0
+
+  
+  b523_external_work_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_boundary_heat_rate_relative_l2=2.469104205336e-03
+
+  b523_boundary_heat_rate_relative_absolute_peak=4.943907275523e-03
+
+  b523_boundary_heat_rate_maximum_pointwise_relative=4.943907275523e-03
+
+  b523_boundary_heat_rate_maximum_pointwise_relative_index=19
+
+  
+  b523_boundary_heat_rate_maximum_pointwise_relative_actual=1.916321905650e+04
+
+  
+  b523_boundary_heat_rate_maximum_pointwise_relative_reference=1.925843095341e+04
+
+  b523_boundary_heat_rate_maximum_absolute_difference_index=19
+
+  
+  b523_boundary_heat_rate_maximum_absolute_difference_actual=1.916321905650e+04
+
+  
+  b523_boundary_heat_rate_maximum_absolute_difference_reference=1.925843095341e+04
+
+  b523_boundary_heat_rate_zero_reference_count=0
+
+  
+  b523_boundary_heat_rate_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_mechanical_hourglass_energy_absolute_l2=0.000000000000e+00
+
+  b523_mechanical_hourglass_energy_absolute_peak=0.000000000000e+00
+
+  
+  b523_mechanical_hourglass_energy_maximum_pointwise_absolute=0.000000000000e+00
+
+  b523_abaqus_artificial_energy_maximum_absolute=0.000000000000e+00
+
+  b523_abaqus_artificial_energy_maximum_internal_fraction=0.000000000000e+00
+
+  b523_compared_nodal_rows=480
+
+  b523_compared_integration_rows=640
+
+  b523_compared_energy_rows=20
+
+  b523_contact_position_relative_l2=2.182089957229e-06
+
+  b523_contact_position_relative_absolute_peak=3.893798027064e-06
+
+  b523_contact_position_maximum_pointwise_relative=6.762168224624e-06
+
+  b523_contact_position_maximum_pointwise_relative_index=76
+
+  b523_contact_position_maximum_pointwise_actual_norm=9.996209306388e-01
+
+  b523_contact_position_maximum_pointwise_reference_norm=9.996237916148e-01
+
+  b523_contact_position_maximum_difference_index=76
+
+  b523_contact_position_maximum_absolute_group_difference=6.759624240236e-06
+
+  b523_contact_position_zero_reference_count=0
+
+  
+  b523_contact_position_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_slip_vector_relative_l2=2.834342740709e-03
+
+  b523_contact_slip_vector_relative_absolute_peak=4.110560095361e-03
+
+  b523_contact_slip_vector_maximum_pointwise_relative=4.327845465080e-03
+
+  b523_contact_slip_vector_maximum_pointwise_relative_index=79
+
+  b523_contact_slip_vector_maximum_pointwise_actual_norm=5.000219724933e-03
+
+  
+  b523_contact_slip_vector_maximum_pointwise_reference_norm=4.993027046104e-03
+
+  b523_contact_slip_vector_maximum_difference_index=79
+
+  
+  b523_contact_slip_vector_maximum_absolute_group_difference=2.160904945850e-05
+
+  b523_contact_slip_vector_zero_reference_count=0
+
+  
+  b523_contact_slip_vector_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_normal_force_vector_relative_l2=2.966183537025e-05
+
+  b523_contact_normal_force_vector_relative_absolute_peak=3.641868064753e-05
+
+  
+  b523_contact_normal_force_vector_maximum_pointwise_relative=5.162911433395e-05
+
+  b523_contact_normal_force_vector_maximum_pointwise_relative_index=31
+
+  
+  b523_contact_normal_force_vector_maximum_pointwise_actual_norm=3.973755705268e+04
+
+  
+  b523_contact_normal_force_vector_maximum_pointwise_reference_norm=3.973550613770e+04
+
+  b523_contact_normal_force_vector_maximum_difference_index=76
+
+  
+  b523_contact_normal_force_vector_maximum_absolute_group_difference=3.569424996489e+00
+
+  b523_contact_normal_force_vector_zero_reference_count=0
+
+  
+  b523_contact_normal_force_vector_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_complete_force_vector_relative_l2=3.079217111424e-05
+
+  
+  b523_contact_complete_force_vector_relative_absolute_peak=4.944958506071e-05
+
+  
+  b523_contact_complete_force_vector_maximum_pointwise_relative=5.323695999715e-05
+
+  b523_contact_complete_force_vector_maximum_pointwise_relative_index=77
+
+  
+  b523_contact_complete_force_vector_maximum_pointwise_actual_norm=9.111397379065e+04
+
+  
+  b523_contact_complete_force_vector_maximum_pointwise_reference_norm=9.111215375451e+04
+
+  b523_contact_complete_force_vector_maximum_difference_index=77
+
+  
+  b523_contact_complete_force_vector_maximum_absolute_group_difference=4.850534084684e+00
+
+  b523_contact_complete_force_vector_zero_reference_count=0
+
+  
+  b523_contact_complete_force_vector_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_resultant_relative_l2=7.763075713701e-06
+
+  b523_contact_resultant_relative_absolute_peak=8.800385672967e-06
+
+  b523_contact_resultant_maximum_pointwise_relative=1.110427574015e-05
+
+  b523_contact_resultant_maximum_pointwise_relative_index=7
+
+  b523_contact_resultant_maximum_pointwise_actual_norm=1.401582877677e+05
+
+  b523_contact_resultant_maximum_pointwise_reference_norm=1.401582151565e+05
+
+  b523_contact_resultant_maximum_difference_index=19
+
+  b523_contact_resultant_maximum_absolute_group_difference=3.081183793567e+00
+
+  b523_contact_resultant_zero_reference_count=0
+
+  
+  b523_contact_resultant_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_moment_relative_l2=2.101977936985e-05
+
+  b523_contact_moment_relative_absolute_peak=2.439985758042e-05
+
+  b523_contact_moment_maximum_pointwise_relative=2.794699319250e-05
+
+  b523_contact_moment_maximum_pointwise_relative_index=7
+
+  b523_contact_moment_maximum_pointwise_actual_norm=1.129634004114e+05
+
+  b523_contact_moment_maximum_pointwise_reference_norm=1.129606409319e+05
+
+  b523_contact_moment_maximum_difference_index=19
+
+  b523_contact_moment_maximum_absolute_group_difference=6.662153942537e+00
+
+  b523_contact_moment_zero_reference_count=0
+
+  
+  b523_contact_moment_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_normal_force_center_relative_l2=1.188538279679e-05
+
+  b523_contact_normal_force_center_relative_absolute_peak=1.583105867170e-05
+
+  
+  b523_contact_normal_force_center_maximum_pointwise_relative=1.590774807911e-05
+
+  b523_contact_normal_force_center_maximum_pointwise_relative_index=19
+
+  
+  b523_contact_normal_force_center_maximum_pointwise_actual_norm=1.250462400675e+00
+
+  
+  b523_contact_normal_force_center_maximum_pointwise_reference_norm=1.250449990209e+00
+
+  b523_contact_normal_force_center_maximum_difference_index=19
+
+  
+  b523_contact_normal_force_center_maximum_absolute_group_difference=1.989184342977e-05
+
+  b523_contact_normal_force_center_zero_reference_count=0
+
+  
+  b523_contact_normal_force_center_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_shear_force_vector_relative_l2=8.998593264807e-04
+
+  b523_contact_shear_force_vector_relative_absolute_peak=1.267982029466e-03
+
+  
+  b523_contact_shear_force_vector_maximum_pointwise_relative=2.905609386849e-03
+
+  b523_contact_shear_force_vector_maximum_pointwise_relative_index=76
+
+  
+  b523_contact_shear_force_vector_maximum_pointwise_actual_norm=1.474466744169e+03
+
+  
+  b523_contact_shear_force_vector_maximum_pointwise_reference_norm=1.477914335756e+03
+
+  b523_contact_shear_force_vector_maximum_difference_index=79
+
+  
+  b523_contact_shear_force_vector_maximum_absolute_group_difference=4.916277221744e+00
+
+  b523_contact_shear_force_vector_zero_reference_count=0
+
+  
+  b523_contact_shear_force_vector_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_pressure_relative_l2=3.834917517710e-03
+
+  b523_contact_pressure_relative_absolute_peak=6.861023540838e-03
+
+  b523_contact_pressure_maximum_pointwise_relative=6.861023540838e-03
+
+  b523_contact_pressure_maximum_pointwise_relative_index=79
+
+  b523_contact_pressure_maximum_pointwise_relative_actual=3.865321905650e+05
+
+  
+  b523_contact_pressure_maximum_pointwise_relative_reference=3.892025182045e+05
+
+  b523_contact_pressure_maximum_absolute_difference_index=79
+
+  b523_contact_pressure_maximum_absolute_difference_actual=3.865321905650e+05
+
+  
+  b523_contact_pressure_maximum_absolute_difference_reference=3.892025182045e+05
+
+  b523_contact_pressure_zero_reference_count=0
+
+  
+  b523_contact_pressure_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_normal_force_magnitude_relative_l2=2.903478388573e-05
+
+  
+  b523_contact_normal_force_magnitude_relative_absolute_peak=2.907358706898e-05
+
+  
+  b523_contact_normal_force_magnitude_maximum_pointwise_relative=5.161416519181e-05
+
+  b523_contact_normal_force_magnitude_maximum_pointwise_relative_index=31
+
+  
+  b523_contact_normal_force_magnitude_maximum_pointwise_relative_actual=3.973755705268e+04
+
+  
+  b523_contact_normal_force_magnitude_maximum_pointwise_relative_reference=3.973550613770e+04
+
+  b523_contact_normal_force_magnitude_maximum_absolute_difference_index=76
+
+  
+  b523_contact_normal_force_magnitude_maximum_absolute_difference_actual=7.687665278035e+04
+
+  
+  b523_contact_normal_force_magnitude_maximum_absolute_difference_reference=7.688018778453e+04
+
+  b523_contact_normal_force_magnitude_zero_reference_count=0
+
+  
+  b523_contact_normal_force_magnitude_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_resultant_components_relative_l2=7.763075713701e-06
+
+  b523_contact_resultant_components_relative_absolute_peak=5.221393491513e-12
+
+  
+  b523_contact_resultant_components_maximum_pointwise_relative=3.697578799881e-04
+
+  b523_contact_resultant_components_maximum_pointwise_relative_index=58
+
+  
+  b523_contact_resultant_components_maximum_pointwise_relative_actual=-8.172822381285e+03
+
+  
+  b523_contact_resultant_components_maximum_pointwise_relative_reference=-8.169801532791e+03
+
+  b523_contact_resultant_components_maximum_absolute_difference_index=58
+
+  
+  b523_contact_resultant_components_maximum_absolute_difference_actual=-8.172822381285e+03
+
+  
+  b523_contact_resultant_components_maximum_absolute_difference_reference=-8.169801532791e+03
+
+  b523_contact_resultant_components_zero_reference_count=0
+
+  
+  b523_contact_resultant_components_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_moment_components_relative_l2=2.101977936985e-05
+
+  b523_contact_moment_components_relative_absolute_peak=2.943938525733e-05
+
+  
+  b523_contact_moment_components_maximum_pointwise_relative=1.463432726567e-03
+
+  b523_contact_moment_components_maximum_pointwise_relative_index=57
+
+  
+  b523_contact_moment_components_maximum_pointwise_relative_actual=2.039407815447e+03
+
+  
+  b523_contact_moment_components_maximum_pointwise_relative_reference=2.036427640593e+03
+
+  b523_contact_moment_components_maximum_absolute_difference_index=59
+
+  
+  b523_contact_moment_components_maximum_absolute_difference_actual=-1.989651573814e+05
+
+  
+  b523_contact_moment_components_maximum_absolute_difference_reference=-1.989593001419e+05
+
+  b523_contact_moment_components_zero_reference_count=0
+
+  
+  b523_contact_moment_components_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_normal_force_center_components_relative_l2=1.188538279679e-05
+
+  
+  b523_contact_normal_force_center_components_relative_absolute_peak=3.556521664077e-09
+
+  
+  b523_contact_normal_force_center_components_maximum_pointwise_relative=3.423719705614e-05
+
+  
+  b523_contact_normal_force_center_components_maximum_pointwise_relative_index=58
+
+  
+  b523_contact_normal_force_center_components_maximum_pointwise_relative_actual=5.451992863221e-01
+
+  
+  b523_contact_normal_force_center_components_maximum_pointwise_relative_reference=5.451806208657e-01
+
+  
+  b523_contact_normal_force_center_components_maximum_absolute_difference_index=58
+
+  
+  b523_contact_normal_force_center_components_maximum_absolute_difference_actual=5.451992863221e-01
+
+  
+  b523_contact_normal_force_center_components_maximum_absolute_difference_reference=5.451806208657e-01
+
+  b523_contact_normal_force_center_components_zero_reference_count=0
+
+  
+  b523_contact_normal_force_center_components_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_state_match_fraction=9.875000000000e-01
+
+  b523_contact_transition_verified=1
+
+  b523_maximum_tangent_basis_error=0.000000000000e+00
+
+  b523_stored_heat_relative_l2=1.092494576582e-03
+
+  b523_stored_heat_relative_absolute_peak=1.664924271313e-03
+
+  b523_stored_heat_maximum_pointwise_relative=1.664924271313e-03
+
+  b523_stored_heat_maximum_pointwise_relative_index=19
+
+  b523_stored_heat_maximum_pointwise_relative_actual=6.382561177683e+03
+
+  b523_stored_heat_maximum_pointwise_relative_reference=6.393205380492e+03
+
+  b523_stored_heat_maximum_absolute_difference_index=19
+
+  b523_stored_heat_maximum_absolute_difference_actual=6.382561177683e+03
+
+  b523_stored_heat_maximum_absolute_difference_reference=6.393205380492e+03
+
+  b523_stored_heat_zero_reference_count=0
+
+  
+  b523_stored_heat_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+
+
+  verification stderr:
+
+  [FAIL] b523_reaction_heat_flux exceeds its full-field gate
+
+
+
+
+        Start  69: fuelsim_c3d20rt_thermal_probe_abaqus_tests
+ 76/314 Test #294: fuelsim_b13_small_cax8t_abaqus_tests ...........................   Passed    2.52 sec
+        Start 295: fuelsim_b13_small_cax8rt_abaqus_tests
+ 77/314 Test  #71: fuelsim_c3d20rt_small_probe_abaqus_tests .......................   Passed    2.25 sec
+        Start 176: fuelsim_b549_output_contract
+ 78/314 Test  #70: fuelsim_c3d20rt_nonaffine_probe_abaqus_tests ...................   Passed    2.47 sec
+        Start 125: fuelsim_b43_hex8_finite_strain_contact_abaqus_tests
+ 79/314 Test  #69: fuelsim_c3d20rt_thermal_probe_abaqus_tests .....................   Passed    2.42 sec
+        Start 267: fuelsim_b113_cax8t_finite_sliding_abaqus_tests
+ 80/314 Test  #84: fuelsim_b538_contact_cycle_c3d8rt_abaqus_tests .................   Passed    4.29 sec
+        Start 268: fuelsim_b114_cax8t_recovery_abaqus_tests
+ 81/314 Test  #82: fuelsim_b526_hex8_c3d8t_contact_cycle_abaqus_tests .............   Passed    4.34 sec
+        Start  59: fuelsim_m54_transient_augmented_contact_tests
+ 82/314 Test #295: fuelsim_b13_small_cax8rt_abaqus_tests ..........................   Passed    2.03 sec
+        Start 172: fuelsim_h20_41_hex20_partial_contact_abaqus_tests
+ 83/314 Test #176: fuelsim_b549_output_contract ...................................   Passed    2.21 sec
+        Start  40: fuelsim_gps_contact_restart
+ 84/314 Test #267: fuelsim_b113_cax8t_finite_sliding_abaqus_tests .................   Passed    2.92 sec
+        Start 281: fuelsim_b1212_cax8rt_small_friction_abaqus_tests
+ 85/314 Test #268: fuelsim_b114_cax8t_recovery_abaqus_tests .......................   Passed    2.93 sec
+        Start 266: fuelsim_b112_cax8t_small_friction_abaqus_tests
+ 86/314 Test  #40: fuelsim_gps_contact_restart ....................................   Passed    1.93 sec
+        Start 284: fuelsim_b125_cax8rt_finite_coupled_restart_tests
+ 87/314 Test  #59: fuelsim_m54_transient_augmented_contact_tests ..................   Passed    3.29 sec
+        Start 283: fuelsim_b105_cax8t_finite_coupled_restart_tests
+ 88/314 Test #172: fuelsim_h20_41_hex20_partial_contact_abaqus_tests ..............   Passed    3.06 sec
+        Start 296: fuelsim_b13_finite_cax4t_abaqus_tests
+ 89/314 Test #125: fuelsim_b43_hex8_finite_strain_contact_abaqus_tests ............   Passed    3.95 sec
+        Start  53: fuelsim_b60_c3d8rt_finite_steady_bending_tests
+ 90/314 Test #281: fuelsim_b1212_cax8rt_small_friction_abaqus_tests ...............   Passed    2.18 sec
+        Start  44: fuelsim_checkpoint_results_tests
+ 91/314 Test #266: fuelsim_b112_cax8t_small_friction_abaqus_tests .................   Passed    2.32 sec
+        Start 137: fuelsim_h20_06_transient_moose_tests
+ 92/314 Test #296: fuelsim_b13_finite_cax4t_abaqus_tests ..........................   Passed    2.45 sec
+        Start 297: fuelsim_b13_finite_cax4rt_abaqus_tests
+ 93/314 Test #284: fuelsim_b125_cax8rt_finite_coupled_restart_tests ...............   Passed    2.72 sec
+        Start 305: fuelsim_b14_nts_cax8t_abaqus_tests
+ 94/314 Test  #53: fuelsim_b60_c3d8rt_finite_steady_bending_tests .................   Passed    2.38 sec
+        Start 292: fuelsim_b13_small_cax4t_abaqus_tests
+ 95/314 Test #283: fuelsim_b105_cax8t_finite_coupled_restart_tests ................   Passed    2.96 sec
+        Start 108: fuelsim_b518_hex8_c3d8t_finite_noncoaxial_abaqus_tests
+ 96/314 Test  #44: fuelsim_checkpoint_results_tests ...............................   Passed    2.10 sec
+        Start  99: fuelsim_b513_hex8_c3d8t_small_noncoaxial_abaqus_tests
+ 97/314 Test #297: fuelsim_b13_finite_cax4rt_abaqus_tests .........................   Passed    2.19 sec
+        Start 105: fuelsim_b541_hex8_c3d8rt_small_j2_abaqus_tests
+ 98/314 Test #137: fuelsim_h20_06_transient_moose_tests ...........................   Passed    2.93 sec
+        Start 113: fuelsim_b542_hex8_c3d8rt_small_norton_abaqus_tests
+ 99/314 Test #305: fuelsim_b14_nts_cax8t_abaqus_tests .............................***Failed    2.25 sec
+CMake Error at /home/cooper/ai_project/fuelsim/tests/run_fuelsim_case.cmake:52 (message):
+  Result verification failed with status 1
+
+  fuelsim stdout:
+
+  
+  input_file=/home/cooper/ai_project/fuelsim/build/blackbox/b14_nts_cax8t/verification/fuelsim/transient_b14_nts_cax8t.fsi
+
+  
+  mesh_file=/home/cooper/ai_project/fuelsim/build/blackbox/b14_nts_cax8t/verification/meshes/b14_nts_cax8t.e
+
+  mpi_ranks=1
+
+  
+  results_file=/home/cooper/ai_project/fuelsim/build/blackbox/b14_nts_cax8t/verification/fuelsim/transient_b14_nts_cax8t_results.e
+
+  progress.accepted_steps=1
+
+  progress.time=1.000000000000e+00
+
+  progress.time_step=1.000000000000e+00
+
+  progress.next_time_step=1.000000000000e+00
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=8.326672684689e-17
+
+  progress.conservation.dirichlet_heat_input_rate=-6.197424174800e-15
+
+  progress.conservation.global_thermal_balance=6.280690901647e-15
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=1.443410546494e-01
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=1.449847041523e-01
+
+  progress.conservation.contact_work_increment=6.436495028682e-04
+
+  progress.conservation.mechanical_work_balance=-1.387778780781e-16
+
+  progress.conservation.relative_mechanical_work_balance=4.785948934736e-16
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=5.265027257194e-02
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=7.249235207615e-02
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=2
+
+  progress.time=2.000000000000e+00
+
+  progress.time_step=1.000000000000e+00
+
+  progress.next_time_step=1.000000000000e+00
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=1.311450947838e-15
+
+  progress.conservation.dirichlet_heat_input_rate=-6.197424174800e-15
+
+  progress.conservation.global_thermal_balance=7.508875122638e-15
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=1.482538050657e-20
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=5.149196022945e-04
+
+  progress.conservation.contact_work_increment=5.149196022945e-04
+
+  progress.conservation.mechanical_work_balance=0.000000000000e+00
+
+  progress.conservation.relative_mechanical_work_balance=0.000000000000e+00
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=0.000000000000e+00
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=2.574598011472e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=3
+
+  progress.time=3.000000000000e+00
+
+  progress.time_step=1.000000000000e+00
+
+  progress.next_time_step=1.000000000000e+00
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=1.040834085586e-15
+
+  progress.conservation.dirichlet_heat_input_rate=3.692018231430e-15
+
+  progress.conservation.global_thermal_balance=-2.651184145844e-15
+
+  progress.conservation.relative_thermal_balance=5.601662524546e-01
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=1.210309997282e-02
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=1.206158740197e-02
+
+  progress.conservation.contact_work_increment=-4.151257084956e-05
+
+  progress.conservation.mechanical_work_balance=1.214306433184e-17
+
+  progress.conservation.relative_mechanical_work_balance=5.016509968152e-16
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=6.769714770227e-03
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=1.080989388743e-02
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=4
+
+  progress.time=4.000000000000e+00
+
+  progress.time_step=1.000000000000e+00
+
+  progress.next_time_step=1.000000000000e+00
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=-4.718447854657e-16
+
+  progress.conservation.dirichlet_heat_input_rate=7.985681720113e-15
+
+  progress.conservation.global_thermal_balance=-8.457526505578e-15
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  
+  progress.conservation.internal_mechanical_work_increment=-1.067261513540e-19
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=1.312917241034e-03
+
+  progress.conservation.contact_work_increment=1.312917241034e-03
+
+  progress.conservation.mechanical_work_balance=2.168404344971e-19
+
+  progress.conservation.relative_mechanical_work_balance=8.257962791561e-17
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=8.923224380450e-20
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=2.547559363691e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  problem=transient
+
+  completed=true
+
+  termination_reason=completed
+
+  regions=2
+
+  contacts=1
+
+  committed_time=4.000000000000e+00
+
+  next_time_step=1.000000000000e+00
+
+  accepted_steps=4
+
+  contributions=134
+
+  minimum_accepted_time_step=1.000000000000e+00
+
+  maximum_accepted_time_step=1.000000000000e+00
+
+  maximum_accepted_time_error_estimate=0.000000000000e+00
+
+  time_error_rejections=0
+
+  rejected_steps=0
+
+  total_cutbacks=0
+
+  nonlinear_iterations_total=0
+
+  linear_iterations_total=0
+
+  residual_evaluations_total=4
+
+  jacobian_evaluations_total=0
+
+  petsc_workspace_setups=1
+
+  nonlinear_attempts=1
+
+  linear_iterations=0
+
+  used_backtracking_fallback=false
+
+  augmented_lagrangian_iterations=0
+
+  global_state_dofs=329
+
+  maximum_shadow_state_dofs=329
+
+  total_shadow_state_dofs=329
+
+  total_remote_shadow_state_dofs=0
+
+  memory.initial_resident_bytes=122933248
+
+  memory.setup_resident_bytes=122933248
+
+  memory.solve_resident_bytes=122933248
+
+  memory.final_resident_bytes=122933248
+
+  memory.minimum_peak_resident_bytes=122933248
+
+  memory.maximum_peak_resident_bytes=122933248
+
+  memory.total_peak_resident_bytes=122933248
+
+  residual.temperature.initial_l2=0.000000000000e+00
+
+  residual.temperature.reference_l2=0.000000000000e+00
+
+  residual.temperature.final_l2=0.000000000000e+00
+
+  residual.temperature.scaling=1.000000000000e+00
+
+  residual.temperature.final_scaled_l2=0.000000000000e+00
+
+  residual.radial.initial_l2=0.000000000000e+00
+
+  residual.radial.reference_l2=0.000000000000e+00
+
+  residual.radial.final_l2=0.000000000000e+00
+
+  residual.radial.scaling=1.000000000000e+00
+
+  residual.radial.final_scaled_l2=0.000000000000e+00
+
+  residual.axial.initial_l2=0.000000000000e+00
+
+  residual.axial.reference_l2=0.000000000000e+00
+
+  residual.axial.final_l2=0.000000000000e+00
+
+  residual.axial.scaling=1.000000000000e+00
+
+  residual.axial.final_scaled_l2=0.000000000000e+00
+
+  aggregate_memory.initial_resident_bytes=122933248
+
+  aggregate_memory.setup_resident_bytes=122933248
+
+  aggregate_memory.solve_resident_bytes=122933248
+
+  aggregate_memory.final_resident_bytes=122933248
+
+  aggregate_memory.minimum_peak_resident_bytes=122933248
+
+  aggregate_memory.maximum_peak_resident_bytes=122933248
+
+  aggregate_memory.total_peak_resident_bytes=122933248
+
+  total_seconds=2.649926430000e-01
+
+  conservation.generated_heat_rate=0.000000000000e+00
+
+  conservation.stored_heat_rate=0.000000000000e+00
+
+  conservation.convection_heat_rate=0.000000000000e+00
+
+  conservation.surface_heat_input_rate=0.000000000000e+00
+
+  conservation.interface_heat_imbalance=-4.718447854657e-16
+
+  conservation.dirichlet_heat_input_rate=7.985681720113e-15
+
+  conservation.global_thermal_balance=-8.457526505578e-15
+
+  conservation.relative_thermal_balance=1.000000000000e+00
+
+  conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  conservation.internal_mechanical_work_increment=-1.067261513540e-19
+
+  conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  conservation.dirichlet_reaction_work_increment=1.312917241034e-03
+
+  conservation.contact_work_increment=1.312917241034e-03
+
+  conservation.mechanical_work_balance=2.168404344971e-19
+
+  conservation.relative_mechanical_work_balance=8.257962791561e-17
+
+  conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  conservation.elastic_energy_change=8.923224380450e-20
+
+  conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  conservation.creep_dissipation_increment=0.000000000000e+00
+
+  conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  conservation.trapezoidal_dirichlet_reaction_work_increment=2.547559363691e-04
+
+  conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  conservation.body_force_work_increment=0.000000000000e+00
+
+  region.fuel.maximum_equivalent_plastic_strain=0.000000000000e+00
+
+  region.fuel.maximum_equivalent_creep_strain=0.000000000000e+00
+
+  region.cladding.maximum_equivalent_plastic_strain=0.000000000000e+00
+
+  region.cladding.maximum_equivalent_creep_strain=0.000000000000e+00
+
+  contact.fuel_cladding.minimum_gap=-1.199710321472e-06
+
+  contact.fuel_cladding.maximum_contact_pressure=1.199710321472e+06
+
+  contact.fuel_cladding.total_heat_rate=4.556424872550e+01
+
+  contact.fuel_cladding.total_contact_force=3.749778685467e+02
+
+  contact.fuel_cladding.total_tangential_force=5.999651070732e+01
+
+  contact.fuel_cladding.projected_contact_nodes=9
+
+  contact.fuel_cladding.unprojected_contact_nodes=0
+
+  contact.fuel_cladding.active_contact_nodes=9
+
+
+
+  fuelsim stderr:
+
+
+
+  verification stdout:
+
+  gap_relative_l2=6.399236441380e-13
+
+  gap_relative_absolute_peak=0.000000000000e+00
+
+  gap_maximum_pointwise_relative=2.040951938030e-12
+
+  gap_maximum_pointwise_relative_index=11
+
+  gap_maximum_pointwise_relative_actual=-8.498542691852e-07
+
+  gap_maximum_pointwise_relative_reference=-8.498542691869e-07
+
+  gap_maximum_absolute_difference_index=11
+
+  gap_maximum_absolute_difference_actual=-8.498542691852e-07
+
+  gap_maximum_absolute_difference_reference=-8.498542691869e-07
+
+  gap_zero_reference_count=0
+
+  gap_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  nodal_heat_reaction_relative_l2=6.294434433025e+05
+
+  nodal_heat_reaction_relative_absolute_peak=6.294434430216e+05
+
+  nodal_heat_reaction_maximum_pointwise_relative=6.294434542464e+05
+
+  nodal_heat_reaction_maximum_pointwise_relative_index=33
+
+  nodal_heat_reaction_maximum_pointwise_relative_actual=4.214298332677e+00
+
+  nodal_heat_reaction_maximum_pointwise_relative_reference=6.695266443682e-06
+
+  nodal_heat_reaction_maximum_absolute_difference_index=36
+
+  nodal_heat_reaction_maximum_absolute_difference_actual=1.289559006133e+01
+
+  
+  nodal_heat_reaction_maximum_absolute_difference_reference=2.048725698399e-05
+
+  nodal_heat_reaction_zero_reference_count=0
+
+  
+  nodal_heat_reaction_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  normal_force_relative_l2=1.294984296225e-04
+
+  normal_force_relative_absolute_peak=1.682815317521e-04
+
+  normal_force_maximum_pointwise_relative=2.001401105303e-04
+
+  normal_force_maximum_pointwise_relative_index=13
+
+  normal_force_maximum_pointwise_relative_actual=1.104030030208e+01
+
+  normal_force_maximum_pointwise_relative_reference=1.104251035132e+01
+
+  normal_force_maximum_absolute_difference_index=26
+
+  normal_force_maximum_absolute_difference_actual=6.525785013034e+01
+
+  normal_force_maximum_absolute_difference_reference=6.526883366964e+01
+
+  normal_force_zero_reference_count=0
+
+  normal_force_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  pressure_relative_l2=1.294702155450e-04
+
+  pressure_relative_absolute_peak=1.665126882281e-04
+
+  pressure_maximum_pointwise_relative=1.999981213346e-04
+
+  pressure_maximum_pointwise_relative_index=13
+
+  pressure_maximum_pointwise_relative_actual=7.997900115038e+05
+
+  pressure_maximum_pointwise_relative_reference=7.999500000009e+05
+
+  pressure_maximum_absolute_difference_index=18
+
+  pressure_maximum_absolute_difference_actual=1.099895464554e+06
+
+  pressure_maximum_absolute_difference_reference=1.100095414984e+06
+
+  pressure_zero_reference_count=0
+
+  pressure_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  shear_relative_l2=1.294687266431e-04
+
+  shear_relative_absolute_peak=1.665126882228e-04
+
+  shear_maximum_pointwise_relative=1.999984801901e-04
+
+  shear_maximum_pointwise_relative_index=13
+
+  shear_maximum_pointwise_relative_actual=1.279151416271e+05
+
+  shear_maximum_pointwise_relative_reference=1.279407295786e+05
+
+  shear_maximum_absolute_difference_index=18
+
+  shear_maximum_absolute_difference_actual=-1.759833518888e+05
+
+  shear_maximum_absolute_difference_reference=-1.760153439716e+05
+
+  shear_zero_reference_count=0
+
+  shear_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  slip_relative_l2=1.956292072929e-16
+
+  slip_relative_absolute_peak=3.388127115255e-16
+
+  slip_maximum_pointwise_relative=5.082194560491e-16
+
+  slip_maximum_pointwise_relative_index=19
+
+  slip_maximum_pointwise_relative_actual=1.000000614505e-05
+
+  slip_maximum_pointwise_relative_reference=1.000000614505e-05
+
+  slip_maximum_absolute_difference_index=19
+
+  slip_maximum_absolute_difference_actual=1.000000614505e-05
+
+  slip_maximum_absolute_difference_reference=1.000000614505e-05
+
+  slip_zero_reference_count=0
+
+  slip_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  tangential_force_relative_l2=1.294977572981e-04
+
+  tangential_force_relative_absolute_peak=1.682815317472e-04
+
+  tangential_force_maximum_pointwise_relative=2.001401105255e-04
+
+  tangential_force_maximum_pointwise_relative_index=13
+
+  tangential_force_maximum_pointwise_relative_actual=1.765739948571e+00
+
+  tangential_force_maximum_pointwise_relative_reference=1.766093414703e+00
+
+  tangential_force_maximum_absolute_difference_index=26
+
+  tangential_force_maximum_absolute_difference_actual=1.044126878376e+01
+
+  tangential_force_maximum_absolute_difference_reference=1.044302615220e+01
+
+  tangential_force_zero_reference_count=0
+
+  
+  tangential_force_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  prescribed_temperature_maximum_absolute_error=5.684341886081e-14
+
+  noninterface_heat_maximum_absolute_value=2.355684245897e-13
+
+  prescribed_displacement_maximum_absolute_error=1.084202172486e-19
+
+
+
+  verification stderr:
+
+
+
+
+        Start 293: fuelsim_b13_small_cax4rt_abaqus_tests
+100/314 Test #292: fuelsim_b13_small_cax4t_abaqus_tests ...........................   Passed    1.99 sec
+        Start 237: fuelsim_b80_rz_small_friction_abaqus_tests
+101/314 Test #108: fuelsim_b518_hex8_c3d8t_finite_noncoaxial_abaqus_tests .........   Passed    2.76 sec
+        Start 106: fuelsim_b543_hex8_c3d8rt_small_coupled_abaqus_tests
+102/314 Test  #99: fuelsim_b513_hex8_c3d8t_small_noncoaxial_abaqus_tests ..........   Passed    2.11 sec
+        Start 289: fuelsim_b913_cax4rt_small_friction_abaqus_tests
+103/314 Test  #61: fuelsim_c3d20rt_contact_friction_abaqus_tests ..................   Passed   47.31 sec
+        Start  87: fuelsim_b544_hex8_c3d8rt_distorted_bending_abaqus_tests
+104/314 Test #293: fuelsim_b13_small_cax4rt_abaqus_tests ..........................   Passed    2.12 sec
+        Start  49: fuelsim_gravity_hex20
+105/314 Test #105: fuelsim_b541_hex8_c3d8rt_small_j2_abaqus_tests .................   Passed    2.21 sec
+        Start  33: fuelsim_gps_thermal_finite_abaqus
+106/314 Test #237: fuelsim_b80_rz_small_friction_abaqus_tests .....................   Passed    2.12 sec
+        Start 104: fuelsim_b537_hex8_c3d8rt_finite_coupled_abaqus_tests
+107/314 Test #113: fuelsim_b542_hex8_c3d8rt_small_norton_abaqus_tests .............   Passed    2.45 sec
+        Start 103: fuelsim_b535_hex8_c3d8rt_finite_j2_abaqus_tests
+108/314 Test #289: fuelsim_b913_cax4rt_small_friction_abaqus_tests ................   Passed    1.80 sec
+        Start 112: fuelsim_b536_hex8_c3d8rt_finite_norton_abaqus_tests
+109/314 Test #106: fuelsim_b543_hex8_c3d8rt_small_coupled_abaqus_tests ............   Passed    2.25 sec
+        Start  30: fuelsim_gps_nonuniform_finite_abaqus
+110/314 Test  #87: fuelsim_b544_hex8_c3d8rt_distorted_bending_abaqus_tests ........   Passed    2.03 sec
+        Start  29: fuelsim_gps_uniform_finite_abaqus
+111/314 Test  #49: fuelsim_gravity_hex20 ..........................................   Passed    1.60 sec
+        Start 110: fuelsim_b511_hex8_c3d8t_small_norton_abaqus_tests
+112/314 Test  #33: fuelsim_gps_thermal_finite_abaqus ..............................   Passed    1.71 sec
+        Start 102: fuelsim_b517_hex8_c3d8t_finite_coupled_abaqus_tests
+113/314 Test #104: fuelsim_b537_hex8_c3d8rt_finite_coupled_abaqus_tests ...........   Passed    2.49 sec
+        Start 258: fuelsim_b106_cax8t_small_creep_abaqus_tests
+114/314 Test #103: fuelsim_b535_hex8_c3d8rt_finite_j2_abaqus_tests ................   Passed    2.60 sec
+        Start 273: fuelsim_b126_cax8rt_small_creep_abaqus_tests
+115/314 Test  #30: fuelsim_gps_nonuniform_finite_abaqus ...........................   Passed    2.00 sec
+        Start  32: fuelsim_gps_thermal_small_abaqus
+116/314 Test  #29: fuelsim_gps_uniform_finite_abaqus ..............................   Passed    1.95 sec
+        Start 156: fuelsim_h20_29_hex20_sts_tilted_abaqus_tests
+117/314 Test #112: fuelsim_b536_hex8_c3d8rt_finite_norton_abaqus_tests ............   Passed    2.81 sec
+        Start 111: fuelsim_b516_hex8_c3d8t_finite_norton_abaqus_tests
+118/314 Test #110: fuelsim_b511_hex8_c3d8t_small_norton_abaqus_tests ..............   Passed    2.59 sec
+        Start  52: fuelsim_gravity_quad8
+119/314 Test #102: fuelsim_b517_hex8_c3d8t_finite_coupled_abaqus_tests ............   Passed    2.49 sec
+        Start  22: fuelsim_cax4t_material_plastic_yield_abaqus
+120/314 Test #258: fuelsim_b106_cax8t_small_creep_abaqus_tests ....................   Passed    1.87 sec
+        Start  23: fuelsim_cax4t_material_plastic_yield_finite_abaqus
+121/314 Test  #32: fuelsim_gps_thermal_small_abaqus ...............................   Passed    1.67 sec
+        Start  51: fuelsim_gravity_quad4
+122/314 Test #273: fuelsim_b126_cax8rt_small_creep_abaqus_tests ...................   Passed    1.91 sec
+        Start  31: fuelsim_gps_material_temperature_finite_abaqus
+123/314 Test #156: fuelsim_h20_29_hex20_sts_tilted_abaqus_tests ...................   Passed    2.14 sec
+        Start 278: fuelsim_b1211_cax8rt_finite_thermal_abaqus_tests
+124/314 Test  #52: fuelsim_gravity_quad8 ..........................................   Passed    1.92 sec
+        Start 275: fuelsim_b128_cax8rt_small_plastic_abaqus_tests
+125/314 Test #111: fuelsim_b516_hex8_c3d8t_finite_norton_abaqus_tests .............   Passed    2.57 sec
+        Start  50: fuelsim_gravity_gps
+126/314 Test  #22: fuelsim_cax4t_material_plastic_yield_abaqus ....................   Passed    2.00 sec
+        Start 274: fuelsim_b127_cax8rt_finite_creep_abaqus_tests
+127/314 Test  #23: fuelsim_cax4t_material_plastic_yield_finite_abaqus .............   Passed    2.05 sec
+        Start  98: fuelsim_b512_hex8_c3d8t_small_coupled_abaqus_tests
+128/314 Test  #51: fuelsim_gravity_quad4 ..........................................   Passed    1.89 sec
+        Start 261: fuelsim_b109_cax8t_finite_plastic_abaqus_tests
+129/314 Test  #31: fuelsim_gps_material_temperature_finite_abaqus .................   Passed    1.97 sec
+        Start  20: fuelsim_cax4t_material_elastic_moduli_abaqus
+130/314 Test #278: fuelsim_b1211_cax8rt_finite_thermal_abaqus_tests ...............   Passed    2.16 sec
+        Start  26: fuelsim_cax4t_material_creep_coefficient_finite_abaqus
+131/314 Test  #50: fuelsim_gravity_gps ............................................   Passed    2.20 sec
+        Start 271: fuelsim_b124_cax8rt_small_coupled_abaqus_tests
+132/314 Test #275: fuelsim_b128_cax8rt_small_plastic_abaqus_tests .................   Passed    2.39 sec
+        Start  25: fuelsim_cax4t_material_plastic_hardening_finite_abaqus
+133/314 Test #274: fuelsim_b127_cax8rt_finite_creep_abaqus_tests ..................   Passed    2.42 sec
+        Start  27: fuelsim_cax4t_material_creep_exponent_finite_abaqus
+134/314 Test  #20: fuelsim_cax4t_material_elastic_moduli_abaqus ...................   Passed    2.13 sec
+        Start  24: fuelsim_cax4t_material_plastic_hardening_abaqus
+135/314 Test #261: fuelsim_b109_cax8t_finite_plastic_abaqus_tests .................   Passed    2.38 sec
+        Start 260: fuelsim_b108_cax8t_small_plastic_abaqus_tests
+136/314 Test  #26: fuelsim_cax4t_material_creep_coefficient_finite_abaqus .........   Passed    1.87 sec
+        Start  39: fuelsim_gps_inelastic_finite
+137/314 Test  #98: fuelsim_b512_hex8_c3d8t_small_coupled_abaqus_tests .............   Passed    3.00 sec
+        Start 256: fuelsim_b104_cax8t_small_coupled_abaqus_tests
+138/314 Test #271: fuelsim_b124_cax8rt_small_coupled_abaqus_tests .................   Passed    1.93 sec
+        Start  28: fuelsim_gps_uniform_small_abaqus
+139/314 Test  #25: fuelsim_cax4t_material_plastic_hardening_finite_abaqus .........   Passed    2.00 sec
+        Start 304: fuelsim_b14_nts_cax4t_abaqus_tests
+140/314 Test  #27: fuelsim_cax4t_material_creep_exponent_finite_abaqus ............   Passed    2.08 sec
+        Start  48: fuelsim_gravity_hex8
+141/314 Test  #24: fuelsim_cax4t_material_plastic_hardening_abaqus ................   Passed    2.20 sec
+        Start 262: fuelsim_b110_cax8t_small_thermal_abaqus_tests
+142/314 Test #260: fuelsim_b108_cax8t_small_plastic_abaqus_tests ..................   Passed    2.30 sec
+        Start 259: fuelsim_b107_cax8t_finite_creep_abaqus_tests
+143/314 Test  #39: fuelsim_gps_inelastic_finite ...................................   Passed    2.23 sec
+        Start  21: fuelsim_cax4t_material_elastic_moduli_finite_abaqus
+144/314 Test #256: fuelsim_b104_cax8t_small_coupled_abaqus_tests ..................   Passed    2.25 sec
+        Start 158: fuelsim_h20_29_hex20_sts_initial_gap_abaqus_tests
+145/314 Test  #28: fuelsim_gps_uniform_small_abaqus ...............................   Passed    2.17 sec
+        Start 263: fuelsim_b111_cax8t_finite_thermal_abaqus_tests
+146/314 Test  #48: fuelsim_gravity_hex8 ...........................................   Passed    2.07 sec
+        Start 276: fuelsim_b129_cax8rt_finite_plastic_abaqus_tests
+147/314 Test #304: fuelsim_b14_nts_cax4t_abaqus_tests .............................***Failed    2.39 sec
+CMake Error at /home/cooper/ai_project/fuelsim/tests/run_fuelsim_case.cmake:52 (message):
+  Result verification failed with status 1
+
+  fuelsim stdout:
+
+  
+  input_file=/home/cooper/ai_project/fuelsim/build/blackbox/b14_nts_cax4t/verification/fuelsim/transient_b14_nts_cax4t.fsi
+
+  
+  mesh_file=/home/cooper/ai_project/fuelsim/build/blackbox/b14_nts_cax4t/verification/meshes/b14_nts_cax4t.e
+
+  mpi_ranks=1
+
+  
+  results_file=/home/cooper/ai_project/fuelsim/build/blackbox/b14_nts_cax4t/verification/fuelsim/transient_b14_nts_cax4t_results.e
+
+  progress.accepted_steps=1
+
+  progress.time=1.000000000000e+00
+
+  progress.time_step=1.000000000000e+00
+
+  progress.next_time_step=1.000000000000e+00
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=-8.881784197001e-16
+
+  progress.conservation.dirichlet_heat_input_rate=-1.061017185360e-14
+
+  progress.conservation.global_thermal_balance=9.721993433904e-15
+
+  progress.conservation.relative_thermal_balance=8.455120258839e-01
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=1.443382561770e-01
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=1.449819056799e-01
+
+  progress.conservation.contact_work_increment=6.436495028680e-04
+
+  progress.conservation.mechanical_work_balance=-5.551115123126e-17
+
+  progress.conservation.relative_mechanical_work_balance=1.914416525667e-16
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=5.264930270017e-02
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=7.249095283995e-02
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=2
+
+  progress.time=2.000000000000e+00
+
+  progress.time_step=1.000000000000e+00
+
+  progress.next_time_step=1.000000000000e+00
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=2.664535259100e-15
+
+  progress.conservation.dirichlet_heat_input_rate=2.712504441897e-15
+
+  progress.conservation.global_thermal_balance=-4.796918279704e-17
+
+  progress.conservation.relative_thermal_balance=8.921113747428e-03
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=0.000000000000e+00
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=5.149196022944e-04
+
+  progress.conservation.contact_work_increment=5.149196022944e-04
+
+  progress.conservation.mechanical_work_balance=0.000000000000e+00
+
+  progress.conservation.relative_mechanical_work_balance=0.000000000000e+00
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=0.000000000000e+00
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=2.574598011472e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=3
+
+  progress.time=3.000000000000e+00
+
+  progress.time_step=1.000000000000e+00
+
+  progress.next_time_step=1.000000000000e+00
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=-8.881784197001e-16
+
+  progress.conservation.dirichlet_heat_input_rate=1.083092764590e-15
+
+  progress.conservation.global_thermal_balance=-1.971271184290e-15
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=1.166650347002e-02
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=1.159653219977e-02
+
+  progress.conservation.contact_work_increment=-6.997127024774e-05
+
+  progress.conservation.mechanical_work_balance=-3.469446951954e-18
+
+  progress.conservation.relative_mechanical_work_balance=1.486926636104e-16
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=6.785173276457e-03
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=1.056278404596e-02
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=4
+
+  progress.time=4.000000000000e+00
+
+  progress.time_step=1.000000000000e+00
+
+  progress.next_time_step=1.000000000000e+00
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=1.776356839400e-15
+
+  progress.conservation.dirichlet_heat_input_rate=-8.213887264671e-16
+
+  progress.conservation.global_thermal_balance=2.597745565867e-15
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  
+  progress.conservation.internal_mechanical_work_increment=-8.131516293641e-20
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=9.512133209850e-04
+
+  progress.conservation.contact_work_increment=9.512133209850e-04
+
+  progress.conservation.mechanical_work_balance=0.000000000000e+00
+
+  progress.conservation.relative_mechanical_work_balance=0.000000000000e+00
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=8.679217282893e-19
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=2.239558745752e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  problem=transient
+
+  completed=true
+
+  termination_reason=completed
+
+  regions=2
+
+  contacts=1
+
+  committed_time=4.000000000000e+00
+
+  next_time_step=1.000000000000e+00
+
+  accepted_steps=4
+
+  contributions=50
+
+  minimum_accepted_time_step=1.000000000000e+00
+
+  maximum_accepted_time_step=1.000000000000e+00
+
+  maximum_accepted_time_error_estimate=0.000000000000e+00
+
+  time_error_rejections=0
+
+  rejected_steps=0
+
+  total_cutbacks=0
+
+  nonlinear_iterations_total=0
+
+  linear_iterations_total=0
+
+  residual_evaluations_total=4
+
+  jacobian_evaluations_total=0
+
+  petsc_workspace_setups=1
+
+  nonlinear_attempts=1
+
+  linear_iterations=0
+
+  used_backtracking_fallback=false
+
+  augmented_lagrangian_iterations=0
+
+  global_state_dofs=159
+
+  maximum_shadow_state_dofs=159
+
+  total_shadow_state_dofs=159
+
+  total_remote_shadow_state_dofs=0
+
+  memory.initial_resident_bytes=105000960
+
+  memory.setup_resident_bytes=105000960
+
+  memory.solve_resident_bytes=105000960
+
+  memory.final_resident_bytes=105000960
+
+  memory.minimum_peak_resident_bytes=105000960
+
+  memory.maximum_peak_resident_bytes=105000960
+
+  memory.total_peak_resident_bytes=105000960
+
+  residual.temperature.initial_l2=0.000000000000e+00
+
+  residual.temperature.reference_l2=0.000000000000e+00
+
+  residual.temperature.final_l2=0.000000000000e+00
+
+  residual.temperature.scaling=1.000000000000e+00
+
+  residual.temperature.final_scaled_l2=0.000000000000e+00
+
+  residual.radial.initial_l2=0.000000000000e+00
+
+  residual.radial.reference_l2=0.000000000000e+00
+
+  residual.radial.final_l2=0.000000000000e+00
+
+  residual.radial.scaling=1.000000000000e+00
+
+  residual.radial.final_scaled_l2=0.000000000000e+00
+
+  residual.axial.initial_l2=0.000000000000e+00
+
+  residual.axial.reference_l2=0.000000000000e+00
+
+  residual.axial.final_l2=0.000000000000e+00
+
+  residual.axial.scaling=1.000000000000e+00
+
+  residual.axial.final_scaled_l2=0.000000000000e+00
+
+  aggregate_memory.initial_resident_bytes=105000960
+
+  aggregate_memory.setup_resident_bytes=105000960
+
+  aggregate_memory.solve_resident_bytes=105000960
+
+  aggregate_memory.final_resident_bytes=105000960
+
+  aggregate_memory.minimum_peak_resident_bytes=105000960
+
+  aggregate_memory.maximum_peak_resident_bytes=105000960
+
+  aggregate_memory.total_peak_resident_bytes=105000960
+
+  total_seconds=1.191397590000e-01
+
+  conservation.generated_heat_rate=0.000000000000e+00
+
+  conservation.stored_heat_rate=0.000000000000e+00
+
+  conservation.convection_heat_rate=0.000000000000e+00
+
+  conservation.surface_heat_input_rate=0.000000000000e+00
+
+  conservation.interface_heat_imbalance=1.776356839400e-15
+
+  conservation.dirichlet_heat_input_rate=-8.213887264671e-16
+
+  conservation.global_thermal_balance=2.597745565867e-15
+
+  conservation.relative_thermal_balance=1.000000000000e+00
+
+  conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  conservation.internal_mechanical_work_increment=-8.131516293641e-20
+
+  conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  conservation.dirichlet_reaction_work_increment=9.512133209850e-04
+
+  conservation.contact_work_increment=9.512133209850e-04
+
+  conservation.mechanical_work_balance=0.000000000000e+00
+
+  conservation.relative_mechanical_work_balance=0.000000000000e+00
+
+  conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  conservation.elastic_energy_change=8.679217282893e-19
+
+  conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  conservation.creep_dissipation_increment=0.000000000000e+00
+
+  conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  conservation.trapezoidal_dirichlet_reaction_work_increment=2.239558745752e-04
+
+  conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  conservation.body_force_work_increment=0.000000000000e+00
+
+  region.fuel.maximum_equivalent_plastic_strain=0.000000000000e+00
+
+  region.fuel.maximum_equivalent_creep_strain=0.000000000000e+00
+
+  region.cladding.maximum_equivalent_plastic_strain=0.000000000000e+00
+
+  region.cladding.maximum_equivalent_creep_strain=0.000000000000e+00
+
+  contact.fuel_cladding.minimum_gap=-1.170128410580e-06
+
+  contact.fuel_cladding.maximum_contact_pressure=1.170128410580e+06
+
+  contact.fuel_cladding.total_heat_rate=4.556425341617e+01
+
+  contact.fuel_cladding.total_contact_force=2.715674408443e+02
+
+  contact.fuel_cladding.total_tangential_force=-4.346896092786e+01
+
+  contact.fuel_cladding.projected_contact_nodes=5
+
+  contact.fuel_cladding.unprojected_contact_nodes=0
+
+  contact.fuel_cladding.active_contact_nodes=5
+
+
+
+  fuelsim stderr:
+
+
+
+  verification stdout:
+
+  gap_relative_l2=5.808139454952e-13
+
+  gap_relative_absolute_peak=0.000000000000e+00
+
+  gap_maximum_pointwise_relative=1.771647546085e-12
+
+  gap_maximum_pointwise_relative_index=6
+
+  gap_maximum_pointwise_relative_actual=-4.959140583462e-07
+
+  gap_maximum_pointwise_relative_reference=-4.959140583471e-07
+
+  gap_maximum_absolute_difference_index=6
+
+  gap_maximum_absolute_difference_actual=-4.959140583462e-07
+
+  gap_maximum_absolute_difference_reference=-4.959140583471e-07
+
+  gap_zero_reference_count=0
+
+  gap_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  nodal_heat_reaction_relative_l2=6.294434433024e+05
+
+  nodal_heat_reaction_relative_absolute_peak=6.294434430224e+05
+
+  nodal_heat_reaction_maximum_pointwise_relative=6.294434542605e+05
+
+  nodal_heat_reaction_maximum_pointwise_relative_index=33
+
+  nodal_heat_reaction_maximum_pointwise_relative_actual=4.214298184735e+00
+
+  nodal_heat_reaction_maximum_pointwise_relative_reference=6.695266208495e-06
+
+  nodal_heat_reaction_maximum_absolute_difference_index=36
+
+  nodal_heat_reaction_maximum_absolute_difference_actual=1.289559182752e+01
+
+  
+  nodal_heat_reaction_maximum_absolute_difference_reference=2.048725978993e-05
+
+  nodal_heat_reaction_zero_reference_count=0
+
+  
+  nodal_heat_reaction_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  normal_force_relative_l2=4.515033186006e-05
+
+  normal_force_relative_absolute_peak=8.831424340035e-16
+
+  normal_force_maximum_pointwise_relative=1.807931202547e-04
+
+  normal_force_maximum_pointwise_relative_index=9
+
+  normal_force_maximum_pointwise_relative_actual=3.261295277966e+01
+
+  normal_force_maximum_pointwise_relative_reference=3.261885004334e+01
+
+  normal_force_maximum_absolute_difference_index=9
+
+  normal_force_maximum_absolute_difference_actual=3.261295277966e+01
+
+  normal_force_maximum_absolute_difference_reference=3.261885004334e+01
+
+  normal_force_zero_reference_count=0
+
+  normal_force_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  pressure_relative_l2=5.242202440471e-05
+
+  pressure_relative_absolute_peak=2.851364938576e-13
+
+  pressure_maximum_pointwise_relative=1.807931202555e-04
+
+  pressure_maximum_pointwise_relative_index=9
+
+  pressure_maximum_pointwise_relative_actual=7.898371770518e+05
+
+  pressure_maximum_pointwise_relative_reference=7.899800000009e+05
+
+  pressure_maximum_absolute_difference_index=9
+
+  pressure_maximum_absolute_difference_actual=7.898371770518e+05
+
+  pressure_maximum_absolute_difference_reference=7.899800000009e+05
+
+  pressure_zero_reference_count=0
+
+  pressure_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  shear_relative_l2=5.239518915497e-05
+
+  shear_relative_absolute_peak=2.852437124405e-13
+
+  shear_maximum_pointwise_relative=1.807931202555e-04
+
+  shear_maximum_pointwise_relative_index=9
+
+  shear_maximum_pointwise_relative_actual=1.263234130395e+05
+
+  shear_maximum_pointwise_relative_reference=1.263462555733e+05
+
+  shear_maximum_absolute_difference_index=9
+
+  shear_maximum_absolute_difference_actual=1.263234130395e+05
+
+  shear_maximum_absolute_difference_reference=1.263462555733e+05
+
+  shear_zero_reference_count=0
+
+  shear_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  slip_relative_l2=1.515336253391e-16
+
+  slip_relative_absolute_peak=3.385580837117e-16
+
+  slip_maximum_pointwise_relative=3.386484336541e-16
+
+  slip_maximum_pointwise_relative_index=11
+
+  slip_maximum_pointwise_relative_actual=1.000486478694e-05
+
+  slip_maximum_pointwise_relative_reference=1.000486478694e-05
+
+  slip_maximum_absolute_difference_index=11
+
+  slip_maximum_absolute_difference_actual=1.000486478694e-05
+
+  slip_maximum_absolute_difference_reference=1.000486478694e-05
+
+  slip_zero_reference_count=0
+
+  slip_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  tangential_force_relative_l2=4.511762157578e-05
+
+  tangential_force_relative_absolute_peak=6.899550265652e-16
+
+  tangential_force_maximum_pointwise_relative=1.807931202546e-04
+
+  tangential_force_maximum_pointwise_relative_index=9
+
+  tangential_force_maximum_pointwise_relative_actual=5.215985805836e+00
+
+  tangential_force_maximum_pointwise_relative_reference=5.216928990706e+00
+
+  tangential_force_maximum_absolute_difference_index=9
+
+  tangential_force_maximum_absolute_difference_actual=5.215985805836e+00
+
+  tangential_force_maximum_absolute_difference_reference=5.216928990706e+00
+
+  tangential_force_zero_reference_count=0
+
+  
+  tangential_force_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  prescribed_temperature_maximum_absolute_error=0.000000000000e+00
+
+  noninterface_heat_maximum_absolute_value=2.355684245897e-13
+
+  prescribed_displacement_maximum_absolute_error=1.084202172486e-19
+
+
+
+  verification stderr:
+
+
+
+
+        Start 277: fuelsim_b1210_cax8rt_small_thermal_abaqus_tests
+148/314 Test #262: fuelsim_b110_cax8t_small_thermal_abaqus_tests ..................   Passed    2.30 sec
+        Start 229: fuelsim_b72_rz_small_creep_abaqus_tests
+149/314 Test #259: fuelsim_b107_cax8t_finite_creep_abaqus_tests ...................   Passed    2.27 sec
+        Start 157: fuelsim_h20_29_hex20_sts_graded_abaqus_tests
+150/314 Test  #21: fuelsim_cax4t_material_elastic_moduli_finite_abaqus ............   Passed    2.19 sec
+        Start 245: fuelsim_b94_cax4rt_finite_coupled_abaqus_tests
+151/314 Test #158: fuelsim_h20_29_hex20_sts_initial_gap_abaqus_tests ..............   Passed    2.50 sec
+        Start 269: fuelsim_b120_cax8rt_small_probe_abaqus_tests
+152/314 Test #263: fuelsim_b111_cax8t_finite_thermal_abaqus_tests .................   Passed    2.08 sec
+        Start 254: fuelsim_b100_cax8t_small_probe_abaqus_tests
+153/314 Test #276: fuelsim_b129_cax8rt_finite_plastic_abaqus_tests ................   Passed    2.16 sec
+        Start 231: fuelsim_b74_rz_small_plastic_abaqus_tests
+154/314 Test #277: fuelsim_b1210_cax8rt_small_thermal_abaqus_tests ................   Passed    2.22 sec
+        Start 246: fuelsim_b95_cax4rt_small_creep_abaqus_tests
+155/314 Test #229: fuelsim_b72_rz_small_creep_abaqus_tests ........................   Passed    2.14 sec
+        Start 255: fuelsim_b101_cax8t_finite_probe_abaqus_tests
+156/314 Test #245: fuelsim_b94_cax4rt_finite_coupled_abaqus_tests .................   Passed    2.14 sec
+        Start 233: fuelsim_b76_rz_small_thermal_abaqus_tests
+157/314 Test #157: fuelsim_h20_29_hex20_sts_graded_abaqus_tests ...................   Passed    2.41 sec
+        Start 251: fuelsim_b910_cax4rt_finite_thermal_abaqus_tests
+158/314 Test #269: fuelsim_b120_cax8rt_small_probe_abaqus_tests ...................   Passed    2.17 sec
+        Start 234: fuelsim_b77_rz_finite_thermal_abaqus_tests
+159/314 Test #254: fuelsim_b100_cax8t_small_probe_abaqus_tests ....................   Passed    2.14 sec
+        Start 250: fuelsim_b99_cax4rt_small_thermal_abaqus_tests
+160/314 Test #231: fuelsim_b74_rz_small_plastic_abaqus_tests ......................   Passed    2.07 sec
+        Start 280: fuelsim_b123_cax8rt_finite_contact_abaqus_tests
+161/314 Test #246: fuelsim_b95_cax4rt_small_creep_abaqus_tests ....................   Passed    2.13 sec
+        Start 228: fuelsim_b71_rz_finite_coupled_abaqus_tests
+162/314 Test #255: fuelsim_b101_cax8t_finite_probe_abaqus_tests ...................   Passed    2.13 sec
+        Start 249: fuelsim_b98_cax4rt_finite_plastic_abaqus_tests
+163/314 Test #233: fuelsim_b76_rz_small_thermal_abaqus_tests ......................   Passed    2.22 sec
+        Start 244: fuelsim_b93_cax4rt_small_coupled_abaqus_tests
+164/314 Test #251: fuelsim_b910_cax4rt_finite_thermal_abaqus_tests ................   Passed    2.26 sec
+        Start 248: fuelsim_b97_cax4rt_small_plastic_abaqus_tests
+165/314 Test #234: fuelsim_b77_rz_finite_thermal_abaqus_tests .....................   Passed    2.22 sec
+        Start  35: fuelsim_gps_steady_finite
+166/314 Test #250: fuelsim_b99_cax4rt_small_thermal_abaqus_tests ..................   Passed    2.17 sec
+        Start 247: fuelsim_b96_cax4rt_finite_creep_abaqus_tests
+167/314 Test #280: fuelsim_b123_cax8rt_finite_contact_abaqus_tests ................   Passed    2.14 sec
+        Start 230: fuelsim_b73_rz_finite_creep_abaqus_tests
+168/314 Test #228: fuelsim_b71_rz_finite_coupled_abaqus_tests .....................   Passed    2.23 sec
+        Start 270: fuelsim_b121_cax8rt_finite_probe_abaqus_tests
+169/314 Test #249: fuelsim_b98_cax4rt_finite_plastic_abaqus_tests .................   Passed    2.15 sec
+        Start 154: fuelsim_h20_hex20_thermal_contact_reference_tests
+170/314 Test #244: fuelsim_b93_cax4rt_small_coupled_abaqus_tests ..................   Passed    2.26 sec
+        Start 279: fuelsim_b122_cax8rt_small_contact_abaqus_tests
+171/314 Test #248: fuelsim_b97_cax4rt_small_plastic_abaqus_tests ..................   Passed    2.24 sec
+        Start 232: fuelsim_b75_rz_finite_plastic_abaqus_tests
+172/314 Test  #35: fuelsim_gps_steady_finite ......................................   Passed    2.16 sec
+        Start 264: fuelsim_b102_cax8t_small_contact_abaqus_tests
+173/314 Test #247: fuelsim_b96_cax4rt_finite_creep_abaqus_tests ...................   Passed    2.24 sec
+        Start 287: fuelsim_b916_cax4rt_variable_conductivity_abaqus_tests
+174/314 Test #230: fuelsim_b73_rz_finite_creep_abaqus_tests .......................   Passed    2.21 sec
+        Start 241: fuelsim_b151_cax4t_small_conductivity_abaqus_tests
+175/314 Test #270: fuelsim_b121_cax8rt_finite_probe_abaqus_tests ..................   Passed    2.24 sec
+        Start 265: fuelsim_b103_cax8t_finite_contact_abaqus_tests
+176/314 Test #154: fuelsim_h20_hex20_thermal_contact_reference_tests ..............   Passed    2.40 sec
+        Start 286: fuelsim_b915_cax4rt_thermal_identification_abaqus_tests
+177/314 Test #279: fuelsim_b122_cax8rt_small_contact_abaqus_tests .................   Passed    2.19 sec
+        Start 240: fuelsim_b150_cax4t_finite_thermal_operator_abaqus_tests
+178/314 Test #232: fuelsim_b75_rz_finite_plastic_abaqus_tests .....................   Passed    2.24 sec
+        Start 227: fuelsim_b70_rz_small_coupled_abaqus_tests
+179/314 Test #264: fuelsim_b102_cax8t_small_contact_abaqus_tests ..................   Passed    2.19 sec
+        Start 243: fuelsim_b92_cax4rt_rectangle_probe_abaqus_tests
+180/314 Test #287: fuelsim_b916_cax4rt_variable_conductivity_abaqus_tests .........   Passed    2.17 sec
+        Start 288: fuelsim_b917_cax4rt_finite_thermal_operators_abaqus_tests
+181/314 Test #241: fuelsim_b151_cax4t_small_conductivity_abaqus_tests .............   Passed    2.11 sec
+        Start 242: fuelsim_b91_cax4rt_finite_probe_abaqus_tests
+182/314 Test #265: fuelsim_b103_cax8t_finite_contact_abaqus_tests .................   Passed    2.10 sec
+        Start 155: fuelsim_h20_29_hex20_sts_biaxial_abaqus_tests
+183/314 Test #286: fuelsim_b915_cax4rt_thermal_identification_abaqus_tests ........   Passed    2.15 sec
+        Start 252: fuelsim_b911_cax4rt_small_contact_abaqus_tests
+184/314 Test #240: fuelsim_b150_cax4t_finite_thermal_operator_abaqus_tests ........   Passed    2.24 sec
+        Start 253: fuelsim_b912_cax4rt_finite_contact_abaqus_tests
+185/314 Test #227: fuelsim_b70_rz_small_coupled_abaqus_tests ......................   Passed    2.32 sec
+        Start 235: fuelsim_b78_rz_small_contact_abaqus_tests
+186/314 Test #243: fuelsim_b92_cax4rt_rectangle_probe_abaqus_tests ................   Passed    2.19 sec
+        Start  95: fuelsim_b58_hex8_c3d8t_multistep_abaqus_tests
+187/314 Test #288: fuelsim_b917_cax4rt_finite_thermal_operators_abaqus_tests ......   Passed    2.20 sec
+        Start 236: fuelsim_b79_rz_finite_contact_abaqus_tests
+188/314 Test #242: fuelsim_b91_cax4rt_finite_probe_abaqus_tests ...................   Passed    2.18 sec
+        Start  46: fuelsim_pressure_cylinder_analytic_tests
+189/314 Test #155: fuelsim_h20_29_hex20_sts_biaxial_abaqus_tests ..................   Passed    2.51 sec
+        Start 131: fuelsim_hex20_solver_tests
+190/314 Test #252: fuelsim_b911_cax4rt_small_contact_abaqus_tests .................   Passed    2.10 sec
+        Start 181: fuelsim_b37_hex8_multi_contact_moose_tests
+191/314 Test #253: fuelsim_b912_cax4rt_finite_contact_abaqus_tests ................   Passed    2.13 sec
+        Start 226: fuelsim_m21_manufactured_heat_tests
+192/314 Test #235: fuelsim_b78_rz_small_contact_abaqus_tests ......................   Passed    2.18 sec
+        Start  92: fuelsim_b55_hex8_c3d8t_transient_abaqus_tests
+193/314 Test #236: fuelsim_b79_rz_finite_contact_abaqus_tests .....................   Passed    2.18 sec
+        Start  72: fuelsim_hex8_solver_tests
+194/314 Test  #46: fuelsim_pressure_cylinder_analytic_tests .......................   Passed    2.10 sec
+        Start 133: fuelsim_h20_02_convection_moose_tests
+195/314 Test  #95: fuelsim_b58_hex8_c3d8t_multistep_abaqus_tests ..................   Passed    3.09 sec
+        Start 151: fuelsim_b34_hex8_sliding_contact_abaqus_tests
+196/314 Test #181: fuelsim_b37_hex8_multi_contact_moose_tests .....................   Passed    2.20 sec
+        Start 142: fuelsim_h20_10_finite_strain_moose_tests
+197/314 Test #226: fuelsim_m21_manufactured_heat_tests ............................   Passed    1.93 sec
+        Start 136: fuelsim_h20_05_thermo_mechanical_moose_tests
+198/314 Test  #92: fuelsim_b55_hex8_c3d8t_transient_abaqus_tests ..................   Passed    2.17 sec
+        Start 132: fuelsim_b6_hex20_moose_tests
+199/314 Test  #72: fuelsim_hex8_solver_tests ......................................   Passed    2.02 sec
+        Start 134: fuelsim_h20_03_pressure_moose_tests
+200/314 Test #133: fuelsim_h20_02_convection_moose_tests ..........................   Passed    1.92 sec
+        Start 135: fuelsim_h20_04_traction_moose_tests
+201/314 Test #131: fuelsim_hex20_solver_tests .....................................   Passed    3.34 sec
+        Start 144: fuelsim_b3_hex8_moose_tests
+202/314 Test #151: fuelsim_b34_hex8_sliding_contact_abaqus_tests ..................   Passed    1.73 sec
+        Start  73: fuelsim_b38_hex8_sts_identification_tests
+203/314 Test #142: fuelsim_h20_10_finite_strain_moose_tests .......................   Passed    1.91 sec
+        Start 100: fuelsim_b514_hex8_c3d8t_finite_elastic_abaqus_tests
+204/314 Test #136: fuelsim_h20_05_thermo_mechanical_moose_tests ...................   Passed    1.97 sec
+        Start 199: fuelsim_multi_region_tests
+205/314 Test #132: fuelsim_b6_hex20_moose_tests ...................................   Passed    2.00 sec
+        Start 201: fuelsim_solver_tests
+206/314 Test #144: fuelsim_b3_hex8_moose_tests ....................................   Passed    2.29 sec
+        Start 306: fuelsim_transient_jacobian_check
+207/314 Test #135: fuelsim_h20_04_traction_moose_tests ............................   Passed    2.33 sec
+        Start 153: fuelsim_b34_friction_checkpoint_contract
+208/314 Test #134: fuelsim_h20_03_pressure_moose_tests ............................   Passed    2.35 sec
+        Start 148: fuelsim_b36_shared_nodes_contract
+209/314 Test  #73: fuelsim_b38_hex8_sts_identification_tests ......................   Passed    2.09 sec
+        Start 143: fuelsim_h20_24_hex20_nonmatching_contact_tests
+210/314 Test #143: fuelsim_h20_24_hex20_nonmatching_contact_tests .................   Passed    0.29 sec
+        Start 197: fuelsim_b531_history_contract
+211/314 Test #100: fuelsim_b514_hex8_c3d8t_finite_elastic_abaqus_tests ............   Passed    1.85 sec
+        Start 198: fuelsim_b534_history_contract
+212/314 Test #197: fuelsim_b531_history_contract ..................................   Passed    0.24 sec
+        Start 189: fuelsim_b32_coupled_history_contract
+213/314 Test #199: fuelsim_multi_region_tests .....................................   Passed    1.75 sec
+        Start 190: fuelsim_b510_history_contract
+214/314 Test #148: fuelsim_b36_shared_nodes_contract ..............................   Passed    0.67 sec
+        Start 185: fuelsim_b3_coupled_history_contract
+215/314 Test #198: fuelsim_b534_history_contract ..................................   Passed    0.24 sec
+        Start 187: fuelsim_b32_creep_history_contract
+216/314 Test #201: fuelsim_solver_tests ...........................................   Passed    1.38 sec
+        Start 191: fuelsim_b515_history_contract
+217/314 Test #153: fuelsim_b34_friction_checkpoint_contract .......................   Passed    0.72 sec
+        Start 183: fuelsim_b3_creep_history_contract
+218/314 Test #190: fuelsim_b510_history_contract ..................................   Passed    0.23 sec
+        Start 162: fuelsim_h20_30_quadratic_cylinder_contract
+219/314 Test #189: fuelsim_b32_coupled_history_contract ...........................   Passed    0.26 sec
+        Start 165: fuelsim_h20_35_curved_friction_contract
+220/314 Test #306: fuelsim_transient_jacobian_check ...............................   Passed    0.87 sec
+        Start 160: fuelsim_h20_30_faceted_cylinder_contract
+221/314 Test #185: fuelsim_b3_coupled_history_contract ............................   Passed    0.25 sec
+        Start  37: fuelsim_gps_chain_abaqus
+222/314 Test #187: fuelsim_b32_creep_history_contract .............................   Passed    0.25 sec
+        Start 312: fuelsim_element_library_boundaries
+223/314 Test #191: fuelsim_b515_history_contract ..................................   Passed    0.24 sec
+        Start 311: fuelsim_abaqus_reference_sha256
+224/314 Test #183: fuelsim_b3_creep_history_contract ..............................   Passed    0.25 sec
+        Start 239: fuelsim_b81_rz_friction_history_contract
+225/314 Test #162: fuelsim_h20_30_quadratic_cylinder_contract .....................   Passed    0.25 sec
+        Start 291: fuelsim_b914_cax4rt_friction_history_contract
+226/314 Test #165: fuelsim_h20_35_curved_friction_contract ........................   Passed    0.24 sec
+        Start   4: fuelsim_bar2_io_tests
+227/314 Test  #37: fuelsim_gps_chain_abaqus .......................................   Passed    0.13 sec
+        Start 119: fuelsim_b39_tilted_gap_contact_contract
+228/314 Test #160: fuelsim_h20_30_faceted_cylinder_contract .......................   Passed    0.23 sec
+        Start 117: fuelsim_b39_nonmatching_contact_contract
+229/314 Test #239: fuelsim_b81_rz_friction_history_contract .......................   Passed    0.14 sec
+        Start  80: fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests
+230/314 Test   #4: fuelsim_bar2_io_tests ..........................................   Passed    0.10 sec
+        Start 115: fuelsim_b39_matching_contact_contract
+231/314 Test #117: fuelsim_b39_nonmatching_contact_contract .......................   Passed    0.10 sec
+        Start  42: fuelsim_input_tests
+232/314 Test #119: fuelsim_b39_tilted_gap_contact_contract ........................   Passed    0.11 sec
+        Start 147: fuelsim_b35_shared_nodes_contract
+233/314 Test #291: fuelsim_b914_cax4rt_friction_history_contract ..................   Passed    0.13 sec
+        Start 307: fuelsim_reproducible_build_tests
+234/314 Test  #80: fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests ...   Passed    0.12 sec
+        Start 170: fuelsim_h20_39_finite_sliding_abaqus_tests
+235/314 Test #147: fuelsim_b35_shared_nodes_contract ..............................   Passed    0.09 sec
+        Start  58: fuelsim_m52_restart_step_contract
+236/314 Test #115: fuelsim_b39_matching_contact_contract ..........................   Passed    0.10 sec
+        Start 122: fuelsim_b40_friction_history_contract
+237/314 Test #312: fuelsim_element_library_boundaries .............................   Passed    0.35 sec
+        Start  47: fuelsim_rz_contact_projection_contract
+238/314 Test #311: fuelsim_abaqus_reference_sha256 ................................   Passed    0.35 sec
+        Start 138: fuelsim_hex20_history_contract_tests
+239/314 Test #307: fuelsim_reproducible_build_tests ...............................   Passed    0.13 sec
+        Start 127: fuelsim_b45_hex8_nonplanar_sts_abaqus_tests
+240/314 Test #170: fuelsim_h20_39_finite_sliding_abaqus_tests .....................   Passed    0.10 sec
+        Start  43: fuelsim_exodus_mesh_io_tests
+241/314 Test  #58: fuelsim_m52_restart_step_contract ..............................   Passed    0.07 sec
+        Start  19: fuelsim_radial_transaction_tests
+242/314 Test #122: fuelsim_b40_friction_history_contract ..........................   Passed    0.07 sec
+        Start 129: fuelsim_b47_hex8_scale_parameter_abaqus_tests
+243/314 Test  #42: fuelsim_input_tests ............................................   Passed    0.19 sec
+        Start  41: fuelsim_hex8_result_fields_tests
+244/314 Test  #47: fuelsim_rz_contact_projection_contract .........................   Passed    0.07 sec
+        Start 126: fuelsim_b44_hex8_nonmatching_partial_contact_abaqus_tests
+245/314 Test #138: fuelsim_hex20_history_contract_tests ...........................   Passed    0.07 sec
+        Start 124: fuelsim_b42_hex8_friction_objectivity_abaqus_tests
+246/314 Test #127: fuelsim_b45_hex8_nonplanar_sts_abaqus_tests ....................   Passed    0.09 sec
+        Start 123: fuelsim_b41_hex8_finite_sliding_abaqus_tests
+247/314 Test  #43: fuelsim_exodus_mesh_io_tests ...................................   Passed    0.08 sec
+        Start 179: fuelsim_h20_31_hex20_curved_sts_identification_tests
+248/314 Test  #19: fuelsim_radial_transaction_tests ...............................   Passed    0.07 sec
+        Start 169: fuelsim_h20_38_friction_objectivity_abaqus_tests
+249/314 Test  #41: fuelsim_hex8_result_fields_tests ...............................   Passed    0.06 sec
+        Start  79: fuelsim_b521_hex8_c3d8t_thermal_contact_path_abaqus_tests
+250/314 Test #129: fuelsim_b47_hex8_scale_parameter_abaqus_tests ..................   Passed    0.09 sec
+        Start 128: fuelsim_b46_hex8_release_recontact_abaqus_tests
+251/314 Test #126: fuelsim_b44_hex8_nonmatching_partial_contact_abaqus_tests ......   Passed    0.08 sec
+        Start 310: fuelsim_moose_reference_sha256
+252/314 Test #124: fuelsim_b42_hex8_friction_objectivity_abaqus_tests .............   Passed    0.08 sec
+        Start   7: fuelsim_cax8t_tests
+253/314 Test   #7: fuelsim_cax8t_tests ............................................   Passed    0.02 sec
+        Start   8: fuelsim_cax8rt_tests
+254/314 Test #169: fuelsim_h20_38_friction_objectivity_abaqus_tests ...............   Passed    0.07 sec
+        Start  11: fuelsim_c3d20t_tests
+255/314 Test #179: fuelsim_h20_31_hex20_curved_sts_identification_tests ...........   Passed    0.07 sec
+        Start 308: fuelsim_geometry_independence_audit
+256/314 Test #310: fuelsim_moose_reference_sha256 .................................   Passed    0.03 sec
+        Start  12: fuelsim_c3d20rt_tests
+257/314 Test #123: fuelsim_b41_hex8_finite_sliding_abaqus_tests ...................   Passed    0.08 sec
+        Start   9: fuelsim_c3d8t_tests
+258/314 Test   #8: fuelsim_cax8rt_tests ...........................................   Passed    0.01 sec
+        Start   5: fuelsim_cax4t_tests
+259/314 Test #308: fuelsim_geometry_independence_audit ............................   Passed    0.01 sec
+        Start  89: fuelsim_b552_hex8_c3d8t_sts_cross_face_abaqus_tests
+260/314 Test  #12: fuelsim_c3d20rt_tests ..........................................   Passed    0.01 sec
+        Start 192: fuelsim_b528_hex8_c3d8rt_operator_abaqus_tests
+261/314 Test   #5: fuelsim_cax4t_tests ............................................   Passed    0.01 sec
+        Start  74: fuelsim_b49_hex8_c3d8t_operator_abaqus_tests
+262/314 Test  #11: fuelsim_c3d20t_tests ...........................................   Passed    0.02 sec
+        Start  93: fuelsim_b56_hex8_c3d8t_temperature_operator_abaqus_tests
+263/314 Test   #9: fuelsim_c3d8t_tests ............................................   Passed    0.01 sec
+        Start  17: fuelsim_quad8_face_tests
+264/314 Test  #89: fuelsim_b552_hex8_c3d8t_sts_cross_face_abaqus_tests ............   Passed    0.01 sec
+        Start  13: fuelsim_body_acceleration_tests
+265/314 Test  #79: fuelsim_b521_hex8_c3d8t_thermal_contact_path_abaqus_tests ......   Passed    0.08 sec
+        Start  10: fuelsim_c3d8rt_tests
+266/314 Test #192: fuelsim_b528_hex8_c3d8rt_operator_abaqus_tests .................   Passed    0.01 sec
+        Start   1: fuelsim_cax2t_gps_tests
+267/314 Test  #93: fuelsim_b56_hex8_c3d8t_temperature_operator_abaqus_tests .......   Passed    0.01 sec
+        Start  18: fuelsim_radial_assembly_tests
+268/314 Test  #74: fuelsim_b49_hex8_c3d8t_operator_abaqus_tests ...................   Passed    0.01 sec
+        Start  16: fuelsim_quad4_face_tests
+269/314 Test  #17: fuelsim_quad8_face_tests .......................................   Passed    0.01 sec
+        Start   6: fuelsim_cax4rt_tests
+270/314 Test #128: fuelsim_b46_hex8_release_recontact_abaqus_tests ................   Passed    0.08 sec
+        Start  14: fuelsim_line2_rz_tests
+271/314 Test  #13: fuelsim_body_acceleration_tests ................................   Passed    0.01 sec
+        Start   2: fuelsim_ring_gps_tests
+272/314 Test   #1: fuelsim_cax2t_gps_tests ........................................   Passed    0.01 sec
+        Start 313: fuelsim_common_math_tests
+273/314 Test  #10: fuelsim_c3d8rt_tests ...........................................   Passed    0.02 sec
+        Start 314: fuelsim_contact_common_tests
+274/314 Test  #18: fuelsim_radial_assembly_tests ..................................   Passed    0.01 sec
+        Start  60: fuelsim_core_tests
+275/314 Test  #16: fuelsim_quad4_face_tests .......................................   Passed    0.01 sec
+        Start   3: fuelsim_bar2_mesh_tests
+276/314 Test   #6: fuelsim_cax4rt_tests ...........................................   Passed    0.01 sec
+        Start 309: fuelsim_verification_matrix_tests
+277/314 Test  #14: fuelsim_line2_rz_tests .........................................   Passed    0.02 sec
+        Start 200: fuelsim_m2_core_tests
+278/314 Test   #2: fuelsim_ring_gps_tests .........................................   Passed    0.02 sec
+        Start  15: fuelsim_line3_rz_tests
+279/314 Test #313: fuelsim_common_math_tests ......................................   Passed    0.02 sec
+        Start  75: fuelsim_b50_hex8_c3d8t_capacity_abaqus_tests
+280/314 Test #314: fuelsim_contact_common_tests ...................................   Passed    0.01 sec
+        Start 193: fuelsim_b529_hex8_c3d8rt_capacity_abaqus_tests
+281/314 Test  #60: fuelsim_core_tests .............................................   Passed    0.01 sec
+        Start 194: fuelsim_b530_hex8_c3d8rt_thermal_load_abaqus_tests
+282/314 Test   #3: fuelsim_bar2_mesh_tests ........................................   Passed    0.01 sec
+        Start  76: fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests
+283/314 Test #309: fuelsim_verification_matrix_tests ..............................   Passed    0.01 sec
+        Start  78: fuelsim_b520_hex8_c3d8t_gap_conductance_abaqus_tests
+284/314 Test #200: fuelsim_m2_core_tests ..........................................   Passed    0.01 sec
+        Start  91: fuelsim_b54_hex8_c3d8t_finite_thermal_load_abaqus_tests
+285/314 Test  #15: fuelsim_line3_rz_tests .........................................   Passed    0.01 sec
+        Start  94: fuelsim_b57_hex8_c3d8t_temperature_capacity_abaqus_tests
+286/314 Test  #75: fuelsim_b50_hex8_c3d8t_capacity_abaqus_tests ...................   Passed    0.01 sec
+        Start  77: fuelsim_b52_hex8_c3d8t_thermal_contact_abaqus_tests
+287/314 Test #193: fuelsim_b529_hex8_c3d8rt_capacity_abaqus_tests .................   Passed    0.01 sec
+        Start 109: fuelsim_b519_hex8_c3d8t_finite_selective_abaqus_tests
+288/314 Test #194: fuelsim_b530_hex8_c3d8rt_thermal_load_abaqus_tests .............   Passed    0.01 sec
+        Start  90: fuelsim_b53_hex8_c3d8t_thermal_load_abaqus_tests
+289/314 Test  #76: fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests ................   Passed    0.01 sec
+290/314 Test  #78: fuelsim_b520_hex8_c3d8t_gap_conductance_abaqus_tests ...........   Passed    0.01 sec
+        Start 207: fuelsim_mpi_hex8_solver_tests
+291/314 Test  #91: fuelsim_b54_hex8_c3d8t_finite_thermal_load_abaqus_tests ........   Passed    0.01 sec
+292/314 Test  #94: fuelsim_b57_hex8_c3d8t_temperature_capacity_abaqus_tests .......   Passed    0.01 sec
+        Start 215: fuelsim_b521_thermal_contact_mpi_equivalence
+293/314 Test  #77: fuelsim_b52_hex8_c3d8t_thermal_contact_abaqus_tests ............   Passed    0.01 sec
+294/314 Test #109: fuelsim_b519_hex8_c3d8t_finite_selective_abaqus_tests ..........   Passed    0.01 sec
+        Start 225: fuelsim_mpi_root_io_failure
+295/314 Test  #90: fuelsim_b53_hex8_c3d8t_thermal_load_abaqus_tests ...............   Passed    0.01 sec
+296/314 Test #225: fuelsim_mpi_root_io_failure ....................................   Passed    2.18 sec
+        Start 213: fuelsim_b33_mpi_equivalence
+297/314 Test #215: fuelsim_b521_thermal_contact_mpi_equivalence ...................   Passed    2.23 sec
+        Start 224: fuelsim_transient_mpi_equivalence
+298/314 Test #207: fuelsim_mpi_hex8_solver_tests ..................................   Passed    2.40 sec
+        Start 218: fuelsim_b41_hex8_finite_sliding_mpi_equivalence
+299/314 Test #213: fuelsim_b33_mpi_equivalence ....................................   Passed    2.10 sec
+        Start 212: fuelsim_mpi_equivalence
+300/314 Test #218: fuelsim_b41_hex8_finite_sliding_mpi_equivalence ................   Passed    1.93 sec
+        Start 208: fuelsim_mpi_hex20_solver_tests
+301/314 Test #224: fuelsim_transient_mpi_equivalence ..............................   Passed    2.34 sec
+        Start 216: fuelsim_b39_hex8_sts_mpi_equivalence
+302/314 Test #212: fuelsim_mpi_equivalence ........................................   Passed    1.94 sec
+        Start 210: fuelsim_mpi_runtime_layout_field_split
+303/314 Test #216: fuelsim_b39_hex8_sts_mpi_equivalence ...........................   Passed    1.99 sec
+        Start 209: fuelsim_mpi_solver_tests
+304/314 Test #208: fuelsim_mpi_hex20_solver_tests .................................   Passed    2.44 sec
+        Start 220: fuelsim_mpi_field_split
+305/314 Test #210: fuelsim_mpi_runtime_layout_field_split .........................   Passed    1.56 sec
+        Start 222: fuelsim_mpi_hypre
+306/314 Test #209: fuelsim_mpi_solver_tests .......................................   Passed    1.91 sec
+        Start 221: fuelsim_mpi_block_jacobi
+307/314 Test #220: fuelsim_mpi_field_split ........................................   Passed    1.99 sec
+        Start 219: fuelsim_b48_hex8_multi_contact_path_mpi_equivalence
+308/314 Test #222: fuelsim_mpi_hypre ..............................................   Passed    1.90 sec
+        Start 206: fuelsim_c3d8rt_contact_two_rank_equivalence
+309/314 Test #221: fuelsim_mpi_block_jacobi .......................................   Passed    1.97 sec
+        Start 204: fuelsim_production_hex20_mpi_equivalence
+310/314 Test #206: fuelsim_c3d8rt_contact_two_rank_equivalence ....................   Passed    1.82 sec
+        Start 203: fuelsim_gps_finite_mpi_equivalence
+311/314 Test  #62: fuelsim_c3d20rt_finite_frictionless_abaqus_tests ...............   Passed   94.05 sec
+312/314 Test #219: fuelsim_b48_hex8_multi_contact_path_mpi_equivalence ............   Passed    3.86 sec
+313/314 Test #203: fuelsim_gps_finite_mpi_equivalence .............................   Passed    1.45 sec
+314/314 Test #204: fuelsim_production_hex20_mpi_equivalence .......................   Passed    3.83 sec
+
+99% tests passed, 3 tests failed out of 314
+
+Label Time Summary:
+abaqus                     = 489.05 sec*proc (113 tests)
+acceptance                 = 593.22 sec*proc (202 tests)
+analytic                   =   0.06 sec*proc (1 test)
+architecture               =   3.13 sec*proc (2 tests)
+audit                      =   0.53 sec*proc (5 tests)
+axisymmetric               =  16.52 sec*proc (8 tests)
+bending                    =  21.82 sec*proc (4 tests)
+c3d20t                     =  29.50 sec*proc (3 tests)
+c3d8rt                     =  67.11 sec*proc (16 tests)
+c3d8t                      =   0.01 sec*proc (1 test)
+cax8rt                     =   5.13 sec*proc (2 tests)
+cax8t                      =   2.96 sec*proc (1 test)
+checkpoint                 =  19.08 sec*proc (14 tests)
+conservation               =   2.09 sec*proc (9 tests)
+contact                    = 344.32 sec*proc (74 tests)
+creep                      =  77.45 sec*proc (16 tests)
+curved                     =  29.46 sec*proc (8 tests)
+dependency                 =   0.08 sec*proc (1 test)
+distorted                  =   6.01 sec*proc (1 test)
+distorted-mesh             =   2.03 sec*proc (1 test)
+elasticity                 =   1.85 sec*proc (2 tests)
+engineering                =   4.78 sec*proc (1 test)
+equivalence                =   3.65 sec*proc (1 test)
+finite-sliding             =  73.88 sec*proc (16 tests)
+finite-strain              = 129.06 sec*proc (33 tests)
+friction                   = 177.13 sec*proc (30 tests)
+hex20                      = 101.48 sec*proc (27 tests)
+hex8                       = 179.87 sec*proc (68 tests)
+identification             =   2.25 sec*proc (10 tests)
+inelastic                  =  34.22 sec*proc (7 tests)
+integration                =  45.60 sec*proc (15 tests)
+io                         =   7.09 sec*proc (4 tests)
+jacobian                   =   8.43 sec*proc (11 tests)
+large-rotation             =   7.47 sec*proc (1 test)
+mechanical                 = 144.39 sec*proc (36 tests)
+moose                      =   2.58 sec*proc (1 test)
+mpi                        =  20.98 sec*proc (4 tests)
+mpi-reference              =   2.89 sec*proc (2 tests)
+multi-contact              =  20.07 sec*proc (2 tests)
+multiblock                 =   3.34 sec*proc (1 test)
+multimaterial              =   6.01 sec*proc (1 test)
+noncoaxial                 =  12.34 sec*proc (3 tests)
+nonmatching                =  25.85 sec*proc (9 tests)
+objectivity                =   0.15 sec*proc (2 tests)
+operator-identification    =   0.01 sec*proc (1 test)
+parallel                   =  62.97 sec*proc (16 tests)
+partial-contact            =   3.06 sec*proc (1 test)
+pcmi                       =  72.14 sec*proc (12 tests)
+plasticity                 =  77.48 sec*proc (16 tests)
+production                 = 318.22 sec*proc (117 tests)
+projection                 =   0.07 sec*proc (1 test)
+quadratic                  = 191.17 sec*proc (22 tests)
+recontact                  =   0.08 sec*proc (1 test)
+reduced-integration        =  66.41 sec*proc (21 tests)
+release                    =   0.60 sec*proc (5 tests)
+restart                    =  42.09 sec*proc (10 tests)
+reversal                   =  12.67 sec*proc (5 tests)
+rotation                   =   1.85 sec*proc (1 test)
+scale                      =   0.09 sec*proc (1 test)
+selective-integration      =   0.01 sec*proc (1 test)
+shared-nodes               =   0.76 sec*proc (2 tests)
+sliding                    =   0.07 sec*proc (1 test)
+small-sliding              =   0.09 sec*proc (1 test)
+small-strain               =   6.91 sec*proc (3 tests)
+split-case                 =   9.55 sec*proc (4 tests)
+steady                     =   2.39 sec*proc (2 tests)
+surface-to-surface         =  17.96 sec*proc (5 tests)
+temperature-dependent      =   5.13 sec*proc (4 tests)
+thermal                    = 250.07 sec*proc (32 tests)
+thermo-mechanical          =  10.87 sec*proc (8 tests)
+three-dimensional          = 483.77 sec*proc (117 tests)
+time-control               =   4.72 sec*proc (1 test)
+transaction                =  20.67 sec*proc (14 tests)
+transient                  = 315.96 sec*proc (50 tests)
+transition                 =  27.03 sec*proc (5 tests)
+unit                       =  31.99 sec*proc (35 tests)
+warped-geometry            =   0.09 sec*proc (1 test)
+
+Total Test time (real) = 112.96 sec
+
+The following tests FAILED:
+	 81 - fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests (Failed)
+	304 - fuelsim_b14_nts_cax4t_abaqus_tests (Failed)
+	305 - fuelsim_b14_nts_cax8t_abaqus_tests (Failed)
+Errors while running CTest

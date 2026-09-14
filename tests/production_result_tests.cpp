@@ -1140,6 +1140,7 @@ int main(int argc, char** argv) {
                 options.expected_steps = 20;
                 options.time_step = 0.02;
                 options.bulk_relative_tolerance = 5e-3;
+                options.reaction_heat_flux_pointwise_relative_tolerance = 0.01;
                 options.reaction_heat_flux_pointwise_absolute_tolerance = 0.05;
                 options.gate_contact_pressure = false;
                 options.gate_contact_slip = false;
