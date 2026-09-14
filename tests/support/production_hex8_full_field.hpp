@@ -16,6 +16,7 @@ struct ProductionHex8FullFieldOptions final {
     double time_step = 0.0;
     double bulk_relative_tolerance = 1.0e-2;
     double bulk_pointwise_relative_tolerance = 0.0;
+    double reaction_heat_flux_peak_relative_tolerance = 0.0;
     double reaction_heat_flux_pointwise_relative_tolerance = 0.0;
     double reaction_heat_flux_pointwise_absolute_tolerance = 0.0;
     double displacement_pointwise_relative_tolerance = 0.0;

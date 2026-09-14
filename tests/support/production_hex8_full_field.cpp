@@ -282,10 +282,13 @@ bool metrics_pass(const FieldErrorMetrics& metrics,
     double aggregate_tolerance,
     double pointwise_tolerance,
     double zero_tolerance,
-    double qualified_pointwise_absolute_tolerance = 0.0) {
+    double qualified_pointwise_absolute_tolerance = 0.0,
+    double peak_relative_tolerance = 0.0) {
     if (metrics.has_relative_norm()) {
         const bool aggregate_passed =
-            metrics.relative_l2() < aggregate_tolerance && metrics.relative_absolute_peak() < aggregate_tolerance;
+            metrics.relative_l2() < aggregate_tolerance
+            && metrics.relative_absolute_peak()
+                   < (peak_relative_tolerance > 0.0 ? peak_relative_tolerance : aggregate_tolerance);
         const double maximum_pointwise_absolute_difference =
             std::abs(metrics.maximum_pointwise_relative_actual - metrics.maximum_pointwise_relative_reference);
         const bool pointwise_passed =
@@ -322,7 +325,8 @@ bool report_metric(const std::string& name,
     double pointwise_tolerance,
     double zero_tolerance,
     bool gate,
-    double qualified_pointwise_absolute_tolerance = 0.0) {
+    double qualified_pointwise_absolute_tolerance = 0.0,
+    double peak_relative_tolerance = 0.0) {
     if (metrics.has_relative_norm())
         print_relative_metrics(name, metrics);
     else
@@ -333,7 +337,8 @@ bool report_metric(const std::string& name,
         aggregate_tolerance,
         pointwise_tolerance,
         zero_tolerance,
-        qualified_pointwise_absolute_tolerance);
+        qualified_pointwise_absolute_tolerance,
+        peak_relative_tolerance);
     if (!passed)
         std::cerr << "[FAIL] " << name << " exceeds its full-field gate\n";
     return passed;
@@ -696,7 +701,8 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
                      : field == 4 ? 1.0e-2
                                   : 1.0,
                      field == 0 || (field == 4 && options.gate_reaction_heat_flux),
-                     field == 4 ? options.reaction_heat_flux_pointwise_absolute_tolerance : 0.0)
+                     field == 4 ? options.reaction_heat_flux_pointwise_absolute_tolerance : 0.0,
+                     field == 4 ? options.reaction_heat_flux_peak_relative_tolerance : 0.0)
                  && passed;
     passed = report_grouped(prefix + "displacement_vector",
                  displacement_vector,
