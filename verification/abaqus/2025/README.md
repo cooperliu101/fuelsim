@@ -1,5 +1,8 @@
 # Abaqus 2025 参考
 
+2026-09-14 现有双切片参考已改为独立节点、仅轴向连接，见
+[连接修正及重新验收](gps_1d/chain_axial_connection.md)。该项输入不再与旧 2018 输入相同。
+
 2026-09-14 用户已授权实施 B5.23 和 B11.4 的分项容差，见
 [当前两项容差约定](two_case_tolerance_qualification.md)。两个 B14 保持原设置。
 

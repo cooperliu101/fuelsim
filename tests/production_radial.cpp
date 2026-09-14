@@ -654,28 +654,29 @@ bool chain_small(const std::string& output, const std::string& summary, const st
     const auto nodes = read_rows(references / "gps_two_slice_chain_nodes.csv");
     const auto points = read_rows(references / "gps_two_slice_chain_points.csv");
     const auto contacts = read_contact(references / "gps_two_slice_chain_contact.csv");
-    if (frames.size() != 11 || nodes.size() != 120 || points.size() != 160)
-        throw std::runtime_error("Continuous chain requires all ten frames, twelve nodes and sixteen material points");
-    constexpr std::array<std::size_t, 12> labels{1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 15, 16};
-    constexpr std::array<std::size_t, 12> radial{0, 1, 1, 0, 2, 3, 3, 2, 5, 4, 7, 6};
-    constexpr std::array<std::size_t, 12> axial{8, 8, 9, 9, 11, 11, 12, 12, 10, 10, 13, 13};
+    if (frames.size() != 11 || nodes.size() != 160 || points.size() != 160)
+        throw std::runtime_error(
+            "Continuous chain requires all ten frames, sixteen independent slice nodes and sixteen material points");
+    constexpr std::array<std::size_t, 16> labels{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    constexpr std::array<std::size_t, 16> radial{0, 1, 1, 0, 2, 3, 3, 2, 4, 5, 5, 4, 6, 7, 7, 6};
+    constexpr std::array<std::size_t, 16> axial{8, 8, 9, 9, 11, 11, 12, 12, 9, 9, 10, 10, 12, 12, 13, 13};
     constexpr std::array<std::size_t, 4> elements{0, 2, 1, 3};
-    constexpr std::array<std::array<std::size_t, 2>, 2> secondary{{{2, 3}, {3, 11}}};
-    constexpr std::array<std::array<std::size_t, 2>, 2> primary{{{5, 8}, {8, 16}}};
+    constexpr std::array<std::array<std::size_t, 2>, 2> secondary{{{2, 3}, {10, 11}}};
+    constexpr std::array<std::array<std::size_t, 2>, 2> primary{{{5, 8}, {13, 16}}};
     const std::array<std::string, 2> pairs{"SECONDARY_ONE/PRIMARY_ONE", "SECONDARY_TWO/PRIMARY_TWO"};
     FieldErrorMetrics temperature, displacement, middle, reaction, axial_strain, axial_force;
     FieldErrorMetrics pressure, traction, gap, normal_force, tangent_force, balance, slip;
     GroupedFieldErrorMetrics stress, elastic;
     for (std::size_t step = 1; step < frames.size(); ++step) {
         const auto& f = frames[step];
-        const double time = nodes[(step - 1) * 12].at("time");
+        const double time = nodes[(step - 1) * 16].at("time");
         require_time(f.time, time);
         if (f.nodes.size() != 14 || f.element("material_point_count") != std::vector<double>(4, 2.0))
             throw std::runtime_error("Continuous chain production layout changed");
         std::map<std::size_t, Row> by_label;
         std::array<double, 6> native_reactions{};
-        for (std::size_t n = 0; n < 12; ++n) {
-            const auto& r = nodes[(step - 1) * 12 + n];
+        for (std::size_t n = 0; n < labels.size(); ++n) {
+            const auto& r = nodes[(step - 1) * 16 + n];
             require_time(f.time, r.at("time"));
             if (r.at("node") != static_cast<double>(labels[n]))
                 throw std::runtime_error("Continuous chain native node mapping changed");

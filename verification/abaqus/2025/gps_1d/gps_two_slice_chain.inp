@@ -1,5 +1,5 @@
 *Heading
-** Continuous two-slice chain; shared middle nodes and free middle axial displacement.
+** Two-slice GPS chain; duplicate middle nodes coupled only in axial displacement.
 ** Matches transient_gps_chain_small.fsi; prescribed affine radial expansion, isothermal.
 *Preprint, echo=NO, model=NO, history=NO, contact=NO
 *Node
@@ -11,8 +11,12 @@
 6, 0.006, 0
 7, 0.006, 0.01
 8, 0.00501, 0.01
+9, 0.004, 0.01
+10, 0.005, 0.01
 11, 0.005, 0.03
 12, 0.004, 0.03
+13, 0.00501, 0.01
+14, 0.006, 0.01
 15, 0.006, 0.03
 16, 0.00501, 0.03
 *Element, type=CAX4T, elset=INNER_ONE
@@ -20,19 +24,19 @@
 *Element, type=CAX4T, elset=OUTER_ONE
 2, 5, 6, 7, 8
 *Element, type=CAX4T, elset=INNER_TWO
-3, 4, 3, 11, 12
+3, 9, 10, 11, 12
 *Element, type=CAX4T, elset=OUTER_TWO
-4, 8, 7, 15, 16
+4, 13, 14, 15, 16
 *Elset, elset=ALL_ELEMENTS
 1, 2, 3, 4
 *Nset, nset=ALL
-1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 15, 16
+1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
 *Nset, nset=OUTER
-5, 6, 7, 8, 15, 16
+5, 6, 7, 8, 13, 14, 15, 16
 *Nset, nset=INNER_INSIDE
-1, 4, 12
+1, 4, 9, 12
 *Nset, nset=INNER_INTERFACE
-2, 3, 11
+2, 3, 10, 11
 ** One retained axial displacement per cross section and body.
 *Equation
 2
@@ -52,6 +56,20 @@
 *Equation
 2
 16, 2, 1, 15, 2, -1
+** Couple only axial DOF 2 across slices; radial DOF 1 and temperature DOF 11 remain independent.
+** All dependent middle nodes refer directly to retained nodes 3 and 7.
+*Equation
+2
+9, 2, 1, 3, 2, -1
+*Equation
+2
+10, 2, 1, 3, 2, -1
+*Equation
+2
+13, 2, 1, 7, 2, -1
+*Equation
+2
+14, 2, 1, 7, 2, -1
 *Surface, type=ELEMENT, name=SECONDARY_ONE
 INNER_ONE, S2
 *Surface, type=ELEMENT, name=PRIMARY_ONE
