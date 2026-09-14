@@ -85,18 +85,32 @@
     field = temperature
     value = 600
   []
-  [inner_inside_radial]
+  [inner_inside_radial1]
     type = dirichlet
-    boundary = inner_inside
+    boundary = inner_inside1
     field = radial_displacement
     value = 16e-6
     function = loading
   []
-  [inner_interface_radial]
+  [inner_interface_radial1]
     type = dirichlet
-    boundary = inner_interface
+    boundary = inner_interface1
     field = radial_displacement
     value = 20e-6
+    function = loading
+  []
+  [inner_inside_radial2]
+    type = dirichlet
+    boundary = inner_inside2
+    field = radial_displacement
+    value = 15.2e-6
+    function = loading
+  []
+  [inner_interface_radial2]
+    type = dirichlet
+    boundary = inner_interface2
+    field = radial_displacement
+    value = 19e-6
     function = loading
   []
   [outer_radial]

@@ -1,6 +1,6 @@
 *Heading
 ** Two-slice GPS chain; duplicate middle nodes coupled only in axial displacement.
-** Matches transient_gps_chain_small.fsi; prescribed affine radial expansion, isothermal.
+** Matches transient_gps_chain_small.fsi; different prescribed radial expansion in each slice, isothermal.
 *Preprint, echo=NO, model=NO, history=NO, contact=NO
 *Node
 1, 0.004, 0
@@ -33,10 +33,14 @@
 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
 *Nset, nset=OUTER
 5, 6, 7, 8, 13, 14, 15, 16
-*Nset, nset=INNER_INSIDE
-1, 4, 9, 12
-*Nset, nset=INNER_INTERFACE
-2, 3, 10, 11
+*Nset, nset=INNER_INSIDE_ONE
+1, 4
+*Nset, nset=INNER_INTERFACE_ONE
+2, 3
+*Nset, nset=INNER_INSIDE_TWO
+9, 12
+*Nset, nset=INNER_INTERFACE_TWO
+10, 11
 ** One retained axial displacement per cross section and body.
 *Equation
 2
@@ -133,8 +137,10 @@ OUTER, 1, 1, 0
 5, 2, 2, 0
 15, 2, 2, 0
 *Boundary, amplitude=LOADING
-INNER_INSIDE, 1, 1, 16e-6
-INNER_INTERFACE, 1, 1, 20e-6
+INNER_INSIDE_ONE, 1, 1, 16e-6
+INNER_INTERFACE_ONE, 1, 1, 20e-6
+INNER_INSIDE_TWO, 1, 1, 15.2e-6
+INNER_INTERFACE_TWO, 1, 1, 19e-6
 11, 2, 2, 1e-4
 *Output, field, frequency=1
 *Node Output

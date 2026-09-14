@@ -84,7 +84,8 @@ struct BodyReference final {
     std::array<Real, 3> displacement{};
     std::array<Real, 2> height = heights;
     std::array<Real, 2> axial_elastic{};
-    Real radial_elastic = 0.0L, radial_stretch = 1.0L, area = 0.0L;
+    std::array<Real, 2> radial_elastic{};
+    Real radial_stretch = 1.0L, area = 0.0L;
     std::array<std::array<Real, 4>, 2> stress{};
 };
 
@@ -92,8 +93,8 @@ struct Reference final {
     std::array<BodyReference, 2> bodies{};
     std::array<std::array<Real, 2>, 2> total_slip{};
     std::array<std::array<Real, 2>, 2> elastic_slip{};
-    Real pressure = 0.0L, gap = 0.0L;
-    bool active = false;
+    std::array<Real, 2> pressure{}, gap{};
+    std::array<bool, 2> active{};
 };
 
 // Given old layer lengths a,b, new total length L, and d equal to the
@@ -122,16 +123,28 @@ Real first_layer_height(Real a, Real b, Real length, Real d) {
     return selected;
 }
 
+Real prescribed_radial_strain(bool finite, std::size_t layer) {
+    return finite || layer == 0 ? 0.004L : 0.0038L;
+}
+
 Reference next_reference(const Reference& old, std::size_t step, bool finite, bool touching_active) {
     Reference result;
     const Real time = static_cast<Real>(step) / 10.0L;
-    result.pressure = step > 5 ? 20000.0L * static_cast<Real>(step - 5) : 0.0L;
-    result.gap = step == 5 ? 0.0L : 1.0e-5L - 2.0e-5L * time;
-    result.active = step > 5 || (step == 5 && touching_active);
+    for (std::size_t layer = 0; layer < 2; ++layer) {
+        result.gap[layer] = 1.0e-5L - radii[0][1] * prescribed_radial_strain(finite, layer) * time;
+        if (step == 5 && (finite || layer == 0))
+            result.gap[layer] = 0.0L;
+        result.pressure[layer] = std::max(0.0L, -1.0e10L * result.gap[layer]);
+        result.active[layer] = result.gap[layer] < 0.0L || (result.gap[layer] == 0.0L && touching_active);
+    }
     const Real top = (finite ? 0.003L : 0.0001L) * time;
     const Real current_inner_radius = radii[0][1] * (1.0L + 0.004L * time);
-    const Real friction_per_length = 2.0L * pi * (finite ? current_inner_radius : radii[0][1]) * mu * result.pressure;
-    const Real middle_friction = friction_per_length * (finite ? total_height + top : total_height) / 2.0L;
+    Real middle_friction = 0.0L;
+    for (std::size_t layer = 0; layer < 2; ++layer)
+        middle_friction += 2.0L * pi * (finite ? current_inner_radius : radii[0][1]) * mu * result.pressure[layer]
+                           * heights[layer] / 2.0L;
+    if (finite)
+        middle_friction *= (total_height + top) / total_height;
     for (std::size_t body = 0; body < result.bodies.size(); ++body) {
         auto& current = result.bodies[body];
         const auto& previous = old.bodies[body];
@@ -141,14 +154,17 @@ Reference next_reference(const Reference& old, std::size_t step, bool finite, bo
         const Real reference_area = pi * (radii[body][1] * radii[body][1] - radii[body][0] * radii[body][0]);
         current.area = reference_area * (finite ? current.radial_stretch * current.radial_stretch : 1.0L);
         if (!finite) {
-            current.displacement[1] =
-                current.displacement[2] * heights[0] / total_height
-                + sign * middle_friction / (axial_modulus * reference_area * (1.0L / heights[0] + 1.0L / heights[1]));
-            current.radial_elastic = body == 0 ? 0.004L * time : 0.0L;
+            for (std::size_t layer = 0; layer < 2; ++layer)
+                current.radial_elastic[layer] = body == 0 ? prescribed_radial_strain(finite, layer) * time : 0.0L;
+            const Real radial_stress_difference = 2.0L * lame * (current.radial_elastic[0] - current.radial_elastic[1]);
+            current.displacement[1] = current.displacement[2] * heights[0] / total_height
+                                      + (sign * middle_friction / reference_area - radial_stress_difference)
+                                            / (axial_modulus * (1.0L / heights[0] + 1.0L / heights[1]));
         } else {
-            current.radial_elastic = previous.radial_elastic
-                                     + 2.0L * (current.radial_stretch - previous.radial_stretch)
-                                           / (current.radial_stretch + previous.radial_stretch);
+            for (std::size_t layer = 0; layer < 2; ++layer)
+                current.radial_elastic[layer] = previous.radial_elastic[layer]
+                                                + 2.0L * (current.radial_stretch - previous.radial_stretch)
+                                                      / (current.radial_stretch + previous.radial_stretch);
             if (step <= 5) {
                 current.displacement[1] = current.displacement[2] * heights[0] / total_height;
             } else {
@@ -176,10 +192,10 @@ Reference next_reference(const Reference& old, std::size_t step, bool finite, bo
                 current.axial_elastic[layer] = previous.axial_elastic[layer]
                                                + 2.0L * (current.height[layer] - previous.height[layer])
                                                      / (current.height[layer] + previous.height[layer]);
-            const Real trace = 2.0L * current.radial_elastic + current.axial_elastic[layer];
-            current.stress[layer] = {{lame * trace + 2.0L * shear * current.radial_elastic,
+            const Real trace = 2.0L * current.radial_elastic[layer] + current.axial_elastic[layer];
+            current.stress[layer] = {{lame * trace + 2.0L * shear * current.radial_elastic[layer],
                 lame * trace + 2.0L * shear * current.axial_elastic[layer],
-                lame * trace + 2.0L * shear * current.radial_elastic,
+                lame * trace + 2.0L * shear * current.radial_elastic[layer],
                 0.0L}};
         }
     }
@@ -196,7 +212,7 @@ Reference next_reference(const Reference& old, std::size_t step, bool finite, bo
                         - (result.bodies[1].displacement[layer + end] - old.bodies[1].displacement[layer + end]));
             }
             result.total_slip[layer][q] = old.total_slip[layer][q];
-            if (result.active) {
+            if (result.active[layer]) {
                 require(increment > elastic_slip_limit, "Independent reference must be on the forward sliding branch");
                 result.total_slip[layer][q] += increment;
                 result.elastic_slip[layer][q] = elastic_slip_limit;
@@ -256,26 +272,34 @@ bool check_chain(bool finite, const std::string& output, const std::string& summ
         const auto& reaction_r = frame.nodal("reaction_force_r");
         const auto& reaction_z = frame.nodal("reaction_force_z");
         const auto& reaction_heat = frame.nodal("reaction_heat_flux");
+        if (!finite) {
+            audit.add("cross_slice_inner_radial_difference", ur.at(1) - ur.at(5), 1.0e-6L * time, 1.0e-14);
+            require(ur.at(1) > ur.at(5), "Inner slices must develop different radial displacements");
+        }
         std::array<Real, 2> contact_area{}, friction_force{};
         Real total_normal = 0.0L, total_friction = 0.0L, body_work = 0.0L, contact_work = 0.0L, dirichlet_work = 0.0L,
              friction_dissipation = 0.0L, elastic_energy = 0.0L;
         for (std::size_t layer = 0; layer < 2; ++layer) {
             const Real radius = radii[0][1] * (finite ? reference.bodies[0].radial_stretch : 1.0L);
             contact_area[layer] = 2.0L * pi * radius * (finite ? reference.bodies[0].height[layer] : heights[layer]);
-            friction_force[layer] = mu * reference.pressure * contact_area[layer];
-            total_normal += reference.pressure * contact_area[layer];
+            friction_force[layer] = mu * reference.pressure[layer] * contact_area[layer];
+            total_normal += reference.pressure[layer] * contact_area[layer];
             total_friction += friction_force[layer];
-            contact_work += reference.pressure * contact_area[layer] * 2.0e-6L;
+            const Real radial_increment = radii[0][1] * prescribed_radial_strain(finite, layer) / 10.0L;
+            contact_work += reference.pressure[layer] * contact_area[layer] * radial_increment;
             for (std::size_t q = 0; q < 2; ++q) {
                 const auto suffix = "_interface_q" + std::to_string(q);
-                audit.add("contact_gap", frame.element("contact_gap" + suffix).at(layer), reference.gap, 1.0e-14);
+                audit.add("contact_gap",
+                    frame.element("contact_gap" + suffix).at(layer),
+                    reference.gap[layer],
+                    1.0e-14);
                 audit.add("contact_pressure",
                     frame.element("contact_pressure" + suffix).at(layer),
-                    reference.pressure,
+                    reference.pressure[layer],
                     1.0e-5);
                 audit.add("contact_tangential_traction",
                     frame.element("contact_tangential_traction" + suffix).at(layer),
-                    mu * reference.pressure,
+                    mu * reference.pressure[layer],
                     1.0e-5);
                 audit.add("contact_point_area",
                     frame.element("contact_area" + suffix).at(layer),
@@ -293,14 +317,23 @@ bool check_chain(bool finite, const std::string& output, const std::string& summ
                 const double sliding = frame.element("contact_sliding" + suffix).at(layer);
                 require(std::isfinite(sliding) && (sliding == 0.0 || sliding == 1.0),
                     "Contact sliding flags must be finite Boolean values, including the exactly touching frame");
-                if (step > 5)
-                    require(sliding == 1.0, "Every closed-contact Gauss point must report forward sliding");
-                else if (step < 5)
+                if (step > 5) {
+                    if (finite)
+                        require(sliding == 1.0, "Finite chain closed-contact points must report forward sliding");
+                    // Output re-evaluates the accepted state with zero slip increment.
+                    // At the friction limit its Boolean branch is roundoff-sensitive;
+                    // establish sliding during this step from the actual saved history.
+                    const Real saved_increment =
+                        frame.element("contact_total_tangential_slip" + suffix).at(layer)
+                        - frames[step - 1].element("contact_total_tangential_slip" + suffix).at(layer);
+                    require(saved_increment > elastic_slip_limit,
+                        "Every closed-contact point must accumulate forward slip beyond the elastic limit");
+                } else if (reference.gap[layer] > 0.0L)
                     require(sliding == 0.0, "Open contact must not report sliding");
                 const Real increment = reference.total_slip[layer][q] - previous.total_slip[layer][q];
-                contact_work += mu * reference.pressure * contact_area[layer] / 2.0L * increment;
+                contact_work += mu * reference.pressure[layer] * contact_area[layer] / 2.0L * increment;
                 friction_dissipation +=
-                    mu * reference.pressure * contact_area[layer] / 2.0L
+                    mu * reference.pressure[layer] * contact_area[layer] / 2.0L
                     * (increment - reference.elastic_slip[layer][q] + previous.elastic_slip[layer][q]);
                 for (std::size_t outer = 2; outer < 4; ++outer)
                     for (const char* field : {"gap",
@@ -339,9 +372,10 @@ bool check_chain(bool finite, const std::string& output, const std::string& summ
                 // its reference volume for small strain or current volume for
                 // finite strain; retain the previous energy at its own volume.
                 const Real volume = current.area * (finite ? current.height[layer] : heights[layer]);
-                elastic_energy += 0.5L * volume
-                                  * ((current.stress[layer][0] + current.stress[layer][2]) * current.radial_elastic
-                                      + current.stress[layer][1] * current.axial_elastic[layer]);
+                elastic_energy +=
+                    0.5L * volume
+                    * ((current.stress[layer][0] + current.stress[layer][2]) * current.radial_elastic[layer]
+                        + current.stress[layer][1] * current.axial_elastic[layer]);
                 audit.add("axial_section_force", frame.element("axial_force").at(element), force, 1.0e-6);
                 audit.add("layer_axial_strain",
                     frame.element("axial_strain").at(element),
@@ -356,7 +390,8 @@ bool check_chain(bool finite, const std::string& output, const std::string& summ
                                  - (current.displacement[layer] - old.displacement[layer]));
                 for (std::size_t end = 0; end < 2; ++end) {
                     const auto node = radial_nodes[2 * body + layer][end];
-                    const Real prescribed_ur = body == 0 ? 0.004L * time * radii[body][end] : 0.0L;
+                    const Real prescribed_ur =
+                        body == 0 ? prescribed_radial_strain(finite, layer) * time * radii[body][end] : 0.0L;
                     require(role.at(node) == 1.0 && std::isnan(reaction_z.at(node)),
                         "Radial nodes must expose radial fields and interpolated axial displacement");
                     audit.add("radial_temperature", temperature.at(node), 600.0L, 1.0e-10);
@@ -372,9 +407,10 @@ bool check_chain(bool finite, const std::string& output, const std::string& summ
                         (end == 0 ? -1.0L : 1.0L) * 2.0L * pi * radius * height * current.stress[layer][0];
                     Real reaction = body_radial;
                     if ((body == 0 && end == 1) || (body == 1 && end == 0))
-                        reaction += friction_sign * reference.pressure * contact_area[layer];
+                        reaction += friction_sign * reference.pressure[layer] * contact_area[layer];
                     audit.add("radial_reaction", reaction_r.at(node), reaction, 1.0e-6);
-                    const Real increment = body == 0 ? 0.0004L * radii[body][end] : 0.0L;
+                    const Real increment =
+                        body == 0 ? prescribed_radial_strain(finite, layer) / 10.0L * radii[body][end] : 0.0L;
                     body_work += body_radial * increment;
                     dirichlet_work += reaction * increment;
                 }
@@ -389,9 +425,9 @@ bool check_chain(bool finite, const std::string& output, const std::string& summ
                             frame.element("stress_" + std::string(components[component]) + suffix).at(element),
                             current.stress[layer][component],
                             1.0e-3);
-                        const Real elastic =
-                            component == 3 ? 0.0L
-                                           : (component == 1 ? current.axial_elastic[layer] : current.radial_elastic);
+                        const Real elastic = component == 3 ? 0.0L
+                                                            : (component == 1 ? current.axial_elastic[layer]
+                                                                              : current.radial_elastic[layer]);
                         audit.add("elastic_" + std::string(components[component]),
                             frame.element("elastic_" + std::string(components[component]) + suffix).at(element),
                             elastic,

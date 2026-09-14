@@ -148,7 +148,7 @@ Exodus 使用二维 RZ 坐标和真实 `BAR2` 径向连接，在同一节点表�
 | [thermal_small](../verification/fuelsim/transient_gps_thermal_small.fsi) | 温变热物性，节点热反力、储热及体热源的小应变比较 |
 | [thermal_finite](../verification/fuelsim/transient_gps_thermal_finite.fsi) | 同一热历程与非比例有限应变，旧版中间构形导热和当前体积热容参考；当前初始质量模型须单独验收 |
 | [contact_small](../verification/fuelsim/transient_gps_contact_small.fsi) | 两种切片高度、径向导热及接触粘着、滑动、反向、张开和再接触 |
-| [chain_small](../verification/fuelsim/transient_gps_chain_small.fsi) | 两条两切片轴向链，内部控制节点自由，解析解与原生 Abaqus 仅轴向连接切片共同检验摩擦传力 |
+| [chain_small](../verification/fuelsim/transient_gps_chain_small.fsi) | 两条两切片轴向链，内部控制节点自由，两片径向载荷不同，解析解与 Abaqus 共同检验独立径向变形和摩擦传力 |
 | [chain_finite](../verification/fuelsim/transient_gps_chain_finite.fsi) | 总轴向伸长达到 10%，当前面积和分片轴向力平衡的解析检验 |
 | [inelastic_finite](../verification/fuelsim/transient_gps_inelastic_finite.fsi) | 两个材料点十步同时产生塑性与蠕变，完整历史与后向 Euler 耦合解析解比较 |
 | [steady_finite](../verification/fuelsim/steady_gps_uniform_finite.fsi) | 稳态有限应变自由热膨胀，五个加载步及结果写出 |

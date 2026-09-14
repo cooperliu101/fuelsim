@@ -77,4 +77,5 @@ if __name__ == "__main__":
           [("inner_inside", [(1, 1), (2, 1)]), ("inner_interface", [(1, 2), (2, 2)]),
            ("outer_interface", [(3, 1), (4, 1)]), ("outer_outside", [(3, 2), (4, 2)]),
            ("inner_interface1", [(1, 2)]), ("inner_interface2", [(2, 2)]),
-           ("outer_interface1", [(3, 1)]), ("outer_interface2", [(4, 1)])])
+           ("outer_interface1", [(3, 1)]), ("outer_interface2", [(4, 1)]),
+           ("inner_inside1", [(1, 1)]), ("inner_inside2", [(2, 1)])])

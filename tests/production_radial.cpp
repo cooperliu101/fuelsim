@@ -692,6 +692,10 @@ bool chain_small(const std::string& output, const std::string& summary, const st
                 middle.add(f.nodal("displacement_z").at(axial[n]), expected);
             native_reactions[axial[n] - 8] += r.at("rf_z");
         }
+        const double native_radial_difference = by_label.at(3).at("ur") - by_label.at(10).at("ur");
+        if (std::abs(native_radial_difference - 1e-6 * time) > 1e-13
+            || std::abs(f.nodal("displacement_r").at(1) - f.nodal("displacement_r").at(5) - 1e-6 * time) > 1e-13)
+            throw std::runtime_error("Both solvers must retain different radial displacements across slices");
         double total_reaction = 0;
         for (std::size_t n = 0; n < 6; ++n) {
             const double expected = n == 1 || n == 4 || (n >= 3 && step <= 5)
@@ -737,7 +741,8 @@ bool chain_small(const std::string& output, const std::string& summary, const st
                 traction.add(f.element("contact_tangential_traction" + suffix).at(layer),
                     zero_contact(native("CSHEAR1", node)));
                 const double g = native("COPEN", node);
-                gap.add(f.element("contact_gap" + suffix).at(layer), step == 5 ? constrained_zero(g, 1e-13) : g);
+                gap.add(f.element("contact_gap" + suffix).at(layer),
+                    step == 5 && layer == 0 ? constrained_zero(g, 1e-13) : g);
                 normal -= native("CNORMF", node, 0);
                 tangent -= native("CSHEARF", node, 1);
                 // Compare total relative motion at the actual Gauss locations from native U.

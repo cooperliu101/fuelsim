@@ -1,0 +1,56 @@
+Internal ctest changing into directory: /home/cooper/ai_project/fuelsim/build
+Test project /home/cooper/ai_project/fuelsim/build
+      Start  36: fuelsim_gps_chain_small
+      Start  38: fuelsim_gps_chain_finite
+      Start  34: fuelsim_gps_contact_abaqus
+      Start  31: fuelsim_gps_material_temperature_finite_abaqus
+      Start  33: fuelsim_gps_thermal_finite_abaqus
+      Start  29: fuelsim_gps_uniform_finite_abaqus
+      Start  30: fuelsim_gps_nonuniform_finite_abaqus
+      Start  50: fuelsim_gravity_gps
+ 1/22 Test  #50: fuelsim_gravity_gps ..............................   Passed    3.00 sec
+      Start  39: fuelsim_gps_inelastic_finite
+ 2/22 Test  #30: fuelsim_gps_nonuniform_finite_abaqus .............   Passed    3.03 sec
+      Start  32: fuelsim_gps_thermal_small_abaqus
+ 3/22 Test  #33: fuelsim_gps_thermal_finite_abaqus ................   Passed    3.04 sec
+      Start  28: fuelsim_gps_uniform_small_abaqus
+ 4/22 Test  #31: fuelsim_gps_material_temperature_finite_abaqus ...   Passed    3.07 sec
+      Start  35: fuelsim_gps_steady_finite
+ 5/22 Test  #29: fuelsim_gps_uniform_finite_abaqus ................   Passed    3.08 sec
+      Start   4: fuelsim_bar2_io_tests
+ 6/22 Test   #4: fuelsim_bar2_io_tests ............................   Passed    0.10 sec
+      Start  19: fuelsim_radial_transaction_tests
+ 7/22 Test  #36: fuelsim_gps_chain_small ..........................   Passed    3.22 sec
+      Start  37: fuelsim_gps_chain_abaqus
+ 8/22 Test  #38: fuelsim_gps_chain_finite .........................   Passed    3.24 sec
+      Start   1: fuelsim_cax2t_gps_tests
+ 9/22 Test   #1: fuelsim_cax2t_gps_tests ..........................   Passed    0.00 sec
+      Start  18: fuelsim_radial_assembly_tests
+10/22 Test  #18: fuelsim_radial_assembly_tests ....................   Passed    0.00 sec
+      Start   2: fuelsim_ring_gps_tests
+11/22 Test  #19: fuelsim_radial_transaction_tests .................   Passed    0.07 sec
+      Start   3: fuelsim_bar2_mesh_tests
+12/22 Test   #2: fuelsim_ring_gps_tests ...........................   Passed    0.00 sec
+      Start 309: fuelsim_verification_matrix_tests
+13/22 Test   #3: fuelsim_bar2_mesh_tests ..........................   Passed    0.00 sec
+14/22 Test #309: fuelsim_verification_matrix_tests ................   Passed    0.01 sec
+      Start 203: fuelsim_gps_finite_mpi_equivalence
+15/22 Test  #34: fuelsim_gps_contact_abaqus .......................   Passed    3.28 sec
+      Start  40: fuelsim_gps_contact_restart
+16/22 Test  #37: fuelsim_gps_chain_abaqus .........................   Passed    0.13 sec
+17/22 Test  #39: fuelsim_gps_inelastic_finite .....................   Passed    1.92 sec
+18/22 Test  #35: fuelsim_gps_steady_finite ........................   Passed    2.27 sec
+19/22 Test  #32: fuelsim_gps_thermal_small_abaqus .................   Passed    2.32 sec
+20/22 Test  #28: fuelsim_gps_uniform_small_abaqus .................   Passed    2.33 sec
+21/22 Test #203: fuelsim_gps_finite_mpi_equivalence ...............   Passed    2.73 sec
+22/22 Test  #40: fuelsim_gps_contact_restart ......................   Passed    3.20 sec
+
+100% tests passed, 0 tests failed out of 22
+
+Label Time Summary:
+acceptance    =   3.00 sec*proc (1 test)
+audit         =   0.01 sec*proc (1 test)
+production    =   3.00 sec*proc (1 test)
+release       =   0.01 sec*proc (1 test)
+
+Total Test time (real) =   6.49 sec
