@@ -73,6 +73,8 @@ include(CTest)
 add_subdirectory(elements)
 
 add_library(fuelsim_core
+    src/core/cross_section.cpp
+    src/core/modal_beam.cpp
     src/core/radial_assembly.cpp
     src/core/rz_assembly.cpp
     src/core/cartesian3d_assembly.cpp
@@ -118,6 +120,10 @@ target_link_libraries(fuelsim_io
 fuelsim_enable_warnings(fuelsim_io)
 
 add_library(fuelsim_solver
+    src/solver/section_distortion.cpp
+    src/solver/reduced_section_basis.cpp
+    src/solver/section_modes.cpp
+    src/solver/section_warping.cpp
     src/solver/solver.cpp
     src/solver/solve_workflows.cpp
 )
@@ -147,6 +153,22 @@ fuelsim_enable_warnings(fuelsim)
 include(CTest)
 
 if(BUILD_TESTING)
+    add_executable(fuelsim_modal_beam_tests tests/modal_beam_tests.cpp)
+    target_link_libraries(fuelsim_modal_beam_tests PRIVATE fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_modal_beam_tests)
+    add_test(NAME fuelsim_modal_beam_tests COMMAND fuelsim_modal_beam_tests)
+    add_executable(fuelsim_section_distortion_tests tests/section_distortion_tests.cpp)
+    target_link_libraries(fuelsim_section_distortion_tests PRIVATE fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_section_distortion_tests)
+    add_test(NAME fuelsim_section_distortion_tests COMMAND fuelsim_section_distortion_tests)
+    add_executable(fuelsim_section_warping_tests tests/section_warping_tests.cpp)
+    target_link_libraries(fuelsim_section_warping_tests PRIVATE fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_section_warping_tests)
+    add_test(NAME fuelsim_section_warping_tests COMMAND fuelsim_section_warping_tests)
+    add_executable(fuelsim_classic_section_tests tests/classic_section_tests.cpp)
+    target_link_libraries(fuelsim_classic_section_tests PRIVATE fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_classic_section_tests)
+    add_test(NAME fuelsim_classic_section_tests COMMAND fuelsim_classic_section_tests)
     add_test(NAME fuelsim_cax2t_gps_tests COMMAND fuelsim_cax2t_gps_tests)
     add_test(NAME fuelsim_ring_gps_tests COMMAND fuelsim_ring_gps_tests)
     add_executable(fuelsim_bar2_mesh_tests tests/bar2_mesh_tests.cpp)
