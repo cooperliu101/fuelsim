@@ -1,3 +1,4 @@
+#include "app/section_modal_case.hpp"
 #include "core/nonlinear_problem.hpp"
 #include "core/problem_backend_access.hpp"
 #include "io/case_input.hpp"
@@ -582,6 +583,12 @@ int run_application(int argc, char** argv) {
         const CommandLine command = extract_command_line(argc, argv);
         const FuelSimCaseDefinition definition = read_case_input(command.input_path);
         PetscSession session(argc, argv, "fuelsim input-driven multi-region thermo-mechanics solver\n");
+        if (definition.section_modes != 0) {
+            if (command.check_jacobian)
+                throw std::invalid_argument("SectionModes uses the independently tested analytic modal tangent");
+            run_section_modal_case(definition, session);
+            return 0;
+        }
         const bool root_rank = session.rank() == 0;
         std::unique_ptr<UnstructuredBar2Mesh> bar2_source;
         std::unique_ptr<UnstructuredQuad4Mesh> rz_source;

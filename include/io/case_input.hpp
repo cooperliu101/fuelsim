@@ -28,6 +28,7 @@ struct CaseOutputInput final {
 
 struct FuelSimCaseDefinition final {
     int version;
+    std::size_t section_modes = 0;
     CaseProblem problem;
     CaseGeometry geometry;
     std::string mesh_file;

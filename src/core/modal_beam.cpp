@@ -3,6 +3,29 @@
 #include <stdexcept>
 
 namespace fuelsim {
+std::array<std::array<double, 6>, 4> modal_beam_shape(double lower, double upper, double z) {
+    const double length = upper - lower;
+    if (!std::isfinite(length) || length <= 0.0 || !std::isfinite(z) || z < lower || z > upper)
+        throw std::invalid_argument("Invalid modal beam interpolation coordinates");
+    const double s = (z - lower) / length;
+    std::array<std::array<double, 6>, 4> shape{};
+    const std::array<std::array<double, 6>, 6> polynomial{{{1.0, 0.0, 0.0, -10.0, 15.0, -6.0},
+        {0.0, length, 0.0, -6.0 * length, 8.0 * length, -3.0 * length},
+        {0.0, 0.0, length * length / 2.0, -1.5 * length * length, 1.5 * length * length, -0.5 * length * length},
+        {0.0, 0.0, 0.0, 10.0, -15.0, 6.0},
+        {0.0, 0.0, 0.0, -4.0 * length, 7.0 * length, -3.0 * length},
+        {0.0, 0.0, 0.0, 0.5 * length * length, -length * length, 0.5 * length * length}}};
+    for (std::size_t node = 0; node < 6; ++node)
+        for (std::size_t order = 0; order < 4; ++order)
+            for (std::size_t power = order; power < 6; ++power) {
+                double coefficient = polynomial[node][power];
+                for (std::size_t d = 0; d < order; ++d)
+                    coefficient *= static_cast<double>(power - d) / length;
+                shape[order][node] += coefficient * std::pow(s, static_cast<int>(power - order));
+            }
+    return shape;
+}
+
 ModalBeamElement make_modal_beam_element(double lower, double upper) {
     if (!std::isfinite(lower) || !std::isfinite(upper) || upper <= lower)
         throw std::invalid_argument("Modal beam requires finite increasing axial coordinates");
@@ -21,25 +44,12 @@ ModalBeamElement make_modal_beam_element(double lower, double upper) {
         0.46791393457269104739,
         0.36076157304813860757,
         0.17132449237917034504};
-    const std::array<std::array<double, 6>, 6> polynomial{{{1.0, 0.0, 0.0, -10.0, 15.0, -6.0},
-        {0.0, length, 0.0, -6.0 * length, 8.0 * length, -3.0 * length},
-        {0.0, 0.0, length * length / 2.0, -1.5 * length * length, 1.5 * length * length, -0.5 * length * length},
-        {0.0, 0.0, 0.0, 10.0, -15.0, 6.0},
-        {0.0, 0.0, 0.0, -4.0 * length, 7.0 * length, -3.0 * length},
-        {0.0, 0.0, 0.0, 0.5 * length * length, -length * length, 0.5 * length * length}}};
     for (std::size_t q = 0; q < 6; ++q) {
         ModalBeamPoint point{};
         const double s = 0.5 * (1.0 + locations[q]);
         point.z = lower + s * length;
         point.weight = 0.5 * length * weights[q];
-        for (std::size_t node = 0; node < 6; ++node)
-            for (std::size_t order = 0; order < 4; ++order)
-                for (std::size_t power = order; power < 6; ++power) {
-                    double coefficient = polynomial[node][power];
-                    for (std::size_t d = 0; d < order; ++d)
-                        coefficient *= static_cast<double>(power - d) / length;
-                    point.shape[order][node] += coefficient * std::pow(s, static_cast<int>(power - order));
-                }
+        point.shape = modal_beam_shape(lower, upper, point.z);
         element.points.push_back(point);
     }
     return element;
@@ -49,8 +59,14 @@ SectionKinematics modal_section_kinematics(const CrossSection& section,
     const SectionMode& mode,
     std::size_t index,
     const std::array<double, 4>& amplitude) {
+    return modal_section_point_kinematics(section, mode, section.points().at(index), amplitude);
+}
+
+SectionKinematics modal_section_point_kinematics(const CrossSection& section,
+    const SectionMode& mode,
+    const SectionPoint& point,
+    const std::array<double, 4>& amplitude) {
     const auto n = section.nodes().size();
-    const auto& point = section.points().at(index);
     SectionKinematics result;
     for (double value : amplitude)
         if (!std::isfinite(value))

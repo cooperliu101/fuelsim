@@ -168,9 +168,10 @@ ProjectedSpectrum solve_section_pencil(std::vector<double> shear, std::vector<do
 }
 } // namespace
 
-SectionDistortionSpectrum build_section_distortion_modes(const CrossSection& section, std::size_t count) {
+SectionDistortionSpectrum
+build_section_distortion_modes(const CrossSection& section, std::size_t count, std::size_t shear_free_count) {
     const auto nodes = section.nodes().size(), full = 2 * nodes;
-    if (full > 512 || count == 0 || count > full - 3)
+    if (full > 512 || count + shear_free_count == 0 || count + shear_free_count > full - 3)
         throw std::invalid_argument("Section distortion requires 1..(2*n-3) modes and at most 512 transverse DOFs");
     std::vector<std::vector<double>> basis, weighted;
     for (std::size_t global = 0; global < 3; ++global) {
@@ -226,6 +227,7 @@ SectionDistortionSpectrum build_section_distortion_modes(const CrossSection& sec
         const auto j = order[selected];
         SectionDistortionMode mode;
         mode.eigenvalue = 1.0 / eigen.values[j];
+        mode.distortion_energy = mode.eigenvalue;
         mode.transverse.resize(full);
         for (std::size_t k = 0; k < n; ++k)
             for (std::size_t i = 0; i < full; ++i)
@@ -260,6 +262,86 @@ SectionDistortionSpectrum build_section_distortion_modes(const CrossSection& sec
             || mode.orthogonality_error > 1.0e-7)
             throw std::runtime_error("Section eigenmode failed residual or orthogonality verification");
         result.modes.push_back(std::move(mode));
+    }
+    if (shear_free_count > result.shear_kernel_dimension)
+        throw std::invalid_argument("Requested shear-free count exceeds the section shear kernel");
+    if (shear_free_count != 0) {
+        // KS has non-rigid null vectors: gradients which the scalar warping space
+        // can cancel exactly. Discarding them removes, for example, lateral
+        // dilation needed to relax restrained Poisson contraction. Their pencil
+        // eigenvalue is infinite, not a spurious small finite eigenvalue.
+        // Within this already identified kernel ONLY, order by KD/W. The pencil
+        // eigenvectors are D-orthonormal, while the complement basis is W-orthonormal.
+        const auto k = result.shear_kernel_dimension;
+        std::vector<double> mass(k * k), identity(k * k);
+        for (std::size_t a = 0; a < k; ++a) {
+            identity[k * a + a] = 1.0;
+            for (std::size_t b = 0; b < k; ++b)
+                for (std::size_t i = 0; i < n; ++i)
+                    mass[k * a + b] +=
+                        eigen.vectors[n * i + order[n - k + a]] * eigen.vectors[n * i + order[n - k + b]];
+        }
+        const auto kernel = solve_section_pencil(mass, identity, k);
+        std::vector<std::size_t> kernel_order(k);
+        std::iota(kernel_order.begin(), kernel_order.end(), 0);
+        std::stable_sort(kernel_order.begin(), kernel_order.end(), [&kernel](std::size_t a, std::size_t b) {
+            return kernel.values[a] > kernel.values[b];
+        });
+        std::vector<std::vector<double>> kernel_fields, kernel_weights;
+        for (std::size_t selected = 0; selected < k; ++selected) {
+            const auto j = kernel_order[selected];
+            SectionDistortionMode mode;
+            mode.eigenvalue = std::numeric_limits<double>::infinity();
+            mode.distortion_energy = 1.0 / kernel.values[j];
+            mode.transverse.resize(full);
+            for (std::size_t i = 0; i < n; ++i) {
+                double coefficient = 0.0;
+                for (std::size_t a = 0; a < k; ++a)
+                    coefficient += eigen.vectors[n * i + order[n - k + a]] * kernel.vectors[k * a + j];
+                for (std::size_t node = 0; node < full; ++node)
+                    mode.transverse[node] += basis[3 + i][node] * coefficient;
+            }
+            const double norm = std::sqrt(dot(mode.transverse, section_action(section, mode.transverse, false)));
+            const auto pivot = std::max_element(mode.transverse.begin(), mode.transverse.end(), [](double a, double b) {
+                return std::abs(a) < std::abs(b);
+            });
+            const double factor = std::copysign(1.0 / norm, *pivot);
+            for (double& value : mode.transverse)
+                value *= factor;
+            kernel_fields.push_back(std::move(mode.transverse));
+            kernel_weights.push_back(section_action(section, kernel_fields.back(), false));
+        }
+        std::vector<std::vector<double>> selected_fields, selected_weights;
+        for (const auto& field : kernel_fields)
+            if (selected_fields.size() < shear_free_count)
+                (void)append_section_direction(section, field, selected_fields, selected_weights);
+        if (selected_fields.size() != shear_free_count)
+            throw std::runtime_error("Shear-free selection failed its rank check");
+        for (auto& field : selected_fields) {
+            SectionDistortionMode mode;
+            mode.eigenvalue = std::numeric_limits<double>::infinity();
+            mode.transverse = std::move(field);
+            const auto weight = section_action(section, mode.transverse, false);
+            mode.distortion_energy = dot(mode.transverse, section_action(section, mode.transverse, true));
+            mode.section_norm = std::sqrt(dot(mode.transverse, weight));
+            mode.warping = warping.solve(mode.transverse);
+            mode.shear_norm = std::sqrt(mode.warping.stiffness);
+            for (std::size_t global = 0; global < 3; ++global)
+                mode.classic_projection =
+                    std::max(mode.classic_projection, std::abs(dot(weighted[global], mode.transverse)));
+            for (const auto& previous : result.shear_free_modes)
+                mode.orthogonality_error =
+                    std::max(mode.orthogonality_error, std::abs(dot(previous.transverse, weight)));
+            // A scale-independent original-operator check, not just a check on
+            // eigenvalues of the numerically transformed pencil.
+            const auto di = section_action(section, mode.transverse, true);
+            mode.eigen_relative_residual = std::sqrt(dot(mode.warping.condensed_force, mode.warping.condensed_force))
+                                           / (maximum * std::sqrt(dot(di, di)));
+            if (mode.classic_projection > 1.0e-9 || mode.orthogonality_error > 1.0e-7
+                || mode.eigen_relative_residual > 1.0e-7)
+                throw std::runtime_error("Shear-free section mode failed the original-operator check");
+            result.shear_free_modes.push_back(std::move(mode));
+        }
     }
     return result;
 }

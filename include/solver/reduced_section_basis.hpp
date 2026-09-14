@@ -3,5 +3,5 @@
 
 namespace fuelsim {
 ReducedSectionBasis
-build_reduced_section_basis(const CrossSection& section, bool torsion, std::size_t distortion_modes);
+build_reduced_section_basis(const CrossSection& section, bool torsion, std::size_t enrichment_modes);
 } // namespace fuelsim

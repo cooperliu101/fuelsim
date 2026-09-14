@@ -1,0 +1,17 @@
+Date: 2026-09-15
+Base commit: 840666bd06359cddf46d5e936068d4f95f991edd
+Configuration: Release, C++17, warnings as errors, Conda moose compiler/PETSc, ADlite 0.2.3, serial Exodus 2024-06-27
+Build: cmake --build build --parallel 4
+Regression: ctest --test-dir build -j8 --output-on-failure (outside restricted MPI sandbox)
+100% tests passed, 0 tests failed out of 324
+Total Test time (real) = 115.75 sec
+beam_extension_energy_error=4.44089e-16
+beam_bending_energy_error=1.55431e-15
+beam_directional_derivative_error=3.03909e-13 symmetry=1.83468e-15
+MPI node relative L2 = 1.23216851756e-12
+MPI point relative L2 = 1.22000553552e-12
+Production executable SHA256: 20e88f7a6101a97a720fb25371f0f19f8799decbff77e7ff890da5c9d4460a3f
+Production runs: complete tracked .fsi cards; single process per case, one thread per process; MPI check uses two processes.
+Reference: Fuelsim C3D20T, not a new Abaqus qualification.
+Accuracy status: diagnostic comparisons; not all fields meet 0.5 percent and monotone mode convergence is not established.
+Fresh configuration under the documented moose PATH succeeded; verification interpreter: /home/cooper/miniforge/bin/python

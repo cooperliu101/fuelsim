@@ -45,7 +45,35 @@ void verify() {
             x.push_back(-0.001 + 0.002 * static_cast<double>(i) / static_cast<double>(refinement));
         const auto section =
             fuelsim::test::rectangle(x, 0.02, {fuelsim::test::region("al", 70e9, 0.3)}, false, 4 * refinement);
-        const auto spectrum = fuelsim::build_section_distortion_modes(section, 6);
+        const auto spectrum = fuelsim::build_section_distortion_modes(section, 6, 4);
+        for (std::size_t i = 0; i < spectrum.shear_free_modes.size(); ++i) {
+            const auto& mode = spectrum.shear_free_modes[i];
+            std::cout << "shear_free_mode=" << i << " KD_over_W=" << mode.distortion_energy
+                      << " W_norm=" << mode.section_norm << " residual=" << mode.eigen_relative_residual
+                      << " orthogonality=" << mode.orthogonality_error << '\n';
+            if (!std::isinf(mode.eigenvalue) || std::abs(mode.section_norm - 1.0) > 1.0e-9
+                || mode.classic_projection > 1.0e-9 || mode.orthogonality_error > 1.0e-7
+                || mode.eigen_relative_residual > 1.0e-7
+                || (i != 0 && mode.distortion_energy < spectrum.shear_free_modes[i - 1].distortion_energy))
+                throw std::runtime_error("Shear-free normalization, ordering or operator residual failed");
+            // Direct quadrature of gamma verifies cancellation independently of
+            // the condensed matrix and its transformed eigensystem.
+            double shear = 0.0, transverse = 0.0;
+            for (const auto& point : section.points()) {
+                std::array<double, 2> phi{}, gradient{};
+                for (std::size_t node = 0; node < 8; ++node)
+                    for (std::size_t c = 0; c < 2; ++c) {
+                        phi[c] += point.shape[node] * mode.transverse[c * section.nodes().size() + point.nodes[node]];
+                        gradient[c] += point.gradient[node][c] * mode.warping.axial[point.nodes[node]];
+                    }
+                for (std::size_t c = 0; c < 2; ++c) {
+                    shear += point.weight * std::pow(phi[c] + gradient[c], 2);
+                    transverse += point.weight * phi[c] * phi[c];
+                }
+            }
+            if (shear / transverse > 1.0e-16)
+                throw std::runtime_error("Shear kernel did not cancel pointwise shear");
+        }
         std::cout << "distortion_refinement=" << refinement << " nodes=" << section.nodes().size()
                   << " shear_kernel=" << spectrum.shear_kernel_dimension << '\n';
         for (std::size_t i = 0; i < spectrum.modes.size(); ++i) {

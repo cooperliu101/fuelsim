@@ -120,6 +120,7 @@ target_link_libraries(fuelsim_io
 fuelsim_enable_warnings(fuelsim_io)
 
 add_library(fuelsim_solver
+    src/solver/section_modal_solver.cpp
     src/solver/section_distortion.cpp
     src/solver/reduced_section_basis.cpp
     src/solver/section_modes.cpp
@@ -143,6 +144,7 @@ fuelsim_enable_warnings(fuelsim_solver)
 
 add_executable(fuelsim
     src/app/main.cpp
+    src/app/section_modal_case.cpp
 )
 target_include_directories(fuelsim PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(fuelsim
@@ -1911,6 +1913,41 @@ if(BUILD_TESTING)
         HINTS "${PETSC_PREFIX}/bin"
         NO_DEFAULT_PATH
     )
+    # Result-only postprocessing uses the same Python/numpy/netCDF4 tooling as
+    # the verification mesh scripts; it never links or calls a mechanics solver.
+    # Prefer the base Conda verification environment when PETSc comes from a
+    # named Conda environment; its Python contains the Exodus postprocessing tools.
+    find_program(FUELSIM_SECTION_PYTHON NAMES python3 python
+        HINTS "${PETSC_PREFIX}/../../bin" REQUIRED)
+    execute_process(COMMAND "${FUELSIM_SECTION_PYTHON}" -c "import numpy, netCDF4"
+        RESULT_VARIABLE section_python_status ERROR_VARIABLE section_python_error)
+    if(NOT section_python_status EQUAL 0)
+        message(FATAL_ERROR "Section result checks require a Python with numpy and netCDF4. "
+            "Set FUELSIM_SECTION_PYTHON to the verification interpreter. ${section_python_error}")
+    endif()
+    foreach(section_case IN ITEMS axial bending transverse nonuniform prescribed)
+        add_test(NAME fuelsim_section_modal_${section_case}
+            COMMAND "${FUELSIM_SECTION_PYTHON}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/section_modal/run.py"
+                "$<TARGET_FILE:fuelsim>"
+                "${CMAKE_CURRENT_BINARY_DIR}/blackbox/section_modal_${section_case}"
+                "${section_case}")
+        set_tests_properties(fuelsim_section_modal_${section_case} PROPERTIES
+            TIMEOUT 120 ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
+    endforeach()
+    set_tests_properties(fuelsim_section_modal_nonuniform PROPERTIES FIXTURES_SETUP section_modal_serial)
+    if(FUELSIM_MPIEXEC_EXECUTABLE)
+        add_test(NAME fuelsim_section_modal_mpi
+            COMMAND "${FUELSIM_SECTION_PYTHON}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/section_modal/run.py"
+                "$<TARGET_FILE:fuelsim>"
+                "${CMAKE_CURRENT_BINARY_DIR}/blackbox/section_modal_mpi" nonuniform
+                --mpiexec "${FUELSIM_MPIEXEC_EXECUTABLE}"
+                --serial "${CMAKE_CURRENT_BINARY_DIR}/blackbox/section_modal_nonuniform")
+        set_tests_properties(fuelsim_section_modal_mpi PROPERTIES
+            FIXTURES_REQUIRED section_modal_serial PROCESSORS 2 TIMEOUT 120
+            ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
+    endif()
     set(h20_production_reference "${CMAKE_CURRENT_BINARY_DIR}/blackbox/h20_inelastic_coupled/verification/fuelsim/transient_hex20_inelastic_coupled_moose_results.e")
     set_tests_properties(fuelsim_h20_inelastic_coupled_moose_tests PROPERTIES
         FIXTURES_SETUP h20_production_reference)

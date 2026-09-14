@@ -205,6 +205,7 @@ std::vector<const InputSection*> direct_children(const InputDocument& document, 
 
 void validate_sections(const InputDocument& document) {
     const std::vector<std::string> fixed = {"Case",
+        "SectionModes",
         "Mesh",
         "TimeFunctions",
         "Materials",
@@ -1064,6 +1065,15 @@ void read_solver(const InputDocument& document, const std::string& path, FuelSim
     if (solver_section == nullptr)
         return;
     const InputSection& solver = *solver_section;
+    if (result.section_modes != 0)
+        validate_keys(document,
+            solver,
+            {"absolute_tolerance",
+                "relative_tolerance",
+                "maximum_iterations",
+                "linear_solver",
+                "preconditioner",
+                "direct_factorization"});
     validate_keys(document,
         solver,
         {"absolute_tolerance",
@@ -1207,9 +1217,10 @@ void read_outputs(const InputDocument& document, const std::string& path, FuelSi
                 throw std::invalid_argument(path + ": output file paths must differ");
     }
     if (result.problem == CaseProblem::steady
-        && (!result.outputs.history_file.empty() || find_entry(outputs, "history_interval") != nullptr
-            || find_entry(outputs, "progress_interval") != nullptr || find_entry(outputs, "exodus_interval") != nullptr
-            || !result.outputs.checkpoint_file.empty() || find_entry(outputs, "checkpoint_interval") != nullptr))
+        && ((!result.outputs.history_file.empty() && result.section_modes == 0)
+            || find_entry(outputs, "history_interval") != nullptr || find_entry(outputs, "progress_interval") != nullptr
+            || find_entry(outputs, "exodus_interval") != nullptr || !result.outputs.checkpoint_file.empty()
+            || find_entry(outputs, "checkpoint_interval") != nullptr))
         throw std::invalid_argument(path + ": transient output controls are only valid for transient cases");
     const auto require_output_file =
         [&](const std::string& file, const std::string& interval_key, const std::string& output_key) {
@@ -1234,6 +1245,13 @@ FuelSimCaseDefinition read_case_input(const std::string& path, const MaterialFun
     validate_sections(document);
     FuelSimCaseDefinition result{};
     read_case(document, result);
+    if (const auto* section = find_section(document, "SectionModes")) {
+        validate_keys(document, *section, {"count"});
+        result.section_modes = read_size(document, *section, "count");
+        if (result.section_modes < 3 || result.section_modes > 64 || result.problem != CaseProblem::steady
+            || result.geometry != CaseGeometry::cartesian_3d)
+            throw std::invalid_argument(path + ": SectionModes requires steady cartesian_3d and count in [3,64]");
+    }
     read_mesh(document, path, result);
     read_time_functions(document, result);
     const std::vector<ParsedMaterial> materials = read_materials(document, registry);
@@ -1245,6 +1263,8 @@ FuelSimCaseDefinition read_case_input(const std::string& path, const MaterialFun
             throw std::invalid_argument(path + ": axial_force requires geometry = axisymmetric_1d");
     validate_time_function_references(path, result);
     read_executioner(document, path, result);
+    if (result.section_modes != 0)
+        validate_keys(document, required_section(document, "Executioner"), {"type", "load_steps"});
     read_solver(document, path, result);
     read_outputs(document, path, result);
     return result;

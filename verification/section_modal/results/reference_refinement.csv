@@ -1,0 +1,14 @@
+metric,value
+coarse_displacement_dofs,1359
+fine_displacement_dofs,16299
+displacement_relative_change,0.024455232637992805
+energy_relative_change,0.027237116748634937
+coarse_energy,3.2722945487845546e-07
+fine_energy,3.36391797541373e-07
+coarse_moment_equilibrium_L2,0.10210213912071904
+fine_moment_equilibrium_L2,0.021629289356817814
+modal12_displacement_vs_fine,0.011720378651490492
+modal12_energy_vs_fine,0.01315829356021736
+modal12_axial_stress_vs_fine,0.034049629646257434
+modal12_moment_vs_fine,0.031130138914397063
+modal12_moment_equilibrium_L2,0.020199007231063017

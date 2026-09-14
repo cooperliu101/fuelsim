@@ -14,10 +14,47 @@ void require(bool condition, const char* message) {
 
 void verify() {
     const auto section = fuelsim::test::rectangle({-0.001, 0.001}, 0.02, {fuelsim::test::region("al", 70e9, 0.3)});
-    const auto basis = fuelsim::build_reduced_section_basis(section, true, 2);
+    const auto basis = fuelsim::build_reduced_section_basis(section, true, 6);
+    require(basis.modes[6].kind == fuelsim::SectionMode::Kind::poisson_relaxation
+                && basis.modes[9].kind == fuelsim::SectionMode::Kind::distortion,
+        "Expected classical relaxation followed by automatic finite spectrum");
+    // A physical fixed end must admit finite axial strain and bending curvature
+    // once independent Poisson relaxation fields are present.
+    for (std::size_t mode = 0; mode < 3; ++mode) {
+        const auto order = mode == 0 ? 1U : 2U;
+        double product = 0.0, norm = 0.0;
+        for (std::size_t i = 0; i < 2 * section.nodes().size(); ++i) {
+            const double correction = basis.modes[mode].coefficient[order][i];
+            const double relaxation = basis.modes[6 + mode].coefficient[0][i];
+            product += correction * relaxation;
+            norm += relaxation * relaxation;
+        }
+        std::array<double, 4> amplitude{};
+        amplitude[order] = 1.0;
+        for (std::size_t q = 0; q < section.points().size(); ++q) {
+            const auto classic = fuelsim::modal_section_kinematics(section, basis.modes[mode], q, amplitude);
+            const auto relaxation =
+                fuelsim::modal_section_kinematics(section, basis.modes[6 + mode], q, {-product / norm, 0.0, 0.0, 0.0});
+            for (std::size_t c = 0; c < 3; ++c)
+                require(std::abs(classic.displacement[c] + relaxation.displacement[c]) < 1.0e-15,
+                    "Physical clamp spuriously suppresses strain or curvature");
+        }
+    }
     const auto element = fuelsim::make_modal_beam_element(0.0, 0.5);
     const auto n = 6 * basis.modes.size();
     std::vector<double> state(n);
+    for (std::size_t direction = 0; direction < 2; ++direction) {
+        state.assign(n, 0.0);
+        state[6 * (4 + direction)] = state[6 * (4 + direction) + 3] = 0.001;
+        const auto response = fuelsim::evaluate_modal_beam(section, basis, element, state);
+        const double expected = 0.5 * (70e9 / 2.6) * section.area() * 0.5 * 1e-6;
+        require(std::abs(response.energy / expected - 1.0) < 1e-10,
+            "Independent rotation did not reproduce transverse shear energy");
+        for (const auto& strain : response.strain)
+            require(std::abs(strain[direction == 0 ? 5 : 4] - 0.0005) < 1e-15,
+                "Independent rotation shear kinematics failed");
+    }
+    state.assign(n, 0.0);
     constexpr double epsilon = 0.001;
     state[1] = epsilon;
     state[3] = 0.5 * epsilon;

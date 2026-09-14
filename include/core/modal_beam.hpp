@@ -3,7 +3,16 @@
 
 namespace fuelsim {
 struct SectionMode final {
-    enum class Kind { extension, bending_x_displacement, bending_y_displacement, torsion, distortion };
+    enum class Kind {
+        extension,
+        bending_x_displacement,
+        bending_y_displacement,
+        torsion,
+        distortion,
+        poisson_relaxation,
+        shear_x,
+        shear_y
+    };
     Kind kind;
     // Coefficients of q, q', q''; each field-major [ux(:),uy(:),uz(:)].
     std::array<std::vector<double>, 3> coefficient;
@@ -32,6 +41,11 @@ struct ModalBeamResponse final {
     std::vector<SectionStrain> strain, stress;
 };
 
+std::array<std::array<double, 6>, 4> modal_beam_shape(double lower, double upper, double z);
+SectionKinematics modal_section_point_kinematics(const CrossSection& section,
+    const SectionMode& mode,
+    const SectionPoint& point,
+    const std::array<double, 4>& amplitude);
 ModalBeamElement make_modal_beam_element(double lower, double upper);
 SectionKinematics modal_section_kinematics(const CrossSection& section,
     const SectionMode& mode,
