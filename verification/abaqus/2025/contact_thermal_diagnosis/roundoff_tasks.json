@@ -1,0 +1,22 @@
+[
+  {
+    "id": "b114_uniform_300",
+    "directory": "../thermal_residual_diagnosis",
+    "script": "../contact_thermal_diagnosis/run_probe.ps1",
+    "args": {
+      "SourceDirectory": "$SOURCE",
+      "JobName": "b114_uniform_300",
+      "Extractor": "extract_b8_rz.py"
+    }
+  },
+  {
+    "id": "b114_uniform_1200",
+    "directory": "../thermal_residual_diagnosis",
+    "script": "../contact_thermal_diagnosis/run_probe.ps1",
+    "args": {
+      "SourceDirectory": "$SOURCE",
+      "JobName": "b114_uniform_1200",
+      "Extractor": "extract_b8_rz.py"
+    }
+  }
+]

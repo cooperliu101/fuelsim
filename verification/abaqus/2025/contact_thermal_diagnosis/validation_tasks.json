@@ -1,0 +1,20 @@
+[
+  {
+    "id": "b14_cax4t_bulk1e6_half",
+    "directory": "",
+    "script": "run_probe.ps1",
+    "args": {
+      "SourceDirectory": "$SOURCE",
+      "JobName": "b14_cax4t_bulk1e6_half"
+    }
+  },
+  {
+    "id": "b14_cax4t_bulk1e6_gap",
+    "directory": "",
+    "script": "run_probe.ps1",
+    "args": {
+      "SourceDirectory": "$SOURCE",
+      "JobName": "b14_cax4t_bulk1e6_gap"
+    }
+  }
+]

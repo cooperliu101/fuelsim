@@ -1,0 +1,23 @@
+﻿job=b14_cax4t_pressure_only work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_thermal_probe_6c8831f9144040e99aa96e48b720f9b3
+Analysis initiated from SIMULIA established products
+Abaqus JOB b14_cax4t_pressure_only
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9994 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/14/2026 7:49:36 AM
+Run pre.exe
+9/14/2026 7:49:37 AM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/14/2026 7:49:37 AM
+Run standard.exe
+9/14/2026 7:49:38 AM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/14/2026 7:49:39 AM
+Run SMASimUtility.exe
+9/14/2026 7:49:39 AM
+End SIM Wrap-up
+Abaqus JOB b14_cax4t_pressure_only COMPLETED

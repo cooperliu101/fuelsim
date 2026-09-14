@@ -1,0 +1,34 @@
+﻿job=b114_uniform_1200 work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_thermal_probe_63a9c155bab64efda756c0e1d067012d
+Analysis initiated from SIMULIA established products
+Abaqus JOB b114_uniform_1200
+Abaqus 2025
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server MSI.
+<9989 out of 9999 licenses remain available>.
+Begin Analysis Input File Processor
+9/14/2026 7:54:52 AM
+Run pre.exe
+9/14/2026 7:54:53 AM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/14/2026 7:54:53 AM
+Run standard.exe
+9/14/2026 7:54:55 AM
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+9/14/2026 7:54:57 AM
+Run SMASimUtility.exe
+9/14/2026 7:54:57 AM
+End SIM Wrap-up
+Abaqus JOB b114_uniform_1200 COMPLETED
+Traceback (most recent call last):
+  File "C:\Users\TcroM\AppData\Local\Temp\fuelsim_thermal_probe_63a9c155bab64efda756c0e1d067012d\extract_b13_pcmi.py", line 60, in <module>
+    if not fields["COPEN"]: raise RuntimeError("Missing interface reference")
+RuntimeError: Missing interface reference
+Native runner log contains a solve or extraction failure
+所在位置 行:15 字符: 121
++ ... MPLETED') { throw "Native runner log contains a solve or extraction f ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (Native runner l...raction failure:String) [], RuntimeException
+    + FullyQualifiedErrorId : Native runner log contains a solve or extraction failure
+ 

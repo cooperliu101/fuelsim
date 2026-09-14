@@ -1,0 +1,5105 @@
+Internal ctest changing into directory: /home/cooper/ai_project/fuelsim/build
+Test project /home/cooper/ai_project/fuelsim/build
+    Start  81: fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests
+    Start 268: fuelsim_b114_cax8t_recovery_abaqus_tests
+    Start 305: fuelsim_b14_nts_cax8t_abaqus_tests
+    Start 304: fuelsim_b14_nts_cax4t_abaqus_tests
+    Start 311: fuelsim_abaqus_reference_sha256
+    Start 309: fuelsim_verification_matrix_tests
+1/6 Test #309: fuelsim_verification_matrix_tests .................   Passed    0.01 sec
+2/6 Test #311: fuelsim_abaqus_reference_sha256 ...................   Passed    0.32 sec
+3/6 Test #304: fuelsim_b14_nts_cax4t_abaqus_tests ................***Failed    1.97 sec
+CMake Error at /home/cooper/ai_project/fuelsim/tests/run_fuelsim_case.cmake:52 (message):
+  Result verification failed with status 1
+
+  fuelsim stdout:
+
+  
+  input_file=/home/cooper/ai_project/fuelsim/build/blackbox/b14_nts_cax4t/verification/fuelsim/transient_b14_nts_cax4t.fsi
+
+  
+  mesh_file=/home/cooper/ai_project/fuelsim/build/blackbox/b14_nts_cax4t/verification/meshes/b14_nts_cax4t.e
+
+  mpi_ranks=1
+
+  
+  results_file=/home/cooper/ai_project/fuelsim/build/blackbox/b14_nts_cax4t/verification/fuelsim/transient_b14_nts_cax4t_results.e
+
+  progress.accepted_steps=1
+
+  progress.time=1.000000000000e+00
+
+  progress.time_step=1.000000000000e+00
+
+  progress.next_time_step=1.000000000000e+00
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=-8.881784197001e-16
+
+  progress.conservation.dirichlet_heat_input_rate=-1.061017185360e-14
+
+  progress.conservation.global_thermal_balance=9.721993433904e-15
+
+  progress.conservation.relative_thermal_balance=8.455120258839e-01
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=1.443382561770e-01
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=1.449819056799e-01
+
+  progress.conservation.contact_work_increment=6.436495028680e-04
+
+  progress.conservation.mechanical_work_balance=-5.551115123126e-17
+
+  progress.conservation.relative_mechanical_work_balance=1.914416525667e-16
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=5.264930270017e-02
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=7.249095283995e-02
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=2
+
+  progress.time=2.000000000000e+00
+
+  progress.time_step=1.000000000000e+00
+
+  progress.next_time_step=1.000000000000e+00
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=2.664535259100e-15
+
+  progress.conservation.dirichlet_heat_input_rate=2.712504441897e-15
+
+  progress.conservation.global_thermal_balance=-4.796918279704e-17
+
+  progress.conservation.relative_thermal_balance=8.921113747428e-03
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=0.000000000000e+00
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=5.149196022944e-04
+
+  progress.conservation.contact_work_increment=5.149196022944e-04
+
+  progress.conservation.mechanical_work_balance=0.000000000000e+00
+
+  progress.conservation.relative_mechanical_work_balance=0.000000000000e+00
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=0.000000000000e+00
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=2.574598011472e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=3
+
+  progress.time=3.000000000000e+00
+
+  progress.time_step=1.000000000000e+00
+
+  progress.next_time_step=1.000000000000e+00
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=-8.881784197001e-16
+
+  progress.conservation.dirichlet_heat_input_rate=1.083092764590e-15
+
+  progress.conservation.global_thermal_balance=-1.971271184290e-15
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=1.166650347002e-02
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=1.159653219977e-02
+
+  progress.conservation.contact_work_increment=-6.997127024774e-05
+
+  progress.conservation.mechanical_work_balance=-3.469446951954e-18
+
+  progress.conservation.relative_mechanical_work_balance=1.486926636104e-16
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=6.785173276457e-03
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=1.056278404596e-02
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=4
+
+  progress.time=4.000000000000e+00
+
+  progress.time_step=1.000000000000e+00
+
+  progress.next_time_step=1.000000000000e+00
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=1.776356839400e-15
+
+  progress.conservation.dirichlet_heat_input_rate=-8.213887264671e-16
+
+  progress.conservation.global_thermal_balance=2.597745565867e-15
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  
+  progress.conservation.internal_mechanical_work_increment=-8.131516293641e-20
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=9.512133209850e-04
+
+  progress.conservation.contact_work_increment=9.512133209850e-04
+
+  progress.conservation.mechanical_work_balance=0.000000000000e+00
+
+  progress.conservation.relative_mechanical_work_balance=0.000000000000e+00
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=8.679217282893e-19
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=2.239558745752e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  problem=transient
+
+  completed=true
+
+  termination_reason=completed
+
+  regions=2
+
+  contacts=1
+
+  committed_time=4.000000000000e+00
+
+  next_time_step=1.000000000000e+00
+
+  accepted_steps=4
+
+  contributions=50
+
+  minimum_accepted_time_step=1.000000000000e+00
+
+  maximum_accepted_time_step=1.000000000000e+00
+
+  maximum_accepted_time_error_estimate=0.000000000000e+00
+
+  time_error_rejections=0
+
+  rejected_steps=0
+
+  total_cutbacks=0
+
+  nonlinear_iterations_total=0
+
+  linear_iterations_total=0
+
+  residual_evaluations_total=4
+
+  jacobian_evaluations_total=0
+
+  petsc_workspace_setups=1
+
+  nonlinear_attempts=1
+
+  linear_iterations=0
+
+  used_backtracking_fallback=false
+
+  augmented_lagrangian_iterations=0
+
+  global_state_dofs=159
+
+  maximum_shadow_state_dofs=159
+
+  total_shadow_state_dofs=159
+
+  total_remote_shadow_state_dofs=0
+
+  memory.initial_resident_bytes=104878080
+
+  memory.setup_resident_bytes=104878080
+
+  memory.solve_resident_bytes=104878080
+
+  memory.final_resident_bytes=104878080
+
+  memory.minimum_peak_resident_bytes=104878080
+
+  memory.maximum_peak_resident_bytes=104878080
+
+  memory.total_peak_resident_bytes=104878080
+
+  residual.temperature.initial_l2=0.000000000000e+00
+
+  residual.temperature.reference_l2=0.000000000000e+00
+
+  residual.temperature.final_l2=0.000000000000e+00
+
+  residual.temperature.scaling=1.000000000000e+00
+
+  residual.temperature.final_scaled_l2=0.000000000000e+00
+
+  residual.radial.initial_l2=0.000000000000e+00
+
+  residual.radial.reference_l2=0.000000000000e+00
+
+  residual.radial.final_l2=0.000000000000e+00
+
+  residual.radial.scaling=1.000000000000e+00
+
+  residual.radial.final_scaled_l2=0.000000000000e+00
+
+  residual.axial.initial_l2=0.000000000000e+00
+
+  residual.axial.reference_l2=0.000000000000e+00
+
+  residual.axial.final_l2=0.000000000000e+00
+
+  residual.axial.scaling=1.000000000000e+00
+
+  residual.axial.final_scaled_l2=0.000000000000e+00
+
+  aggregate_memory.initial_resident_bytes=104878080
+
+  aggregate_memory.setup_resident_bytes=104878080
+
+  aggregate_memory.solve_resident_bytes=104878080
+
+  aggregate_memory.final_resident_bytes=104878080
+
+  aggregate_memory.minimum_peak_resident_bytes=104878080
+
+  aggregate_memory.maximum_peak_resident_bytes=104878080
+
+  aggregate_memory.total_peak_resident_bytes=104878080
+
+  total_seconds=1.568075770000e-01
+
+  conservation.generated_heat_rate=0.000000000000e+00
+
+  conservation.stored_heat_rate=0.000000000000e+00
+
+  conservation.convection_heat_rate=0.000000000000e+00
+
+  conservation.surface_heat_input_rate=0.000000000000e+00
+
+  conservation.interface_heat_imbalance=1.776356839400e-15
+
+  conservation.dirichlet_heat_input_rate=-8.213887264671e-16
+
+  conservation.global_thermal_balance=2.597745565867e-15
+
+  conservation.relative_thermal_balance=1.000000000000e+00
+
+  conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  conservation.internal_mechanical_work_increment=-8.131516293641e-20
+
+  conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  conservation.dirichlet_reaction_work_increment=9.512133209850e-04
+
+  conservation.contact_work_increment=9.512133209850e-04
+
+  conservation.mechanical_work_balance=0.000000000000e+00
+
+  conservation.relative_mechanical_work_balance=0.000000000000e+00
+
+  conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  conservation.elastic_energy_change=8.679217282893e-19
+
+  conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  conservation.creep_dissipation_increment=0.000000000000e+00
+
+  conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  conservation.trapezoidal_dirichlet_reaction_work_increment=2.239558745752e-04
+
+  conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  conservation.body_force_work_increment=0.000000000000e+00
+
+  region.fuel.maximum_equivalent_plastic_strain=0.000000000000e+00
+
+  region.fuel.maximum_equivalent_creep_strain=0.000000000000e+00
+
+  region.cladding.maximum_equivalent_plastic_strain=0.000000000000e+00
+
+  region.cladding.maximum_equivalent_creep_strain=0.000000000000e+00
+
+  contact.fuel_cladding.minimum_gap=-1.170128410580e-06
+
+  contact.fuel_cladding.maximum_contact_pressure=1.170128410580e+06
+
+  contact.fuel_cladding.total_heat_rate=4.556425341617e+01
+
+  contact.fuel_cladding.total_contact_force=2.715674408443e+02
+
+  contact.fuel_cladding.total_tangential_force=-4.346896092786e+01
+
+  contact.fuel_cladding.projected_contact_nodes=5
+
+  contact.fuel_cladding.unprojected_contact_nodes=0
+
+  contact.fuel_cladding.active_contact_nodes=5
+
+
+
+  fuelsim stderr:
+
+
+
+  verification stdout:
+
+  gap_relative_l2=5.808139454952e-13
+
+  gap_relative_absolute_peak=0.000000000000e+00
+
+  gap_maximum_pointwise_relative=1.771647546085e-12
+
+  gap_maximum_pointwise_relative_index=6
+
+  gap_maximum_pointwise_relative_actual=-4.959140583462e-07
+
+  gap_maximum_pointwise_relative_reference=-4.959140583471e-07
+
+  gap_maximum_absolute_difference_index=6
+
+  gap_maximum_absolute_difference_actual=-4.959140583462e-07
+
+  gap_maximum_absolute_difference_reference=-4.959140583471e-07
+
+  gap_zero_reference_count=0
+
+  gap_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  nodal_heat_reaction_relative_l2=6.294434433024e+05
+
+  nodal_heat_reaction_relative_absolute_peak=6.294434430224e+05
+
+  nodal_heat_reaction_maximum_pointwise_relative=6.294434542605e+05
+
+  nodal_heat_reaction_maximum_pointwise_relative_index=33
+
+  nodal_heat_reaction_maximum_pointwise_relative_actual=4.214298184735e+00
+
+  nodal_heat_reaction_maximum_pointwise_relative_reference=6.695266208495e-06
+
+  nodal_heat_reaction_maximum_absolute_difference_index=36
+
+  nodal_heat_reaction_maximum_absolute_difference_actual=1.289559182752e+01
+
+  
+  nodal_heat_reaction_maximum_absolute_difference_reference=2.048725978993e-05
+
+  nodal_heat_reaction_zero_reference_count=0
+
+  
+  nodal_heat_reaction_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  normal_force_relative_l2=4.515033186006e-05
+
+  normal_force_relative_absolute_peak=8.831424340035e-16
+
+  normal_force_maximum_pointwise_relative=1.807931202547e-04
+
+  normal_force_maximum_pointwise_relative_index=9
+
+  normal_force_maximum_pointwise_relative_actual=3.261295277966e+01
+
+  normal_force_maximum_pointwise_relative_reference=3.261885004334e+01
+
+  normal_force_maximum_absolute_difference_index=9
+
+  normal_force_maximum_absolute_difference_actual=3.261295277966e+01
+
+  normal_force_maximum_absolute_difference_reference=3.261885004334e+01
+
+  normal_force_zero_reference_count=0
+
+  normal_force_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  pressure_relative_l2=5.242202440471e-05
+
+  pressure_relative_absolute_peak=2.851364938576e-13
+
+  pressure_maximum_pointwise_relative=1.807931202555e-04
+
+  pressure_maximum_pointwise_relative_index=9
+
+  pressure_maximum_pointwise_relative_actual=7.898371770518e+05
+
+  pressure_maximum_pointwise_relative_reference=7.899800000009e+05
+
+  pressure_maximum_absolute_difference_index=9
+
+  pressure_maximum_absolute_difference_actual=7.898371770518e+05
+
+  pressure_maximum_absolute_difference_reference=7.899800000009e+05
+
+  pressure_zero_reference_count=0
+
+  pressure_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  shear_relative_l2=5.239518915497e-05
+
+  shear_relative_absolute_peak=2.852437124405e-13
+
+  shear_maximum_pointwise_relative=1.807931202555e-04
+
+  shear_maximum_pointwise_relative_index=9
+
+  shear_maximum_pointwise_relative_actual=1.263234130395e+05
+
+  shear_maximum_pointwise_relative_reference=1.263462555733e+05
+
+  shear_maximum_absolute_difference_index=9
+
+  shear_maximum_absolute_difference_actual=1.263234130395e+05
+
+  shear_maximum_absolute_difference_reference=1.263462555733e+05
+
+  shear_zero_reference_count=0
+
+  shear_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  slip_relative_l2=1.515336253391e-16
+
+  slip_relative_absolute_peak=3.385580837117e-16
+
+  slip_maximum_pointwise_relative=3.386484336541e-16
+
+  slip_maximum_pointwise_relative_index=11
+
+  slip_maximum_pointwise_relative_actual=1.000486478694e-05
+
+  slip_maximum_pointwise_relative_reference=1.000486478694e-05
+
+  slip_maximum_absolute_difference_index=11
+
+  slip_maximum_absolute_difference_actual=1.000486478694e-05
+
+  slip_maximum_absolute_difference_reference=1.000486478694e-05
+
+  slip_zero_reference_count=0
+
+  slip_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  tangential_force_relative_l2=4.511762157578e-05
+
+  tangential_force_relative_absolute_peak=6.899550265652e-16
+
+  tangential_force_maximum_pointwise_relative=1.807931202546e-04
+
+  tangential_force_maximum_pointwise_relative_index=9
+
+  tangential_force_maximum_pointwise_relative_actual=5.215985805836e+00
+
+  tangential_force_maximum_pointwise_relative_reference=5.216928990706e+00
+
+  tangential_force_maximum_absolute_difference_index=9
+
+  tangential_force_maximum_absolute_difference_actual=5.215985805836e+00
+
+  tangential_force_maximum_absolute_difference_reference=5.216928990706e+00
+
+  tangential_force_zero_reference_count=0
+
+  
+  tangential_force_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  prescribed_temperature_maximum_absolute_error=0.000000000000e+00
+
+  noninterface_heat_maximum_absolute_value=2.355684245897e-13
+
+  prescribed_displacement_maximum_absolute_error=1.084202172486e-19
+
+
+
+  verification stderr:
+
+
+
+
+4/6 Test #305: fuelsim_b14_nts_cax8t_abaqus_tests ................***Failed    2.45 sec
+CMake Error at /home/cooper/ai_project/fuelsim/tests/run_fuelsim_case.cmake:52 (message):
+  Result verification failed with status 1
+
+  fuelsim stdout:
+
+  
+  input_file=/home/cooper/ai_project/fuelsim/build/blackbox/b14_nts_cax8t/verification/fuelsim/transient_b14_nts_cax8t.fsi
+
+  
+  mesh_file=/home/cooper/ai_project/fuelsim/build/blackbox/b14_nts_cax8t/verification/meshes/b14_nts_cax8t.e
+
+  mpi_ranks=1
+
+  
+  results_file=/home/cooper/ai_project/fuelsim/build/blackbox/b14_nts_cax8t/verification/fuelsim/transient_b14_nts_cax8t_results.e
+
+  progress.accepted_steps=1
+
+  progress.time=1.000000000000e+00
+
+  progress.time_step=1.000000000000e+00
+
+  progress.next_time_step=1.000000000000e+00
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=8.326672684689e-17
+
+  progress.conservation.dirichlet_heat_input_rate=-6.197424174800e-15
+
+  progress.conservation.global_thermal_balance=6.280690901647e-15
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=1.443410546494e-01
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=1.449847041523e-01
+
+  progress.conservation.contact_work_increment=6.436495028682e-04
+
+  progress.conservation.mechanical_work_balance=-1.387778780781e-16
+
+  progress.conservation.relative_mechanical_work_balance=4.785948934736e-16
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=5.265027257194e-02
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=7.249235207615e-02
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=2
+
+  progress.time=2.000000000000e+00
+
+  progress.time_step=1.000000000000e+00
+
+  progress.next_time_step=1.000000000000e+00
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=1.311450947838e-15
+
+  progress.conservation.dirichlet_heat_input_rate=-6.197424174800e-15
+
+  progress.conservation.global_thermal_balance=7.508875122638e-15
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=1.482538050657e-20
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=5.149196022945e-04
+
+  progress.conservation.contact_work_increment=5.149196022945e-04
+
+  progress.conservation.mechanical_work_balance=0.000000000000e+00
+
+  progress.conservation.relative_mechanical_work_balance=0.000000000000e+00
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=0.000000000000e+00
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=2.574598011472e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=3
+
+  progress.time=3.000000000000e+00
+
+  progress.time_step=1.000000000000e+00
+
+  progress.next_time_step=1.000000000000e+00
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=1.040834085586e-15
+
+  progress.conservation.dirichlet_heat_input_rate=3.692018231430e-15
+
+  progress.conservation.global_thermal_balance=-2.651184145844e-15
+
+  progress.conservation.relative_thermal_balance=5.601662524546e-01
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=1.210309997282e-02
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=1.206158740197e-02
+
+  progress.conservation.contact_work_increment=-4.151257084956e-05
+
+  progress.conservation.mechanical_work_balance=1.214306433184e-17
+
+  progress.conservation.relative_mechanical_work_balance=5.016509968152e-16
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=6.769714770227e-03
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=1.080989388743e-02
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=4
+
+  progress.time=4.000000000000e+00
+
+  progress.time_step=1.000000000000e+00
+
+  progress.next_time_step=1.000000000000e+00
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=-4.718447854657e-16
+
+  progress.conservation.dirichlet_heat_input_rate=7.985681720113e-15
+
+  progress.conservation.global_thermal_balance=-8.457526505578e-15
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  
+  progress.conservation.internal_mechanical_work_increment=-1.067261513540e-19
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=1.312917241034e-03
+
+  progress.conservation.contact_work_increment=1.312917241034e-03
+
+  progress.conservation.mechanical_work_balance=2.168404344971e-19
+
+  progress.conservation.relative_mechanical_work_balance=8.257962791561e-17
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=8.923224380450e-20
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=2.547559363691e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  problem=transient
+
+  completed=true
+
+  termination_reason=completed
+
+  regions=2
+
+  contacts=1
+
+  committed_time=4.000000000000e+00
+
+  next_time_step=1.000000000000e+00
+
+  accepted_steps=4
+
+  contributions=134
+
+  minimum_accepted_time_step=1.000000000000e+00
+
+  maximum_accepted_time_step=1.000000000000e+00
+
+  maximum_accepted_time_error_estimate=0.000000000000e+00
+
+  time_error_rejections=0
+
+  rejected_steps=0
+
+  total_cutbacks=0
+
+  nonlinear_iterations_total=0
+
+  linear_iterations_total=0
+
+  residual_evaluations_total=4
+
+  jacobian_evaluations_total=0
+
+  petsc_workspace_setups=1
+
+  nonlinear_attempts=1
+
+  linear_iterations=0
+
+  used_backtracking_fallback=false
+
+  augmented_lagrangian_iterations=0
+
+  global_state_dofs=329
+
+  maximum_shadow_state_dofs=329
+
+  total_shadow_state_dofs=329
+
+  total_remote_shadow_state_dofs=0
+
+  memory.initial_resident_bytes=122851328
+
+  memory.setup_resident_bytes=122851328
+
+  memory.solve_resident_bytes=122851328
+
+  memory.final_resident_bytes=122851328
+
+  memory.minimum_peak_resident_bytes=122851328
+
+  memory.maximum_peak_resident_bytes=122851328
+
+  memory.total_peak_resident_bytes=122851328
+
+  residual.temperature.initial_l2=0.000000000000e+00
+
+  residual.temperature.reference_l2=0.000000000000e+00
+
+  residual.temperature.final_l2=0.000000000000e+00
+
+  residual.temperature.scaling=1.000000000000e+00
+
+  residual.temperature.final_scaled_l2=0.000000000000e+00
+
+  residual.radial.initial_l2=0.000000000000e+00
+
+  residual.radial.reference_l2=0.000000000000e+00
+
+  residual.radial.final_l2=0.000000000000e+00
+
+  residual.radial.scaling=1.000000000000e+00
+
+  residual.radial.final_scaled_l2=0.000000000000e+00
+
+  residual.axial.initial_l2=0.000000000000e+00
+
+  residual.axial.reference_l2=0.000000000000e+00
+
+  residual.axial.final_l2=0.000000000000e+00
+
+  residual.axial.scaling=1.000000000000e+00
+
+  residual.axial.final_scaled_l2=0.000000000000e+00
+
+  aggregate_memory.initial_resident_bytes=122851328
+
+  aggregate_memory.setup_resident_bytes=122851328
+
+  aggregate_memory.solve_resident_bytes=122851328
+
+  aggregate_memory.final_resident_bytes=122851328
+
+  aggregate_memory.minimum_peak_resident_bytes=122851328
+
+  aggregate_memory.maximum_peak_resident_bytes=122851328
+
+  aggregate_memory.total_peak_resident_bytes=122851328
+
+  total_seconds=2.618712090000e-01
+
+  conservation.generated_heat_rate=0.000000000000e+00
+
+  conservation.stored_heat_rate=0.000000000000e+00
+
+  conservation.convection_heat_rate=0.000000000000e+00
+
+  conservation.surface_heat_input_rate=0.000000000000e+00
+
+  conservation.interface_heat_imbalance=-4.718447854657e-16
+
+  conservation.dirichlet_heat_input_rate=7.985681720113e-15
+
+  conservation.global_thermal_balance=-8.457526505578e-15
+
+  conservation.relative_thermal_balance=1.000000000000e+00
+
+  conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  conservation.internal_mechanical_work_increment=-1.067261513540e-19
+
+  conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  conservation.dirichlet_reaction_work_increment=1.312917241034e-03
+
+  conservation.contact_work_increment=1.312917241034e-03
+
+  conservation.mechanical_work_balance=2.168404344971e-19
+
+  conservation.relative_mechanical_work_balance=8.257962791561e-17
+
+  conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  conservation.elastic_energy_change=8.923224380450e-20
+
+  conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  conservation.creep_dissipation_increment=0.000000000000e+00
+
+  conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  conservation.trapezoidal_dirichlet_reaction_work_increment=2.547559363691e-04
+
+  conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  conservation.body_force_work_increment=0.000000000000e+00
+
+  region.fuel.maximum_equivalent_plastic_strain=0.000000000000e+00
+
+  region.fuel.maximum_equivalent_creep_strain=0.000000000000e+00
+
+  region.cladding.maximum_equivalent_plastic_strain=0.000000000000e+00
+
+  region.cladding.maximum_equivalent_creep_strain=0.000000000000e+00
+
+  contact.fuel_cladding.minimum_gap=-1.199710321472e-06
+
+  contact.fuel_cladding.maximum_contact_pressure=1.199710321472e+06
+
+  contact.fuel_cladding.total_heat_rate=4.556424872550e+01
+
+  contact.fuel_cladding.total_contact_force=3.749778685467e+02
+
+  contact.fuel_cladding.total_tangential_force=5.999651070732e+01
+
+  contact.fuel_cladding.projected_contact_nodes=9
+
+  contact.fuel_cladding.unprojected_contact_nodes=0
+
+  contact.fuel_cladding.active_contact_nodes=9
+
+
+
+  fuelsim stderr:
+
+
+
+  verification stdout:
+
+  gap_relative_l2=6.399236441380e-13
+
+  gap_relative_absolute_peak=0.000000000000e+00
+
+  gap_maximum_pointwise_relative=2.040951938030e-12
+
+  gap_maximum_pointwise_relative_index=11
+
+  gap_maximum_pointwise_relative_actual=-8.498542691852e-07
+
+  gap_maximum_pointwise_relative_reference=-8.498542691869e-07
+
+  gap_maximum_absolute_difference_index=11
+
+  gap_maximum_absolute_difference_actual=-8.498542691852e-07
+
+  gap_maximum_absolute_difference_reference=-8.498542691869e-07
+
+  gap_zero_reference_count=0
+
+  gap_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  nodal_heat_reaction_relative_l2=6.294434433025e+05
+
+  nodal_heat_reaction_relative_absolute_peak=6.294434430216e+05
+
+  nodal_heat_reaction_maximum_pointwise_relative=6.294434542464e+05
+
+  nodal_heat_reaction_maximum_pointwise_relative_index=33
+
+  nodal_heat_reaction_maximum_pointwise_relative_actual=4.214298332677e+00
+
+  nodal_heat_reaction_maximum_pointwise_relative_reference=6.695266443682e-06
+
+  nodal_heat_reaction_maximum_absolute_difference_index=36
+
+  nodal_heat_reaction_maximum_absolute_difference_actual=1.289559006133e+01
+
+  
+  nodal_heat_reaction_maximum_absolute_difference_reference=2.048725698399e-05
+
+  nodal_heat_reaction_zero_reference_count=0
+
+  
+  nodal_heat_reaction_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  normal_force_relative_l2=1.294984296225e-04
+
+  normal_force_relative_absolute_peak=1.682815317521e-04
+
+  normal_force_maximum_pointwise_relative=2.001401105303e-04
+
+  normal_force_maximum_pointwise_relative_index=13
+
+  normal_force_maximum_pointwise_relative_actual=1.104030030208e+01
+
+  normal_force_maximum_pointwise_relative_reference=1.104251035132e+01
+
+  normal_force_maximum_absolute_difference_index=26
+
+  normal_force_maximum_absolute_difference_actual=6.525785013034e+01
+
+  normal_force_maximum_absolute_difference_reference=6.526883366964e+01
+
+  normal_force_zero_reference_count=0
+
+  normal_force_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  pressure_relative_l2=1.294702155450e-04
+
+  pressure_relative_absolute_peak=1.665126882281e-04
+
+  pressure_maximum_pointwise_relative=1.999981213346e-04
+
+  pressure_maximum_pointwise_relative_index=13
+
+  pressure_maximum_pointwise_relative_actual=7.997900115038e+05
+
+  pressure_maximum_pointwise_relative_reference=7.999500000009e+05
+
+  pressure_maximum_absolute_difference_index=18
+
+  pressure_maximum_absolute_difference_actual=1.099895464554e+06
+
+  pressure_maximum_absolute_difference_reference=1.100095414984e+06
+
+  pressure_zero_reference_count=0
+
+  pressure_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  shear_relative_l2=1.294687266431e-04
+
+  shear_relative_absolute_peak=1.665126882228e-04
+
+  shear_maximum_pointwise_relative=1.999984801901e-04
+
+  shear_maximum_pointwise_relative_index=13
+
+  shear_maximum_pointwise_relative_actual=1.279151416271e+05
+
+  shear_maximum_pointwise_relative_reference=1.279407295786e+05
+
+  shear_maximum_absolute_difference_index=18
+
+  shear_maximum_absolute_difference_actual=-1.759833518888e+05
+
+  shear_maximum_absolute_difference_reference=-1.760153439716e+05
+
+  shear_zero_reference_count=0
+
+  shear_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  slip_relative_l2=1.956292072929e-16
+
+  slip_relative_absolute_peak=3.388127115255e-16
+
+  slip_maximum_pointwise_relative=5.082194560491e-16
+
+  slip_maximum_pointwise_relative_index=19
+
+  slip_maximum_pointwise_relative_actual=1.000000614505e-05
+
+  slip_maximum_pointwise_relative_reference=1.000000614505e-05
+
+  slip_maximum_absolute_difference_index=19
+
+  slip_maximum_absolute_difference_actual=1.000000614505e-05
+
+  slip_maximum_absolute_difference_reference=1.000000614505e-05
+
+  slip_zero_reference_count=0
+
+  slip_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  tangential_force_relative_l2=1.294977572981e-04
+
+  tangential_force_relative_absolute_peak=1.682815317472e-04
+
+  tangential_force_maximum_pointwise_relative=2.001401105255e-04
+
+  tangential_force_maximum_pointwise_relative_index=13
+
+  tangential_force_maximum_pointwise_relative_actual=1.765739948571e+00
+
+  tangential_force_maximum_pointwise_relative_reference=1.766093414703e+00
+
+  tangential_force_maximum_absolute_difference_index=26
+
+  tangential_force_maximum_absolute_difference_actual=1.044126878376e+01
+
+  tangential_force_maximum_absolute_difference_reference=1.044302615220e+01
+
+  tangential_force_zero_reference_count=0
+
+  
+  tangential_force_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  prescribed_temperature_maximum_absolute_error=5.684341886081e-14
+
+  noninterface_heat_maximum_absolute_value=2.355684245897e-13
+
+  prescribed_displacement_maximum_absolute_error=1.084202172486e-19
+
+
+
+  verification stderr:
+
+
+
+
+5/6 Test #268: fuelsim_b114_cax8t_recovery_abaqus_tests ..........***Failed    2.93 sec
+CMake Error at /home/cooper/ai_project/fuelsim/tests/run_fuelsim_case.cmake:52 (message):
+  Result verification failed with status 1
+
+  fuelsim stdout:
+
+  
+  input_file=/home/cooper/ai_project/fuelsim/build/blackbox/b114_cax8t_recovery/verification/fuelsim/transient_b114_cax8t_recovery.fsi
+
+  
+  mesh_file=/home/cooper/ai_project/fuelsim/build/blackbox/b114_cax8t_recovery/verification/meshes/b114_cax8t_recovery.e
+
+  mpi_ranks=1
+
+  
+  results_file=/home/cooper/ai_project/fuelsim/build/blackbox/b114_cax8t_recovery/verification/fuelsim/transient_b114_cax8t_recovery_results.e
+
+  progress.accepted_steps=1
+
+  progress.time=1.000000000000e-01
+
+  progress.time_step=1.000000000000e-01
+
+  progress.next_time_step=1.000000000000e-01
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=0.000000000000e+00
+
+  progress.conservation.dirichlet_heat_input_rate=7.888609052210e-31
+
+  progress.conservation.global_thermal_balance=-7.888609052210e-31
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=3.947129231433e-04
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=1.023659772392e-03
+
+  progress.conservation.contact_work_increment=6.289468492485e-04
+
+  progress.conservation.mechanical_work_balance=2.168404344971e-19
+
+  progress.conservation.relative_mechanical_work_balance=1.059143088091e-16
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=1.973564615717e-04
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=5.118298861959e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=2
+
+  progress.time=2.000000000000e-01
+
+  progress.time_step=1.000000000000e-01
+
+  progress.next_time_step=1.000000000000e-01
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=0.000000000000e+00
+
+  progress.conservation.dirichlet_heat_input_rate=7.888609052210e-31
+
+  progress.conservation.global_thermal_balance=-7.888609052210e-31
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=2.874631864755e-04
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=7.074561485078e-04
+
+  progress.conservation.contact_work_increment=4.199929620324e-04
+
+  progress.conservation.mechanical_work_balance=0.000000000000e+00
+
+  progress.conservation.relative_mechanical_work_balance=0.000000000000e+00
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=1.961809748618e-04
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=4.481072458279e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=3
+
+  progress.time=3.000000000000e-01
+
+  progress.time_step=1.000000000000e-01
+
+  progress.next_time_step=1.000000000000e-01
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=0.000000000000e+00
+
+  progress.conservation.dirichlet_heat_input_rate=7.888609052210e-31
+
+  progress.conservation.global_thermal_balance=-7.888609052210e-31
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=5.226679333306e-04
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=1.488803959078e-03
+
+  progress.conservation.contact_work_increment=9.661360257475e-04
+
+  progress.conservation.mechanical_work_balance=0.000000000000e+00
+
+  progress.conservation.relative_mechanical_work_balance=0.000000000000e+00
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=2.777132104148e-04
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=6.555922602757e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=4
+
+  progress.time=4.000000000000e-01
+
+  progress.time_step=1.000000000000e-01
+
+  progress.next_time_step=1.000000000000e-01
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=0.000000000000e+00
+
+  progress.conservation.dirichlet_heat_input_rate=7.888609052210e-31
+
+  progress.conservation.global_thermal_balance=-7.888609052210e-31
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=6.587499125476e-05
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=4.862453058133e-04
+
+  progress.conservation.contact_work_increment=4.203703145586e-04
+
+  progress.conservation.mechanical_work_balance=-1.084202172486e-19
+
+  progress.conservation.relative_mechanical_work_balance=1.114871608552e-16
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=-1.961809748618e-04
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=-4.481072458279e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=5
+
+  progress.time=5.000000000000e-01
+
+  progress.time_step=1.000000000000e-01
+
+  progress.next_time_step=1.000000000000e-01
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=0.000000000000e+00
+
+  progress.conservation.dirichlet_heat_input_rate=7.888609052210e-31
+
+  progress.conservation.global_thermal_balance=-7.888609052210e-31
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=2.220536163546e-04
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=1.776179639002e-03
+
+  progress.conservation.contact_work_increment=1.554126022647e-03
+
+  progress.conservation.mechanical_work_balance=-2.168404344971e-19
+
+  progress.conservation.relative_mechanical_work_balance=6.104124541675e-17
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=-3.502592379216e-05
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=5.947718823950e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=6
+
+  progress.time=6.000000000000e-01
+
+  progress.time_step=1.000000000000e-01
+
+  progress.next_time_step=1.000000000000e-01
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=0.000000000000e+00
+
+  progress.conservation.dirichlet_heat_input_rate=7.888609052210e-31
+
+  progress.conservation.global_thermal_balance=-7.888609052210e-31
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=3.628852779121e-04
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=2.547284240362e-03
+
+  progress.conservation.contact_work_increment=2.184398962449e-03
+
+  progress.conservation.mechanical_work_balance=4.336808689942e-19
+
+  progress.conservation.relative_mechanical_work_balance=8.512612415265e-17
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=7.122136735660e-05
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=5.750418920322e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=7
+
+  progress.time=7.000000000000e-01
+
+  progress.time_step=1.000000000000e-01
+
+  progress.next_time_step=1.000000000000e-01
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=0.000000000000e+00
+
+  progress.conservation.dirichlet_heat_input_rate=7.888609052210e-31
+
+  progress.conservation.global_thermal_balance=-7.888609052210e-31
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=3.565841917921e-05
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=8.430831321571e-05
+
+  progress.conservation.contact_work_increment=4.864989403650e-05
+
+  progress.conservation.mechanical_work_balance=-1.355252715607e-20
+
+  progress.conservation.relative_mechanical_work_balance=8.037479721243e-17
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=-4.540988697432e-04
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=-2.476941010540e-03
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=8
+
+  progress.time=8.000000000000e-01
+
+  progress.time_step=1.000000000000e-01
+
+  progress.next_time_step=1.000000000000e-01
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=0.000000000000e+00
+
+  progress.conservation.dirichlet_heat_input_rate=7.888609052210e-31
+
+  progress.conservation.global_thermal_balance=-7.888609052210e-31
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=2.122588882618e-04
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=5.268021262333e-04
+
+  progress.conservation.contact_work_increment=3.145432379715e-04
+
+  progress.conservation.mechanical_work_balance=-2.168404344971e-19
+
+  progress.conservation.relative_mechanical_work_balance=2.058082377605e-16
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=7.447185662163e-05
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=1.688341298705e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=9
+
+  progress.time=9.000000000000e-01
+
+  progress.time_step=1.000000000000e-01
+
+  progress.next_time_step=1.000000000000e-01
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=0.000000000000e+00
+
+  progress.conservation.dirichlet_heat_input_rate=7.888609052210e-31
+
+  progress.conservation.global_thermal_balance=-7.888609052210e-31
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=1.028267441617e-04
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=2.915512906595e-04
+
+  progress.conservation.contact_work_increment=1.887245464977e-04
+
+  progress.conservation.mechanical_work_balance=-5.421010862428e-20
+
+  progress.conservation.relative_mechanical_work_balance=9.296839074465e-17
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=-4.457973677882e-05
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=-1.074890825157e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=10
+
+  progress.time=1.000000000000e+00
+
+  progress.time_step=1.000000000000e-01
+
+  progress.next_time_step=1.000000000000e-01
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=0.000000000000e+00
+
+  progress.conservation.dirichlet_heat_input_rate=7.888609052210e-31
+
+  progress.conservation.global_thermal_balance=-7.888609052210e-31
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=1.470372766757e-04
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=6.503025294555e-04
+
+  progress.conservation.contact_work_increment=5.032652527798e-04
+
+  progress.conservation.mechanical_work_balance=0.000000000000e+00
+
+  progress.conservation.relative_mechanical_work_balance=0.000000000000e+00
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=2.430035343161e-06
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=1.597003884842e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=11
+
+  progress.time=1.100000000000e+00
+
+  progress.time_step=1.000000000000e-01
+
+  progress.next_time_step=1.000000000000e-01
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=0.000000000000e+00
+
+  progress.conservation.dirichlet_heat_input_rate=7.888609052210e-31
+
+  progress.conservation.global_thermal_balance=-7.888609052210e-31
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=1.743181154453e-04
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=9.292099593263e-04
+
+  progress.conservation.contact_work_increment=7.548918438810e-04
+
+  progress.conservation.mechanical_work_balance=1.084202172486e-19
+
+  progress.conservation.relative_mechanical_work_balance=5.833999956649e-17
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=1.025716575787e-05
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=1.360704613085e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=12
+
+  progress.time=1.200000000000e+00
+
+  progress.time_step=1.000000000000e-01
+
+  progress.next_time_step=1.000000000000e-01
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=0.000000000000e+00
+
+  progress.conservation.dirichlet_heat_input_rate=7.888609052210e-31
+
+  progress.conservation.global_thermal_balance=-7.888609052210e-31
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=0.000000000000e+00
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=0.000000000000e+00
+
+  progress.conservation.contact_work_increment=0.000000000000e+00
+
+  progress.conservation.mechanical_work_balance=0.000000000000e+00
+
+  progress.conservation.relative_mechanical_work_balance=0.000000000000e+00
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=-9.974556675148e-05
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=-4.771914886920e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=13
+
+  progress.time=1.300000000000e+00
+
+  progress.time_step=1.000000000000e-01
+
+  progress.next_time_step=1.000000000000e-01
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=0.000000000000e+00
+
+  progress.conservation.dirichlet_heat_input_rate=7.888609052210e-31
+
+  progress.conservation.global_thermal_balance=-7.888609052210e-31
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=9.185017195247e-04
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=3.591189131469e-03
+
+  progress.conservation.contact_work_increment=2.672687411944e-03
+
+  progress.conservation.mechanical_work_balance=-4.336808689942e-19
+
+  progress.conservation.relative_mechanical_work_balance=6.038123489431e-17
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=4.592508597623e-04
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=1.795594565734e-03
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  progress.accepted_steps=14
+
+  progress.time=1.400000000000e+00
+
+  progress.time_step=1.000000000000e-01
+
+  progress.next_time_step=1.000000000000e-01
+
+  progress.nonlinear_iterations=0
+
+  progress.linear_iterations=0
+
+  progress.cutbacks=0
+
+  progress.time_error_estimate=0.000000000000e+00
+
+  progress.time_error.elastic_strain=0.000000000000e+00
+
+  progress.time_error.plastic_strain=0.000000000000e+00
+
+  progress.time_error.creep_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_plastic_strain=0.000000000000e+00
+
+  progress.time_error.equivalent_creep_strain=0.000000000000e+00
+
+  progress.time_error.stress=0.000000000000e+00
+
+  progress.time_error.contact_friction=0.000000000000e+00
+
+  progress.time_error.contact_normal_multiplier=0.000000000000e+00
+
+  progress.conservation.generated_heat_rate=0.000000000000e+00
+
+  progress.conservation.stored_heat_rate=0.000000000000e+00
+
+  progress.conservation.convection_heat_rate=0.000000000000e+00
+
+  progress.conservation.surface_heat_input_rate=0.000000000000e+00
+
+  progress.conservation.interface_heat_imbalance=0.000000000000e+00
+
+  progress.conservation.dirichlet_heat_input_rate=7.888609052210e-31
+
+  progress.conservation.global_thermal_balance=-7.888609052210e-31
+
+  progress.conservation.relative_thermal_balance=1.000000000000e+00
+
+  progress.conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  progress.conservation.internal_mechanical_work_increment=1.047377454366e-04
+
+  progress.conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  progress.conservation.dirichlet_reaction_work_increment=4.025536890403e-04
+
+  progress.conservation.contact_work_increment=2.978159436037e-04
+
+  progress.conservation.mechanical_work_balance=5.421010862428e-20
+
+  progress.conservation.relative_mechanical_work_balance=6.733276839857e-17
+
+  
+  progress.conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  progress.conservation.elastic_energy_change=5.458954876922e-05
+
+  progress.conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.creep_dissipation_increment=0.000000000000e+00
+
+  progress.conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  progress.conservation.trapezoidal_dirichlet_reaction_work_increment=2.051509466884e-04
+
+  progress.conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  progress.conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  progress.conservation.body_force_work_increment=0.000000000000e+00
+
+  problem=transient
+
+  completed=true
+
+  termination_reason=completed
+
+  regions=2
+
+  contacts=1
+
+  committed_time=1.400000000000e+00
+
+  next_time_step=1.000000000000e-01
+
+  accepted_steps=14
+
+  contributions=9
+
+  minimum_accepted_time_step=1.000000000000e-01
+
+  maximum_accepted_time_step=1.000000000000e-01
+
+  maximum_accepted_time_error_estimate=0.000000000000e+00
+
+  time_error_rejections=0
+
+  rejected_steps=0
+
+  total_cutbacks=0
+
+  nonlinear_iterations_total=0
+
+  linear_iterations_total=0
+
+  residual_evaluations_total=14
+
+  jacobian_evaluations_total=0
+
+  petsc_workspace_setups=1
+
+  nonlinear_attempts=1
+
+  linear_iterations=0
+
+  used_backtracking_fallback=false
+
+  augmented_lagrangian_iterations=0
+
+  global_state_dofs=52
+
+  maximum_shadow_state_dofs=52
+
+  total_shadow_state_dofs=52
+
+  total_remote_shadow_state_dofs=0
+
+  memory.initial_resident_bytes=118554624
+
+  memory.setup_resident_bytes=118554624
+
+  memory.solve_resident_bytes=118554624
+
+  memory.final_resident_bytes=118554624
+
+  memory.minimum_peak_resident_bytes=118554624
+
+  memory.maximum_peak_resident_bytes=118554624
+
+  memory.total_peak_resident_bytes=118554624
+
+  residual.temperature.initial_l2=0.000000000000e+00
+
+  residual.temperature.reference_l2=0.000000000000e+00
+
+  residual.temperature.final_l2=0.000000000000e+00
+
+  residual.temperature.scaling=1.000000000000e+00
+
+  residual.temperature.final_scaled_l2=0.000000000000e+00
+
+  residual.radial.initial_l2=0.000000000000e+00
+
+  residual.radial.reference_l2=0.000000000000e+00
+
+  residual.radial.final_l2=0.000000000000e+00
+
+  residual.radial.scaling=1.000000000000e+00
+
+  residual.radial.final_scaled_l2=0.000000000000e+00
+
+  residual.axial.initial_l2=0.000000000000e+00
+
+  residual.axial.reference_l2=0.000000000000e+00
+
+  residual.axial.final_l2=0.000000000000e+00
+
+  residual.axial.scaling=1.000000000000e+00
+
+  residual.axial.final_scaled_l2=0.000000000000e+00
+
+  aggregate_memory.initial_resident_bytes=118554624
+
+  aggregate_memory.setup_resident_bytes=118554624
+
+  aggregate_memory.solve_resident_bytes=118554624
+
+  aggregate_memory.final_resident_bytes=118554624
+
+  aggregate_memory.minimum_peak_resident_bytes=118554624
+
+  aggregate_memory.maximum_peak_resident_bytes=118554624
+
+  aggregate_memory.total_peak_resident_bytes=118554624
+
+  total_seconds=6.455405910000e-01
+
+  conservation.generated_heat_rate=0.000000000000e+00
+
+  conservation.stored_heat_rate=0.000000000000e+00
+
+  conservation.convection_heat_rate=0.000000000000e+00
+
+  conservation.surface_heat_input_rate=0.000000000000e+00
+
+  conservation.interface_heat_imbalance=0.000000000000e+00
+
+  conservation.dirichlet_heat_input_rate=7.888609052210e-31
+
+  conservation.global_thermal_balance=-7.888609052210e-31
+
+  conservation.relative_thermal_balance=1.000000000000e+00
+
+  conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+
+  conservation.internal_mechanical_work_increment=1.047377454366e-04
+
+  conservation.pressure_traction_work_increment=0.000000000000e+00
+
+  conservation.dirichlet_reaction_work_increment=4.025536890403e-04
+
+  conservation.contact_work_increment=2.978159436037e-04
+
+  conservation.mechanical_work_balance=5.421010862428e-20
+
+  conservation.relative_mechanical_work_balance=6.733276839857e-17
+
+  conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+
+  conservation.elastic_energy_change=5.458954876922e-05
+
+  conservation.plastic_dissipation_increment=0.000000000000e+00
+
+  conservation.creep_dissipation_increment=0.000000000000e+00
+
+  conservation.friction_dissipation_increment=0.000000000000e+00
+
+  
+  conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+
+  
+  conservation.trapezoidal_dirichlet_reaction_work_increment=2.051509466884e-04
+
+  conservation.mechanical_hourglass_energy=0.000000000000e+00
+
+  conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+
+  conservation.body_force_work_increment=0.000000000000e+00
+
+  region.inner.maximum_equivalent_plastic_strain=0.000000000000e+00
+
+  region.inner.maximum_equivalent_creep_strain=0.000000000000e+00
+
+  region.outer.maximum_equivalent_plastic_strain=0.000000000000e+00
+
+  region.outer.maximum_equivalent_creep_strain=0.000000000000e+00
+
+  contact.interface.minimum_gap=-3.000000000000e-06
+
+  contact.interface.maximum_contact_pressure=3.000000000000e+07
+
+  contact.interface.total_heat_rate=0.000000000000e+00
+
+  contact.interface.total_contact_force=7.500491124449e+02
+
+  contact.interface.total_tangential_force=-1.500098224890e+02
+
+  contact.interface.projected_contact_nodes=5
+
+  contact.interface.unprojected_contact_nodes=0
+
+  contact.interface.active_contact_nodes=5
+
+
+
+  fuelsim stderr:
+
+
+
+  verification stdout:
+
+  rz_reaction_heat_relative_tolerance=1.000000000000e-03
+
+  rz_temperature_maximum_absolute_difference=0.000000000000e+00
+
+  rz_displacement_maximum_absolute_difference=6.776263578034e-21
+
+  rz_support_reaction_maximum_absolute_difference=7.980816208660e-11
+
+  rz_reaction_heat_maximum_absolute_difference=1.430674239991e-11
+
+  rz_bottom_axial_reaction_maximum_absolute_difference=5.315747841905e-13
+
+  rz_stress_tensor_maximum_absolute_difference=1.558205927710e-07
+
+  rz_elastic_tensor_maximum_absolute_difference=9.760132242940e-17
+
+  rz_plastic_tensor_maximum_absolute_difference=0.000000000000e+00
+
+  rz_creep_tensor_maximum_absolute_difference=0.000000000000e+00
+
+  rz_equivalent_plastic_strain_maximum_absolute_difference=0.000000000000e+00
+
+  rz_equivalent_creep_strain_maximum_absolute_difference=0.000000000000e+00
+
+  rz_accepted_frames=14
+
+  rz_abaqus_qualification=failed
+
+  rz8_recovered_pressure_relative_l2=1.100395786080e-13
+
+  rz8_recovered_pressure_relative_absolute_peak=2.750983605018e-14
+
+  rz8_recovered_pressure_maximum_pointwise_relative=6.016343832021e-13
+
+  rz8_recovered_pressure_maximum_pointwise_relative_index=6
+
+  rz8_recovered_pressure_maximum_pointwise_relative_actual=9.999999999997e+06
+
+  
+  rz8_recovered_pressure_maximum_pointwise_relative_reference=9.999999999991e+06
+
+  rz8_recovered_pressure_maximum_absolute_difference_index=6
+
+  
+  rz8_recovered_pressure_maximum_absolute_difference_actual=9.999999999997e+06
+
+  
+  rz8_recovered_pressure_maximum_absolute_difference_reference=9.999999999991e+06
+
+  rz8_recovered_pressure_zero_reference_count=0
+
+  
+  rz8_recovered_pressure_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  rz8_recovered_shear_relative_l2=7.322510356277e-14
+
+  rz8_recovered_shear_relative_absolute_peak=1.001974632000e-14
+
+  rz8_recovered_shear_maximum_pointwise_relative=4.428228647968e-13
+
+  rz8_recovered_shear_maximum_pointwise_relative_index=3
+
+  rz8_recovered_shear_maximum_pointwise_relative_actual=-3.599999999999e+04
+
+  
+  rz8_recovered_shear_maximum_pointwise_relative_reference=-3.599999999998e+04
+
+  rz8_recovered_shear_maximum_absolute_difference_index=0
+
+  rz8_recovered_shear_maximum_absolute_difference_actual=2.666666666666e+06
+
+  
+  rz8_recovered_shear_maximum_absolute_difference_reference=2.666666666667e+06
+
+  rz8_recovered_shear_zero_reference_count=0
+
+  
+  rz8_recovered_shear_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  rz8_recovery_gap_relative_l2=1.047438810035e-13
+
+  rz8_recovery_gap_relative_absolute_peak=0.000000000000e+00
+
+  rz8_recovery_gap_maximum_pointwise_relative=4.336808689945e-13
+
+  rz8_recovery_gap_maximum_pointwise_relative_index=3
+
+  rz8_recovery_gap_maximum_pointwise_relative_actual=-9.999999999997e-07
+
+  rz8_recovery_gap_maximum_pointwise_relative_reference=-9.999999999993e-07
+
+  rz8_recovery_gap_maximum_absolute_difference_index=3
+
+  rz8_recovery_gap_maximum_absolute_difference_actual=-9.999999999997e-07
+
+  rz8_recovery_gap_maximum_absolute_difference_reference=-9.999999999993e-07
+
+  rz8_recovery_gap_zero_reference_count=0
+
+  
+  rz8_recovery_gap_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  rz8_recovery_normal_force_relative_l2=9.324975540353e-14
+
+  rz8_recovery_normal_force_relative_absolute_peak=1.245221960747e-14
+
+  rz8_recovery_normal_force_maximum_pointwise_relative=5.946776443821e-13
+
+  rz8_recovery_normal_force_maximum_pointwise_relative_index=8
+
+  
+  rz8_recovery_normal_force_maximum_pointwise_relative_actual=8.387754360973e+01
+
+  
+  rz8_recovery_normal_force_maximum_pointwise_relative_reference=8.387754360968e+01
+
+  rz8_recovery_normal_force_maximum_absolute_difference_index=8
+
+  
+  rz8_recovery_normal_force_maximum_absolute_difference_actual=8.387754360973e+01
+
+  
+  rz8_recovery_normal_force_maximum_absolute_difference_reference=8.387754360968e+01
+
+  rz8_recovery_normal_force_zero_reference_count=25
+
+  
+  rz8_recovery_normal_force_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  rz8_recovery_tangent_force_maximum_absolute_difference=3.097966327914e-12
+
+  rz8_recovery_near_zero_stress_count=75
+
+  
+  rz8_recovery_near_zero_stress_maximum_absolute_difference=8.906024621483e-09
+
+  rz8_recovery_open_frames=1
+
+  rz8_recovery_partial_frames=5
+
+
+
+  verification stderr:
+
+
+
+
+6/6 Test  #81: fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests ...***Failed    5.36 sec
+CMake Error at /home/cooper/ai_project/fuelsim/tests/run_fuelsim_case.cmake:52 (message):
+  Result verification failed with status 1
+
+  fuelsim stdout:
+
+
+
+  fuelsim stderr:
+
+
+
+  verification stdout:
+
+  b523_temperature_relative_l2=2.347149363936e-05
+
+  b523_temperature_relative_absolute_peak=0.000000000000e+00
+
+  b523_temperature_maximum_pointwise_relative=2.668399165465e-04
+
+  b523_temperature_maximum_pointwise_relative_index=469
+
+  b523_temperature_maximum_pointwise_relative_actual=3.160685946393e+02
+
+  b523_temperature_maximum_pointwise_relative_reference=3.161529568680e+02
+
+  b523_temperature_maximum_absolute_difference_index=469
+
+  b523_temperature_maximum_absolute_difference_actual=3.160685946393e+02
+
+  b523_temperature_maximum_absolute_difference_reference=3.161529568680e+02
+
+  b523_temperature_zero_reference_count=0
+
+  
+  b523_temperature_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_displacement_x_relative_l2=2.200553266935e-04
+
+  b523_displacement_x_relative_absolute_peak=1.695155427431e-04
+
+  b523_displacement_x_maximum_pointwise_relative=3.515217490055e-02
+
+  b523_displacement_x_maximum_pointwise_relative_index=324
+
+  b523_displacement_x_maximum_pointwise_relative_actual=3.723970349255e-05
+
+  b523_displacement_x_maximum_pointwise_relative_reference=3.859645275016e-05
+
+  b523_displacement_x_maximum_absolute_difference_index=478
+
+  b523_displacement_x_maximum_absolute_difference_actual=-2.508873683976e-02
+
+  
+  b523_displacement_x_maximum_absolute_difference_reference=-2.509456825495e-02
+
+  b523_displacement_x_zero_reference_count=80
+
+  
+  b523_displacement_x_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_displacement_y_relative_l2=1.528550392807e-04
+
+  b523_displacement_y_relative_absolute_peak=0.000000000000e+00
+
+  b523_displacement_y_maximum_pointwise_relative=1.369496419308e-01
+
+  b523_displacement_y_maximum_pointwise_relative_index=337
+
+  b523_displacement_y_maximum_pointwise_relative_actual=-7.513346110125e-07
+
+  
+  b523_displacement_y_maximum_pointwise_relative_reference=-8.705570932076e-07
+
+  b523_displacement_y_maximum_absolute_difference_index=468
+
+  b523_displacement_y_maximum_absolute_difference_actual=5.659341175982e-04
+
+  
+  b523_displacement_y_maximum_absolute_difference_reference=5.607080838858e-04
+
+  b523_displacement_y_zero_reference_count=80
+
+  
+  b523_displacement_y_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_displacement_z_relative_l2=2.175381056433e-04
+
+  b523_displacement_z_relative_absolute_peak=1.023376344455e-04
+
+  b523_displacement_z_maximum_pointwise_relative=3.157386985883e-01
+
+  b523_displacement_z_maximum_pointwise_relative_index=423
+
+  b523_displacement_z_maximum_pointwise_relative_actual=1.379908028464e-05
+
+  b523_displacement_z_maximum_pointwise_relative_reference=1.048770572717e-05
+
+  b523_displacement_z_maximum_absolute_difference_index=471
+
+  b523_displacement_z_maximum_absolute_difference_actual=-5.780034689336e-04
+
+  
+  b523_displacement_z_maximum_absolute_difference_reference=-5.820796490901e-04
+
+  b523_displacement_z_zero_reference_count=80
+
+  
+  b523_displacement_z_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_reaction_heat_flux_relative_l2=2.612094089828e-03
+
+  b523_reaction_heat_flux_relative_absolute_peak=7.285398811950e-03
+
+  b523_reaction_heat_flux_maximum_pointwise_relative=7.285398811950e-03
+
+  b523_reaction_heat_flux_maximum_pointwise_relative_index=479
+
+  
+  b523_reaction_heat_flux_maximum_pointwise_relative_actual=4.793706483779e+03
+
+  
+  b523_reaction_heat_flux_maximum_pointwise_relative_reference=4.828886850301e+03
+
+  b523_reaction_heat_flux_maximum_absolute_difference_index=479
+
+  
+  b523_reaction_heat_flux_maximum_absolute_difference_actual=4.793706483779e+03
+
+  
+  b523_reaction_heat_flux_maximum_absolute_difference_reference=4.828886850301e+03
+
+  b523_reaction_heat_flux_zero_reference_count=320
+
+  
+  b523_reaction_heat_flux_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_reaction_force_x_relative_l2=4.971694499229e-05
+
+  b523_reaction_force_x_relative_absolute_peak=5.574592330579e-05
+
+  b523_reaction_force_x_maximum_pointwise_relative=1.044701755455e-04
+
+  b523_reaction_force_x_maximum_pointwise_relative_index=168
+
+  b523_reaction_force_x_maximum_pointwise_relative_actual=2.519672668922e+04
+
+  
+  b523_reaction_force_x_maximum_pointwise_relative_reference=2.519935927070e+04
+
+  b523_reaction_force_x_maximum_absolute_difference_index=456
+
+  b523_reaction_force_x_maximum_absolute_difference_actual=6.953140206300e+04
+
+  
+  b523_reaction_force_x_maximum_absolute_difference_reference=6.953793082283e+04
+
+  b523_reaction_force_x_zero_reference_count=400
+
+  
+  b523_reaction_force_x_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_reaction_force_y_relative_l2=3.816346848696e-05
+
+  b523_reaction_force_y_relative_absolute_peak=7.237803828222e-06
+
+  b523_reaction_force_y_maximum_pointwise_relative=1.977148134582e-04
+
+  b523_reaction_force_y_maximum_pointwise_relative_index=174
+
+  b523_reaction_force_y_maximum_pointwise_relative_actual=2.391790085073e+03
+
+  
+  b523_reaction_force_y_maximum_pointwise_relative_reference=2.392263070920e+03
+
+  b523_reaction_force_y_maximum_absolute_difference_index=459
+
+  
+  b523_reaction_force_y_maximum_absolute_difference_actual=-1.445768356087e+04
+
+  
+  b523_reaction_force_y_maximum_absolute_difference_reference=-1.445655508379e+04
+
+  b523_reaction_force_y_zero_reference_count=320
+
+  
+  b523_reaction_force_y_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_reaction_force_z_relative_l2=4.585510175696e-05
+
+  b523_reaction_force_z_relative_absolute_peak=6.392277968472e-06
+
+  b523_reaction_force_z_maximum_pointwise_relative=1.547378626841e-04
+
+  b523_reaction_force_z_maximum_pointwise_relative_index=171
+
+  b523_reaction_force_z_maximum_pointwise_relative_actual=2.520579187241e+03
+
+  
+  b523_reaction_force_z_maximum_pointwise_relative_reference=2.520969276639e+03
+
+  b523_reaction_force_z_maximum_absolute_difference_index=462
+
+  
+  b523_reaction_force_z_maximum_absolute_difference_actual=-1.459763789718e+04
+
+  
+  b523_reaction_force_z_maximum_absolute_difference_reference=-1.459558967812e+04
+
+  b523_reaction_force_z_zero_reference_count=320
+
+  
+  b523_reaction_force_z_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_displacement_vector_relative_l2=1.888703859094e-04
+
+  b523_displacement_vector_relative_absolute_peak=1.708897967644e-04
+
+  b523_displacement_vector_maximum_pointwise_relative=2.898623303216e-03
+
+  b523_displacement_vector_maximum_pointwise_relative_index=444
+
+  b523_displacement_vector_maximum_pointwise_actual_norm=2.123050377205e-03
+
+  
+  b523_displacement_vector_maximum_pointwise_reference_norm=2.122863376238e-03
+
+  b523_displacement_vector_maximum_difference_index=468
+
+  
+  b523_displacement_vector_maximum_absolute_group_difference=6.759624240246e-06
+
+  b523_displacement_vector_zero_reference_count=80
+
+  
+  b523_displacement_vector_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_reaction_force_vector_relative_l2=4.880933386936e-05
+
+  b523_reaction_force_vector_relative_absolute_peak=6.127713005079e-05
+
+  b523_reaction_force_vector_maximum_pointwise_relative=1.022936095274e-04
+
+  b523_reaction_force_vector_maximum_pointwise_relative_index=168
+
+  b523_reaction_force_vector_maximum_pointwise_actual_norm=2.593307689765e+04
+
+  
+  b523_reaction_force_vector_maximum_pointwise_reference_norm=2.593563810209e+04
+
+  b523_reaction_force_vector_maximum_difference_index=456
+
+  
+  b523_reaction_force_vector_maximum_absolute_group_difference=6.534407100198e+00
+
+  b523_reaction_force_vector_zero_reference_count=320
+
+  
+  b523_reaction_force_vector_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_heat_flux_x_relative_l2=1.582533605014e-04
+
+  b523_heat_flux_x_relative_absolute_peak=3.177213191297e-05
+
+  b523_heat_flux_x_maximum_pointwise_relative=1.813437462546e-02
+
+  b523_heat_flux_x_maximum_pointwise_relative_index=329
+
+  b523_heat_flux_x_maximum_pointwise_relative_actual=-2.528447745310e+00
+
+  b523_heat_flux_x_maximum_pointwise_relative_reference=-2.575146415117e+00
+
+  b523_heat_flux_x_maximum_absolute_difference_index=633
+
+  b523_heat_flux_x_maximum_absolute_difference_actual=-4.446613372626e+03
+
+  b523_heat_flux_x_maximum_absolute_difference_reference=-4.445159254005e+03
+
+  b523_heat_flux_x_zero_reference_count=0
+
+  
+  b523_heat_flux_x_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_heat_flux_y_relative_l2=7.184472070556e-03
+
+  b523_heat_flux_y_relative_absolute_peak=2.125549503023e-03
+
+  b523_heat_flux_y_maximum_pointwise_relative=2.913294325485e-01
+
+  b523_heat_flux_y_maximum_pointwise_relative_index=134
+
+  b523_heat_flux_y_maximum_pointwise_relative_actual=-6.316605322354e-06
+
+  b523_heat_flux_y_maximum_pointwise_relative_reference=-4.891552196629e-06
+
+  b523_heat_flux_y_maximum_absolute_difference_index=631
+
+  b523_heat_flux_y_maximum_absolute_difference_actual=-4.427106973369e+00
+
+  b523_heat_flux_y_maximum_absolute_difference_reference=-3.812592503771e+00
+
+  b523_heat_flux_y_zero_reference_count=0
+
+  
+  b523_heat_flux_y_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_heat_flux_z_relative_l2=7.135342050635e-03
+
+  b523_heat_flux_z_relative_absolute_peak=1.967499049772e-03
+
+  b523_heat_flux_z_maximum_pointwise_relative=2.900967527877e-01
+
+  b523_heat_flux_z_maximum_pointwise_relative_index=333
+
+  b523_heat_flux_z_maximum_pointwise_relative_actual=-1.072346067397e-01
+
+  b523_heat_flux_z_maximum_pointwise_relative_reference=-8.312136784161e-02
+
+  b523_heat_flux_z_maximum_absolute_difference_index=631
+
+  b523_heat_flux_z_maximum_absolute_difference_actual=-2.221882037260e+00
+
+  b523_heat_flux_z_maximum_absolute_difference_reference=-1.910787451326e+00
+
+  b523_heat_flux_z_zero_reference_count=0
+
+  
+  b523_heat_flux_z_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_stress_xx_relative_l2=4.899493168381e-05
+
+  b523_stress_xx_relative_absolute_peak=7.393832670016e-05
+
+  b523_stress_xx_maximum_pointwise_relative=1.658669511808e-04
+
+  b523_stress_xx_maximum_pointwise_relative_index=224
+
+  b523_stress_xx_maximum_pointwise_relative_actual=-8.090769378327e+04
+
+  b523_stress_xx_maximum_pointwise_relative_reference=-8.092111592205e+04
+
+  b523_stress_xx_maximum_absolute_difference_index=623
+
+  b523_stress_xx_maximum_absolute_difference_actual=-4.202210040255e+05
+
+  b523_stress_xx_maximum_absolute_difference_reference=-4.201699256107e+05
+
+  b523_stress_xx_zero_reference_count=0
+
+  
+  b523_stress_xx_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_stress_yy_relative_l2=1.958739538961e-04
+
+  b523_stress_yy_relative_absolute_peak=1.691726390368e-04
+
+  b523_stress_yy_maximum_pointwise_relative=1.039288024953e-01
+
+  b523_stress_yy_maximum_pointwise_relative_index=597
+
+  b523_stress_yy_maximum_pointwise_relative_actual=8.494658729195e+01
+
+  b523_stress_yy_maximum_pointwise_relative_reference=9.479892616624e+01
+
+  b523_stress_yy_maximum_absolute_difference_index=623
+
+  b523_stress_yy_maximum_absolute_difference_actual=5.491643243036e+04
+
+  b523_stress_yy_maximum_absolute_difference_reference=5.486675613064e+04
+
+  b523_stress_yy_zero_reference_count=0
+
+  
+  b523_stress_yy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_stress_zz_relative_l2=1.291089735742e-04
+
+  b523_stress_zz_relative_absolute_peak=1.592497278432e-04
+
+  b523_stress_zz_maximum_pointwise_relative=7.857218165479e-02
+
+  b523_stress_zz_maximum_pointwise_relative_index=167
+
+  b523_stress_zz_maximum_pointwise_relative_actual=-3.318128177993e+01
+
+  b523_stress_zz_maximum_pointwise_relative_reference=-3.601072283613e+01
+
+  b523_stress_zz_maximum_absolute_difference_index=622
+
+  b523_stress_zz_maximum_absolute_difference_actual=4.406173908810e+04
+
+  b523_stress_zz_maximum_absolute_difference_reference=4.403158134091e+04
+
+  b523_stress_zz_zero_reference_count=0
+
+  
+  b523_stress_zz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_stress_xy_relative_l2=2.267473627021e-04
+
+  b523_stress_xy_relative_absolute_peak=2.131378761429e-04
+
+  b523_stress_xy_maximum_pointwise_relative=5.730206109492e-02
+
+  b523_stress_xy_maximum_pointwise_relative_index=77
+
+  b523_stress_xy_maximum_pointwise_relative_actual=6.003339889706e+00
+
+  b523_stress_xy_maximum_pointwise_relative_reference=6.368253967626e+00
+
+  b523_stress_xy_maximum_absolute_difference_index=621
+
+  b523_stress_xy_maximum_absolute_difference_actual=-9.409744850625e+03
+
+  b523_stress_xy_maximum_absolute_difference_reference=-9.379562957505e+03
+
+  b523_stress_xy_zero_reference_count=0
+
+  
+  b523_stress_xy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_stress_yz_relative_l2=5.083989557388e-04
+
+  b523_stress_yz_relative_absolute_peak=1.824732306583e-04
+
+  b523_stress_yz_maximum_pointwise_relative=2.961300626783e-02
+
+  b523_stress_yz_maximum_pointwise_relative_index=346
+
+  b523_stress_yz_maximum_pointwise_relative_actual=1.435211973598e+01
+
+  b523_stress_yz_maximum_pointwise_relative_reference=1.479009903129e+01
+
+  b523_stress_yz_maximum_absolute_difference_index=617
+
+  b523_stress_yz_maximum_absolute_difference_actual=1.925751647998e+04
+
+  b523_stress_yz_maximum_absolute_difference_reference=1.923785281695e+04
+
+  b523_stress_yz_zero_reference_count=0
+
+  
+  b523_stress_yz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_stress_xz_relative_l2=2.267193799690e-04
+
+  b523_stress_xz_relative_absolute_peak=4.303313507708e-05
+
+  b523_stress_xz_maximum_pointwise_relative=7.495314314522e-02
+
+  b523_stress_xz_maximum_pointwise_relative_index=427
+
+  b523_stress_xz_maximum_pointwise_relative_actual=1.267115795921e+02
+
+  b523_stress_xz_maximum_pointwise_relative_reference=1.369785526572e+02
+
+  b523_stress_xz_maximum_absolute_difference_index=619
+
+  b523_stress_xz_maximum_absolute_difference_actual=-2.989294485162e+03
+
+  b523_stress_xz_maximum_absolute_difference_reference=-2.961280676712e+03
+
+  b523_stress_xz_zero_reference_count=0
+
+  
+  b523_stress_xz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_logarithmic_strain_xx_relative_l2=4.936520212278e-05
+
+  b523_logarithmic_strain_xx_relative_absolute_peak=2.326887316166e-05
+
+  b523_logarithmic_strain_xx_maximum_pointwise_relative=3.285292369514e-04
+
+  b523_logarithmic_strain_xx_maximum_pointwise_relative_index=224
+
+  
+  b523_logarithmic_strain_xx_maximum_pointwise_relative_actual=-4.359484231213e-04
+
+  
+  b523_logarithmic_strain_xx_maximum_pointwise_relative_reference=-4.360916919921e-04
+
+  b523_logarithmic_strain_xx_maximum_absolute_difference_index=624
+
+  
+  b523_logarithmic_strain_xx_maximum_absolute_difference_actual=-1.211491950656e-02
+
+  
+  b523_logarithmic_strain_xx_maximum_absolute_difference_reference=-1.211684673306e-02
+
+  b523_logarithmic_strain_xx_zero_reference_count=0
+
+  
+  b523_logarithmic_strain_xx_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_logarithmic_strain_yy_relative_l2=7.980621694044e-05
+
+  b523_logarithmic_strain_yy_relative_absolute_peak=4.734190844077e-05
+
+  b523_logarithmic_strain_yy_maximum_pointwise_relative=4.020809253732e-02
+
+  b523_logarithmic_strain_yy_maximum_pointwise_relative_index=481
+
+  
+  b523_logarithmic_strain_yy_maximum_pointwise_relative_actual=3.234431674449e-06
+
+  
+  b523_logarithmic_strain_yy_maximum_pointwise_relative_reference=3.369930137252e-06
+
+  b523_logarithmic_strain_yy_maximum_absolute_difference_index=624
+
+  
+  b523_logarithmic_strain_yy_maximum_absolute_difference_actual=5.266566359968e-03
+
+  
+  b523_logarithmic_strain_yy_maximum_absolute_difference_reference=5.268030489075e-03
+
+  b523_logarithmic_strain_yy_zero_reference_count=0
+
+  
+  b523_logarithmic_strain_yy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_logarithmic_strain_zz_relative_l2=5.398423405766e-05
+
+  b523_logarithmic_strain_zz_relative_absolute_peak=3.806285271462e-05
+
+  b523_logarithmic_strain_zz_maximum_pointwise_relative=1.186439611843e-02
+
+  b523_logarithmic_strain_zz_maximum_pointwise_relative_index=289
+
+  
+  b523_logarithmic_strain_zz_maximum_pointwise_relative_actual=4.538824971730e-06
+
+  
+  b523_logarithmic_strain_zz_maximum_pointwise_relative_reference=4.593321962998e-06
+
+  b523_logarithmic_strain_zz_maximum_absolute_difference_index=624
+
+  
+  b523_logarithmic_strain_zz_maximum_absolute_difference_actual=5.838055486645e-03
+
+  
+  b523_logarithmic_strain_zz_maximum_absolute_difference_reference=5.839007973602e-03
+
+  b523_logarithmic_strain_zz_zero_reference_count=0
+
+  
+  b523_logarithmic_strain_zz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_logarithmic_strain_xy_relative_l2=1.450146328935e-04
+
+  b523_logarithmic_strain_xy_relative_absolute_peak=4.227667095427e-06
+
+  b523_logarithmic_strain_xy_maximum_pointwise_relative=9.237391957864e-02
+
+  b523_logarithmic_strain_xy_maximum_pointwise_relative_index=77
+
+  
+  b523_logarithmic_strain_xy_maximum_pointwise_relative_actual=3.827134428711e-08
+
+  
+  b523_logarithmic_strain_xy_maximum_pointwise_relative_reference=4.216642195798e-08
+
+  b523_logarithmic_strain_xy_maximum_absolute_difference_index=630
+
+  
+  b523_logarithmic_strain_xy_maximum_absolute_difference_actual=3.735437032247e-03
+
+  
+  b523_logarithmic_strain_xy_maximum_absolute_difference_reference=3.734503188994e-03
+
+  b523_logarithmic_strain_xy_zero_reference_count=0
+
+  
+  b523_logarithmic_strain_xy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_logarithmic_strain_yz_relative_l2=2.817156267986e-04
+
+  b523_logarithmic_strain_yz_relative_absolute_peak=6.961726156349e-05
+
+  b523_logarithmic_strain_yz_maximum_pointwise_relative=1.961824662494e-02
+
+  b523_logarithmic_strain_yz_maximum_pointwise_relative_index=346
+
+  
+  b523_logarithmic_strain_yz_maximum_pointwise_relative_actual=2.878603061197e-07
+
+  
+  b523_logarithmic_strain_yz_maximum_pointwise_relative_reference=2.936206280143e-07
+
+  b523_logarithmic_strain_yz_maximum_absolute_difference_index=617
+
+  
+  b523_logarithmic_strain_yz_maximum_absolute_difference_actual=2.055129889299e-04
+
+  
+  b523_logarithmic_strain_yz_maximum_absolute_difference_reference=2.053053220385e-04
+
+  b523_logarithmic_strain_yz_zero_reference_count=0
+
+  
+  b523_logarithmic_strain_yz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_logarithmic_strain_xz_relative_l2=1.115176309978e-04
+
+  b523_logarithmic_strain_xz_relative_absolute_peak=2.485118283408e-05
+
+  b523_logarithmic_strain_xz_maximum_pointwise_relative=8.222702126301e-02
+
+  b523_logarithmic_strain_xz_maximum_pointwise_relative_index=427
+
+  
+  b523_logarithmic_strain_xz_maximum_pointwise_relative_actual=1.222977820937e-06
+
+  
+  b523_logarithmic_strain_xz_maximum_pointwise_relative_reference=1.332549387780e-06
+
+  b523_logarithmic_strain_xz_maximum_absolute_difference_index=628
+
+  
+  b523_logarithmic_strain_xz_maximum_absolute_difference_actual=2.112180034745e-03
+
+  
+  b523_logarithmic_strain_xz_maximum_absolute_difference_reference=2.111609866964e-03
+
+  b523_logarithmic_strain_xz_zero_reference_count=0
+
+  
+  b523_logarithmic_strain_xz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_elastic_strain_xx_relative_l2=6.040942940198e-05
+
+  b523_elastic_strain_xx_relative_absolute_peak=9.751974614583e-06
+
+  b523_elastic_strain_xx_maximum_pointwise_relative=3.285451810198e-04
+
+  b523_elastic_strain_xx_maximum_pointwise_relative_index=224
+
+  
+  b523_elastic_strain_xx_maximum_pointwise_relative_actual=-4.359477160993e-04
+
+  
+  b523_elastic_strain_xx_maximum_pointwise_relative_reference=-4.360909916931e-04
+
+  b523_elastic_strain_xx_maximum_absolute_difference_index=623
+
+  
+  b523_elastic_strain_xx_maximum_absolute_difference_actual=-3.729409467686e-03
+
+  
+  b523_elastic_strain_xx_maximum_absolute_difference_reference=-3.728778176116e-03
+
+  b523_elastic_strain_xx_zero_reference_count=0
+
+  
+  b523_elastic_strain_xx_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_elastic_strain_yy_relative_l2=1.497891480031e-04
+
+  b523_elastic_strain_yy_relative_absolute_peak=5.321075209620e-05
+
+  b523_elastic_strain_yy_maximum_pointwise_relative=4.060905237642e-02
+
+  b523_elastic_strain_yy_maximum_pointwise_relative_index=481
+
+  b523_elastic_strain_yy_maximum_pointwise_relative_actual=3.198020730519e-06
+
+  
+  b523_elastic_strain_yy_maximum_pointwise_relative_reference=3.333386393149e-06
+
+  b523_elastic_strain_yy_maximum_absolute_difference_index=623
+
+  
+  b523_elastic_strain_yy_maximum_absolute_difference_actual=1.341864200895e-03
+
+  
+  b523_elastic_strain_yy_maximum_absolute_difference_reference=1.341391875289e-03
+
+  b523_elastic_strain_yy_zero_reference_count=0
+
+  
+  b523_elastic_strain_yy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_elastic_strain_zz_relative_l2=9.539333337064e-05
+
+  b523_elastic_strain_zz_relative_absolute_peak=3.351476560145e-05
+
+  b523_elastic_strain_zz_maximum_pointwise_relative=1.186680259019e-02
+
+  b523_elastic_strain_zz_maximum_pointwise_relative_index=289
+
+  b523_elastic_strain_zz_maximum_pointwise_relative_actual=4.536941666485e-06
+
+  
+  b523_elastic_strain_zz_maximum_pointwise_relative_reference=4.591427226995e-06
+
+  b523_elastic_strain_zz_maximum_absolute_difference_index=622
+
+  
+  b523_elastic_strain_zz_maximum_absolute_difference_actual=1.225733244342e-03
+
+  
+  b523_elastic_strain_zz_maximum_absolute_difference_reference=1.225472657829e-03
+
+  b523_elastic_strain_zz_zero_reference_count=0
+
+  
+  b523_elastic_strain_zz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_elastic_strain_xy_relative_l2=2.025095112697e-04
+
+  b523_elastic_strain_xy_relative_absolute_peak=5.712799752948e-05
+
+  b523_elastic_strain_xy_maximum_pointwise_relative=5.730206380528e-02
+
+  b523_elastic_strain_xy_maximum_pointwise_relative_index=77
+
+  b523_elastic_strain_xy_maximum_pointwise_relative_actual=6.403568538113e-08
+
+  
+  b523_elastic_strain_xy_maximum_pointwise_relative_reference=6.792810604807e-08
+
+  b523_elastic_strain_xy_maximum_absolute_difference_index=621
+
+  
+  b523_elastic_strain_xy_maximum_absolute_difference_actual=-1.004270010397e-04
+
+  
+  b523_elastic_strain_xy_maximum_absolute_difference_reference=-1.001050744540e-04
+
+  b523_elastic_strain_xy_zero_reference_count=0
+
+  
+  b523_elastic_strain_xy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_elastic_strain_yz_relative_l2=4.938449747542e-04
+
+  b523_elastic_strain_yz_relative_absolute_peak=1.822635203891e-04
+
+  b523_elastic_strain_yz_maximum_pointwise_relative=2.961348828707e-02
+
+  b523_elastic_strain_yz_maximum_pointwise_relative_index=346
+
+  b523_elastic_strain_yz_maximum_pointwise_relative_actual=1.870569477671e-07
+
+  
+  b523_elastic_strain_yz_maximum_pointwise_relative_reference=1.927654037946e-07
+
+  b523_elastic_strain_yz_maximum_absolute_difference_index=617
+
+  
+  b523_elastic_strain_yz_maximum_absolute_difference_actual=2.055204572045e-04
+
+  
+  b523_elastic_strain_yz_maximum_absolute_difference_reference=2.053127998012e-04
+
+  b523_elastic_strain_yz_zero_reference_count=0
+
+  
+  b523_elastic_strain_yz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_elastic_strain_xz_relative_l2=1.949988011797e-04
+
+  b523_elastic_strain_xz_relative_absolute_peak=4.303313507771e-05
+
+  b523_elastic_strain_xz_maximum_pointwise_relative=7.495164886047e-02
+
+  b523_elastic_strain_xz_maximum_pointwise_relative_index=427
+
+  b523_elastic_strain_xz_maximum_pointwise_relative_actual=1.351842269050e-06
+
+  
+  b523_elastic_strain_xz_maximum_pointwise_relative_reference=1.461374713425e-06
+
+  b523_elastic_strain_xz_maximum_absolute_difference_index=619
+
+  
+  b523_elastic_strain_xz_maximum_absolute_difference_actual=-3.190475074848e-05
+
+  
+  b523_elastic_strain_xz_maximum_absolute_difference_reference=-3.160566150526e-05
+
+  b523_elastic_strain_xz_zero_reference_count=0
+
+  
+  b523_elastic_strain_xz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_plastic_strain_xx_relative_l2=5.744865650044e-05
+
+  b523_plastic_strain_xx_relative_absolute_peak=3.149920685854e-05
+
+  b523_plastic_strain_xx_maximum_pointwise_relative=3.032998681115e-03
+
+  b523_plastic_strain_xx_maximum_pointwise_relative_index=247
+
+  
+  b523_plastic_strain_xx_maximum_pointwise_relative_actual=-3.646779791102e-05
+
+  
+  b523_plastic_strain_xx_maximum_pointwise_relative_reference=-3.635752558388e-05
+
+  b523_plastic_strain_xx_maximum_absolute_difference_index=624
+
+  
+  b523_plastic_strain_xx_maximum_absolute_difference_actual=-9.200905830944e-03
+
+  
+  b523_plastic_strain_xx_maximum_absolute_difference_reference=-9.202825327958e-03
+
+  b523_plastic_strain_xx_zero_reference_count=485
+
+  
+  b523_plastic_strain_xx_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_plastic_strain_yy_relative_l2=6.891501068509e-05
+
+  b523_plastic_strain_yy_relative_absolute_peak=3.564285999615e-05
+
+  b523_plastic_strain_yy_maximum_pointwise_relative=3.035133980151e-03
+
+  b523_plastic_strain_yy_maximum_pointwise_relative_index=247
+
+  b523_plastic_strain_yy_maximum_pointwise_relative_actual=1.855610250393e-05
+
+  
+  b523_plastic_strain_yy_maximum_pointwise_relative_reference=1.849995266895e-05
+
+  b523_plastic_strain_yy_maximum_absolute_difference_index=624
+
+  
+  b523_plastic_strain_yy_maximum_absolute_difference_actual=4.372534413043e-03
+
+  
+  b523_plastic_strain_yy_maximum_absolute_difference_reference=4.373682731259e-03
+
+  b523_plastic_strain_yy_zero_reference_count=485
+
+  
+  b523_plastic_strain_yy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_plastic_strain_zz_relative_l2=4.866699611477e-05
+
+  b523_plastic_strain_zz_relative_absolute_peak=2.725359955506e-05
+
+  b523_plastic_strain_zz_maximum_pointwise_relative=3.030786570245e-03
+
+  b523_plastic_strain_zz_maximum_pointwise_relative_index=247
+
+  b523_plastic_strain_zz_maximum_pointwise_relative_actual=1.791169540709e-05
+
+  
+  b523_plastic_strain_zz_maximum_pointwise_relative_reference=1.785757291493e-05
+
+  b523_plastic_strain_zz_maximum_absolute_difference_index=624
+
+  
+  b523_plastic_strain_zz_maximum_absolute_difference_actual=4.828371417901e-03
+
+  
+  b523_plastic_strain_zz_maximum_absolute_difference_reference=4.829142596699e-03
+
+  b523_plastic_strain_zz_zero_reference_count=485
+
+  
+  b523_plastic_strain_zz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_plastic_strain_xy_relative_l2=1.313679218064e-04
+
+  b523_plastic_strain_xy_relative_absolute_peak=6.579741036778e-06
+
+  b523_plastic_strain_xy_maximum_pointwise_relative=5.444564341354e-03
+
+  b523_plastic_strain_xy_maximum_pointwise_relative_index=631
+
+  
+  b523_plastic_strain_xy_maximum_pointwise_relative_actual=-1.033349928486e-04
+
+  
+  b523_plastic_strain_xy_maximum_pointwise_relative_reference=-1.039006868231e-04
+
+  b523_plastic_strain_xy_maximum_absolute_difference_index=630
+
+  
+  b523_plastic_strain_xy_maximum_absolute_difference_actual=3.211637762749e-03
+
+  
+  b523_plastic_strain_xy_maximum_absolute_difference_reference=3.210920048522e-03
+
+  b523_plastic_strain_xy_zero_reference_count=485
+
+  
+  b523_plastic_strain_xy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_plastic_strain_yz_relative_l2=1.393279877076e-04
+
+  b523_plastic_strain_yz_relative_absolute_peak=5.781554136111e-05
+
+  b523_plastic_strain_yz_maximum_pointwise_relative=3.673097678306e-02
+
+  b523_plastic_strain_yz_maximum_pointwise_relative_index=467
+
+  
+  b523_plastic_strain_yz_maximum_pointwise_relative_actual=-4.077350836675e-07
+
+  
+  b523_plastic_strain_yz_maximum_pointwise_relative_reference=-4.232826695763e-07
+
+  b523_plastic_strain_yz_maximum_absolute_difference_index=631
+
+  
+  b523_plastic_strain_yz_maximum_absolute_difference_actual=-4.673505290477e-04
+
+  
+  b523_plastic_strain_yz_maximum_absolute_difference_reference=-4.674529501817e-04
+
+  b523_plastic_strain_yz_zero_reference_count=485
+
+  
+  b523_plastic_strain_yz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_plastic_strain_xz_relative_l2=9.153764523413e-05
+
+  b523_plastic_strain_xz_relative_absolute_peak=1.935599688689e-05
+
+  b523_plastic_strain_xz_maximum_pointwise_relative=1.031417828642e-02
+
+  b523_plastic_strain_xz_maximum_pointwise_relative_index=533
+
+  
+  b523_plastic_strain_xz_maximum_pointwise_relative_actual=-1.727236677241e-05
+
+  
+  b523_plastic_strain_xz_maximum_pointwise_relative_reference=-1.745237366592e-05
+
+  b523_plastic_strain_xz_maximum_absolute_difference_index=626
+
+  
+  b523_plastic_strain_xz_maximum_absolute_difference_actual=2.376694971874e-04
+
+  
+  b523_plastic_strain_xz_maximum_absolute_difference_reference=2.380935491081e-04
+
+  b523_plastic_strain_xz_zero_reference_count=485
+
+  
+  b523_plastic_strain_xz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_equivalent_plastic_strain_relative_l2=5.241971126068e-05
+
+  b523_equivalent_plastic_strain_relative_absolute_peak=3.133038797379e-05
+
+  
+  b523_equivalent_plastic_strain_maximum_pointwise_relative=3.032487559743e-03
+
+  b523_equivalent_plastic_strain_maximum_pointwise_relative_index=247
+
+  
+  b523_equivalent_plastic_strain_maximum_pointwise_relative_actual=3.696404918535e-05
+
+  
+  b523_equivalent_plastic_strain_maximum_pointwise_relative_reference=3.685229505903e-05
+
+  b523_equivalent_plastic_strain_maximum_absolute_difference_index=624
+
+  
+  b523_equivalent_plastic_strain_maximum_absolute_difference_actual=9.442809133556e-03
+
+  
+  b523_equivalent_plastic_strain_maximum_absolute_difference_reference=9.444685921871e-03
+
+  b523_equivalent_plastic_strain_zero_reference_count=485
+
+  
+  b523_equivalent_plastic_strain_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_creep_strain_xx_relative_l2=3.816238867298e-05
+
+  b523_creep_strain_xx_relative_absolute_peak=1.382541466647e-05
+
+  b523_creep_strain_xx_maximum_pointwise_relative=1.792263410570e-04
+
+  b523_creep_strain_xx_maximum_pointwise_relative_index=246
+
+  b523_creep_strain_xx_maximum_pointwise_relative_actual=-3.503892310580e-06
+
+  
+  b523_creep_strain_xx_maximum_pointwise_relative_reference=-3.503264433313e-06
+
+  b523_creep_strain_xx_maximum_absolute_difference_index=628
+
+  b523_creep_strain_xx_maximum_absolute_difference_actual=-5.389626696941e-05
+
+  
+  b523_creep_strain_xx_maximum_absolute_difference_reference=-5.390157820796e-05
+
+  b523_creep_strain_xx_zero_reference_count=320
+
+  
+  b523_creep_strain_xx_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_creep_strain_yy_relative_l2=4.944709756943e-05
+
+  b523_creep_strain_yy_relative_absolute_peak=1.870465308952e-05
+
+  b523_creep_strain_yy_maximum_pointwise_relative=1.773781049183e-04
+
+  b523_creep_strain_yy_maximum_pointwise_relative_index=246
+
+  b523_creep_strain_yy_maximum_pointwise_relative_actual=1.788083522726e-06
+
+  
+  b523_creep_strain_yy_maximum_pointwise_relative_reference=1.787766412108e-06
+
+  b523_creep_strain_yy_maximum_absolute_difference_index=628
+
+  b523_creep_strain_yy_maximum_absolute_difference_actual=2.423252977318e-05
+
+  
+  b523_creep_strain_yy_maximum_absolute_difference_reference=2.423594382008e-05
+
+  b523_creep_strain_yy_zero_reference_count=320
+
+  
+  b523_creep_strain_yy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_creep_strain_zz_relative_l2=3.265850028337e-05
+
+  b523_creep_strain_zz_relative_absolute_peak=8.809862998851e-06
+
+  b523_creep_strain_zz_maximum_pointwise_relative=1.811524374147e-04
+
+  b523_creep_strain_zz_maximum_pointwise_relative_index=246
+
+  b523_creep_strain_zz_maximum_pointwise_relative_actual=1.715808787853e-06
+
+  
+  b523_creep_strain_zz_maximum_pointwise_relative_reference=1.715498021205e-06
+
+  b523_creep_strain_zz_maximum_absolute_difference_index=629
+
+  b523_creep_strain_zz_maximum_absolute_difference_actual=3.155762309796e-05
+
+  
+  b523_creep_strain_zz_maximum_absolute_difference_reference=3.156010428247e-05
+
+  b523_creep_strain_zz_zero_reference_count=320
+
+  
+  b523_creep_strain_zz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_creep_strain_xy_relative_l2=1.495183400768e-04
+
+  b523_creep_strain_xy_relative_absolute_peak=2.749403096553e-04
+
+  b523_creep_strain_xy_maximum_pointwise_relative=4.738658531070e-02
+
+  b523_creep_strain_xy_maximum_pointwise_relative_index=276
+
+  b523_creep_strain_xy_maximum_pointwise_relative_actual=-2.556460527362e-09
+
+  
+  b523_creep_strain_xy_maximum_pointwise_relative_reference=-2.683628519125e-09
+
+  b523_creep_strain_xy_maximum_absolute_difference_index=630
+
+  b523_creep_strain_xy_maximum_absolute_difference_actual=1.462394013609e-05
+
+  
+  b523_creep_strain_xy_maximum_absolute_difference_reference=1.461992053061e-05
+
+  b523_creep_strain_xy_zero_reference_count=320
+
+  
+  b523_creep_strain_xy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_creep_strain_yz_relative_l2=1.219857185286e-04
+
+  b523_creep_strain_yz_relative_absolute_peak=7.081622751809e-05
+
+  b523_creep_strain_yz_maximum_pointwise_relative=2.003856679056e-02
+
+  b523_creep_strain_yz_maximum_pointwise_relative_index=370
+
+  b523_creep_strain_yz_maximum_pointwise_relative_actual=-3.135516516218e-09
+
+  
+  b523_creep_strain_yz_maximum_pointwise_relative_reference=-3.199632567120e-09
+
+  b523_creep_strain_yz_maximum_absolute_difference_index=631
+
+  b523_creep_strain_yz_maximum_absolute_difference_actual=-2.333077130680e-06
+
+  
+  b523_creep_strain_yz_maximum_absolute_difference_reference=-2.333586287494e-06
+
+  b523_creep_strain_yz_zero_reference_count=320
+
+  
+  b523_creep_strain_yz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_creep_strain_xz_relative_l2=8.707583817178e-05
+
+  b523_creep_strain_xz_relative_absolute_peak=1.679533367938e-05
+
+  b523_creep_strain_xz_maximum_pointwise_relative=2.459067061084e-02
+
+  b523_creep_strain_xz_maximum_pointwise_relative_index=626
+
+  b523_creep_strain_xz_maximum_pointwise_relative_actual=-7.991258176703e-08
+
+  
+  b523_creep_strain_xz_maximum_pointwise_relative_reference=-7.799464123501e-08
+
+  b523_creep_strain_xz_maximum_absolute_difference_index=626
+
+  b523_creep_strain_xz_maximum_absolute_difference_actual=-7.991258176703e-08
+
+  
+  b523_creep_strain_xz_maximum_absolute_difference_reference=-7.799464123501e-08
+
+  b523_creep_strain_xz_zero_reference_count=320
+
+  
+  b523_creep_strain_xz_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_equivalent_creep_strain_relative_l2=3.355103692553e-05
+
+  b523_equivalent_creep_strain_relative_absolute_peak=1.326265921340e-05
+
+  b523_equivalent_creep_strain_maximum_pointwise_relative=1.900220009651e-04
+
+  b523_equivalent_creep_strain_maximum_pointwise_relative_index=246
+
+  
+  b523_equivalent_creep_strain_maximum_pointwise_relative_actual=3.668035918553e-06
+
+  
+  b523_equivalent_creep_strain_maximum_pointwise_relative_reference=3.667339043450e-06
+
+  b523_equivalent_creep_strain_maximum_absolute_difference_index=628
+
+  
+  b523_equivalent_creep_strain_maximum_absolute_difference_actual=5.509957574453e-05
+
+  
+  b523_equivalent_creep_strain_maximum_absolute_difference_reference=5.510434917793e-05
+
+  b523_equivalent_creep_strain_zero_reference_count=320
+
+  
+  b523_equivalent_creep_strain_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_material_temperature_relative_l2=2.885913138793e-05
+
+  b523_material_temperature_relative_absolute_peak=0.000000000000e+00
+
+  b523_material_temperature_maximum_pointwise_relative=2.668399165465e-04
+
+  b523_material_temperature_maximum_pointwise_relative_index=625
+
+  
+  b523_material_temperature_maximum_pointwise_relative_actual=3.160685946393e+02
+
+  
+  b523_material_temperature_maximum_pointwise_relative_reference=3.161529568680e+02
+
+  b523_material_temperature_maximum_absolute_difference_index=625
+
+  
+  b523_material_temperature_maximum_absolute_difference_actual=3.160685946393e+02
+
+  
+  b523_material_temperature_maximum_absolute_difference_reference=3.161529568680e+02
+
+  b523_material_temperature_zero_reference_count=0
+
+  
+  b523_material_temperature_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_integration_volume_relative_l2=1.090582383022e-07
+
+  b523_integration_volume_relative_absolute_peak=3.781903417279e-07
+
+  b523_integration_volume_maximum_pointwise_relative=4.893894522671e-07
+
+  b523_integration_volume_maximum_pointwise_relative_index=624
+
+  
+  b523_integration_volume_maximum_pointwise_relative_actual=6.243688828243e-02
+
+  
+  b523_integration_volume_maximum_pointwise_relative_reference=6.243691883840e-02
+
+  b523_integration_volume_maximum_absolute_difference_index=624
+
+  
+  b523_integration_volume_maximum_absolute_difference_actual=6.243688828243e-02
+
+  
+  b523_integration_volume_maximum_absolute_difference_reference=6.243691883840e-02
+
+  b523_integration_volume_zero_reference_count=0
+
+  
+  b523_integration_volume_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_integration_position_relative_l2=9.472998659185e-07
+
+  b523_integration_position_relative_absolute_peak=2.553360964280e-06
+
+  b523_integration_position_maximum_pointwise_relative=4.333832437818e-06
+
+  b523_integration_position_maximum_pointwise_relative_index=624
+
+  b523_integration_position_maximum_pointwise_actual_norm=1.143648359726e+00
+
+  
+  b523_integration_position_maximum_pointwise_reference_norm=1.143647660331e+00
+
+  b523_integration_position_maximum_difference_index=630
+
+  
+  b523_integration_position_maximum_absolute_group_difference=5.616343146748e-06
+
+  b523_integration_position_zero_reference_count=0
+
+  
+  b523_integration_position_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_stress_tensor_relative_l2=7.176858268392e-05
+
+  b523_stress_tensor_relative_absolute_peak=1.768085712437e-04
+
+  b523_stress_tensor_maximum_pointwise_relative=1.896993697510e-04
+
+  b523_stress_tensor_maximum_pointwise_relative_index=623
+
+  b523_stress_tensor_maximum_pointwise_actual_norm=4.267294653775e+05
+
+  b523_stress_tensor_maximum_pointwise_reference_norm=4.266691545460e+05
+
+  b523_stress_tensor_maximum_difference_index=623
+
+  b523_stress_tensor_maximum_absolute_group_difference=8.093886970956e+01
+
+  b523_stress_tensor_zero_reference_count=0
+
+  
+  b523_stress_tensor_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_logarithmic_strain_tensor_relative_l2=6.044855865191e-05
+
+  b523_logarithmic_strain_tensor_relative_absolute_peak=7.876507782833e-05
+
+  
+  b523_logarithmic_strain_tensor_maximum_pointwise_relative=3.906582109679e-04
+
+  b523_logarithmic_strain_tensor_maximum_pointwise_relative_index=224
+
+  
+  b523_logarithmic_strain_tensor_maximum_pointwise_actual_norm=4.758034116731e-04
+
+  
+  b523_logarithmic_strain_tensor_maximum_pointwise_reference_norm=4.758917434044e-04
+
+  b523_logarithmic_strain_tensor_maximum_difference_index=624
+
+  
+  b523_logarithmic_strain_tensor_maximum_absolute_group_difference=2.604283911748e-06
+
+  b523_logarithmic_strain_tensor_zero_reference_count=0
+
+  
+  b523_logarithmic_strain_tensor_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_elastic_strain_tensor_relative_l2=8.239884641714e-05
+
+  b523_elastic_strain_tensor_relative_absolute_peak=1.876341147773e-04
+
+  b523_elastic_strain_tensor_maximum_pointwise_relative=3.906647850876e-04
+
+  b523_elastic_strain_tensor_maximum_pointwise_relative_index=224
+
+  b523_elastic_strain_tensor_maximum_pointwise_actual_norm=4.758057488344e-04
+
+  
+  b523_elastic_strain_tensor_maximum_pointwise_reference_norm=4.758940845532e-04
+
+  b523_elastic_strain_tensor_maximum_difference_index=623
+
+  
+  b523_elastic_strain_tensor_maximum_absolute_group_difference=8.698376994990e-07
+
+  b523_elastic_strain_tensor_zero_reference_count=0
+
+  
+  b523_elastic_strain_tensor_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_plastic_strain_tensor_relative_l2=6.094128699275e-05
+
+  b523_plastic_strain_tensor_relative_absolute_peak=8.353639631340e-05
+
+  b523_plastic_strain_tensor_maximum_pointwise_relative=3.032755568458e-03
+
+  b523_plastic_strain_tensor_maximum_pointwise_relative_index=247
+
+  b523_plastic_strain_tensor_maximum_pointwise_actual_norm=4.496982018664e-05
+
+  
+  b523_plastic_strain_tensor_maximum_pointwise_reference_norm=4.483385050620e-05
+
+  b523_plastic_strain_tensor_maximum_difference_index=624
+
+  
+  b523_plastic_strain_tensor_maximum_absolute_group_difference=2.368467702363e-06
+
+  b523_plastic_strain_tensor_zero_reference_count=485
+
+  
+  b523_plastic_strain_tensor_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_creep_strain_tensor_relative_l2=4.519398959524e-05
+
+  b523_creep_strain_tensor_relative_absolute_peak=5.227756228030e-05
+
+  b523_creep_strain_tensor_maximum_pointwise_relative=1.868745457480e-04
+
+  b523_creep_strain_tensor_maximum_pointwise_relative_index=246
+
+  b523_creep_strain_tensor_maximum_pointwise_actual_norm=4.393004340632e-06
+
+  
+  b523_creep_strain_tensor_maximum_pointwise_reference_norm=4.392192573828e-06
+
+  b523_creep_strain_tensor_maximum_difference_index=628
+
+  
+  b523_creep_strain_tensor_maximum_absolute_group_difference=6.833959844499e-09
+
+  b523_creep_strain_tensor_zero_reference_count=320
+
+  
+  b523_creep_strain_tensor_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_equivalent_plastic_strain_relative_l2=5.241971126068e-05
+
+  b523_equivalent_plastic_strain_relative_absolute_peak=3.133038797379e-05
+
+  
+  b523_equivalent_plastic_strain_maximum_pointwise_relative=3.032487559743e-03
+
+  b523_equivalent_plastic_strain_maximum_pointwise_relative_index=247
+
+  
+  b523_equivalent_plastic_strain_maximum_pointwise_relative_actual=3.696404918535e-05
+
+  
+  b523_equivalent_plastic_strain_maximum_pointwise_relative_reference=3.685229505903e-05
+
+  b523_equivalent_plastic_strain_maximum_absolute_difference_index=624
+
+  
+  b523_equivalent_plastic_strain_maximum_absolute_difference_actual=9.442809133556e-03
+
+  
+  b523_equivalent_plastic_strain_maximum_absolute_difference_reference=9.444685921871e-03
+
+  b523_equivalent_plastic_strain_zero_reference_count=485
+
+  
+  b523_equivalent_plastic_strain_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_equivalent_creep_strain_relative_l2=3.355103692553e-05
+
+  b523_equivalent_creep_strain_relative_absolute_peak=1.326265921340e-05
+
+  b523_equivalent_creep_strain_maximum_pointwise_relative=1.900220009651e-04
+
+  b523_equivalent_creep_strain_maximum_pointwise_relative_index=246
+
+  
+  b523_equivalent_creep_strain_maximum_pointwise_relative_actual=3.668035918553e-06
+
+  
+  b523_equivalent_creep_strain_maximum_pointwise_relative_reference=3.667339043450e-06
+
+  b523_equivalent_creep_strain_maximum_absolute_difference_index=628
+
+  
+  b523_equivalent_creep_strain_maximum_absolute_difference_actual=5.509957574453e-05
+
+  
+  b523_equivalent_creep_strain_maximum_absolute_difference_reference=5.510434917793e-05
+
+  b523_equivalent_creep_strain_zero_reference_count=320
+
+  
+  b523_equivalent_creep_strain_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_material_temperature_relative_l2=2.885913138793e-05
+
+  b523_material_temperature_relative_absolute_peak=0.000000000000e+00
+
+  b523_material_temperature_maximum_pointwise_relative=2.668399165465e-04
+
+  b523_material_temperature_maximum_pointwise_relative_index=625
+
+  
+  b523_material_temperature_maximum_pointwise_relative_actual=3.160685946393e+02
+
+  
+  b523_material_temperature_maximum_pointwise_relative_reference=3.161529568680e+02
+
+  b523_material_temperature_maximum_absolute_difference_index=625
+
+  
+  b523_material_temperature_maximum_absolute_difference_actual=3.160685946393e+02
+
+  
+  b523_material_temperature_maximum_absolute_difference_reference=3.161529568680e+02
+
+  b523_material_temperature_zero_reference_count=0
+
+  
+  b523_material_temperature_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_integration_volume_relative_l2=1.090582383022e-07
+
+  b523_integration_volume_relative_absolute_peak=3.781903417279e-07
+
+  b523_integration_volume_maximum_pointwise_relative=4.893894522671e-07
+
+  b523_integration_volume_maximum_pointwise_relative_index=624
+
+  
+  b523_integration_volume_maximum_pointwise_relative_actual=6.243688828243e-02
+
+  
+  b523_integration_volume_maximum_pointwise_relative_reference=6.243691883840e-02
+
+  b523_integration_volume_maximum_absolute_difference_index=624
+
+  
+  b523_integration_volume_maximum_absolute_difference_actual=6.243688828243e-02
+
+  
+  b523_integration_volume_maximum_absolute_difference_reference=6.243691883840e-02
+
+  b523_integration_volume_zero_reference_count=0
+
+  
+  b523_integration_volume_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_heat_flux_vector_relative_l2=1.889459295407e-04
+
+  b523_heat_flux_vector_relative_absolute_peak=3.290450650652e-04
+
+  b523_heat_flux_vector_maximum_pointwise_relative=2.555220111881e-02
+
+  b523_heat_flux_vector_maximum_pointwise_relative_index=329
+
+  b523_heat_flux_vector_maximum_pointwise_actual_norm=2.538175144047e+00
+
+  b523_heat_flux_vector_maximum_pointwise_reference_norm=2.581118162164e+00
+
+  b523_heat_flux_vector_maximum_difference_index=633
+
+  b523_heat_flux_vector_maximum_absolute_group_difference=1.471441781304e+00
+
+  b523_heat_flux_vector_zero_reference_count=0
+
+  
+  b523_heat_flux_vector_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_maximum_integration_coordinate_difference=5.616343146748e-06
+
+  b523_internal_energy_relative_l2=4.806237081712e-04
+
+  b523_internal_energy_relative_absolute_peak=5.310933646397e-04
+
+  b523_internal_energy_maximum_pointwise_relative=5.310933646397e-04
+
+  b523_internal_energy_maximum_pointwise_relative_index=19
+
+  b523_internal_energy_maximum_pointwise_relative_actual=4.626594275183e+03
+
+  
+  b523_internal_energy_maximum_pointwise_relative_reference=4.629052734375e+03
+
+  b523_internal_energy_maximum_absolute_difference_index=19
+
+  b523_internal_energy_maximum_absolute_difference_actual=4.626594275183e+03
+
+  
+  b523_internal_energy_maximum_absolute_difference_reference=4.629052734375e+03
+
+  b523_internal_energy_zero_reference_count=0
+
+  
+  b523_internal_energy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_elastic_energy_relative_l2=2.722028529003e-05
+
+  b523_elastic_energy_relative_absolute_peak=2.690440920424e-05
+
+  b523_elastic_energy_maximum_pointwise_relative=3.823013565935e-05
+
+  b523_elastic_energy_maximum_pointwise_relative_index=7
+
+  b523_elastic_energy_maximum_pointwise_relative_actual=1.943921359435e+02
+
+  b523_elastic_energy_maximum_pointwise_relative_reference=1.943847045898e+02
+
+  b523_elastic_energy_maximum_absolute_difference_index=19
+
+  b523_elastic_energy_maximum_absolute_difference_actual=1.141040219671e+03
+
+  
+  b523_elastic_energy_maximum_absolute_difference_reference=1.141009521484e+03
+
+  b523_elastic_energy_zero_reference_count=0
+
+  
+  b523_elastic_energy_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_plastic_dissipation_relative_l2=6.808339005578e-04
+
+  b523_plastic_dissipation_relative_absolute_peak=7.167071179373e-04
+
+  b523_plastic_dissipation_maximum_pointwise_relative=3.054326307021e-03
+
+  b523_plastic_dissipation_maximum_pointwise_relative_index=7
+
+  
+  b523_plastic_dissipation_maximum_pointwise_relative_actual=4.337483002874e-01
+
+  
+  b523_plastic_dissipation_maximum_pointwise_relative_reference=4.324275255203e-01
+
+  b523_plastic_dissipation_maximum_absolute_difference_index=19
+
+  
+  b523_plastic_dissipation_maximum_absolute_difference_actual=3.470713367667e+03
+
+  
+  b523_plastic_dissipation_maximum_absolute_difference_reference=3.473202636719e+03
+
+  b523_plastic_dissipation_zero_reference_count=7
+
+  
+  b523_plastic_dissipation_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_creep_dissipation_relative_l2=2.428075982282e-05
+
+  b523_creep_dissipation_relative_absolute_peak=2.383922385396e-06
+
+  b523_creep_dissipation_maximum_pointwise_relative=1.083495696057e-04
+
+  b523_creep_dissipation_maximum_pointwise_relative_index=11
+
+  b523_creep_dissipation_maximum_pointwise_relative_actual=1.355778829655e+00
+
+  
+  b523_creep_dissipation_maximum_pointwise_relative_reference=1.355631947517e+00
+
+  b523_creep_dissipation_maximum_absolute_difference_index=15
+
+  
+  b523_creep_dissipation_maximum_absolute_difference_actual=5.125315994340e+00
+
+  
+  b523_creep_dissipation_maximum_absolute_difference_reference=5.125091552734e+00
+
+  b523_creep_dissipation_zero_reference_count=0
+
+  
+  b523_creep_dissipation_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_friction_dissipation_relative_l2=6.920223441509e-02
+
+  b523_friction_dissipation_relative_absolute_peak=6.920223441509e-02
+
+  b523_friction_dissipation_maximum_pointwise_relative=6.920223441509e-02
+
+  b523_friction_dissipation_maximum_pointwise_relative_index=8
+
+  
+  b523_friction_dissipation_maximum_pointwise_relative_actual=1.945915493255e+00
+
+  
+  b523_friction_dissipation_maximum_pointwise_relative_reference=1.819969534874e+00
+
+  b523_friction_dissipation_maximum_absolute_difference_index=8
+
+  
+  b523_friction_dissipation_maximum_absolute_difference_actual=1.945915493255e+00
+
+  
+  b523_friction_dissipation_maximum_absolute_difference_reference=1.819969534874e+00
+
+  b523_friction_dissipation_zero_reference_count=8
+
+  
+  b523_friction_dissipation_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_external_work_relative_l2=5.333078510338e-04
+
+  b523_external_work_relative_absolute_peak=4.669146033347e-04
+
+  b523_external_work_maximum_pointwise_relative=8.421061449018e-04
+
+  b523_external_work_maximum_pointwise_relative_index=11
+
+  b523_external_work_maximum_pointwise_relative_actual=6.333862011131e+02
+
+  b523_external_work_maximum_pointwise_relative_reference=6.328532714844e+02
+
+  b523_external_work_maximum_absolute_difference_index=19
+
+  b523_external_work_maximum_absolute_difference_actual=4.531609516094e+03
+
+  b523_external_work_maximum_absolute_difference_reference=4.529494628906e+03
+
+  b523_external_work_zero_reference_count=0
+
+  
+  b523_external_work_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_boundary_heat_rate_relative_l2=2.469104205336e-03
+
+  b523_boundary_heat_rate_relative_absolute_peak=4.943907275523e-03
+
+  b523_boundary_heat_rate_maximum_pointwise_relative=4.943907275523e-03
+
+  b523_boundary_heat_rate_maximum_pointwise_relative_index=19
+
+  
+  b523_boundary_heat_rate_maximum_pointwise_relative_actual=1.916321905650e+04
+
+  
+  b523_boundary_heat_rate_maximum_pointwise_relative_reference=1.925843095341e+04
+
+  b523_boundary_heat_rate_maximum_absolute_difference_index=19
+
+  
+  b523_boundary_heat_rate_maximum_absolute_difference_actual=1.916321905650e+04
+
+  
+  b523_boundary_heat_rate_maximum_absolute_difference_reference=1.925843095341e+04
+
+  b523_boundary_heat_rate_zero_reference_count=0
+
+  
+  b523_boundary_heat_rate_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_mechanical_hourglass_energy_absolute_l2=0.000000000000e+00
+
+  b523_mechanical_hourglass_energy_absolute_peak=0.000000000000e+00
+
+  
+  b523_mechanical_hourglass_energy_maximum_pointwise_absolute=0.000000000000e+00
+
+  b523_abaqus_artificial_energy_maximum_absolute=0.000000000000e+00
+
+  b523_abaqus_artificial_energy_maximum_internal_fraction=0.000000000000e+00
+
+  b523_compared_nodal_rows=480
+
+  b523_compared_integration_rows=640
+
+  b523_compared_energy_rows=20
+
+  b523_contact_position_relative_l2=2.182089957229e-06
+
+  b523_contact_position_relative_absolute_peak=3.893798027064e-06
+
+  b523_contact_position_maximum_pointwise_relative=6.762168224624e-06
+
+  b523_contact_position_maximum_pointwise_relative_index=76
+
+  b523_contact_position_maximum_pointwise_actual_norm=9.996209306388e-01
+
+  b523_contact_position_maximum_pointwise_reference_norm=9.996237916148e-01
+
+  b523_contact_position_maximum_difference_index=76
+
+  b523_contact_position_maximum_absolute_group_difference=6.759624240236e-06
+
+  b523_contact_position_zero_reference_count=0
+
+  
+  b523_contact_position_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_slip_vector_relative_l2=2.834342740709e-03
+
+  b523_contact_slip_vector_relative_absolute_peak=4.110560095361e-03
+
+  b523_contact_slip_vector_maximum_pointwise_relative=4.327845465080e-03
+
+  b523_contact_slip_vector_maximum_pointwise_relative_index=79
+
+  b523_contact_slip_vector_maximum_pointwise_actual_norm=5.000219724933e-03
+
+  
+  b523_contact_slip_vector_maximum_pointwise_reference_norm=4.993027046104e-03
+
+  b523_contact_slip_vector_maximum_difference_index=79
+
+  
+  b523_contact_slip_vector_maximum_absolute_group_difference=2.160904945850e-05
+
+  b523_contact_slip_vector_zero_reference_count=0
+
+  
+  b523_contact_slip_vector_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_normal_force_vector_relative_l2=2.966183537025e-05
+
+  b523_contact_normal_force_vector_relative_absolute_peak=3.641868064753e-05
+
+  
+  b523_contact_normal_force_vector_maximum_pointwise_relative=5.162911433395e-05
+
+  b523_contact_normal_force_vector_maximum_pointwise_relative_index=31
+
+  
+  b523_contact_normal_force_vector_maximum_pointwise_actual_norm=3.973755705268e+04
+
+  
+  b523_contact_normal_force_vector_maximum_pointwise_reference_norm=3.973550613770e+04
+
+  b523_contact_normal_force_vector_maximum_difference_index=76
+
+  
+  b523_contact_normal_force_vector_maximum_absolute_group_difference=3.569424996489e+00
+
+  b523_contact_normal_force_vector_zero_reference_count=0
+
+  
+  b523_contact_normal_force_vector_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_complete_force_vector_relative_l2=3.079217111424e-05
+
+  
+  b523_contact_complete_force_vector_relative_absolute_peak=4.944958506071e-05
+
+  
+  b523_contact_complete_force_vector_maximum_pointwise_relative=5.323695999715e-05
+
+  b523_contact_complete_force_vector_maximum_pointwise_relative_index=77
+
+  
+  b523_contact_complete_force_vector_maximum_pointwise_actual_norm=9.111397379065e+04
+
+  
+  b523_contact_complete_force_vector_maximum_pointwise_reference_norm=9.111215375451e+04
+
+  b523_contact_complete_force_vector_maximum_difference_index=77
+
+  
+  b523_contact_complete_force_vector_maximum_absolute_group_difference=4.850534084684e+00
+
+  b523_contact_complete_force_vector_zero_reference_count=0
+
+  
+  b523_contact_complete_force_vector_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_resultant_relative_l2=7.763075713701e-06
+
+  b523_contact_resultant_relative_absolute_peak=8.800385672967e-06
+
+  b523_contact_resultant_maximum_pointwise_relative=1.110427574015e-05
+
+  b523_contact_resultant_maximum_pointwise_relative_index=7
+
+  b523_contact_resultant_maximum_pointwise_actual_norm=1.401582877677e+05
+
+  b523_contact_resultant_maximum_pointwise_reference_norm=1.401582151565e+05
+
+  b523_contact_resultant_maximum_difference_index=19
+
+  b523_contact_resultant_maximum_absolute_group_difference=3.081183793567e+00
+
+  b523_contact_resultant_zero_reference_count=0
+
+  
+  b523_contact_resultant_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_moment_relative_l2=2.101977936985e-05
+
+  b523_contact_moment_relative_absolute_peak=2.439985758042e-05
+
+  b523_contact_moment_maximum_pointwise_relative=2.794699319250e-05
+
+  b523_contact_moment_maximum_pointwise_relative_index=7
+
+  b523_contact_moment_maximum_pointwise_actual_norm=1.129634004114e+05
+
+  b523_contact_moment_maximum_pointwise_reference_norm=1.129606409319e+05
+
+  b523_contact_moment_maximum_difference_index=19
+
+  b523_contact_moment_maximum_absolute_group_difference=6.662153942537e+00
+
+  b523_contact_moment_zero_reference_count=0
+
+  
+  b523_contact_moment_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_normal_force_center_relative_l2=1.188538279679e-05
+
+  b523_contact_normal_force_center_relative_absolute_peak=1.583105867170e-05
+
+  
+  b523_contact_normal_force_center_maximum_pointwise_relative=1.590774807911e-05
+
+  b523_contact_normal_force_center_maximum_pointwise_relative_index=19
+
+  
+  b523_contact_normal_force_center_maximum_pointwise_actual_norm=1.250462400675e+00
+
+  
+  b523_contact_normal_force_center_maximum_pointwise_reference_norm=1.250449990209e+00
+
+  b523_contact_normal_force_center_maximum_difference_index=19
+
+  
+  b523_contact_normal_force_center_maximum_absolute_group_difference=1.989184342977e-05
+
+  b523_contact_normal_force_center_zero_reference_count=0
+
+  
+  b523_contact_normal_force_center_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_shear_force_vector_relative_l2=8.998593264807e-04
+
+  b523_contact_shear_force_vector_relative_absolute_peak=1.267982029466e-03
+
+  
+  b523_contact_shear_force_vector_maximum_pointwise_relative=2.905609386849e-03
+
+  b523_contact_shear_force_vector_maximum_pointwise_relative_index=76
+
+  
+  b523_contact_shear_force_vector_maximum_pointwise_actual_norm=1.474466744169e+03
+
+  
+  b523_contact_shear_force_vector_maximum_pointwise_reference_norm=1.477914335756e+03
+
+  b523_contact_shear_force_vector_maximum_difference_index=79
+
+  
+  b523_contact_shear_force_vector_maximum_absolute_group_difference=4.916277221744e+00
+
+  b523_contact_shear_force_vector_zero_reference_count=0
+
+  
+  b523_contact_shear_force_vector_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_pressure_relative_l2=3.834917517710e-03
+
+  b523_contact_pressure_relative_absolute_peak=6.861023540838e-03
+
+  b523_contact_pressure_maximum_pointwise_relative=6.861023540838e-03
+
+  b523_contact_pressure_maximum_pointwise_relative_index=79
+
+  b523_contact_pressure_maximum_pointwise_relative_actual=3.865321905650e+05
+
+  
+  b523_contact_pressure_maximum_pointwise_relative_reference=3.892025182045e+05
+
+  b523_contact_pressure_maximum_absolute_difference_index=79
+
+  b523_contact_pressure_maximum_absolute_difference_actual=3.865321905650e+05
+
+  
+  b523_contact_pressure_maximum_absolute_difference_reference=3.892025182045e+05
+
+  b523_contact_pressure_zero_reference_count=0
+
+  
+  b523_contact_pressure_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_normal_force_magnitude_relative_l2=2.903478388573e-05
+
+  
+  b523_contact_normal_force_magnitude_relative_absolute_peak=2.907358706898e-05
+
+  
+  b523_contact_normal_force_magnitude_maximum_pointwise_relative=5.161416519181e-05
+
+  b523_contact_normal_force_magnitude_maximum_pointwise_relative_index=31
+
+  
+  b523_contact_normal_force_magnitude_maximum_pointwise_relative_actual=3.973755705268e+04
+
+  
+  b523_contact_normal_force_magnitude_maximum_pointwise_relative_reference=3.973550613770e+04
+
+  b523_contact_normal_force_magnitude_maximum_absolute_difference_index=76
+
+  
+  b523_contact_normal_force_magnitude_maximum_absolute_difference_actual=7.687665278035e+04
+
+  
+  b523_contact_normal_force_magnitude_maximum_absolute_difference_reference=7.688018778453e+04
+
+  b523_contact_normal_force_magnitude_zero_reference_count=0
+
+  
+  b523_contact_normal_force_magnitude_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_resultant_components_relative_l2=7.763075713701e-06
+
+  b523_contact_resultant_components_relative_absolute_peak=5.221393491513e-12
+
+  
+  b523_contact_resultant_components_maximum_pointwise_relative=3.697578799881e-04
+
+  b523_contact_resultant_components_maximum_pointwise_relative_index=58
+
+  
+  b523_contact_resultant_components_maximum_pointwise_relative_actual=-8.172822381285e+03
+
+  
+  b523_contact_resultant_components_maximum_pointwise_relative_reference=-8.169801532791e+03
+
+  b523_contact_resultant_components_maximum_absolute_difference_index=58
+
+  
+  b523_contact_resultant_components_maximum_absolute_difference_actual=-8.172822381285e+03
+
+  
+  b523_contact_resultant_components_maximum_absolute_difference_reference=-8.169801532791e+03
+
+  b523_contact_resultant_components_zero_reference_count=0
+
+  
+  b523_contact_resultant_components_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_moment_components_relative_l2=2.101977936985e-05
+
+  b523_contact_moment_components_relative_absolute_peak=2.943938525733e-05
+
+  
+  b523_contact_moment_components_maximum_pointwise_relative=1.463432726567e-03
+
+  b523_contact_moment_components_maximum_pointwise_relative_index=57
+
+  
+  b523_contact_moment_components_maximum_pointwise_relative_actual=2.039407815447e+03
+
+  
+  b523_contact_moment_components_maximum_pointwise_relative_reference=2.036427640593e+03
+
+  b523_contact_moment_components_maximum_absolute_difference_index=59
+
+  
+  b523_contact_moment_components_maximum_absolute_difference_actual=-1.989651573814e+05
+
+  
+  b523_contact_moment_components_maximum_absolute_difference_reference=-1.989593001419e+05
+
+  b523_contact_moment_components_zero_reference_count=0
+
+  
+  b523_contact_moment_components_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_normal_force_center_components_relative_l2=1.188538279679e-05
+
+  
+  b523_contact_normal_force_center_components_relative_absolute_peak=3.556521664077e-09
+
+  
+  b523_contact_normal_force_center_components_maximum_pointwise_relative=3.423719705614e-05
+
+  
+  b523_contact_normal_force_center_components_maximum_pointwise_relative_index=58
+
+  
+  b523_contact_normal_force_center_components_maximum_pointwise_relative_actual=5.451992863221e-01
+
+  
+  b523_contact_normal_force_center_components_maximum_pointwise_relative_reference=5.451806208657e-01
+
+  
+  b523_contact_normal_force_center_components_maximum_absolute_difference_index=58
+
+  
+  b523_contact_normal_force_center_components_maximum_absolute_difference_actual=5.451992863221e-01
+
+  
+  b523_contact_normal_force_center_components_maximum_absolute_difference_reference=5.451806208657e-01
+
+  b523_contact_normal_force_center_components_zero_reference_count=0
+
+  
+  b523_contact_normal_force_center_components_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+  b523_contact_state_match_fraction=9.875000000000e-01
+
+  b523_contact_transition_verified=1
+
+  b523_maximum_tangent_basis_error=0.000000000000e+00
+
+  b523_stored_heat_relative_l2=1.092494576582e-03
+
+  b523_stored_heat_relative_absolute_peak=1.664924271313e-03
+
+  b523_stored_heat_maximum_pointwise_relative=1.664924271313e-03
+
+  b523_stored_heat_maximum_pointwise_relative_index=19
+
+  b523_stored_heat_maximum_pointwise_relative_actual=6.382561177683e+03
+
+  b523_stored_heat_maximum_pointwise_relative_reference=6.393205380492e+03
+
+  b523_stored_heat_maximum_absolute_difference_index=19
+
+  b523_stored_heat_maximum_absolute_difference_actual=6.382561177683e+03
+
+  b523_stored_heat_maximum_absolute_difference_reference=6.393205380492e+03
+
+  b523_stored_heat_zero_reference_count=0
+
+  
+  b523_stored_heat_maximum_zero_reference_absolute_difference=0.000000000000e+00
+
+
+
+  verification stderr:
+
+  [FAIL] b523_reaction_heat_flux sample time_s=0.36 node=24
+  relative_error=0.00574681 absolute_error_W=26.7008 relative_tolerance=0.005
+  absolute_tolerance_W=0.05
+
+  [FAIL] b523_reaction_heat_flux sample time_s=0.38 node=18
+  relative_error=0.00510137 absolute_error_W=24.1243 relative_tolerance=0.005
+  absolute_tolerance_W=0.05
+
+  [FAIL] b523_reaction_heat_flux sample time_s=0.38 node=24
+  relative_error=0.00651923 absolute_error_W=30.8833 relative_tolerance=0.005
+  absolute_tolerance_W=0.05
+
+  [FAIL] b523_reaction_heat_flux sample time_s=0.4 node=18
+  relative_error=0.00568601 absolute_error_W=27.4027 relative_tolerance=0.005
+  absolute_tolerance_W=0.05
+
+  [FAIL] b523_reaction_heat_flux sample time_s=0.4 node=24
+  relative_error=0.0072854 absolute_error_W=35.1804 relative_tolerance=0.005
+  absolute_tolerance_W=0.05
+
+  [FAIL] b523_reaction_heat_flux exceeds its full-field gate
+
+
+
+
+
+33% tests passed, 4 tests failed out of 6
+
+Label Time Summary:
+abaqus               =   9.77 sec*proc (3 tests)
+acceptance           =  12.70 sec*proc (4 tests)
+audit                =   0.33 sec*proc (2 tests)
+contact              =   9.77 sec*proc (3 tests)
+creep                =   5.36 sec*proc (1 test)
+finite-strain        =   5.36 sec*proc (1 test)
+friction             =   5.36 sec*proc (1 test)
+hex8                 =   5.36 sec*proc (1 test)
+mechanical           =   5.36 sec*proc (1 test)
+plasticity           =   5.36 sec*proc (1 test)
+production           =   7.34 sec*proc (3 tests)
+release              =   0.33 sec*proc (2 tests)
+thermal              =   5.36 sec*proc (1 test)
+three-dimensional    =   5.36 sec*proc (1 test)
+transient            =   5.36 sec*proc (1 test)
+
+Total Test time (real) =   5.37 sec
+
+The following tests FAILED:
+	 81 - fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests (Failed)
+	268 - fuelsim_b114_cax8t_recovery_abaqus_tests (Failed)
+	304 - fuelsim_b14_nts_cax4t_abaqus_tests (Failed)
+	305 - fuelsim_b14_nts_cax8t_abaqus_tests (Failed)
+Errors while running CTest

@@ -1,0 +1,3 @@
+﻿"task","status","started","finished","error","PSComputerName","RunspaceId","PSShowComputerName"
+"b114_uniform_300","failed","2026-09-13T23:54:51.9729756Z","2026-09-13T23:54:58.0731957Z","Native runner log contains a solve or extraction failure","localhost","3bde13c7-d9bc-4048-939a-0e6291e34820","False"
+"b114_uniform_1200","failed","2026-09-13T23:54:52.0519019Z","2026-09-13T23:54:58.0721958Z","Native runner log contains a solve or extraction failure","localhost","ae2b26ab-27af-4f89-b7fb-2155cd67b3e8","False"

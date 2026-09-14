@@ -1,0 +1,38 @@
+[
+  {
+    "id": "b14_cax4t_pressure_only",
+    "directory": "",
+    "script": "run_probe.ps1",
+    "args": {
+      "SourceDirectory": "$SOURCE",
+      "JobName": "b14_cax4t_pressure_only"
+    }
+  },
+  {
+    "id": "b14_cax8t_pressure_only",
+    "directory": "",
+    "script": "run_probe.ps1",
+    "args": {
+      "SourceDirectory": "$SOURCE",
+      "JobName": "b14_cax8t_pressure_only"
+    }
+  },
+  {
+    "id": "b14_cax4t_pressure_first",
+    "directory": "",
+    "script": "run_probe.ps1",
+    "args": {
+      "SourceDirectory": "$SOURCE",
+      "JobName": "b14_cax4t_pressure_first"
+    }
+  },
+  {
+    "id": "b14_cax4t_pressure_last",
+    "directory": "",
+    "script": "run_probe.ps1",
+    "args": {
+      "SourceDirectory": "$SOURCE",
+      "JobName": "b14_cax4t_pressure_last"
+    }
+  }
+]

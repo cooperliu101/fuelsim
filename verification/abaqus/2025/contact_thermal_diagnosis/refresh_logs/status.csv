@@ -1,0 +1,5 @@
+﻿"task","status","started","finished","error","PSComputerName","RunspaceId","PSShowComputerName"
+"b14_cax4t_bulk1e9","success","2026-09-13T23:48:28.4083196Z","2026-09-13T23:48:40.7716153Z","","localhost","032509f7-1b54-4727-8d64-64a9f37b2330","False"
+"b14_cax4t_closed1000","success","2026-09-13T23:48:28.1860910Z","2026-09-13T23:48:40.7778942Z","","localhost","ecca789f-ab19-4a4d-8fa1-3e3f2419ce3e","False"
+"b14_cax8t_closed1000","success","2026-09-13T23:48:28.2469616Z","2026-09-13T23:48:40.7731283Z","","localhost","2644e141-7021-4aa8-849e-7d378e95f9e1","False"
+"b14_cax4t_closed500","success","2026-09-13T23:48:28.3253172Z","2026-09-13T23:48:40.7778942Z","","localhost","49c2d5c7-c8f7-452a-bbe7-945c40b338f7","False"

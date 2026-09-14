@@ -1,0 +1,4 @@
+﻿"task","status","started","finished","error","PSComputerName","RunspaceId","PSShowComputerName"
+"b14_cax4t_equilibrium","success","2026-09-13T23:53:07.6496320Z","2026-09-13T23:53:11.6255887Z","","localhost","b540c2fb-a0f2-4538-ab29-c59ec10c621a","False"
+"b14_cax4t_free_temperature","success","2026-09-13T23:53:07.8025370Z","2026-09-13T23:53:13.7046796Z","","localhost","b13a8db8-b44e-4b19-8316-c33106ce46d2","False"
+"b14_cax8t_equilibrium","success","2026-09-13T23:53:07.7247063Z","2026-09-13T23:53:13.8177434Z","","localhost","5ad06f20-7e03-44e8-ac27-58e9e7a9954a","False"

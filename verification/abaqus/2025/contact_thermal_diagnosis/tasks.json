@@ -1,0 +1,38 @@
+[
+  {
+    "id": "b14_cax4t_closed1000",
+    "directory": "",
+    "script": "run_probe.ps1",
+    "args": {
+      "SourceDirectory": "$SOURCE",
+      "JobName": "b14_cax4t_closed1000"
+    }
+  },
+  {
+    "id": "b14_cax8t_closed1000",
+    "directory": "",
+    "script": "run_probe.ps1",
+    "args": {
+      "SourceDirectory": "$SOURCE",
+      "JobName": "b14_cax8t_closed1000"
+    }
+  },
+  {
+    "id": "b14_cax4t_closed500",
+    "directory": "",
+    "script": "run_probe.ps1",
+    "args": {
+      "SourceDirectory": "$SOURCE",
+      "JobName": "b14_cax4t_closed500"
+    }
+  },
+  {
+    "id": "b14_cax4t_bulk1e9",
+    "directory": "",
+    "script": "run_probe.ps1",
+    "args": {
+      "SourceDirectory": "$SOURCE",
+      "JobName": "b14_cax4t_bulk1e9"
+    }
+  }
+]
