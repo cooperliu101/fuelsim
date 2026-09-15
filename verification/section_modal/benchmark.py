@@ -49,16 +49,14 @@ def benchmark(executable, directory, cpu, repeats, baseline_executable=None, sol
             records.append(dict(repeat=repeat, model=kind, cpu=cpu, executable_sha256=hashes[kind], **values))
             print(records[-1], flush=True)
         # Accuracy is checked outside timed production execution, over every reference point.
-        if solid_ends:
-            compare(directory / str(repeat) / 'modal', 'transverse_hybrid', [12], 'plate_solid_ends_128_32.e',
-                    accuracy_count=12, reference_path=directory / str(repeat) / 'solid' / 'transverse_support_solid.e',
-                    diagnostics=True, point_support=True)
-        else:
-            compare(directory / str(repeat) / 'modal', 'transverse_local', [12], 'plate_local.e', accuracy_count=12,
-                    reference_path=directory / str(repeat) / 'solid' / 'transverse_refined_solid.e')
-        if baseline_executable is not None:
-            compare(directory / str(repeat) / 'baseline', 'transverse_local', [12], 'plate_local.e', accuracy_count=12,
-                    reference_path=directory / str(repeat) / 'solid' / 'transverse_refined_solid.e')
+        for kind in (['modal', 'baseline'] if baseline_executable is not None else ['modal']):
+            if solid_ends:
+                compare(directory / str(repeat) / kind, 'transverse_hybrid', [12], 'plate_solid_ends_128_32.e',
+                        accuracy_count=12, reference_path=directory / str(repeat) / 'solid' / 'transverse_support_solid.e',
+                        diagnostics=True, point_support=True)
+            else:
+                compare(directory / str(repeat) / kind, 'transverse_local', [12], 'plate_local.e', accuracy_count=12,
+                        reference_path=directory / str(repeat) / 'solid' / 'transverse_refined_solid.e')
     with (directory / 'benchmark.csv').open('w') as stream:
         writer = csv.DictWriter(stream, fieldnames=records[0].keys(), lineterminator='\n')
         writer.writeheader()
@@ -74,6 +72,4 @@ if __name__ == '__main__':
     parser.add_argument('--baseline-executable', type=Path)
     parser.add_argument('--solid-ends', action='store_true')
     args = parser.parse_args()
-    if args.solid_ends and args.baseline_executable:
-        parser.error('The native solid end study compares the same executable in its two production paths')
     benchmark(args.executable, args.directory, args.cpu, args.repeats, args.baseline_executable, args.solid_ends)

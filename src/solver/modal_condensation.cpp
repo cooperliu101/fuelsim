@@ -52,13 +52,19 @@ std::vector<double> gather(Vec vector) {
 }
 
 void direct_solver(Mat matrix, KSP* solver) {
+    // These blocks are Hessians of linear elastic energy with symmetric
+    // displacement constraints. Multipliers make them indefinite: do not
+    // advertise positive definiteness. PETSc's MUMPS Cholesky entry selects
+    // pivoted symmetric-indefinite LDL^T when MAT_SPD is false (MUMPS SYM=2).
+    check(MatSetOption(matrix, MAT_SYMMETRIC, PETSC_TRUE));
+    check(MatSetOption(matrix, MAT_SPD, PETSC_FALSE));
     check(KSPCreate(PETSC_COMM_WORLD, solver));
     check(KSPSetOperators(*solver, matrix, matrix));
     check(KSPSetType(*solver, KSPPREONLY));
     check(KSPSetErrorIfNotConverged(*solver, PETSC_TRUE));
     PC pc;
     check(KSPGetPC(*solver, &pc));
-    check(PCSetType(pc, PCLU));
+    check(PCSetType(pc, PCCHOLESKY));
     check(PCFactorSetMatSolverType(pc, MATSOLVERMUMPS));
 }
 

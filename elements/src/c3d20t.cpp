@@ -831,22 +831,49 @@ void add_mechanical_point_system(const Hex20MechanicalQuadraturePoint& point,
     if (strain_formulation == StrainFormulation::finite)
         stress = rotate_cartesian_tensor(stress, kinematics.rotation);
     std::array<adlite::Scalar, 60> point_residual{};
-    point_residual.fill(adlite::Scalar(0.0));
-    for (std::size_t node = 0; node < 20; ++node) {
-        const adlite::Scalar gx = kinematics.current_gradient[node][0], gy = kinematics.current_gradient[node][1],
-                             gz = kinematics.current_gradient[node][2];
-        point_residual[node] +=
-            kinematics.current_weighted_measure * (stress.xx * gx + stress.xy * gy + stress.xz * gz);
-        point_residual[20 + node] +=
-            kinematics.current_weighted_measure * (stress.xy * gx + stress.yy * gy + stress.yz * gz);
-        point_residual[40 + node] +=
-            kinematics.current_weighted_measure * (stress.xz * gx + stress.yz * gy + stress.zz * gz);
+    const bool small = strain_formulation == StrainFormulation::small;
+    const std::array<const adlite::Scalar*, 6> stress_components =
+        {&stress.xx, &stress.yy, &stress.zz, &stress.xy, &stress.yz, &stress.xz};
+    std::array<std::array<double, point_width>, 6> stress_derivatives{};
+    if (small) {
+        // Reference gradients and volume are passive in small strain. Extract
+        // the six stress derivatives once, rather than constructing sixty AD
+        // residuals with repeated passive gradient products. The width-ten
+        // kinematic chain and width-seven material tangent above are unchanged.
+        for (std::size_t c = 0; c < 6; ++c)
+            stress_components[c]->copy_derivatives(stress_derivatives[c].data(), point_width);
+    } else {
+        point_residual.fill(adlite::Scalar(0.0));
+        for (std::size_t node = 0; node < 20; ++node) {
+            const adlite::Scalar gx = kinematics.current_gradient[node][0], gy = kinematics.current_gradient[node][1],
+                                 gz = kinematics.current_gradient[node][2];
+            point_residual[node] +=
+                kinematics.current_weighted_measure * (stress.xx * gx + stress.xy * gy + stress.xz * gz);
+            point_residual[20 + node] +=
+                kinematics.current_weighted_measure * (stress.xy * gx + stress.yy * gy + stress.yz * gz);
+            point_residual[40 + node] +=
+                kinematics.current_weighted_measure * (stress.xz * gx + stress.yz * gy + stress.zz * gz);
+        }
     }
+    constexpr std::array<std::array<std::size_t, 3>, 3> traction_components = {{{0, 3, 5}, {3, 1, 4}, {5, 4, 2}}};
     std::array<double, point_width> derivatives{};
     for (std::size_t component = 0; component < 3; ++component)
         for (std::size_t node = 0; node < 20; ++node) {
             const std::size_t row = 8 + 20 * component + node;
-            point_residual[20 * component + node].copy_derivatives(derivatives.data(), derivatives.size());
+            if (small) {
+                const auto& c = traction_components[component];
+                const auto& g = point.displacement_gradient[node];
+                for (std::size_t d = 0; d < point_width; ++d)
+                    derivatives[d] = point.weighted_measure
+                                     * (stress_derivatives[c[0]][d] * g[0] + stress_derivatives[c[1]][d] * g[1]
+                                         + stress_derivatives[c[2]][d] * g[2]);
+                residual[row] += point.weighted_measure
+                                 * (stress_components[c[0]]->value() * g[0] + stress_components[c[1]]->value() * g[1]
+                                     + stress_components[c[2]]->value() * g[2]);
+            } else {
+                point_residual[20 * component + node].copy_derivatives(derivatives.data(), derivatives.size());
+                residual[row] += point_residual[20 * component + node].value();
+            }
             for (std::size_t other = 0; other < 8; ++other)
                 jacobian[row * hex20_local_dof_count + other] +=
                     derivatives[temperature_index] * point.temperature_shape[other];
@@ -858,7 +885,6 @@ void add_mechanical_point_system(const Hex20MechanicalQuadraturePoint& point,
                                    * point.displacement_gradient[other][direction];
                     jacobian[row * hex20_local_dof_count + 8 + 20 * displacement_component + other] += chained;
                 }
-            residual[row] += point_residual[20 * component + node].value();
         }
 }
 

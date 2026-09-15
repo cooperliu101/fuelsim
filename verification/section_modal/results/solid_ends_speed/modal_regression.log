@@ -1,0 +1,8 @@
+case=axial_local, modes=12, modal_dofs=1044, local_dofs=32256, section_basis_size=288, solid_displacement_dofs=510315, displacement_L2=8.8188422e-06, axial_stress_L2=0.0014246933, stress_tensor_L2=0.0024880421, bending_moment_L2=, bending_moment_absolute=1.4790954e-11, axial_force_absolute=0.11610278, energy_relative=4.5457225e-06, modal_energy=5.705945e-05, solid_energy=5.7059191e-05
+axial PASS
+case=bending_local, modes=12, modal_dofs=1044, local_dofs=32256, section_basis_size=288, solid_displacement_dofs=510315, displacement_L2=1.0828478e-05, axial_stress_L2=0.0021697004, stress_tensor_L2=0.0040045426, bending_moment_L2=0.00023312386, bending_moment_absolute=1.5122168e-06, axial_force_absolute=1.6364582e-10, energy_relative=6.7541916e-06, modal_energy=4.2735992e-09, solid_energy=4.2735704e-09
+bending PASS
+case=transverse_local, modes=12, modal_dofs=1044, local_dofs=32256, section_basis_size=288, solid_displacement_dofs=510315, displacement_L2=5.2014528e-06, axial_stress_L2=0.0035403637, stress_tensor_L2=0.008354043, bending_moment_L2=0.0004930182, bending_moment_absolute=3.0113636e-05, axial_force_absolute=6.2823609e-06, energy_relative=3.6600567e-06, modal_energy=3.3780136e-07, solid_energy=3.3780013e-07
+transverse PASS
+case=nonuniform_local, modes=12, modal_dofs=1044, local_dofs=32256, section_basis_size=288, solid_displacement_dofs=510315, displacement_L2=6.6435355e-06, axial_stress_L2=0.0036483904, stress_tensor_L2=0.0087297602, bending_moment_L2=0.00049302352, bending_moment_absolute=3.0113637e-05, axial_force_absolute=6.2823612e-06, energy_relative=4.3894485e-07, modal_energy=3.3871845e-07, solid_energy=3.387186e-07
+nonuniform PASS

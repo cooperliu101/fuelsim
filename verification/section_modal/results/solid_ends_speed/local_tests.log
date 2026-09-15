@@ -1,0 +1,67 @@
+Start testing: Sep 15 23:57 CST
+----------------------------------------------------------
+16/326 Testing: fuelsim_c3d20rt_tests
+16/326 Test: fuelsim_c3d20rt_tests
+Command: "/home/cooper/ai_project/fuelsim/build/elements/fuelsim_c3d20rt_tests"
+Directory: /home/cooper/ai_project/fuelsim/build
+"fuelsim_c3d20rt_tests" start time: Sep 15 23:57 CST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"fuelsim_c3d20rt_tests" end time: Sep 15 23:57 CST
+"fuelsim_c3d20rt_tests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+15/326 Testing: fuelsim_c3d20t_tests
+15/326 Test: fuelsim_c3d20t_tests
+Command: "/home/cooper/ai_project/fuelsim/build/elements/fuelsim_c3d20t_tests"
+Directory: /home/cooper/ai_project/fuelsim/build
+"fuelsim_c3d20t_tests" start time: Sep 15 23:57 CST
+Output:
+----------------------------------------------------------
+hex20_material_value_path_relative_error=0
+hex20_directional_jacobian_relative_error=1.21825e-07
+hex20_finite_directional_jacobian_relative_error=8.70295e-08
+hex20_finite_thermal_directional_jacobian_relative_error=8.70295e-08
+hex20_residual_path_relative_error=0
+hex20_finite_residual_path_relative_error=0
+All HEX20-U2/T1 kernel tests passed
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"fuelsim_c3d20t_tests" end time: Sep 15 23:57 CST
+"fuelsim_c3d20t_tests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+1/326 Testing: fuelsim_modal_beam_tests
+1/326 Test: fuelsim_modal_beam_tests
+Command: "/home/cooper/ai_project/fuelsim/build/fuelsim_modal_beam_tests"
+Directory: /home/cooper/ai_project/fuelsim/build
+"fuelsim_modal_beam_tests" start time: Sep 15 23:57 CST
+Output:
+----------------------------------------------------------
+solid_interface_directional_derivative_error=2.01501e-14
+width_strips=1 modes=25
+width_strips=2 modes=38
+width_directional_derivative_error=1.65232e-14
+width_strips=4 modes=64
+condensation_solution_error=6.36814e-13
+condensation_solution_error=4.78262e-13
+beam_extension_energy_error=2.66454e-15
+beam_bending_energy_error=1.11022e-15
+beam_mixed=0 directional_derivative_error=7.01589e-14 symmetry=2.39154e-15
+beam_mixed=1 directional_derivative_error=4.82765e-14 symmetry=2.39154e-15
+beam_mixed=0 directional_derivative_error=1.18026e-13 symmetry=2.87282e-15
+<end of output>
+Test time =   1.11 sec
+----------------------------------------------------------
+Test Passed.
+"fuelsim_modal_beam_tests" end time: Sep 15 23:57 CST
+"fuelsim_modal_beam_tests" time elapsed: 00:00:01
+----------------------------------------------------------
+
+End testing: Sep 15 23:57 CST

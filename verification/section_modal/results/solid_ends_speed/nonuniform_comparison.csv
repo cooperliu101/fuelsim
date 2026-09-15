@@ -1,0 +1,2 @@
+case,modes,modal_dofs,local_dofs,section_basis_size,solid_displacement_dofs,displacement_L2,axial_stress_L2,stress_tensor_L2,bending_moment_L2,bending_moment_absolute,axial_force_absolute,energy_relative,modal_energy,solid_energy,modal_root_displacement,solid_root_displacement
+nonuniform_hybrid,12,1188,79680,12,510315,6.467783828087573e-06,0.0004936035323958218,0.0021729927747797064,7.936567230552674e-06,4.996559770905143e-07,2.5330741610131435e-06,7.736879290121124e-06,1.4303396156576875e-06,1.4303506821082575e-06,8.346335013819269e-07,8.346349378815868e-07
