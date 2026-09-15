@@ -1,4 +1,4 @@
-"""CTest driver: copy complete tracked cards unchanged and run the production CLI."""
+"""Automatic and manual verification driver: copy complete tracked cards unchanged and run the production CLI."""
 import argparse
 import csv
 import os
@@ -79,6 +79,9 @@ if __name__ == '__main__':
     if args.solid_ends:
         name = args.case + '_hybrid_12'
         if args.mpiexec:
+            if args.serial is None:
+                args.serial = args.directory / 'serial'
+                run(args.executable, source, args.serial, name, [], 'plate_solid_ends_128_32.e')
             run(args.executable, source, args.directory, name, [str(args.mpiexec), '-n', '2'], 'plate_solid_ends_128_32.e')
             mpi_check(args.serial, args.directory, name)
         else:
@@ -88,9 +91,12 @@ if __name__ == '__main__':
             compare(args.directory, args.case + '_hybrid', [12], 'plate_solid_ends_128_32.e', accuracy_count=12,
                     reference_path=args.directory / (reference + '.e'), diagnostics=True, point_support=True)
     elif args.accuracy and args.mpiexec:
-        if args.case != 'nonuniform' or args.serial is None:
-            raise ValueError('Refined MPI comparison requires the serial nonuniform case')
+        if args.case != 'nonuniform':
+            raise ValueError('Refined MPI comparison requires the nonuniform case')
         name = 'nonuniform_local_12'
+        if args.serial is None:
+            args.serial = args.directory / 'serial'
+            run(args.executable, source, args.serial, name, [], 'plate_local.e')
         run(args.executable, source, args.directory, name, [str(args.mpiexec), '-n', '2'], 'plate_local.e')
         mpi_check(args.serial, args.directory, name)
     elif args.accuracy:

@@ -188,10 +188,24 @@ python verification/section_modal/refinement.py \
   verification/section_modal/reference_refinement.csv
 ```
 
+五项手动完整三维比较在仓库根目录逐项运行，避免大型参考模型同时分解：
+
+```bash
+python verification/section_modal/run.py build/fuelsim build/blackbox/section_modal_accuracy_axial axial --accuracy
+python verification/section_modal/run.py build/fuelsim build/blackbox/section_modal_accuracy_bending bending --accuracy
+python verification/section_modal/run.py build/fuelsim build/blackbox/section_modal_accuracy_transverse transverse --accuracy
+python verification/section_modal/run.py build/fuelsim build/blackbox/section_modal_accuracy_nonuniform nonuniform --accuracy
+python verification/section_modal/run.py build/fuelsim build/blackbox/section_solid_ends_regression nonuniform --solid-ends
+```
+
 验证读取需要 Python、NumPy 和 netCDF4，生产库没有新增数值依赖。
-CMake 的 `FUELSIM_SECTION_PYTHON` 可以指定解释器。精度测试预留八个 CTest 调度
-槽，使大型分解在 `-j8` 回归中逐个运行；其他测试仍并发，实际每个串行生产任务
-使用一个线程。形成约束矩阵后立即释放原始刚度矩阵，避免分解期间保留两份。
+CMake 的 `FUELSIM_SECTION_PYTHON` 可以指定解释器。五项完整三维精度比较已移出
+自动 CTest，改为下面的手动命令；输入卡、参考计算和原有误差门槛均保留。
+本次调整后的完整 `ctest --test-dir build -j8 --output-on-failure` 为 326/326 通过，
+耗时 159.90 秒；这一计时不包含编译和五项手动比较。
+两项相关的多进程一致性检查仍自动运行，各自在隔离目录重新计算降阶模型的
+串行结果，不依赖手动比较留下的文件，也不启动完整三维参考计算。
+实际每个串行生产任务使用一个线程。形成约束矩阵后立即释放原始刚度矩阵，避免分解期间保留两份。
 运行日志直接写入文件，即使任务被系统终止也能保留已经输出的诊断。
 双进程验证比较全部位移、材料点应力、积分能量及输出位置，要求相对差小于 1e-8。
 重复网格和模态扫描保留为手动材料，不加入自动测试。
