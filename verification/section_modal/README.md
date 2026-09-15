@@ -161,6 +161,10 @@ ctest --test-dir build -j8 --output-on-failure
 # 固定单个 CPU、单线程、相同 MUMPS 的外部计时；包含预处理、求解和结果输出。
 python verification/section_modal/benchmark.py build/fuelsim build/blackbox/section_modal_benchmark --cpu 0
 
+# 若已按相同编译器和依赖保存旧版程序，可在同一次交替计时中比较旧版、新版和三维参考。
+python verification/section_modal/benchmark.py build/fuelsim build/blackbox/section_modal_benchmark \
+  --cpu 0 --baseline-executable /path/to/previous/fuelsim
+
 # 手动三维参考检查。网格程序不生成或修改输入卡。
 python verification/section_modal/mesh.py
 build/fuelsim -i verification/section_modal/transverse_mesh_check.fsi
@@ -177,3 +181,13 @@ CMake 的 `FUELSIM_SECTION_PYTHON` 可以指定解释器。精度测试预留八
 运行日志直接写入文件，即使任务被系统终止也能保留已经输出的诊断。
 双进程验证比较全部位移、材料点应力、积分能量及输出位置，要求相对差小于 1e-8。
 重复网格和模态扫描保留为手动材料，不加入自动测试。
+
+性能优化复用实际截面反射信息，使理论上互不耦合的模式保持稀疏；反射不成立时
+保留一般耦合。位移边界只有在其节点集完整配对时才进行可逆行变换，非均匀载荷
+仍按原输入逐面投影。残量使用完整材料点应力积分，批量右端项求解保留全部局部
+耦合。推导、适用条件和计时结果见 [计算成本说明](../../docs/section-modal-efficiency.md)。
+基准结果记录各可执行文件的 SHA256；预处理、结果恢复和输出都计入外部总时间，
+不会将离线缓存命中或省略输出的运行混入对比。
+最终单核两轮平均：旧版 44.105 s、新版 11.37 s、完整三维参考 76.90 s；新版相对
+旧版加速 3.879 倍，相对本目录三维参考加速 6.763 倍。峰值内存分别为 4.81、1.48、
+9.38 GiB。两轮旧版和新版均重新通过完整物理场检查；最终统一回归为 329/329 通过。

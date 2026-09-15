@@ -11,15 +11,14 @@ void check(PetscErrorCode code) {
 
 struct Objects final {
     IS local_ids = nullptr, retained_ids = nullptr;
-    Mat local = nullptr, coupling = nullptr, schur = nullptr;
+    Mat local = nullptr, coupling = nullptr, schur = nullptr, responses = nullptr, response_rhs = nullptr;
     KSP local_solver = nullptr, retained_solver = nullptr;
     Vec local_rhs = nullptr, local_solution = nullptr;
     Vec retained_rhs = nullptr, retained_solution = nullptr, retained_work = nullptr;
-    std::vector<Vec> responses;
 
     ~Objects() {
-        for (auto& response : responses)
-            (void)VecDestroy(&response);
+        (void)MatDestroy(&responses);
+        (void)MatDestroy(&response_rhs);
         (void)VecDestroy(&retained_work);
         (void)VecDestroy(&retained_solution);
         (void)VecDestroy(&retained_rhs);
@@ -56,6 +55,7 @@ void direct_solver(Mat matrix, KSP* solver) {
     check(KSPCreate(PETSC_COMM_WORLD, solver));
     check(KSPSetOperators(*solver, matrix, matrix));
     check(KSPSetType(*solver, KSPPREONLY));
+    check(KSPSetErrorIfNotConverged(*solver, PETSC_TRUE));
     PC pc;
     check(KSPGetPC(*solver, &pc));
     check(PCSetType(pc, PCLU));
@@ -139,18 +139,51 @@ class ModalStaticCondensation::Impl final {
                 _ports.push_back(static_cast<PetscInt>(i));
         if (_ports.empty())
             throw std::invalid_argument("Local modal region has no retained interface");
+        // All interface responses share one factorization. Supply them as a
+        // distributed dense RHS block so MUMPS can traverse its factors once
+        // for multiple columns, rather than issuing one scalar solve per port.
+        PetscInt local_rows, rows;
+        check(MatGetLocalSize(_objects.local, &local_rows, nullptr));
+        check(MatGetSize(_objects.local, &rows, nullptr));
+        check(MatCreateDense(PETSC_COMM_WORLD,
+            local_rows,
+            PETSC_DECIDE,
+            rows,
+            static_cast<PetscInt>(_ports.size()),
+            nullptr,
+            &_objects.response_rhs));
+        check(MatZeroEntries(_objects.response_rhs));
+        check(MatDuplicate(_objects.response_rhs, MAT_DO_NOT_COPY_VALUES, &_objects.responses));
+        PetscScalar* columns;
+        PetscInt leading;
+        check(MatDenseGetLDA(_objects.response_rhs, &leading));
+        check(MatDenseGetArray(_objects.response_rhs, &columns));
+        std::vector<PetscInt> port_index(flags.size(), -1);
+        for (std::size_t j = 0; j < _ports.size(); ++j)
+            port_index[static_cast<std::size_t>(_ports[j])] = static_cast<PetscInt>(j);
+        check(MatGetOwnershipRange(_objects.coupling, &begin, &end));
+        for (PetscInt i = begin; i < end; ++i) {
+            PetscInt count;
+            const PetscInt* ids;
+            const PetscScalar* values;
+            check(MatGetRow(_objects.coupling, i, &count, &ids, &values));
+            for (PetscInt j = 0; j < count; ++j)
+                if (values[j] != 0.0)
+                    columns[port_index[static_cast<std::size_t>(ids[j])] * leading + i - begin] = values[j];
+            check(MatRestoreRow(_objects.coupling, i, &count, &ids, &values));
+        }
+        check(MatDenseRestoreArray(_objects.response_rhs, &columns));
+        check(MatAssemblyBegin(_objects.response_rhs, MAT_FINAL_ASSEMBLY));
+        check(MatAssemblyEnd(_objects.response_rhs, MAT_FINAL_ASSEMBLY));
+        check(KSPMatSolve(_objects.local_solver, _objects.response_rhs, _objects.responses));
+        check(MatDestroy(&_objects.response_rhs));
         check(MatGetOwnershipRange(_objects.schur, &begin, &end));
-        for (auto port : _ports) {
-            check(VecSet(_objects.retained_rhs, 0.0));
-            if (PetscGlobalRank == 0)
-                check(VecSetValue(_objects.retained_rhs, port, 1.0, INSERT_VALUES));
-            check(VecAssemblyBegin(_objects.retained_rhs));
-            check(VecAssemblyEnd(_objects.retained_rhs));
-            check(MatMult(_objects.coupling, _objects.retained_rhs, _objects.local_rhs));
-            _objects.responses.push_back(nullptr);
-            check(VecDuplicate(_objects.local_rhs, &_objects.responses.back()));
-            solve_direct(_objects.local_solver, _objects.local_rhs, _objects.responses.back());
-            check(MatMultTranspose(_objects.coupling, _objects.responses.back(), _objects.retained_work));
+        for (std::size_t j = 0; j < _ports.size(); ++j) {
+            const auto port = _ports[j];
+            Vec response = nullptr;
+            check(MatDenseGetColumnVecRead(_objects.responses, static_cast<PetscInt>(j), &response));
+            check(MatMultTranspose(_objects.coupling, response, _objects.retained_work));
+            check(MatDenseRestoreColumnVecRead(_objects.responses, static_cast<PetscInt>(j), &response));
             const PetscScalar* values;
             check(VecGetArrayRead(_objects.retained_work, &values));
             for (PetscInt i = begin; i < end; ++i)
@@ -176,10 +209,12 @@ class ModalStaticCondensation::Impl final {
         check(VecAXPY(_objects.retained_rhs, -1.0, _objects.retained_work));
         solve_direct(_objects.retained_solver, _objects.retained_rhs, _objects.retained_solution);
         const auto retained = gather(_objects.retained_solution);
-        for (std::size_t j = 0; j < _ports.size(); ++j)
-            check(VecAXPY(_objects.local_solution,
-                -retained[static_cast<std::size_t>(_ports[j])],
-                _objects.responses[j]));
+        for (std::size_t j = 0; j < _ports.size(); ++j) {
+            Vec response = nullptr;
+            check(MatDenseGetColumnVecRead(_objects.responses, static_cast<PetscInt>(j), &response));
+            check(VecAXPY(_objects.local_solution, -retained[static_cast<std::size_t>(_ports[j])], response));
+            check(MatDenseRestoreColumnVecRead(_objects.responses, static_cast<PetscInt>(j), &response));
+        }
         check(VecGetSubVector(solution, _objects.local_ids, &view));
         check(VecCopy(_objects.local_solution, view));
         check(VecRestoreSubVector(solution, _objects.local_ids, &view));

@@ -118,6 +118,29 @@ std::vector<SymmetryComponent> symmetry_components(const std::vector<double>& fi
         }
     return result;
 }
+
+void retain_mode(ReducedSectionBasis& basis, SectionMode mode) {
+    // Auxiliary solves have roundoff in otherwise exact symmetry sectors.
+    // Apply the known vector reflection to every kinematic coefficient, so
+    // stiffness and physical constraints use the same discrete symmetry.
+    for (std::size_t axis = 0; axis < 2; ++axis) {
+        const auto& map = basis.reflected_nodes[axis];
+        if (map.empty()) {
+            mode.reflection_parity[axis] = 0;
+            continue;
+        }
+        const auto n = map.size();
+        for (auto& field : mode.coefficient) {
+            const auto original = field;
+            for (std::size_t c = 0; c < 3; ++c) {
+                const double sign = mode.reflection_parity[axis] * (c == axis ? -1.0 : 1.0);
+                for (std::size_t i = 0; i < n; ++i)
+                    field[c * n + i] = 0.5 * (original[c * n + i] + sign * original[c * n + map[i]]);
+            }
+        }
+    }
+    basis.modes.push_back(std::move(mode));
+}
 } // namespace
 
 ReducedSectionBasis
@@ -128,9 +151,11 @@ build_reduced_section_basis(const CrossSection& section, bool torsion, std::size
         throw std::invalid_argument("Requested modes exceed the independent three-component section space");
     const auto classic = build_classic_section_basis(section);
     ReducedSectionBasis result;
+    result.reflected_nodes = section_reflections(section);
     for (std::size_t i = 0; i < 3; ++i) {
         SectionMode mode;
         mode.kind = static_cast<SectionMode::Kind>(i);
+        mode.reflection_parity = {i == 1 ? -1 : 1, i == 2 ? -1 : 1};
         for (auto& coefficient : mode.coefficient)
             coefficient.resize(3 * n);
         for (std::size_t node = 0; node < n; ++node) {
@@ -145,19 +170,20 @@ build_reduced_section_basis(const CrossSection& section, bool torsion, std::size
             mode.coefficient[static_cast<std::size_t>(order)][node] = classic.modes[i].correction[node];
             mode.coefficient[static_cast<std::size_t>(order)][n + node] = classic.modes[i].correction[n + node];
         }
-        result.modes.push_back(std::move(mode));
+        retain_mode(result, std::move(mode));
     }
     if (torsion) {
         const auto source = build_section_torsion_mode(section);
         SectionMode mode;
         mode.kind = SectionMode::Kind::torsion;
+        mode.reflection_parity = {-1, -1};
         for (auto& coefficient : mode.coefficient)
             coefficient.resize(3 * n);
         for (std::size_t i = 0; i < 2 * n; ++i)
             mode.coefficient[0][i] = source.transverse[i];
         for (std::size_t i = 0; i < n; ++i)
             mode.coefficient[1][2 * n + i] = source.warping.axial[i];
-        result.modes.push_back(std::move(mode));
+        retain_mode(result, std::move(mode));
     }
     if (enrichment_modes == 0)
         return result;
@@ -169,17 +195,18 @@ build_reduced_section_basis(const CrossSection& section, bool torsion, std::size
     for (std::size_t c = 0; c < 2 && added < enrichment_modes; ++c) {
         SectionMode mode;
         mode.kind = c == 0 ? SectionMode::Kind::shear_x : SectionMode::Kind::shear_y;
+        mode.reflection_parity = {c == 0 ? -1 : 1, c == 1 ? -1 : 1};
         for (auto& coefficient : mode.coefficient)
             coefficient.resize(3 * n);
         for (std::size_t node = 0; node < n; ++node)
             mode.coefficient[0][2 * n + node] =
                 c == 0 ? section.nodes()[node].x - classic.origin.x : section.nodes()[node].y - classic.origin.y;
-        result.modes.push_back(std::move(mode));
+        retain_mode(result, std::move(mode));
         ++added;
     }
     if (added == enrichment_modes)
         return result;
-    const auto reflections = section_reflections(section);
+    const auto& reflections = result.reflected_nodes;
     // The classical modes prescribe lateral Poisson contraction through axial
     // derivatives. Independent amplitudes of these same transverse fields are
     // essential at a physical clamp: otherwise its nodal constraints force the
@@ -246,13 +273,14 @@ build_reduced_section_basis(const CrossSection& section, bool torsion, std::size
             const auto axial = warping.solve(normalized);
             SectionMode mode;
             mode.kind = kind;
+            mode.reflection_parity = parity;
             for (auto& coefficient : mode.coefficient)
                 coefficient.resize(3 * n);
             for (std::size_t i = 0; i < 2 * n; ++i)
                 mode.coefficient[0][i] = normalized[i];
             for (std::size_t i = 0; i < n; ++i)
                 mode.coefficient[1][2 * n + i] = axial.axial[i];
-            result.modes.push_back(std::move(mode));
+            retain_mode(result, std::move(mode));
             ++added;
             return true;
         };
@@ -343,11 +371,12 @@ build_reduced_section_basis(const CrossSection& section, bool torsion, std::size
                 continue;
             SectionMode mode;
             mode.kind = SectionMode::Kind::axial_warping;
+            mode.reflection_parity = part.parity;
             for (auto& coefficient : mode.coefficient)
                 coefficient.resize(3 * n);
             for (std::size_t i = 0; i < n; ++i)
                 mode.coefficient[0][2 * n + i] = axial_basis.back()[i];
-            result.modes.push_back(std::move(mode));
+            retain_mode(result, std::move(mode));
             ++added;
         }
     };

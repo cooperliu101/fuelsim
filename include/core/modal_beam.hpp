@@ -25,10 +25,14 @@ struct SectionMode final {
     Kind kind;
     // Coefficients of q, q', q''; each field-major [ux(:),uy(:),uz(:)].
     std::array<std::vector<double>, 3> coefficient;
+    // Eigenvalues of physical vector reflection: -1 or +1, 0 if unavailable.
+    std::array<int, 2> reflection_parity{};
 };
 
 struct ReducedSectionBasis final {
     std::vector<SectionMode> modes;
+    // Actual discrete section/material symmetries, not assumed geometry.
+    std::array<std::vector<std::size_t>, 2> reflected_nodes;
 };
 
 struct ModalBeamPoint final {

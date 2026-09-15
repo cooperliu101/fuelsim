@@ -106,6 +106,18 @@ ModalSectionLinearization linearize_modal_section(const CrossSection& section, c
     result.mode_count = basis.modes.size();
     const auto size = 4 * result.mode_count;
     result.tangent.resize(size * size);
+    std::vector<bool> coupled(result.mode_count * result.mode_count, true);
+    for (std::size_t i = 0; i < result.mode_count; ++i)
+        for (std::size_t j = 0; j < result.mode_count; ++j)
+            for (std::size_t axis = 0; axis < 2; ++axis) {
+                const int left = basis.modes[i].reflection_parity[axis];
+                const int right = basis.modes[j].reflection_parity[axis];
+                // Reflection preserves the material energy: Kij=pi*pj*Kij.
+                // Opposite sectors therefore have an exact structural zero.
+                // No small-entry threshold or matrix regularization is used.
+                if (!basis.reflected_nodes[axis].empty() && left * right == -1)
+                    coupled[result.mode_count * i + j] = false;
+            }
     constexpr std::array<double, 6> metric{1.0, 1.0, 1.0, 2.0, 2.0, 2.0};
     for (std::size_t q = 0; q < section.points().size(); ++q) {
         const auto& point = section.points()[q];
@@ -128,8 +140,9 @@ ModalSectionLinearization linearize_modal_section(const CrossSection& section, c
         }
         for (std::size_t i = 0; i < size; ++i)
             for (std::size_t j = 0; j < size; ++j)
-                for (std::size_t c = 0; c < 6; ++c)
-                    result.tangent[size * i + j] += point.weight * metric[c] * b[i][c] * cb[j][c];
+                if (coupled[result.mode_count * (i / 4) + j / 4])
+                    for (std::size_t c = 0; c < 6; ++c)
+                        result.tangent[size * i + j] += point.weight * metric[c] * b[i][c] * cb[j][c];
     }
     return result;
 }
@@ -236,6 +249,7 @@ ModalBeamResponse evaluate_modal_beam(const CrossSection& section,
         }
     }
     constexpr std::array<double, 6> metric{1.0, 1.0, 1.0, 2.0, 2.0, 2.0};
+    std::vector<std::array<double, 4>> generalized_force(6 * basis.modes.size());
     for (std::size_t q = 0; q < section.points().size(); ++q) {
         const auto& point = section.points()[q];
         // Geometry-only strain coefficients of q, q', q'', q'''. Reuse them
@@ -245,7 +259,11 @@ ModalBeamResponse evaluate_modal_beam(const CrossSection& section,
         const auto* section_displacement = kinematics->displacement.data() + q * basis.modes.size();
         for (std::size_t z = 0; z < element.points.size(); ++z) {
             const auto& axial = element.points[z];
-            std::vector<SectionStrain> b(count), cb(count);
+            std::vector<SectionStrain> b, cb;
+            if (include_jacobian) {
+                b.resize(count);
+                cb.resize(count);
+            }
             SectionStrain strain{};
             std::array<double, 3> displacement{};
             for (std::size_t mode = 0; mode < basis.modes.size(); ++mode)
@@ -255,46 +273,72 @@ ModalBeamResponse evaluate_modal_beam(const CrossSection& section,
                     for (std::size_t c = 0; c < 3; ++c)
                         displacement[c] += section_displacement[mode][order][c] * amplitudes[z][mode][order];
                 }
-            for (std::size_t i = 0; i < count; ++i) {
-                for (std::size_t order = 0; order < 4; ++order)
-                    for (std::size_t c = 0; c < 6; ++c)
-                        b[i][c] += section_strain[i / 6][order][c] * axial.shape[order][i % 6];
-            }
             const auto& region = section.regions()[point.region];
             auto position = point.position;
             position.z = axial.z;
-            const auto response = evaluate_stress_tangent(region.material,
-                strain,
-                region.temperature,
-                0.0,
-                nullptr,
-                material_context(0.0, position));
-            const SectionStrain stress{response.stress.xx,
-                response.stress.yy,
-                response.stress.zz,
-                response.stress.xy,
-                response.stress.yz,
-                response.stress.xz};
+            // Use the existing ordinary-double material path for point values.
+            // Residual refinement and recovery need no seven-variable AD seed.
+            // The material is still evaluated at every point; no material state
+            // or constitutive response is replaced by a section matrix.
+            const auto point_stress =
+                region.material.stress_values({strain[0], strain[1], strain[2], strain[3], strain[4], strain[5]},
+                    region.temperature,
+                    material_context(0.0, position));
+            const SectionStrain stress{point_stress.xx,
+                point_stress.yy,
+                point_stress.zz,
+                point_stress.xy,
+                point_stress.yz,
+                point_stress.xz};
             result.strain[z * section.points().size() + q] = strain;
             result.stress[z * section.points().size() + q] = stress;
             result.displacement[z * section.points().size() + q] = {displacement[0], displacement[1], displacement[2]};
             const double weight = point.weight * axial.weight;
             for (std::size_t c = 0; c < 6; ++c)
                 result.energy += 0.5 * weight * metric[c] * strain[c] * stress[c];
-            for (std::size_t i = 0; i < count; ++i)
-                for (std::size_t c = 0; c < 6; ++c) {
-                    result.residual[i] += weight * metric[c] * b[i][c] * stress[c];
-                    if (include_jacobian)
+            // Contract the material-point stress with the four section strain
+            // coefficients first. The axial virtual jets are then applied to
+            // those generalized forces. This is the same B^T*sigma, without
+            // rebuilding six nodal strain columns for every residual call.
+            // Both residual entry points use exactly this contraction order.
+            for (std::size_t mode = 0; mode < basis.modes.size(); ++mode)
+                for (std::size_t order = 0; order < 4; ++order) {
+                    double force = 0.0;
+                    for (std::size_t c = 0; c < 6; ++c)
+                        force += metric[c] * section_strain[mode][order][c] * stress[c];
+                    generalized_force[z * basis.modes.size() + mode][order] += weight * force;
+                }
+            if (include_jacobian) {
+                const auto response = evaluate_stress_tangent(region.material,
+                    strain,
+                    region.temperature,
+                    0.0,
+                    nullptr,
+                    material_context(0.0, position));
+                for (std::size_t i = 0; i < count; ++i) {
+                    for (std::size_t order = 0; order < 4; ++order)
+                        for (std::size_t c = 0; c < 6; ++c)
+                            b[i][c] += section_strain[i / 6][order][c] * axial.shape[order][i % 6];
+                    for (std::size_t c = 0; c < 6; ++c)
                         for (std::size_t d = 0; d < 6; ++d)
                             cb[i][c] += response.tangent[c][d] * b[i][d];
                 }
-            if (include_jacobian)
                 for (std::size_t i = 0; i < count; ++i)
                     for (std::size_t j = 0; j < count; ++j)
                         for (std::size_t c = 0; c < 6; ++c)
                             result.jacobian[count * i + j] += weight * metric[c] * b[i][c] * cb[j][c];
+            }
         }
     }
+    // Integrate section forces before applying axial test functions. Every
+    // material point contributes, while these six nodal contractions occur
+    // once per axial point instead of once per section material point.
+    for (std::size_t z = 0; z < element.points.size(); ++z)
+        for (std::size_t mode = 0; mode < basis.modes.size(); ++mode)
+            for (std::size_t order = 0; order < 4; ++order)
+                for (std::size_t j = 0; j < 6; ++j)
+                    result.residual[6 * mode + j] +=
+                        element.points[z].shape[order][j] * generalized_force[z * basis.modes.size() + mode][order];
     return result;
 }
 } // namespace fuelsim

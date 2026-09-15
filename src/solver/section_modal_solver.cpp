@@ -70,6 +70,32 @@ struct Geometry final {
     AxialLayout layout;
 };
 
+void create_axial_matrix(PetscInt local_rows, const std::vector<PetscInt>& entries, Mat* matrix, Vec* layout) {
+    const auto total = static_cast<PetscInt>(entries.size());
+    check(VecCreateMPI(PETSC_COMM_WORLD, local_rows, total, layout));
+    check(VecSet(*layout, 0.0));
+    PetscInt begin, end;
+    check(VecGetOwnershipRange(*layout, &begin, &end));
+    std::vector<PetscInt> diagonal(static_cast<std::size_t>(local_rows)), off_diagonal(diagonal.size());
+    for (PetscInt i = begin; i < end; ++i) {
+        diagonal[static_cast<std::size_t>(i - begin)] = std::min(local_rows, entries[static_cast<std::size_t>(i)]);
+        off_diagonal[static_cast<std::size_t>(i - begin)] =
+            std::min(total - local_rows, entries[static_cast<std::size_t>(i)]);
+    }
+    check(MatCreateAIJ(PETSC_COMM_WORLD,
+        local_rows,
+        local_rows,
+        total,
+        total,
+        0,
+        diagonal.data(),
+        0,
+        off_diagonal.data(),
+        matrix));
+    check(MatSetOption(*matrix, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_TRUE));
+    check(MatSetOption(*matrix, MAT_IGNORE_ZERO_ENTRIES, PETSC_TRUE));
+}
+
 Geometry extract(const UnstructuredHex20Mesh& source, const SpatialDefinition& definition) {
     if (!definition.contacts.empty() || !definition.time_tables.empty())
         throw std::invalid_argument("Section modal mechanics does not support contact or time functions");
@@ -282,12 +308,62 @@ struct Constraint final {
     double value;
 };
 
+void reflect_boundary_constraints(const UnstructuredHex20Mesh& source,
+    const Geometry& geometry,
+    const ReducedSectionBasis& basis,
+    const std::set<std::size_t>& nodes,
+    std::size_t displacement_component,
+    std::vector<Constraint>& rows) {
+    const std::vector<std::size_t> ordered(nodes.begin(), nodes.end());
+    std::map<std::pair<double, std::size_t>, std::size_t> locations;
+    for (std::size_t i = 0; i < ordered.size(); ++i)
+        locations.emplace(std::make_pair(source.nodes()[ordered[i]].z, geometry.source_to_section[ordered[i]]), i);
+    for (std::size_t axis = 0; axis < 2; ++axis) {
+        const auto& reflection = basis.reflected_nodes[axis];
+        if (reflection.empty())
+            continue;
+        std::vector<std::size_t> partners;
+        for (auto node : ordered) {
+            const auto found = locations.find({source.nodes()[node].z, reflection[geometry.source_to_section[node]]});
+            if (found == locations.end())
+                break;
+            partners.push_back(found->second);
+        }
+        // The physical node set must be invariant. For a partial/nonsymmetric
+        // boundary keep its original constraints, including all sector coupling.
+        if (partners.size() != rows.size())
+            continue;
+        const double sign = displacement_component == axis ? -1.0 : 1.0;
+        const double scale = 1.0 / std::sqrt(2.0);
+        for (std::size_t i = 0; i < rows.size(); ++i) {
+            const auto j = partners[i];
+            const auto& a = source.nodes()[ordered[i]];
+            const auto& b = source.nodes()[ordered[j]];
+            // Orient pairs by this coordinate, so the x and y transforms
+            // commute even when the source node numbering is arbitrary.
+            if ((axis == 0 ? a.x >= b.x : a.y >= b.y))
+                continue;
+            auto& left = rows[i];
+            auto& right = rows[j];
+            for (std::size_t k = 0; k < left.row.size(); ++k) {
+                const double x = left.row[k], y = sign * right.row[k];
+                left.row[k] = scale * (x + y);
+                right.row[k] = scale * (x - y);
+            }
+            const double x = left.value, y = sign * right.value;
+            left.value = scale * (x + y);
+            right.value = scale * (x - y);
+        }
+    }
+}
+
 void physical_boundaries(const UnstructuredHex20Mesh& source,
     const SpatialDefinition& definition,
     const Geometry& geometry,
     const ReducedSectionBasis& basis,
     std::vector<double>& load,
-    std::vector<Constraint>& constraints) {
+    std::vector<Constraint>& constraints,
+    std::vector<Constraint>& solve_constraints) {
     std::size_t face_contribution = 0;
     for (const auto& boundary : definition.boundary_conditions) {
         if (!boundary.function.empty() || boundary.use_displaced_geometry)
@@ -310,15 +386,20 @@ void physical_boundaries(const UnstructuredHex20Mesh& source,
                         throw std::invalid_argument("Section modal temperature must remain fixed");
                 continue;
             }
+            std::vector<Constraint> boundary_rows;
             for (auto node : nodes) {
                 std::array<std::size_t, 8> ids{};
                 ids.fill(geometry.source_to_section[node]);
                 std::array<double, 8> shape{};
                 shape[0] = 1.0;
-                constraints.push_back(
+                boundary_rows.push_back(
                     {displacement_row(geometry, basis, ids, shape, source.nodes()[node].z, component(boundary.field)),
                         boundary.value});
             }
+            constraints.insert(constraints.end(), boundary_rows.begin(), boundary_rows.end());
+            reflect_boundary_constraints(source, geometry, basis, nodes, component(boundary.field), boundary_rows);
+            for (auto& row : boundary_rows)
+                solve_constraints.push_back(std::move(row));
             continue;
         }
         if (boundary.type != BoundaryConditionType::traction && boundary.type != BoundaryConditionType::pressure)
@@ -422,22 +503,29 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
     Objects objects;
     PetscInt local_rows = PETSC_DECIDE, global_rows = n;
     check(PetscSplitOwnership(PETSC_COMM_WORLD, &local_rows, &global_rows));
-    // Each axial node couples to all three jets of every mode at itself and
-    // at most two neighbors. Preallocate this known graph before inserting
-    // element matrices; zero preallocation otherwise reallocates the entire
-    // growing AIJ storage repeatedly on a long production extrusion.
-    const auto row_entries = static_cast<PetscInt>(9 * modes);
-    check(MatCreateAIJ(PETSC_COMM_WORLD,
-        local_rows,
-        local_rows,
-        n,
-        n,
-        std::min(local_rows, row_entries),
-        nullptr,
-        std::min(n - local_rows, row_entries),
-        nullptr,
-        &objects.stiffness));
-    check(MatSetOption(objects.stiffness, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE));
+    // Preallocate the actual section coupling graph and neighboring active
+    // jets. Dense maximum-mode preallocation would retain the memory cost of
+    // couplings that vanish identically by kinematics or reflection symmetry.
+    const auto& section_tangent = section_linearizations.rbegin()->second.tangent;
+    std::vector<bool> coupled(modes * modes, false);
+    for (std::size_t i = 0; i < modes; ++i)
+        for (std::size_t j = 0; j < modes; ++j)
+            for (std::size_t a = 0; a < 4; ++a)
+                for (std::size_t b = 0; b < 4; ++b)
+                    coupled[modes * i + j] =
+                        coupled[modes * i + j] || section_tangent[4 * modes * (4 * i + a) + 4 * j + b] != 0.0;
+    std::vector<PetscInt> row_entries(count);
+    for (std::size_t node = 0; node < nz; ++node)
+        for (std::size_t mode = 0; mode < geometry.layout.modes[node]; ++mode) {
+            PetscInt entries = 0;
+            for (std::size_t neighbor = node == 0 ? 0 : node - 1; neighbor < std::min(nz, node + 2); ++neighbor)
+                for (std::size_t other = 0; other < geometry.layout.modes[neighbor]; ++other)
+                    entries += coupled[modes * mode + other] ? 3 : 0;
+            for (std::size_t order = 0; order < 3; ++order)
+                row_entries[static_cast<std::size_t>(geometry.layout.indices[(3 * mode + order) * nz + node])] =
+                    entries;
+        }
+    create_axial_matrix(local_rows, row_entries, &objects.stiffness, &objects.diagonal);
     result.section_preprocessing_seconds = elapsed();
     for (std::size_t e = 0; e + 1 < nz; ++e) {
         if (e % static_cast<std::size_t>(ranks) != static_cast<std::size_t>(rank))
@@ -450,7 +538,6 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
     }
     check(MatAssemblyBegin(objects.stiffness, MAT_FINAL_ASSEMBLY));
     check(MatAssemblyEnd(objects.stiffness, MAT_FINAL_ASSEMBLY));
-    check(MatCreateVecs(objects.stiffness, &objects.diagonal, nullptr));
     check(MatGetDiagonal(objects.stiffness, objects.diagonal));
     auto scaling = gather(objects.diagonal);
     for (double& value : scaling) {
@@ -459,8 +546,8 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
         value = 1.0 / std::sqrt(value);
     }
     std::vector<double> load(count);
-    std::vector<Constraint> physical, orthogonal;
-    physical_boundaries(source, definition, geometry, basis, load, physical);
+    std::vector<Constraint> physical, solve_constraints, orthogonal;
+    physical_boundaries(source, definition, geometry, basis, load, physical, solve_constraints);
     // Each physical face, like each axial element, is evaluated on one rank.
     // Only the small generalized load vector is gathered for the constrained solve.
     check(MatCreateVecs(objects.stiffness, &objects.physical_load, nullptr));
@@ -479,7 +566,7 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
     std::vector<double> physical_scale;
     std::vector<std::size_t> active_columns;
     for (std::size_t i = 0; i < count; ++i)
-        if (std::any_of(physical.begin(), physical.end(), [i](const Constraint& constraint) {
+        if (std::any_of(solve_constraints.begin(), solve_constraints.end(), [i](const Constraint& constraint) {
                 return constraint.row[i] != 0.0;
             }))
             active_columns.push_back(i);
@@ -487,7 +574,7 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
     // however small, but avoid sweeping thousands of identically zero interior
     // columns during each QR pass. Expand the result back to the global layout
     // before assembly. This is an exact graph compression, not a rank tolerance.
-    for (const auto& constraint : physical) {
+    for (const auto& constraint : solve_constraints) {
         std::vector<double> row(active_columns.size());
         for (std::size_t i = 0; i < row.size(); ++i)
             row[i] = constraint.row[active_columns[i]] * scaling[active_columns[i]];
@@ -502,37 +589,59 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
         candidates.push_back({std::move(row), constraint.value / norm});
         physical_scale.push_back(norm);
     }
+    solve_constraints.clear();
     while (!candidates.empty()) {
         double largest = 0.0;
         std::size_t pivot = 0;
-        Constraint selected;
         for (std::size_t candidate = 0; candidate < candidates.size(); ++candidate) {
-            auto row = candidates[candidate].row;
-            double value = candidates[candidate].value;
-            for (int pass = 0; pass < 2; ++pass)
-                for (const auto& previous : orthogonal) {
-                    const double projection = std::inner_product(row.begin(), row.end(), previous.row.begin(), 0.0);
-                    for (std::size_t i = 0; i < row.size(); ++i)
-                        row[i] -= projection * previous.row[i];
-                    value -= projection * previous.value;
-                }
+            const auto& row = candidates[candidate].row;
+            const double value = candidates[candidate].value;
             const double norm = std::sqrt(std::inner_product(row.begin(), row.end(), row.begin(), 0.0));
             if (norm < 1.0e-10 && std::abs(value) * physical_scale[candidate] > 1.0e-10)
                 throw std::invalid_argument("Inconsistent projected displacement constraints");
             if (norm > largest) {
                 largest = norm;
                 pivot = candidate;
-                selected = {std::move(row), value};
             }
         }
         if (largest < 1.0e-10)
             break;
+        auto selected = std::move(candidates[pivot]);
+        // Keep candidate residuals after each accepted direction instead of
+        // repeating the complete projection for every candidate at every pivot.
+        // Reorthogonalize the selected row against the full accepted space;
+        // the physical rank and consistency tolerances remain unchanged.
+        for (int pass = 0; pass < 2; ++pass)
+            for (const auto& previous : orthogonal) {
+                const double projection =
+                    std::inner_product(selected.row.begin(), selected.row.end(), previous.row.begin(), 0.0);
+                for (std::size_t i = 0; i < selected.row.size(); ++i)
+                    selected.row[i] -= projection * previous.row[i];
+                selected.value -= projection * previous.value;
+            }
+        largest = std::sqrt(std::inner_product(selected.row.begin(), selected.row.end(), selected.row.begin(), 0.0));
+        if (largest < 1.0e-10) {
+            if (std::abs(selected.value) * physical_scale[pivot] > 1.0e-10)
+                throw std::invalid_argument("Inconsistent projected displacement constraints");
+            candidates.erase(candidates.begin() + static_cast<std::ptrdiff_t>(pivot));
+            physical_scale.erase(physical_scale.begin() + static_cast<std::ptrdiff_t>(pivot));
+            continue;
+        }
         for (double& entry : selected.row)
             entry /= largest;
         selected.value /= largest;
         orthogonal.push_back(std::move(selected));
         candidates.erase(candidates.begin() + static_cast<std::ptrdiff_t>(pivot));
         physical_scale.erase(physical_scale.begin() + static_cast<std::ptrdiff_t>(pivot));
+        const auto& accepted = orthogonal.back();
+        for (auto& candidate : candidates)
+            for (int pass = 0; pass < 2; ++pass) {
+                const double projection =
+                    std::inner_product(candidate.row.begin(), candidate.row.end(), accepted.row.begin(), 0.0);
+                for (std::size_t i = 0; i < candidate.row.size(); ++i)
+                    candidate.row[i] -= projection * accepted.row[i];
+                candidate.value -= projection * accepted.value;
+            }
     }
     for (auto& constraint : orthogonal) {
         std::vector<double> row(count);
@@ -543,17 +652,17 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
     const auto total = static_cast<PetscInt>(count + orthogonal.size());
     PetscInt local_total = PETSC_DECIDE, global_total = total;
     check(PetscSplitOwnership(PETSC_COMM_WORLD, &local_total, &global_total));
-    check(MatCreateAIJ(PETSC_COMM_WORLD,
-        local_total,
-        local_total,
-        total,
-        total,
-        std::min(local_total, row_entries),
-        nullptr,
-        std::min(total - local_total, row_entries),
-        nullptr,
-        &objects.constrained));
-    check(MatSetOption(objects.constrained, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE));
+    // PETSc retains a zero diagonal even with MAT_IGNORE_ZERO_ENTRIES. Reserve
+    // it on every multiplier row, otherwise each such insertion reallocates
+    // the sparse matrix despite all nonzero couplings being counted correctly.
+    row_entries.resize(static_cast<std::size_t>(total), 1);
+    for (std::size_t c = 0; c < orthogonal.size(); ++c)
+        for (std::size_t i = 0; i < count; ++i)
+            if (orthogonal[c].row[i] != 0.0) {
+                ++row_entries[i];
+                ++row_entries[count + c];
+            }
+    create_axial_matrix(local_total, row_entries, &objects.constrained, &objects.rhs);
     PetscInt begin, end;
     check(MatGetOwnershipRange(objects.stiffness, &begin, &end));
     for (PetscInt i = begin; i < end; ++i) {
@@ -588,7 +697,7 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
     check(MatDestroy(&objects.stiffness));
     check(VecDestroy(&objects.diagonal));
     check(VecDestroy(&objects.physical_load));
-    check(MatCreateVecs(objects.constrained, &objects.solution, &objects.rhs));
+    check(MatCreateVecs(objects.constrained, &objects.solution, nullptr));
     if (rank == 0) {
         for (std::size_t i = 0; i < count; ++i)
             check(VecSetValue(objects.rhs, static_cast<PetscInt>(i), load[i] * scaling[i], INSERT_VALUES));

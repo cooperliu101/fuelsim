@@ -1,6 +1,7 @@
 #include "../src/solver/modal_condensation.hpp"
 #include "solver/petsc_solver.hpp"
 #include "solver/reduced_section_basis.hpp"
+#include "solver/section_modes.hpp"
 #include "support/section_fixture.hpp"
 #include <algorithm>
 #include <cmath>
@@ -11,6 +12,51 @@ namespace {
 void require(bool condition, const char* message) {
     if (!condition)
         throw std::runtime_error(message);
+}
+
+void verify_reflection_tangent() {
+    for (bool skew : {false, true}) {
+        const auto section =
+            fuelsim::test::rectangle({-0.001, 0.001}, 0.02, {fuelsim::test::region("al", 70e9, 0.3)}, skew, 2);
+        const auto basis = fuelsim::build_reduced_section_basis(section, false, 0);
+        require(basis.reflected_nodes[0].empty() == skew && basis.reflected_nodes[1].empty() == skew,
+            "Reflection optimization assumed a symmetry absent from the actual mesh");
+        const auto tangent = fuelsim::linearize_modal_section(section, basis);
+        auto unpartitioned = basis;
+        unpartitioned.reflected_nodes = {};
+        const auto dense = fuelsim::linearize_modal_section(section, unpartitioned);
+        const auto element = fuelsim::make_modal_beam_element(0.0, 0.05);
+        const auto actual_stiffness = fuelsim::modal_beam_linear_stiffness(tangent, element);
+        const auto full_stiffness = fuelsim::modal_beam_linear_stiffness(dense, element);
+        // Classical q' bending shear is exactly zero, so its section diagonal
+        // is only roundoff. Use the physical nodal energy scales, whose diagonal
+        // entries are positive, rather than divide by that numerical zero.
+        constexpr std::size_t size = 18;
+        for (std::size_t i = 0; i < size; ++i)
+            for (std::size_t j = 0; j < size; ++j) {
+                const double scale = std::sqrt(full_stiffness[size * i + i] * full_stiffness[size * j + j]);
+                require(std::abs(actual_stiffness[size * i + j] - full_stiffness[size * i + j]) <= 1e-11 * scale,
+                    "Reflection separation changed the fully integrated material tangent");
+            }
+        const double bending_coupling = tangent.tangent[12 * 6 + 10];
+        if (skew) {
+            const auto classical = fuelsim::evaluate_classic_section(section,
+                fuelsim::build_classic_section_basis(section),
+                {0.0, 1.0, 1.0});
+            require(std::abs(bending_coupling / classical.tangent[5] - 1.0) < 1e-10,
+                "Skew section lost its physical cross-bending stiffness");
+        } else {
+            require(bending_coupling == 0.0, "Opposite reflection sectors retained a spurious matrix coupling");
+        }
+    }
+    const auto layers = fuelsim::test::rectangle({-0.001, 0.0, 0.001},
+        0.02,
+        {fuelsim::test::region("al", 70e9, 0.3), fuelsim::test::region("fuel", 140e9, 0.25)},
+        false,
+        2);
+    const auto layered_basis = fuelsim::build_reduced_section_basis(layers, false, 0);
+    require(layered_basis.reflected_nodes[0].empty() && !layered_basis.reflected_nodes[1].empty(),
+        "Reflection optimization ignored the actual material regions");
 }
 
 void verify_condensation() {
@@ -390,6 +436,7 @@ void verify() {
 int main(int argc, char** argv) {
     try {
         fuelsim::PetscSession session(argc, argv, "Modal beam local contracts");
+        verify_reflection_tangent();
         verify_condensation();
         verify();
         return 0;
