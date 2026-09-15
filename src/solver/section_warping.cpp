@@ -3,6 +3,7 @@
 #include <cmath>
 #include <limits>
 #include <petscksp.h>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -31,6 +32,21 @@ double shear_modulus(const CrossSection& section, const SectionPoint& point) {
     const auto& region = section.regions()[point.region];
     return region.material.active_properties(region.temperature, material_context(0.0, point.position))
         .shear_modulus.value();
+}
+
+void enforce_neumann_compatibility(std::vector<double>& load) {
+    // The constant test function has identically zero gradient. Enforce this
+    // exact assembly identity before the scalar gauge is pinned. In particular,
+    // a solenoidal transverse field can have an almost zero load; a roundoff
+    // component in the constant nullspace must not become a fictitious pin force.
+    for (int pass = 0; pass < 2; ++pass) {
+        double total = 0.0;
+        for (double value : load)
+            total += value;
+        const double mean = total / static_cast<double>(load.size());
+        for (double& value : load)
+            value -= mean;
+    }
 }
 } // namespace
 
@@ -93,42 +109,31 @@ class SectionWarpingSolver::Impl final {
             for (std::size_t i = 0; i < 8; ++i)
                 load[point.nodes[i]] -= weight * (point.gradient[i][0] * ux + point.gradient[i][1] * uy);
         }
-        PetscScalar* values = nullptr;
-        checked(VecGetArray(_objects.rhs, &values));
-        std::copy(load.begin(), load.end(), values);
-        values[0] = 0.0;
-        checked(VecRestoreArray(_objects.rhs, &values));
-        checked(KSPSolve(_objects.solver, _objects.rhs, _objects.solution));
-        KSPConvergedReason reason;
-        checked(KSPGetConvergedReason(_objects.solver, &reason));
-        if (reason <= 0)
-            throw std::runtime_error("Warping auxiliary solve did not converge");
+        enforce_neumann_compatibility(load);
         SectionWarping result;
-        const PetscScalar* solution = nullptr;
-        checked(VecGetArrayRead(_objects.solution, &solution));
-        result.axial.assign(solution, solution + static_cast<PetscInt>(n));
-        checked(VecRestoreArrayRead(_objects.solution, &solution));
-        double mean = 0.0;
-        for (const auto& point : _section.points())
-            for (std::size_t i = 0; i < 8; ++i)
-                mean += point.weight * point.shape[i] * result.axial[point.nodes[i]];
-        mean /= _section.area();
-        for (double& value : result.axial)
-            value -= mean;
+        result.axial = solve_load(load);
         result.condensed_force.resize(2 * n);
-        std::vector<double> residual(n, 0.0);
+        auto residual = load;
+        for (double& value : residual)
+            value = -value;
         // Apply the Schur complement through its minimizing field, never an explicit inverse.
         for (const auto& point : _section.points()) {
-            double gx = 0.0, gy = 0.0;
+            double ux = 0.0, uy = 0.0, wx = 0.0, wy = 0.0;
             for (std::size_t i = 0; i < 8; ++i) {
-                gx += point.shape[i] * transverse[point.nodes[i]] + point.gradient[i][0] * result.axial[point.nodes[i]];
-                gy += point.shape[i] * transverse[n + point.nodes[i]]
-                      + point.gradient[i][1] * result.axial[point.nodes[i]];
+                ux += point.shape[i] * transverse[point.nodes[i]];
+                uy += point.shape[i] * transverse[n + point.nodes[i]];
+                wx += point.gradient[i][0] * (result.axial[point.nodes[i]] - result.axial[point.nodes[0]]);
+                wy += point.gradient[i][1] * (result.axial[point.nodes[i]] - result.axial[point.nodes[0]]);
             }
+            const double gx = ux + wx, gy = uy + wy;
             const double weight = point.weight * shear_modulus(_section, point);
             result.stiffness += weight * (gx * gx + gy * gy);
             for (std::size_t i = 0; i < 8; ++i) {
-                residual[point.nodes[i]] += weight * (point.gradient[i][0] * gx + point.gradient[i][1] * gy);
+                // Check A*omega-load using the already assembled load. For a
+                // divergence-free transverse field its load can be nearly zero;
+                // reintegrating grad(N)*(phi+grad(omega)) would subtract large
+                // phi terms a second time and report their roundoff as solve error.
+                residual[point.nodes[i]] += weight * (point.gradient[i][0] * wx + point.gradient[i][1] * wy);
                 result.condensed_force[point.nodes[i]] += weight * point.shape[i] * gx;
                 result.condensed_force[n + point.nodes[i]] += weight * point.shape[i] * gy;
             }
@@ -139,12 +144,101 @@ class SectionWarpingSolver::Impl final {
             norm = std::hypot(norm, load[i]);
         }
         result.relative_residual = norm > 0.0 ? defect / norm : defect;
-        if (result.relative_residual > 1.0e-9)
-            throw std::runtime_error("Warping original equation residual exceeds tolerance");
+        if (!std::isfinite(result.relative_residual) || result.relative_residual > 1.0e-9) {
+            std::ostringstream message;
+            message << "Warping original equation residual exceeds tolerance: relative=" << result.relative_residual
+                    << ", defect=" << defect << ", load=" << norm;
+            throw std::runtime_error(message.str());
+        }
+        return result;
+    }
+
+    SectionAxialCorrector solve_axial_corrector(const std::vector<double>& source) const {
+        const auto n = _section.nodes().size();
+        if (source.size() != n)
+            throw std::invalid_argument("Axial corrector requires one scalar source per section node");
+        for (double value : source)
+            if (!std::isfinite(value))
+                throw std::invalid_argument("Axial corrector source must be finite");
+        // For uz=psi*r, the pure axial terms of the 3D energy are
+        // (r^2*psi^T*A_omega*psi + r'^2*psi^T*M_zz*psi)/2.
+        // Axial equilibrium therefore supplies the next section direction
+        // A_omega*chi=M_zz*psi. Subtract the Czz-weighted constant to satisfy
+        // the natural Neumann compatibility condition. This generates higher
+        // axial shapes from physical seeds without prescribing a polynomial.
+        std::vector<double> value(_section.points().size()), weight(value.size());
+        double mean = 0.0, total_weight = 0.0;
+        for (std::size_t q = 0; q < value.size(); ++q) {
+            const auto& point = _section.points()[q];
+            const auto& region = _section.regions()[point.region];
+            const auto properties =
+                region.material.active_properties(region.temperature, material_context(0.0, point.position));
+            weight[q] = point.weight * (properties.lame_lambda.value() + 2.0 * properties.shear_modulus.value());
+            for (std::size_t i = 0; i < 8; ++i)
+                value[q] += point.shape[i] * (source[point.nodes[i]] - source[0]);
+            mean += weight[q] * value[q];
+            total_weight += weight[q];
+        }
+        mean /= total_weight;
+        std::vector<double> load(n);
+        for (std::size_t q = 0; q < value.size(); ++q) {
+            const auto& point = _section.points()[q];
+            for (std::size_t i = 0; i < 8; ++i)
+                load[point.nodes[i]] += weight[q] * point.shape[i] * (value[q] - mean);
+        }
+        enforce_neumann_compatibility(load);
+        SectionAxialCorrector result;
+        result.axial = solve_load(load);
+        auto residual = load;
+        for (double& entry : residual)
+            entry = -entry;
+        for (const auto& point : _section.points()) {
+            std::array<double, 2> gradient{};
+            for (std::size_t i = 0; i < 8; ++i)
+                for (std::size_t c = 0; c < 2; ++c)
+                    gradient[c] += point.gradient[i][c] * result.axial[point.nodes[i]];
+            const double measure = point.weight * shear_modulus(_section, point);
+            for (std::size_t i = 0; i < 8; ++i)
+                residual[point.nodes[i]] +=
+                    measure * (point.gradient[i][0] * gradient[0] + point.gradient[i][1] * gradient[1]);
+        }
+        double defect = 0.0, norm = 0.0;
+        for (std::size_t i = 0; i < n; ++i) {
+            defect = std::hypot(defect, residual[i]);
+            norm = std::hypot(norm, load[i]);
+        }
+        result.relative_residual = norm > 0.0 ? defect / norm : defect;
+        if (!std::isfinite(result.relative_residual) || result.relative_residual > 1e-9)
+            throw std::runtime_error("Axial corrector original equation residual exceeds tolerance");
         return result;
     }
 
   private:
+    std::vector<double> solve_load(const std::vector<double>& load) const {
+        PetscScalar* values = nullptr;
+        checked(VecGetArray(_objects.rhs, &values));
+        std::copy(load.begin(), load.end(), values);
+        values[0] = 0.0;
+        checked(VecRestoreArray(_objects.rhs, &values));
+        checked(KSPSolve(_objects.solver, _objects.rhs, _objects.solution));
+        KSPConvergedReason reason;
+        checked(KSPGetConvergedReason(_objects.solver, &reason));
+        if (reason <= 0)
+            throw std::runtime_error("Warping auxiliary solve did not converge");
+        const PetscScalar* solution = nullptr;
+        checked(VecGetArrayRead(_objects.solution, &solution));
+        std::vector<double> result(solution, solution + static_cast<PetscInt>(_section.nodes().size()));
+        checked(VecRestoreArrayRead(_objects.solution, &solution));
+        double mean = 0.0;
+        for (const auto& point : _section.points())
+            for (std::size_t i = 0; i < 8; ++i)
+                mean += point.weight * point.shape[i] * result[point.nodes[i]];
+        mean /= _section.area();
+        for (double& entry : result)
+            entry -= mean;
+        return result;
+    }
+
     CrossSection _section;
     WarpingObjects _objects;
 };
@@ -156,6 +250,10 @@ SectionWarpingSolver::~SectionWarpingSolver() = default;
 
 SectionWarping SectionWarpingSolver::solve(const std::vector<double>& transverse) const {
     return _impl->solve(transverse);
+}
+
+SectionAxialCorrector SectionWarpingSolver::solve_axial_corrector(const std::vector<double>& source) const {
+    return _impl->solve_axial_corrector(source);
 }
 
 SectionTorsionMode build_section_torsion_mode(const CrossSection& section) {

@@ -22,6 +22,8 @@ struct SectionDistortionSpectrum final {
 
 // Offline projected dense solve, deliberately bounded to 512 transverse DOFs.
 // Uses sparse warping solves and a private symmetric section eigensolver, no new dependency.
+// The finite count is exact. The shear-free limit returns at most that many
+// directions: the actual kernel dimension depends on geometry and interpolation.
 SectionDistortionSpectrum
-build_section_distortion_modes(const CrossSection& section, std::size_t count, std::size_t shear_free_count = 0);
+build_section_distortion_modes(const CrossSection& section, std::size_t count, std::size_t shear_free_limit = 0);
 } // namespace fuelsim

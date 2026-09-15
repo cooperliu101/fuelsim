@@ -130,6 +130,27 @@ void verify() {
                     throw std::runtime_error("Repeated section eigensolve is not deterministic");
         }
     }
+    // A curved isoparametric section need not have the four polynomial
+    // shear-free directions present in the rectangular fixtures. Production
+    // selection must use the measured kernel dimension, not assume it is four.
+    std::vector<fuelsim::CartesianPoint3> curved_nodes{{-0.001, -0.01, 0.0},
+        {0.001, -0.01, 0.0},
+        {0.001, 0.01, 0.0},
+        {-0.001, 0.01, 0.0},
+        {0.0001, -0.011, 0.0},
+        {0.0011, 0.001, 0.0},
+        {-0.0001, 0.012, 0.0},
+        {-0.0012, -0.001, 0.0}};
+    fuelsim::SectionCell curved_cell{};
+    curved_cell.element.nodes = {0, 1, 2, 3, 4, 5, 6, 7};
+    const fuelsim::CrossSection curved(std::move(curved_nodes),
+        {curved_cell},
+        {fuelsim::test::region("curved", 70e9, 0.3)});
+    const auto curved_modes = fuelsim::build_section_distortion_modes(curved, 3, 100);
+    std::cout << "curved_section_shear_kernel=" << curved_modes.shear_kernel_dimension << '\n';
+    if (curved_modes.shear_free_modes.size() != curved_modes.shear_kernel_dimension
+        || curved_modes.shear_kernel_dimension >= 4)
+        throw std::runtime_error("Curved section did not exercise the geometry-dependent shear kernel");
 }
 } // namespace
 

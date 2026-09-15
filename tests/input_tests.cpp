@@ -1124,6 +1124,33 @@ bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, co
              && passed;
     replace_all(gravity_cartesian, "body_acceleration = 1 2 -9.81", "body_acceleration = 0 -9.81");
     passed = expect_case_failure(malformed_path, gravity_cartesian, "body_acceleration requires") && passed;
+    const std::string modal_controls =
+        "\n[SectionModes]\n count = 12\n"
+        " [fine]\n count = 64\n lower_interface = root_fine\n []\n"
+        " [transition]\n count = 24\n lower_interface = root_outer\n upper_interface = tip_outer\n []\n[]\n";
+    auto modal_text = read_text(c3d8rt_path) + modal_controls;
+    replace_all(modal_text, "  step_tolerance = 1e-12\n", "");
+    const auto modal_case = parse_mutation(modal_text);
+    passed = check(modal_case.section_modes == 12 && modal_case.section_end_regions.size() == 2
+                       && modal_case.section_end_regions[0].mode_count == 64
+                       && modal_case.section_end_regions[0].lower_interface == "root_fine"
+                       && modal_case.section_end_regions[0].upper_interface.empty()
+                       && modal_case.section_end_regions[1].mode_count == 24
+                       && modal_case.section_end_regions[1].upper_interface == "tip_outer",
+                 "Nested modal end regions preserve mode counts and Exodus selectors")
+             && passed;
+    auto invalid_modal = modal_text;
+    replace_all(invalid_modal, "count = 64", "count = 12");
+    passed = expect_case_failure(malformed_path, invalid_modal, "local count must exceed") && passed;
+    invalid_modal = modal_text;
+    replace_all(invalid_modal, "lower_interface = root_fine", "");
+    passed = expect_case_failure(malformed_path, invalid_modal, "requires an end interface") && passed;
+    invalid_modal = modal_text;
+    replace_all(invalid_modal, "lower_interface = root_fine", "lower_interface_typo = root_fine");
+    passed = expect_case_failure(malformed_path, invalid_modal, "unknown key") && passed;
+    invalid_modal = modal_text;
+    replace_all(invalid_modal, "\n count = 12\n", "\n count = 3\n");
+    passed = expect_case_failure(malformed_path, invalid_modal, "at least 10 full-length modes") && passed;
     return passed;
 }
 } // namespace

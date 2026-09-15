@@ -1,4 +1,5 @@
 #pragma once
+#include "core/modal_beam.hpp"
 #include "core/spatial_definition.hpp"
 #include "material_functions.hpp"
 #include "solver/solve_workflows.hpp"
@@ -29,6 +30,7 @@ struct CaseOutputInput final {
 struct FuelSimCaseDefinition final {
     int version;
     std::size_t section_modes = 0;
+    std::vector<ModalEndRegion> section_end_regions;
     CaseProblem problem;
     CaseGeometry geometry;
     std::string mesh_file;

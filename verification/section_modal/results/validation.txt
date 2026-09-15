@@ -1,17 +1,48 @@
 Date: 2026-09-15
-Base commit: 840666bd06359cddf46d5e936068d4f95f991edd
+Base commit: 992305b5355624819b6e9754cba446dc545bb78a
 Configuration: Release, C++17, warnings as errors, Conda moose compiler/PETSc, ADlite 0.2.3, serial Exodus 2024-06-27
 Build: cmake --build build --parallel 4
 Regression: ctest --test-dir build -j8 --output-on-failure (outside restricted MPI sandbox)
-100% tests passed, 0 tests failed out of 324
-Total Test time (real) = 115.75 sec
-beam_extension_energy_error=4.44089e-16
-beam_bending_energy_error=1.55431e-15
-beam_directional_derivative_error=3.03909e-13 symmetry=1.83468e-15
-MPI node relative L2 = 1.23216851756e-12
-MPI point relative L2 = 1.22000553552e-12
-Production executable SHA256: 20e88f7a6101a97a720fb25371f0f19f8799decbff77e7ff890da5c9d4460a3f
+100% tests passed, 0 tests failed out of 329
+Total Test time (real) = 662.83 sec
+The complete regression includes four strict 1.0 percent full-field accuracy cases and the two-process fine nonuniform comparison.
+After this suite, an invalid-input guard was added: local condensation requires at least 10 full-length directions for the classical space.
+The guard does not change the valid 12-mode numerical path. Final Release rebuild passed.
+Final guard verification: ctest --test-dir build -j4 -R '^fuelsim_(input|modal_beam|classic_section|section_warping|section_distortion)_tests$' --output-on-failure
+100% tests passed, 0 tests failed out of 5; total 2.22 sec.
+Final two-process internal verification: mpiexec -n 2 build/fuelsim_modal_beam_tests; exit 0.
+The complete 329-test suite was not repeated after this invalid-input-only guard; the following controlled production benchmark also uses the final executable.
+
+beam_extension_energy_error=2.55351e-15
+beam_bending_energy_error=6.66134e-16
+beam_coupled_directional_derivative_error=2.37392e-13
+beam_mixed_directional_derivative_error=4.07165e-13
+beam_independent_directional_derivative_error=3.95786e-13
+single_process_condensation_solution_errors=6.42448e-13,2.95136e-13
+two_process_condensation_solution_errors=8.20905e-13,3.6089e-13
+Classic extension, both bending directions and torsion retain full strain and energy in the independent 10-direction prefix.
+Cached section kinematics and uncached evaluation agree exactly for strain, stress, residual, Jacobian and energy.
+Uniform EA relative error=3.33066907387547e-16; EI errors=2.220446049250313e-16,1.110223024625157e-16.
+Finest torsion GJ=1.34547522855553; reference=1.345400161354117; relative error=5.579544552580806e-05.
+Production MPI node relative L2 = 4.1015538949e-15
+Production MPI point relative L2 = 1.9728900293e-12
+Production MPI energy relative error < 1e-8; output coverage and positions match exactly.
+Production executable SHA256: 55ab11a193d7827202eaa520d8810a278263b8b1925ccd30e6b7bd6636d870bc
 Production runs: complete tracked .fsi cards; single process per case, one thread per process; MPI check uses two processes.
 Reference: Fuelsim C3D20T, not a new Abaqus qualification.
-Accuracy status: diagnostic comparisons; not all fields meet 0.5 percent and monotone mode convergence is not established.
+Accuracy status: axial, bending, transverse and nonuniform local 12-mode cases PASS the strict 1.0 percent limit for displacement vector L2, volume-weighted axial stress L2, full stress tensor L2, bending moment L2 and total energy error.
+All reference displacement nodes and material points are included, including root and loaded ends. This is not a maximum-pointwise-error claim.
+Full stress tensor relative L2: axial=0.002488042097301081, bending=0.004004542604526917, transverse=0.008354042958541813, nonuniform=0.008729760168360167.
+Axial zero bending moment absolute error=1.4790957304430807e-11 N m; unchanged limit=1e-10 N m.
+All four use 12 full-length modes; local section counts=288 and 192; 72 axial elements, 1044 retained amplitudes, 32256 recovered local amplitudes, 290 local constraints, 124416 material points.
+Reference mesh=4x8x1024 C3D20T; 510315 displacement DOFs, 46125 fixed-temperature DOFs, 884736 material points.
+The 512-to-1024 reference check is axial refinement only; it does not prove transverse mesh convergence or pointwise corner-stress convergence. Coarse low-mode scans remain diagnostics.
+
+Controlled performance command: python verification/section_modal/benchmark.py build/fuelsim build/blackbox/section_modal_benchmark --cpu 0
+Environment: Intel Core i9-13980HX, Linux 6.6.87.2-microsoft-standard-WSL2, 24606864 KiB RAM, GCC 14.3.0 conda-forge.
+Timing: /usr/bin/time of actual production executable, taskset CPU 0, OMP_NUM_THREADS=OPENBLAS_NUM_THREADS=MKL_NUM_THREADS=1; MUMPS for both methods.
+Two alternating-order repetitions include preprocessing, local condensation, solve/refinement, recovery and output. Accuracy comparison runs outside the timed process; both comparisons PASS.
+Solid elapsed seconds=76.82,76.79; modal elapsed seconds=44.42,44.02.
+Solid peak RSS KiB=9829648,9829644; modal peak RSS KiB=5046988,5046816.
+Mean elapsed ratio solid/modal=1.7368837630031662. These timings compare the stated uniform 1024-layer reference, not an optimally graded solid mesh or other workloads.
 Fresh configuration under the documented moose PATH succeeded; verification interpreter: /home/cooper/miniforge/bin/python

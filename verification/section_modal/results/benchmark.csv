@@ -1,0 +1,5 @@
+repeat,model,cpu,elapsed_seconds,peak_rss_kib,user_seconds,system_seconds
+1,solid,0,76.82,9829648.0,68.64,7.6
+1,modal,0,44.42,5046988.0,39.67,3.39
+2,modal,0,44.02,5046816.0,39.73,3.78
+2,solid,0,76.79,9829644.0,68.45,7.49

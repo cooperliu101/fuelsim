@@ -180,6 +180,81 @@ void verify_sandwich() {
     require(std::abs(skew_response.tangent[0] / (70e9 * 0.002 * width) - 1.0) < 1.0e-10,
         "Nonrectangular affine section patch failed");
 }
+
+void verify_nonclassical_relaxation() {
+    double previous = 1.0;
+    for (int refinement : {1, 2}) {
+        std::vector<double> x;
+        for (int i = 0; i <= 2 * refinement; ++i)
+            x.push_back(-0.001 + 0.002 * static_cast<double>(i) / static_cast<double>(2 * refinement));
+        const auto section = rectangle(x, 0.02, {region("al", 70e9, 0.3)}, false, 4 * refinement);
+        std::vector<double> axial;
+        for (const auto& node : section.nodes())
+            axial.push_back(node.x * node.x - node.y * node.y);
+        const auto result = SectionRelaxationSolver(section).solve(axial);
+        double error = 0.0, norm = 0.0;
+        for (const auto& point : section.points()) {
+            // Harmonic epsilon_zz=x^2-y^2 admits compatible free Poisson
+            // contraction, so the exact 3D stress is [0,0,E*epsilon_zz,0,0,0].
+            SectionStrain strain{};
+            strain[2] = point.position.x * point.position.x - point.position.y * point.position.y;
+            const auto n = section.nodes().size();
+            for (std::size_t i = 0; i < 8; ++i) {
+                const double ux = result.transverse[point.nodes[i]], uy = result.transverse[n + point.nodes[i]];
+                strain[0] += point.gradient[i][0] * ux;
+                strain[1] += point.gradient[i][1] * uy;
+                strain[3] += 0.5 * (point.gradient[i][1] * ux + point.gradient[i][0] * uy);
+            }
+            const auto response = evaluate_stress_tangent(section.regions()[0].material,
+                strain,
+                300.0,
+                0.0,
+                nullptr,
+                material_context(0.0, point.position));
+            const auto& stress = response.stress;
+            const double expected = 70e9 * strain[2];
+            error += point.weight
+                     * (stress.xx * stress.xx + stress.yy * stress.yy + (stress.zz - expected) * (stress.zz - expected)
+                         + 2.0 * stress.xy * stress.xy);
+            norm += point.weight * expected * expected;
+        }
+        const double relative = std::sqrt(error / norm);
+        std::cout << "generalized_poisson_refinement=" << refinement << " stress_L2=" << relative
+                  << " residual=" << result.relative_residual << '\n';
+        require(relative < 0.4 * previous, "Generalized transverse relaxation did not converge to its analytic stress");
+        previous = relative;
+    }
+    require(previous < 0.01, "Generalized transverse relaxation must match the harmonic axial-strain solution");
+}
+
+void verify_transverse_corrector() {
+    std::vector<double> x;
+    for (int i = 0; i <= 8; ++i)
+        x.push_back(-0.001 + 0.002 * static_cast<double>(i) / 8.0);
+    const auto section = rectangle(x, 0.02, {region("zero_poisson", 70e9, 0.0)});
+    const auto n = section.nodes().size();
+    std::vector<double> source(2 * n);
+    for (std::size_t i = 0; i < n; ++i)
+        source[i] = section.nodes()[i].x;
+    const auto result = SectionRelaxationSolver(section).solve_transverse_corrector(source);
+    double difference = 0.0, norm = 0.0;
+    for (const auto& point : section.points()) {
+        double ux = 0.0, uy = 0.0;
+        for (std::size_t i = 0; i < 8; ++i) {
+            ux += point.shape[i] * result.transverse[point.nodes[i]];
+            uy += point.shape[i] * result.transverse[n + point.nodes[i]];
+        }
+        const double p = point.position.x;
+        // nu=0 decouples the transverse normal strains: -E*ux,xx=G*x,
+        // ux,x=0 at x=+-a, uy=0, with G/E=1/2 and zero rigid projection.
+        const double expected = 0.5 * (1e-6 * p / 2.0 - p * p * p / 6.0);
+        difference += point.weight * ((ux - expected) * (ux - expected) + uy * uy);
+        norm += point.weight * expected * expected;
+    }
+    std::cout << "transverse_corrector_L2=" << std::sqrt(difference / norm) << " residual=" << result.relative_residual
+              << '\n';
+    require(std::sqrt(difference / norm) < 0.002, "Transverse axial-variation corrector failed its Neumann solution");
+}
 } // namespace
 
 int main(int argc, char** argv) {
@@ -189,6 +264,8 @@ int main(int argc, char** argv) {
         verify_homogeneous();
         verify_sandwich();
         verify_invalid_inputs();
+        verify_nonclassical_relaxation();
+        verify_transverse_corrector();
         return 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

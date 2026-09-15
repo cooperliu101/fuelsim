@@ -5,7 +5,7 @@
 []
 [Mesh]
  type = exodus
- file = plate_refined.e
+ file = plate_reference.e
 []
 [Materials]
  [al]

@@ -2,6 +2,12 @@
 #include "core/cross_section.hpp"
 
 namespace fuelsim {
+struct ModalEndRegion final {
+    std::size_t mode_count = 0;
+    // Complete axial interface node sets in the input Exodus mesh.
+    std::string lower_interface, upper_interface;
+};
+
 struct SectionMode final {
     enum class Kind {
         extension,
@@ -11,7 +17,10 @@ struct SectionMode final {
         distortion,
         poisson_relaxation,
         shear_x,
-        shear_y
+        shear_y,
+        axial_warping,
+        shear_free_distortion,
+        transverse_corrector
     };
     Kind kind;
     // Coefficients of q, q', q''; each field-major [ux(:),uy(:),uz(:)].
@@ -39,7 +48,25 @@ struct ModalBeamResponse final {
     double energy = 0.0;
     // Axial-point major, then section-point major. No material-state modal reduction.
     std::vector<SectionStrain> strain, stress;
+    std::vector<CartesianPoint3> displacement;
 };
+
+struct ModalSectionLinearization final {
+    std::size_t mode_count = 0;
+    // Row-major in [mode, derivative order 0..3]. Only a tangent, never a
+    // replacement for axial material-point strain, stress or history evaluation.
+    std::vector<double> tangent;
+};
+
+// Fixed geometry and basis only. Material response and history are never cached.
+struct ModalSectionKinematics final {
+    std::size_t mode_count = 0;
+    // Section-point major, then mode; coefficients of q through q'''.
+    std::vector<std::array<SectionStrain, 4>> strain;
+    std::vector<std::array<std::array<double, 3>, 4>> displacement;
+};
+
+ModalSectionKinematics sample_modal_section(const CrossSection& section, const ReducedSectionBasis& basis);
 
 std::array<std::array<double, 6>, 4> modal_beam_shape(double lower, double upper, double z);
 SectionKinematics modal_section_point_kinematics(const CrossSection& section,
@@ -55,5 +82,11 @@ ModalBeamResponse evaluate_modal_beam(const CrossSection& section,
     const ReducedSectionBasis& basis,
     const ModalBeamElement& element,
     const std::vector<double>& state,
-    bool include_jacobian = true);
+    bool include_jacobian = true,
+    const ModalSectionKinematics* kinematics = nullptr);
+// Fixed, z-independent linear material only. Integrate the actual section
+// material tangents, then contract with axial Hermite derivative products.
+ModalSectionLinearization linearize_modal_section(const CrossSection& section, const ReducedSectionBasis& basis);
+std::vector<double> modal_beam_linear_stiffness(const ModalSectionLinearization& section,
+    const ModalBeamElement& element);
 } // namespace fuelsim

@@ -1,0 +1,2 @@
+case,modes,modal_dofs,local_dofs,section_basis_size,solid_displacement_dofs,displacement_L2,axial_stress_L2,stress_tensor_L2,bending_moment_L2,bending_moment_absolute,axial_force_absolute,energy_relative,modal_energy,solid_energy
+bending_local,12,1044,32256,288,510315,1.082847795159793e-05,0.0021697004083037906,0.004004542604526917,0.0002331238594363195,1.5122168240706694e-06,1.636458066495497e-10,6.7541917874169854e-06,4.27359923199521e-09,4.273570367481331e-09

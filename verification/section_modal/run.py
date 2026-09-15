@@ -11,30 +11,36 @@ import numpy as np
 from compare import compare, summary
 
 
-def run(executable, source, destination, name, launcher):
+def stage(source, destination, name, mesh_name):
     destination.mkdir(parents=True, exist_ok=True)
-    for filename in ('plate.e', name + '.fsi'):
+    for filename in (mesh_name, name + '.fsi'):
         shutil.copyfile(source / filename, destination / filename)
         if (source / filename).read_bytes() != (destination / filename).read_bytes():
             raise ValueError('Staged production input differs from its tracked source')
     for suffix in ('_history.csv', '_summary.csv', '.e'):
         (destination / (name + suffix)).unlink(missing_ok=True)
+
+
+def run(executable, source, destination, name, launcher, mesh_name='plate.e'):
+    stage(source, destination, name, mesh_name)
     command = launcher + [str(executable), '-i', str(destination / (name + '.fsi'))]
-    process = subprocess.run(command, capture_output=True, text=True,
-                             env=dict(os.environ, OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1'))
-    (destination / (name + '.log')).write_text(process.stdout + process.stderr)
+    log = destination / (name + '.log')
+    with log.open('w') as stream:
+        process = subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT,
+                                 env=dict(os.environ, OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1'))
     if process.returncode:
-        raise RuntimeError(f'{name} failed with {process.returncode}\n{process.stdout}\n{process.stderr}')
+        raise RuntimeError(f'{name} failed with {process.returncode}\n{log.read_text()}')
 
 
-def mpi_check(serial, parallel):
-    name = 'nonuniform_12'
+def mpi_check(serial, parallel, name='nonuniform_12'):
     left, right = summary(serial / (name + '_summary.csv')), summary(parallel / (name + '_summary.csv'))
-    for field in ('mode_count', 'axial_nodes', 'dof_count', 'constraint_count'):
+    for field in ('mode_count', 'axial_nodes', 'dof_count', 'constraint_count', 'section_basis_size',
+                  'recovered_local_dofs', 'active_axial_dofs', 'global_system_size', 'local_system_size',
+                  'independent_axial_warping_modes', 'shear_free_distortion_modes', 'transverse_corrector_modes'):
         if left[field] != right[field]:
             raise ValueError(f'MPI changed {field}')
     for field in ('strain_energy', 'external_work'):
-        if abs(right[field] / left[field] - 1) > 1e-8:
+        if not np.isfinite([left[field], right[field]]).all() or abs(right[field] / left[field] - 1) > 1e-8:
             raise ValueError(f'MPI changed {field}')
     with (serial / (name + '_history.csv')).open() as stream:
         a = list(csv.DictReader(stream))
@@ -42,9 +48,14 @@ def mpi_check(serial, parallel):
         b = list(csv.DictReader(stream))
     if len(a) != len(b):
         raise ValueError('MPI changed result coverage')
+    for left_row, right_row in zip(a, b):
+        if any(left_row[field] != right_row[field] for field in ('kind', 'id', 'x', 'y', 'z')):
+            raise ValueError('MPI changed physical result locations or ordering')
     for kind, fields in [('node', ['ux', 'uy', 'uz']), ('point', ['sxx', 'syy', 'szz', 'sxy', 'syz', 'sxz'])]:
         x = np.array([[float(row[field]) for field in fields] for row in a if row['kind'] == kind])
         y = np.array([[float(row[field]) for field in fields] for row in b if row['kind'] == kind])
+        if not np.isfinite(x).all() or not np.isfinite(y).all():
+            raise ValueError('MPI result contains a nonfinite field')
         error = np.linalg.norm(x - y) / np.linalg.norm(x)
         print(f'MPI {kind} relative L2 = {error:.12g}')
         if error > 1e-8:
@@ -58,9 +69,25 @@ if __name__ == '__main__':
     parser.add_argument('case', choices=['axial', 'bending', 'transverse', 'nonuniform', 'prescribed'])
     parser.add_argument('--mpiexec', type=Path)
     parser.add_argument('--serial', type=Path)
+    parser.add_argument('--accuracy', action='store_true')
     args = parser.parse_args()
     source = Path(__file__).resolve().parent
-    if args.mpiexec:
+    if args.accuracy and args.mpiexec:
+        if args.case != 'nonuniform' or args.serial is None:
+            raise ValueError('Refined MPI comparison requires the serial nonuniform case')
+        name = 'nonuniform_local_12'
+        run(args.executable, source, args.directory, name, [str(args.mpiexec), '-n', '2'], 'plate_local.e')
+        mpi_check(args.serial, args.directory, name)
+    elif args.accuracy:
+        if args.case == 'prescribed':
+            raise ValueError('Accuracy comparison requires one of the four mechanical loads')
+        case = args.case + '_local'
+        reference = args.case + '_refined_solid'
+        run(args.executable, source, args.directory, reference, [], 'plate_reference.e')
+        run(args.executable, source, args.directory, case + '_12', [], 'plate_local.e')
+        compare(args.directory, case, [12], 'plate_local.e', accuracy_count=12,
+                reference_path=args.directory / (reference + '.e'))
+    elif args.mpiexec:
         run(args.executable, source, args.directory, 'nonuniform_12', [str(args.mpiexec), '-n', '2'])
         mpi_check(args.serial, args.directory)
     elif args.case == 'prescribed':

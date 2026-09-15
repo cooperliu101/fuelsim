@@ -169,9 +169,9 @@ ProjectedSpectrum solve_section_pencil(std::vector<double> shear, std::vector<do
 } // namespace
 
 SectionDistortionSpectrum
-build_section_distortion_modes(const CrossSection& section, std::size_t count, std::size_t shear_free_count) {
+build_section_distortion_modes(const CrossSection& section, std::size_t count, std::size_t shear_free_limit) {
     const auto nodes = section.nodes().size(), full = 2 * nodes;
-    if (full > 512 || count + shear_free_count == 0 || count + shear_free_count > full - 3)
+    if (full > 512 || (count == 0 && shear_free_limit == 0) || count > full - 3)
         throw std::invalid_argument("Section distortion requires 1..(2*n-3) modes and at most 512 transverse DOFs");
     std::vector<std::vector<double>> basis, weighted;
     for (std::size_t global = 0; global < 3; ++global) {
@@ -263,8 +263,7 @@ build_section_distortion_modes(const CrossSection& section, std::size_t count, s
             throw std::runtime_error("Section eigenmode failed residual or orthogonality verification");
         result.modes.push_back(std::move(mode));
     }
-    if (shear_free_count > result.shear_kernel_dimension)
-        throw std::invalid_argument("Requested shear-free count exceeds the section shear kernel");
+    const auto shear_free_count = std::min(shear_free_limit, result.shear_kernel_dimension);
     if (shear_free_count != 0) {
         // KS has non-rigid null vectors: gradients which the scalar warping space
         // can cancel exactly. Discarding them removes, for example, lateral

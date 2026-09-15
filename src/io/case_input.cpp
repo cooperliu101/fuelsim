@@ -218,7 +218,8 @@ void validate_sections(const InputDocument& document) {
     for (const InputSection& section : document.sections) {
         bool known = section.parent.empty() && std::find(fixed.begin(), fixed.end(), section.name) != fixed.end();
         known = known || section.parent == "Regions" || section.parent == "BoundaryConditions"
-                || section.parent == "TimeFunctions" || section.parent == "Materials" || section.parent == "Contact";
+                || section.parent == "TimeFunctions" || section.parent == "Materials" || section.parent == "Contact"
+                || section.parent == "SectionModes";
         if (section.parent.compare(0, 10, "Materials/") == 0) {
             const std::string material_path = section.parent.substr(10);
             if (material_path.find('/') == std::string::npos)
@@ -1248,9 +1249,24 @@ FuelSimCaseDefinition read_case_input(const std::string& path, const MaterialFun
     if (const auto* section = find_section(document, "SectionModes")) {
         validate_keys(document, *section, {"count"});
         result.section_modes = read_size(document, *section, "count");
-        if (result.section_modes < 3 || result.section_modes > 64 || result.problem != CaseProblem::steady
+        if (result.section_modes < 3 || result.section_modes > 768 || result.problem != CaseProblem::steady
             || result.geometry != CaseGeometry::cartesian_3d)
-            throw std::invalid_argument(path + ": SectionModes requires steady cartesian_3d and count in [3,64]");
+            throw std::invalid_argument(path + ": SectionModes requires steady cartesian_3d and count in [3,768]");
+        for (const auto* local : direct_children(document, "SectionModes")) {
+            validate_keys(document, *local, {"count", "lower_interface", "upper_interface"});
+            ModalEndRegion ends;
+            ends.mode_count = read_size(document, *local, "count");
+            ends.lower_interface = read_optional_string(*local, "lower_interface", {});
+            ends.upper_interface = read_optional_string(*local, "upper_interface", {});
+            if (ends.mode_count <= result.section_modes || ends.mode_count > 768
+                || (ends.lower_interface.empty() && ends.upper_interface.empty()))
+                throw std::invalid_argument(
+                    path + ": local count must exceed the full-length count and requires an end interface node set");
+            result.section_end_regions.push_back(std::move(ends));
+        }
+        if (!result.section_end_regions.empty() && result.section_modes < 10)
+            throw std::invalid_argument(
+                path + ": end condensation requires at least 10 full-length modes to retain the classical space");
     }
     read_mesh(document, path, result);
     read_time_functions(document, result);

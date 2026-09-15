@@ -10,6 +10,11 @@ struct SectionWarping final {
     double relative_residual = 0.0;
 };
 
+struct SectionAxialCorrector final {
+    std::vector<double> axial;
+    double relative_residual = 0.0;
+};
+
 // Owns a section copy and reuses one sparse factorization for all transverse fields.
 class SectionWarpingSolver final {
   public:
@@ -18,6 +23,8 @@ class SectionWarpingSolver final {
     SectionWarpingSolver(const SectionWarpingSolver&) = delete;
     SectionWarpingSolver& operator=(const SectionWarpingSolver&) = delete;
     SectionWarping solve(const std::vector<double>& transverse) const;
+    // A_omega*chi = M_zz*(source - weighted_mean(source)); zero mean chi.
+    SectionAxialCorrector solve_axial_corrector(const std::vector<double>& source) const;
 
   private:
     class Impl;

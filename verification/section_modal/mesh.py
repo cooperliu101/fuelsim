@@ -11,12 +11,26 @@ def names(data, variable, dimension, values):
     data.createVariable(variable, 'S1', (dimension, 'len_name'))[:] = out
 
 
-def write(path, nx=2, ny=4, nz=8):
+def write(path, nx=2, ny=4, nz=8, graded=False, local_interfaces=False, coarsen_interior=False):
     # Exodus HEX20 order: corner nodes, lower edges, vertical edges, upper edges.
     offsets = [(0,0,0),(2,0,0),(2,2,0),(0,2,0),(0,0,2),(2,0,2),(2,2,2),(0,2,2),
                (1,0,0),(2,1,0),(1,2,0),(0,1,0),(0,0,1),(2,0,1),(2,2,1),(0,2,1),
                (1,0,2),(2,1,2),(1,2,2),(0,1,2)]
     ids, nodes, elements = {}, [], []
+    s = np.linspace(0.0, 1.0, nz + 1)
+    axial = 0.2 * (s - 0.85 * np.sin(2 * np.pi * s) / (2 * np.pi))
+    axial[0], axial[-1] = 0.0, 0.2
+    if nz % 2 == 0:
+        axial[nz // 2] = 0.1
+    if coarsen_interior:
+        if not graded or nz < 32:
+            raise ValueError('Interior coarsening requires a resolved graded axial mesh')
+        # Preserve the original first and last eight cells, where the clamped
+        # corner and applied end traction need fine axial resolution. Quintic
+        # modal amplitudes use every second plane in the remaining smooth span.
+        keep = np.array([i <= 8 or i >= nz - 8 or i % 2 == 0 for i in range(nz + 1)])
+        axial = axial[keep]
+        nz = len(axial) - 1
     sides = {key: [] for key in ('end', 'end_plus', 'end_minus', 'broad', 'half_broad')}
     for k in range(nz):
         for j in range(ny):
@@ -26,7 +40,11 @@ def write(path, nx=2, ny=4, nz=8):
                     key = (2*i+a, 2*j+b, 2*k+c)
                     if key not in ids:
                         ids[key] = len(nodes)+1
-                        nodes.append((-0.001+0.002*key[0]/(2*nx), -0.01+0.02*key[1]/(2*ny), 0.2*key[2]/(2*nz)))
+                        z = 0.2 * key[2] / (2 * nz)
+                        if graded:
+                            layer, midpoint = divmod(key[2], 2)
+                            z = axial[layer] if not midpoint else (axial[layer] + axial[layer + 1]) / 2
+                        nodes.append((-0.001+0.002*key[0]/(2*nx), -0.01+0.02*key[1]/(2*ny), z))
                     cell.append(ids[key])
                 elements.append(cell)
                 e = len(elements)
@@ -37,6 +55,12 @@ def write(path, nx=2, ny=4, nz=8):
                     sides['broad'].append((e,2))
                     if j >= ny//2: sides['half_broad'].append((e,2))
     sets = {'root': [i+1 for i,p in enumerate(nodes) if p[2] == 0], 'all_nodes': list(range(1,len(nodes)+1))}
+    if local_interfaces:
+        end_planes = axial if graded else np.linspace(0.0, 0.2, nz + 1)
+        for name, target in [('lower_interface', 0.03), ('upper_interface', 0.17),
+                             ('lower_fine', 0.006), ('upper_fine', 0.194)]:
+            plane = end_planes[np.argmin(abs(end_planes - target))]
+            sets[name] = [i + 1 for i, p in enumerate(nodes) if p[2] == plane]
     with Dataset(path, 'w', format='NETCDF3_64BIT_OFFSET') as data:
         data.api_version = np.float32(8.11); data.version = np.float32(8.11)
         data.floating_point_word_size = np.int32(8); data.file_size = np.int32(1)
@@ -63,4 +87,8 @@ def write(path, nx=2, ny=4, nz=8):
 
 if __name__ == '__main__':
     write(Path(__file__).with_name('plate.e'))
-    write(Path(__file__).with_name('plate_refined.e'), nx=4, ny=8, nz=32)
+    write(Path(__file__).with_name('plate_refined.e'), nx=4, ny=8, nz=128, graded=True)
+    write(Path(__file__).with_name('plate_local.e'), nx=4, ny=8, nz=128, graded=True,
+          local_interfaces=True, coarsen_interior=True)
+    write(Path(__file__).with_name('plate_reference.e'), nx=4, ny=8, nz=1024)
+    write(Path(__file__).with_name('plate_reference_check.e'), nx=4, ny=8, nz=512)

@@ -77,6 +77,20 @@ void verify_condensation() {
     const auto shift = solver.solve(translation);
     const auto gradient = solver.solve(dilation);
     const auto twist = solver.solve(rotation);
+    // Curl of (a^2-x^2)*(b^2-y^2): divergence-free and tangent to all four
+    // boundaries, so its weak warping load vanishes although its shear energy
+    // is nonzero. This checks Neumann compatibility at a nearly zero RHS.
+    std::vector<double> solenoidal(2 * n);
+    for (std::size_t i = 0; i < n; ++i) {
+        const auto& p = section.nodes()[i];
+        solenoidal[i] = -2.0 * p.y * (1e-6 - p.x * p.x);
+        solenoidal[n + i] = 2.0 * p.x * (1e-4 - p.y * p.y);
+    }
+    const auto closed = solver.solve(solenoidal);
+    for (double value : closed.axial)
+        require(std::abs(value) < 1e-20, "Solenoidal transverse field acquired nonzero warping");
+    require(closed.relative_residual < 1e-9 && closed.stiffness > 0.0,
+        "Near-zero Neumann load lost equilibrium or physical shear energy");
     require(shift.stiffness < 1.0e-15, "Translation must be cancellable by linear warping");
     require(gradient.stiffness < 1.0e-20, "Gradient transverse field must expose nonrigid K_S kernel");
     const double step = 1.0e-5;
@@ -99,6 +113,37 @@ void verify_condensation() {
     }
     require(rejected, "Invalid transverse field size must be rejected");
 }
+
+void verify_axial_corrector() {
+    std::vector<double> x;
+    for (int i = 0; i <= 8; ++i)
+        x.push_back(-0.001 + 0.002 * static_cast<double>(i) / 8.0);
+    const auto section = rectangle(x, 0.02, {region("al", 70e9, 0.3)});
+    SectionWarpingSolver solver(section);
+    std::vector<double> source;
+    for (const auto& node : section.nodes())
+        source.push_back(node.x);
+    const auto result = solver.solve_axial_corrector(source);
+    double difference = 0.0, norm = 0.0, mean = 0.0;
+    for (const auto& point : section.points()) {
+        double actual = 0.0;
+        for (std::size_t i = 0; i < 8; ++i)
+            actual += point.shape[i] * result.axial[point.nodes[i]];
+        const double coordinate = point.position.x;
+        // -G*chi,xx=Czz*x and chi,x=0 at x=+-a. Czz/G=3.5 for nu=0.3.
+        const double expected = 3.5 * (1e-6 * coordinate / 2.0 - coordinate * coordinate * coordinate / 6.0);
+        difference += point.weight * (actual - expected) * (actual - expected);
+        norm += point.weight * expected * expected;
+        mean += point.weight * actual;
+    }
+    std::cout << "axial_corrector_L2=" << std::sqrt(difference / norm) << " residual=" << result.relative_residual
+              << '\n';
+    require(std::sqrt(difference / norm) < 0.002, "Axial corrector failed the independent Neumann polynomial solution");
+    require(std::abs(mean) < 1e-24, "Axial corrector gauge is not zero mean");
+    const auto constant = solver.solve_axial_corrector(std::vector<double>(source.size(), 123.0));
+    for (double value : constant.axial)
+        require(value == 0.0, "A constant axial source must be removed by the Neumann compatibility projection");
+}
 } // namespace
 
 int main(int argc, char** argv) {
@@ -107,6 +152,7 @@ int main(int argc, char** argv) {
         std::cout << std::setprecision(16);
         verify_torsion();
         verify_condensation();
+        verify_axial_corrector();
         return 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

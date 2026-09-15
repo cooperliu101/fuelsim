@@ -121,6 +121,7 @@ fuelsim_enable_warnings(fuelsim_io)
 
 add_library(fuelsim_solver
     src/solver/section_modal_solver.cpp
+    src/solver/modal_condensation.cpp
     src/solver/section_distortion.cpp
     src/solver/reduced_section_basis.cpp
     src/solver/section_modes.cpp
@@ -157,6 +158,7 @@ include(CTest)
 if(BUILD_TESTING)
     add_executable(fuelsim_modal_beam_tests tests/modal_beam_tests.cpp)
     target_link_libraries(fuelsim_modal_beam_tests PRIVATE fuelsim::solver)
+    fuelsim_link_petsc(fuelsim_modal_beam_tests)
     fuelsim_enable_warnings(fuelsim_modal_beam_tests)
     add_test(NAME fuelsim_modal_beam_tests COMMAND fuelsim_modal_beam_tests)
     add_executable(fuelsim_section_distortion_tests tests/section_distortion_tests.cpp)
@@ -1936,6 +1938,17 @@ if(BUILD_TESTING)
             TIMEOUT 120 ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
     endforeach()
     set_tests_properties(fuelsim_section_modal_nonuniform PROPERTIES FIXTURES_SETUP section_modal_serial)
+    foreach(section_case IN ITEMS axial bending transverse nonuniform)
+        add_test(NAME fuelsim_section_modal_accuracy_${section_case}
+            COMMAND "${FUELSIM_SECTION_PYTHON}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/section_modal/run.py"
+                "$<TARGET_FILE:fuelsim>"
+                "${CMAKE_CURRENT_BINARY_DIR}/blackbox/section_modal_accuracy_${section_case}"
+                "${section_case}" --accuracy)
+        set_tests_properties(fuelsim_section_modal_accuracy_${section_case} PROPERTIES
+            TIMEOUT 900 PROCESSORS 8 ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
+    endforeach()
+    set_tests_properties(fuelsim_section_modal_accuracy_nonuniform PROPERTIES FIXTURES_SETUP section_modal_accuracy_serial)
     if(FUELSIM_MPIEXEC_EXECUTABLE)
         add_test(NAME fuelsim_section_modal_mpi
             COMMAND "${FUELSIM_SECTION_PYTHON}"
@@ -1946,6 +1959,16 @@ if(BUILD_TESTING)
                 --serial "${CMAKE_CURRENT_BINARY_DIR}/blackbox/section_modal_nonuniform")
         set_tests_properties(fuelsim_section_modal_mpi PROPERTIES
             FIXTURES_REQUIRED section_modal_serial PROCESSORS 2 TIMEOUT 120
+            ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
+        add_test(NAME fuelsim_section_modal_accuracy_mpi
+            COMMAND "${FUELSIM_SECTION_PYTHON}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/section_modal/run.py"
+                "$<TARGET_FILE:fuelsim>"
+                "${CMAKE_CURRENT_BINARY_DIR}/blackbox/section_modal_accuracy_mpi" nonuniform --accuracy
+                --mpiexec "${FUELSIM_MPIEXEC_EXECUTABLE}"
+                --serial "${CMAKE_CURRENT_BINARY_DIR}/blackbox/section_modal_accuracy_nonuniform")
+        set_tests_properties(fuelsim_section_modal_accuracy_mpi PROPERTIES
+            FIXTURES_REQUIRED section_modal_accuracy_serial PROCESSORS 8 TIMEOUT 900
             ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
     endif()
     set(h20_production_reference "${CMAKE_CURRENT_BINARY_DIR}/blackbox/h20_inelastic_coupled/verification/fuelsim/transient_hex20_inelastic_coupled_moose_results.e")
