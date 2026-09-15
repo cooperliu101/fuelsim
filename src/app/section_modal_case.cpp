@@ -21,6 +21,8 @@ void run_section_modal_case(const FuelSimCaseDefinition& definition, const Petsc
         definition.spatial,
         definition.section_modes,
         definition.section_end_regions,
+        definition.section_width_lines,
+        definition.section_solid_ends,
         definition.solver);
     session.collective_root_action([&]() {
         std::ofstream summary(definition.outputs.csv_file), history(definition.outputs.history_file);
@@ -35,17 +37,24 @@ void run_section_modal_case(const FuelSimCaseDefinition& definition, const Petsc
                 << "\nalgebraic_relative_residual," << result.algebraic_relative_residual << "\ndof_count,"
                 << result.global_dof_count << "\nsection_basis_size," << result.basis_mode_count
                 << "\nrecovered_local_dofs," << result.condensed_dof_count << "\nactive_axial_dofs,"
-                << result.amplitudes.size() << "\nconstraint_count," << result.constraint_count << "\nstrain_energy,"
-                << result.energy << "\nequilibrium_relative_residual," << result.equilibrium_relative_residual
-                << "\nconstraint_maximum_error," << result.constraint_maximum_error << "\nexternal_work,"
-                << result.external_work << "\nglobal_constraint_count," << result.global_constraint_count
-                << "\nglobal_system_size," << result.global_dof_count + result.global_constraint_count
-                << "\nlocal_system_size,"
+                << result.amplitudes.size() - result.solid_dof_count << "\nconstraint_count," << result.constraint_count
+                << "\nstrain_energy," << result.energy << "\nequilibrium_relative_residual,"
+                << result.equilibrium_relative_residual << "\nconstraint_maximum_error,"
+                << result.constraint_maximum_error << "\nexternal_work," << result.external_work
+                << "\nglobal_constraint_count," << result.global_constraint_count << "\nglobal_system_size,"
+                << result.global_dof_count + result.global_constraint_count << "\nlocal_system_size,"
                 << result.condensed_dof_count + result.constraint_count - result.global_constraint_count
                 << "\nsection_preprocessing_seconds," << result.section_preprocessing_seconds << "\nassembly_seconds,"
                 << result.assembly_seconds << "\ncondensation_seconds," << result.condensation_seconds
                 << "\nsolve_and_refinement_seconds," << result.solve_and_refinement_seconds
-                << "\nfield_recovery_seconds," << result.field_recovery_seconds << '\n';
+                << "\nfield_recovery_seconds," << result.field_recovery_seconds << "\nwidth_line_count,"
+                << result.width_line_count << "\nseed_mode_count," << result.seed_mode_count
+                << "\nselected_refinement_iteration," << result.selected_refinement_iteration
+                << "\nlast_refinement_relative_residual," << result.last_refinement_relative_residual
+                << "\nwidth_enrichment_modes," << result.width_modes << "\nsolid_displacement_dofs,"
+                << result.solid_dof_count << "\nsolid_elements," << result.solid_element_count << "\nmodal_elements,"
+                << result.modal_element_count << "\nsolid_lower_interface," << result.solid_lower_interface
+                << "\nsolid_upper_interface," << result.solid_upper_interface << '\n';
         // One inspectable result stream: fixed columns, record kind determines valid fields.
         history << std::setprecision(17)
                 << "kind,id,x,y,z,ux,uy,uz,weight,exx,eyy,ezz,exy,eyz,exz,sxx,syy,szz,sxy,syz,sxz,"
@@ -58,8 +67,9 @@ void run_section_modal_case(const FuelSimCaseDefinition& definition, const Petsc
         }
         for (std::size_t i = 0; i < result.samples.size(); ++i) {
             const auto& p = result.samples[i];
-            history << "point," << i << ',' << p.position.x << ',' << p.position.y << ',' << p.position.z << ','
-                    << p.displacement.x << ',' << p.displacement.y << ',' << p.displacement.z << ',' << p.weight;
+            history << (p.solid ? "solid_point," : "point,") << i << ',' << p.position.x << ',' << p.position.y << ','
+                    << p.position.z << ',' << p.displacement.x << ',' << p.displacement.y << ',' << p.displacement.z
+                    << ',' << p.weight;
             for (double value : p.strain)
                 history << ',' << value;
             for (double value : p.stress)

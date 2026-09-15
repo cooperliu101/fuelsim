@@ -1,4 +1,5 @@
 #include "../src/solver/modal_condensation.hpp"
+#include "../src/solver/modal_solid_end.hpp"
 #include "solver/petsc_solver.hpp"
 #include "solver/reduced_section_basis.hpp"
 #include "solver/section_modes.hpp"
@@ -12,6 +13,127 @@ namespace {
 void require(bool condition, const char* message) {
     if (!condition)
         throw std::runtime_error(message);
+}
+
+void verify_solid_interface() {
+    const std::array<std::array<double, 3>, 20> locations{{{-1, -1, 0},
+        {1, -1, 0},
+        {1, 1, 0},
+        {-1, 1, 0},
+        {-1, -1, 1},
+        {1, -1, 1},
+        {1, 1, 1},
+        {-1, 1, 1},
+        {0, -1, 0},
+        {1, 0, 0},
+        {0, 1, 0},
+        {-1, 0, 0},
+        {-1, -1, 0.5},
+        {1, -1, 0.5},
+        {1, 1, 0.5},
+        {-1, 1, 0.5},
+        {0, -1, 1},
+        {1, 0, 1},
+        {0, 1, 1},
+        {-1, 0, 1}}};
+    fuelsim::Hex20Coordinates coordinates{};
+    std::array<fuelsim::SolidDisplacementRow, 60> rows;
+    std::size_t count = 18;
+    for (std::size_t i = 0; i < 20; ++i) {
+        const double x = 0.001 * locations[i][0], y = 0.01 * locations[i][1], z = 0.005 * locations[i][2];
+        coordinates[i] = {x, y, z};
+        const std::array<double, 6> trace{1.0, x, y, x * x, x * y, y * y};
+        for (std::size_t c = 0; c < 3; ++c) {
+            if (z == 0.0) {
+                for (std::size_t j = 0; j < trace.size(); ++j)
+                    if (trace[j] != 0.0)
+                        rows[20 * c + i].emplace_back(6 * c + j, trace[j]);
+            } else
+                rows[20 * c + i].emplace_back(count++, 1.0);
+        }
+    }
+    const auto element = fuelsim::make_modal_solid_element(coordinates, rows, 0, 0);
+    const auto material = fuelsim::test::region("al", 70e9, 0.3);
+    require(element.dofs.size() == count, "Solid trace lost an independent interface or interior unknown");
+    for (int kind = 0; kind < 8; ++kind) {
+        std::vector<double> state(count);
+        // Six rigid motions, uniform extension, and exact shear-free bending.
+        if (kind < 3)
+            state[6 * static_cast<std::size_t>(kind)] = 1.0;
+        if (kind == 3)
+            state[14] = 1.0;
+        if (kind == 4)
+            state[13] = -1.0;
+        if (kind == 5) {
+            state[2] = -1.0;
+            state[7] = 1.0;
+        }
+        if (kind == 6) {
+            state[1] = -0.3;
+            state[8] = -0.3;
+        }
+        if (kind == 7) {
+            state[3] = 0.15;
+            state[5] = -0.15;
+            state[10] = 0.3;
+        }
+        for (std::size_t i = 0; i < 20; ++i) {
+            const auto& p = coordinates[i];
+            std::array<double, 3> u{};
+            if (kind < 3)
+                u[static_cast<std::size_t>(kind)] = 1.0;
+            if (kind == 3)
+                u = {0.0, -p.z, p.y};
+            if (kind == 4)
+                u = {p.z, 0.0, -p.x};
+            if (kind == 5)
+                u = {-p.y, p.x, 0.0};
+            if (kind == 6)
+                u = {-0.3 * p.x, -0.3 * p.y, p.z};
+            if (kind == 7)
+                u = {0.5 * p.z * p.z + 0.15 * (p.x * p.x - p.y * p.y), 0.3 * p.x * p.y, -p.x * p.z};
+            if (p.z != 0.0)
+                for (std::size_t c = 0; c < 3; ++c)
+                    state[rows[20 * c + i][0].first] = u[c];
+        }
+        const auto response = fuelsim::evaluate_modal_solid(element, material, state, false, true);
+        if (kind < 6)
+            require(response.energy < 1e-16, "Solid/modal interface penalized a rigid motion");
+        else {
+            const double expected = 0.5 * 70e9 * 0.002 * 0.02 * 0.005 * (kind == 6 ? 1.0 : 0.002 * 0.002 / 12.0);
+            require(std::abs(response.energy / expected - 1) < 1e-12, "Solid interface failed the EA/EI patch energy");
+            for (std::size_t q = 0; q < response.strain.size(); ++q) {
+                const auto& p = element.geometry.mechanical_points[q].position;
+                require(std::abs(response.strain[q][2] - (kind == 6 ? 1.0 : -p.x)) < 1e-12
+                            && std::abs(response.strain[q][4]) < 1e-12 && std::abs(response.strain[q][5]) < 1e-12,
+                    "Solid interface extension/bending strain or shear cancellation failed");
+            }
+        }
+    }
+    std::vector<double> state(count), direction(count), plus(count), minus(count);
+    for (std::size_t i = 0; i < count; ++i) {
+        state[i] = 1e-5 * std::sin(static_cast<double>(i + 1));
+        direction[i] = std::cos(static_cast<double>(i + 1));
+        plus[i] = state[i] + 1e-7 * direction[i];
+        minus[i] = state[i] - 1e-7 * direction[i];
+    }
+    const auto response = fuelsim::evaluate_modal_solid(element, material, state, true, true);
+    const auto residual = fuelsim::evaluate_modal_solid(element, material, state, false, false);
+    require(residual.residual == response.residual, "Solid end residual changed when requesting a tangent");
+    const auto rp = fuelsim::evaluate_modal_solid(element, material, plus, false, false);
+    const auto rm = fuelsim::evaluate_modal_solid(element, material, minus, false, false);
+    double error = 0.0, norm = 0.0, work = 0.0;
+    for (std::size_t i = 0; i < count; ++i) {
+        double exact = 0.0;
+        work += 0.5 * state[i] * response.residual[i];
+        for (std::size_t j = 0; j < count; ++j)
+            exact += response.jacobian[count * i + j] * direction[j];
+        error = std::hypot(error, (rp.residual[i] - rm.residual[i]) / 2e-7 - exact);
+        norm = std::hypot(norm, exact);
+    }
+    std::cout << "solid_interface_directional_derivative_error=" << error / norm << '\n';
+    require(error / norm < 1e-8 && std::abs(work / response.energy - 1) < 1e-12,
+        "Solid end interface tangent or virtual work failed");
 }
 
 void verify_reflection_tangent() {
@@ -57,6 +179,130 @@ void verify_reflection_tangent() {
     const auto layered_basis = fuelsim::build_reduced_section_basis(layers, false, 0);
     require(layered_basis.reflected_nodes[0].empty() && !layered_basis.reflected_nodes[1].empty(),
         "Reflection optimization ignored the actual material regions");
+}
+
+void verify_width_enrichment() {
+    const auto section = fuelsim::test::rectangle({-0.001, -0.0005, 0.0, 0.0005, 0.001},
+        0.02,
+        {fuelsim::test::region("al", 70e9, 0.3)},
+        false,
+        8);
+    const auto original = fuelsim::build_reduced_section_basis(section, true, 8);
+    const auto seed = fuelsim::make_independent_section_basis(section, fuelsim::make_mixed_bending_basis(original));
+    const auto inner = [&](const std::vector<double>& a, const std::vector<double>& b) {
+        double result = 0.0;
+        const auto n = section.nodes().size();
+        for (const auto& point : section.points())
+            for (std::size_t c = 0; c < 3; ++c) {
+                double x = 0.0, y = 0.0;
+                for (std::size_t i = 0; i < 8; ++i) {
+                    x += point.shape[i] * a[c * n + point.nodes[i]];
+                    y += point.shape[i] * b[c * n + point.nodes[i]];
+                }
+                result += point.weight * x * y;
+            }
+        return result;
+    };
+    const auto element = fuelsim::make_modal_beam_element(0.0, 0.05);
+    fuelsim::ReducedSectionBasis previous;
+    for (int strips : {1, 2, 4}) {
+        std::vector<double> lines;
+        for (int i = 0; i <= strips; ++i)
+            lines.push_back(-0.01 + 0.02 * i / strips);
+        const auto basis = fuelsim::enrich_section_width(section, seed, lines);
+        std::cout << "width_strips=" << strips << " modes=" << basis.modes.size() << '\n';
+        for (std::size_t i = 0; i < basis.modes.size(); ++i) {
+            for (std::size_t order = 1; order < 3; ++order)
+                require(std::all_of(basis.modes[i].coefficient[order].begin(),
+                            basis.modes[i].coefficient[order].end(),
+                            [](double value) { return value == 0.0; }),
+                    "Width line amplitudes lost an unrepresented derivative field");
+            const auto& a = basis.modes[i].coefficient[0];
+            for (std::size_t j = 0; j < i; ++j) {
+                const auto& b = basis.modes[j].coefficient[0];
+                require(std::abs(inner(a, b)) < 1e-10 * std::sqrt(inner(a, a) * inner(b, b)),
+                    "Width basis retained a dependent or nonorthogonal direction");
+            }
+        }
+        for (const auto& mode : previous.modes) {
+            auto remainder = mode.coefficient[0];
+            for (const auto& direction : basis.modes) {
+                const auto& field = direction.coefficient[0];
+                const double coefficient = inner(mode.coefficient[0], field) / inner(field, field);
+                for (std::size_t i = 0; i < field.size(); ++i)
+                    remainder[i] -= coefficient * field[i];
+            }
+            require(inner(remainder, remainder) < 1e-20 * inner(mode.coefficient[0], mode.coefficient[0]),
+                "Refining width lines lost the coarser conforming displacement space");
+        }
+        for (std::size_t classic = 0; classic < 4; ++classic) {
+            std::vector<double> reference(6 * original.modes.size()), state(6 * basis.modes.size());
+            for (std::size_t side = 0; side < 2; ++side) {
+                const double z = side == 0 ? element.lower : element.upper;
+                const std::array<double, 5> derivative =
+                    classic == 0 || classic == 3 ? std::array<double, 5>{0.001 * z, 0.001, 0.0, 0.0, 0.0}
+                                                 : std::array<double, 5>{0.01 * z * z, 0.02 * z, 0.02, 0.0, 0.0};
+                for (std::size_t order = 0; order < 3; ++order) {
+                    reference[6 * classic + 3 * side + order] = derivative[order];
+                    std::vector<double> field(3 * section.nodes().size());
+                    for (std::size_t k = 0; k < 3; ++k)
+                        for (std::size_t i = 0; i < field.size(); ++i)
+                            field[i] += original.modes[classic].coefficient[k][i] * derivative[order + k];
+                    for (std::size_t m = 0; m < basis.modes.size(); ++m) {
+                        const auto& shape = basis.modes[m].coefficient[0];
+                        state[6 * m + 3 * side + order] = inner(shape, field) / inner(shape, shape);
+                    }
+                }
+            }
+            const auto expected = fuelsim::evaluate_modal_beam(section, original, element, reference, false);
+            const auto actual = fuelsim::evaluate_modal_beam(section, basis, element, state, false);
+            require(std::abs(actual.energy / expected.energy - 1.0) < 1e-10,
+                "Width enrichment changed classical extension, bending or torsion energy");
+            for (std::size_t q = 0; q < actual.strain.size(); ++q)
+                for (std::size_t c = 0; c < 6; ++c)
+                    require(std::abs(actual.strain[q][c] - expected.strain[q][c]) < 1e-12,
+                        "Width enrichment changed classical strain or shear cancellation");
+        }
+        if (strips == 2) {
+            const auto size = 6 * basis.modes.size();
+            const auto stiffness =
+                fuelsim::modal_beam_linear_stiffness(fuelsim::linearize_modal_section(section, basis), element);
+            std::vector<double> state(size), direction(size), plus(size), minus(size);
+            constexpr double step = 1e-7;
+            for (std::size_t i = 0; i < size; ++i) {
+                state[i] = 1e-5 * std::sin(0.17 * static_cast<double>(i));
+                direction[i] = std::cos(0.13 * static_cast<double>(i));
+                plus[i] = state[i] + step * direction[i];
+                minus[i] = state[i] - step * direction[i];
+            }
+            const auto actual = fuelsim::evaluate_modal_beam(section, basis, element, state, false);
+            const auto rp = fuelsim::evaluate_modal_beam(section, basis, element, plus, false);
+            const auto rm = fuelsim::evaluate_modal_beam(section, basis, element, minus, false);
+            double error = 0.0, norm = 0.0, work = 0.0;
+            for (std::size_t i = 0; i < size; ++i) {
+                double exact = 0.0;
+                for (std::size_t j = 0; j < size; ++j)
+                    exact += stiffness[size * i + j] * direction[j];
+                error = std::hypot(error, (rp.residual[i] - rm.residual[i]) / (2 * step) - exact);
+                norm = std::hypot(norm, exact);
+                work += state[i] * actual.residual[i];
+            }
+            std::cout << "width_directional_derivative_error=" << error / norm << '\n';
+            require(error / norm < 1e-8 && std::abs(work / (2 * actual.energy) - 1.0) < 1e-10,
+                "Width coupling failed the material-point tangent or virtual work");
+        }
+        previous = basis;
+    }
+    const auto asymmetric = fuelsim::enrich_section_width(section, seed, {-0.01, -0.0025, 0.01});
+    require(!asymmetric.reflected_nodes[0].empty() && asymmetric.reflected_nodes[1].empty(),
+        "An asymmetric width partition acquired unrequested reflected line fields");
+    bool rejected = false;
+    try {
+        (void)fuelsim::enrich_section_width(section, seed, {-0.01, -0.003, 0.01});
+    } catch (const std::invalid_argument&) {
+        rejected = true;
+    }
+    require(rejected, "A width boundary cutting a section element was accepted");
 }
 
 void verify_condensation() {
@@ -437,6 +683,8 @@ int main(int argc, char** argv) {
     try {
         fuelsim::PetscSession session(argc, argv, "Modal beam local contracts");
         verify_reflection_tangent();
+        verify_solid_interface();
+        verify_width_enrichment();
         verify_condensation();
         verify();
         return 0;

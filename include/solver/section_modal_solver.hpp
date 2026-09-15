@@ -10,6 +10,7 @@ struct SectionModalSample final {
     double weight;
     SectionStrain strain, stress;
     CartesianPoint3 displacement;
+    bool solid = false;
 };
 
 struct SectionModalResultant final {
@@ -26,8 +27,13 @@ struct SectionModalResult final {
     std::size_t mode_count = 0, axial_nodes = 0, constraint_count = 0;
     std::size_t basis_mode_count = 0, global_dof_count = 0, condensed_dof_count = 0;
     std::size_t global_constraint_count = 0;
+    std::size_t solid_dof_count = 0, solid_element_count = 0, modal_element_count = 0;
+    double solid_lower_interface = 0.0, solid_upper_interface = 0.0;
+    std::size_t width_line_count = 0, seed_mode_count = 0, width_modes = 0;
     std::size_t poisson_modes = 0, distortion_modes = 0, shear_modes = 0, axial_warping_modes = 0;
     std::size_t shear_free_modes = 0, transverse_corrector_modes = 0, refinement_iterations = 0;
+    std::size_t selected_refinement_iteration = 0;
+    double last_refinement_relative_residual = 0.0;
     double energy = 0.0, equilibrium_relative_residual = 0.0, constraint_maximum_error = 0.0;
     double external_work = 0.0;
     double algebraic_relative_residual = 0.0;
@@ -36,10 +42,13 @@ struct SectionModalResult final {
 };
 
 // Small-strain, fixed extruded section. Original physical displacement and surface
-// traction boundary conditions are projected; no section nodes are global unknowns.
+// traction boundary conditions are projected. Optional native solid end unknowns
+// are eliminated locally; the final global solve contains only axial amplitudes.
 SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
     const SpatialDefinition& definition,
     std::size_t mode_count,
     const std::vector<ModalEndRegion>& end_regions,
+    const std::vector<std::string>& width_lines,
+    const ModalSolidEnds& solid_ends,
     const SolverOptions& options);
 } // namespace fuelsim

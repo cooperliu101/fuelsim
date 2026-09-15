@@ -2,6 +2,12 @@
 #include "core/cross_section.hpp"
 
 namespace fuelsim {
+// Complete Exodus section node sets bound the interior modal interval. The
+// selected outer intervals use native C3D20T displacement unknowns locally.
+struct ModalSolidEnds final {
+    std::string lower_interface, upper_interface;
+};
+
 struct ModalEndRegion final {
     std::size_t mode_count = 0;
     // Complete axial interface node sets in the input Exodus mesh.
@@ -20,7 +26,8 @@ struct SectionMode final {
         shear_y,
         axial_warping,
         shear_free_distortion,
-        transverse_corrector
+        transverse_corrector,
+        width_enrichment
     };
     Kind kind;
     // Coefficients of q, q', q''; each field-major [ux(:),uy(:),uz(:)].

@@ -31,6 +31,8 @@ struct FuelSimCaseDefinition final {
     int version;
     std::size_t section_modes = 0;
     std::vector<ModalEndRegion> section_end_regions;
+    ModalSolidEnds section_solid_ends;
+    std::vector<std::string> section_width_lines;
     CaseProblem problem;
     CaseGeometry geometry;
     std::string mesh_file;

@@ -10,7 +10,7 @@ from compare import compare
 from run import stage
 
 
-def benchmark(executable, directory, cpu, repeats, baseline_executable=None):
+def benchmark(executable, directory, cpu, repeats, baseline_executable=None, solid_ends=False):
     source = Path(__file__).resolve().parent
     executable, directory = executable.resolve(), directory.resolve()
     if baseline_executable is not None:
@@ -31,6 +31,9 @@ def benchmark(executable, directory, cpu, repeats, baseline_executable=None):
         for kind in order:
             name, mesh = (('transverse_refined_solid', 'plate_reference.e') if kind == 'solid'
                           else ('transverse_local_12', 'plate_local.e'))
+            if solid_ends:
+                name, mesh = (('transverse_support_solid', 'plate_support_reference.e') if kind == 'solid'
+                              else ('transverse_hybrid_12', 'plate_solid_ends_128_32.e'))
             target = directory / str(repeat) / kind
             stage(source, target, name, mesh)
             timing = target / 'timing.csv'
@@ -46,8 +49,13 @@ def benchmark(executable, directory, cpu, repeats, baseline_executable=None):
             records.append(dict(repeat=repeat, model=kind, cpu=cpu, executable_sha256=hashes[kind], **values))
             print(records[-1], flush=True)
         # Accuracy is checked outside timed production execution, over every reference point.
-        compare(directory / str(repeat) / 'modal', 'transverse_local', [12], 'plate_local.e', accuracy_count=12,
-                reference_path=directory / str(repeat) / 'solid' / 'transverse_refined_solid.e')
+        if solid_ends:
+            compare(directory / str(repeat) / 'modal', 'transverse_hybrid', [12], 'plate_solid_ends_128_32.e',
+                    accuracy_count=12, reference_path=directory / str(repeat) / 'solid' / 'transverse_support_solid.e',
+                    diagnostics=True, point_support=True)
+        else:
+            compare(directory / str(repeat) / 'modal', 'transverse_local', [12], 'plate_local.e', accuracy_count=12,
+                    reference_path=directory / str(repeat) / 'solid' / 'transverse_refined_solid.e')
         if baseline_executable is not None:
             compare(directory / str(repeat) / 'baseline', 'transverse_local', [12], 'plate_local.e', accuracy_count=12,
                     reference_path=directory / str(repeat) / 'solid' / 'transverse_refined_solid.e')
@@ -64,5 +72,8 @@ if __name__ == '__main__':
     parser.add_argument('--cpu', type=int, default=min(os.sched_getaffinity(0)))
     parser.add_argument('--repeats', type=int, default=2)
     parser.add_argument('--baseline-executable', type=Path)
+    parser.add_argument('--solid-ends', action='store_true')
     args = parser.parse_args()
-    benchmark(args.executable, args.directory, args.cpu, args.repeats, args.baseline_executable)
+    if args.solid_ends and args.baseline_executable:
+        parser.error('The native solid end study compares the same executable in its two production paths')
+    benchmark(args.executable, args.directory, args.cpu, args.repeats, args.baseline_executable, args.solid_ends)

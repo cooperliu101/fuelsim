@@ -33,6 +33,14 @@ def relative(actual, reference, weights=None):
     return float(np.sqrt(np.sum(difference) / denominator))
 
 
+def failed_metrics(record):
+    fields = ('displacement_L2', 'axial_stress_L2', 'stress_tensor_L2', 'bending_moment_L2', 'energy_relative')
+    failed = [name for name in fields if record[name] != '' and record[name] >= 0.01]
+    if record['case'].startswith('axial') and record['bending_moment_absolute'] >= 1e-10:
+        failed.append('zero_bending_moment_absolute')
+    return failed
+
+
 def lagrange(locations, values):
     weights = np.ones((len(values), len(locations)))
     for i in range(len(locations)):
@@ -81,7 +89,7 @@ def read_modal(path, positions, mesh_path, target_nodes=None):
         raise ValueError('Modal nodal coverage is incomplete')
     u = np.array([[float(row[c]) for c in ('ux', 'uy', 'uz')] for row in nodes])
     xyz = np.array([[float(row[c]) for c in 'xyz'] for row in nodes])
-    points = [row for row in rows if row['kind'] == 'point']
+    points = [row for row in rows if row['kind'] in ('point', 'solid_point')]
     sections = [row for row in rows if row['kind'] == 'section']
     points_by_z = {}
     for row in points:
@@ -103,6 +111,8 @@ def read_modal(path, positions, mesh_path, target_nodes=None):
                [float(row[c]) for c in ('sxx', 'syy', 'szz', 'sxy', 'syz', 'sxz', 'ux', 'uy', 'uz')] for row in points}
     if len(samples) != len(points):
         raise ValueError('Duplicate modal material-point coordinates')
+    solid_samples = {tuple(round(float(row[c]), 14) for c in 'xyz')
+                     for row in points if row['kind'] == 'solid_point'}
     with Dataset(mesh_path) as mesh:
         coordinates = np.asarray(np.column_stack([mesh['coord' + c][:] for c in 'xyz']))
         connectivity = np.asarray(mesh['connect1'][:], dtype=int) - 1
@@ -137,13 +147,15 @@ def read_modal(path, positions, mesh_path, target_nodes=None):
         inside = np.all((target[candidates, :2] > lo[:2]) & (target[candidates, :2] < hi[:2]), axis=1)
         selected = candidates[inside]
         positions_x, positions_y = lo[:2, None] + (hi - lo)[:2, None] * (g3 + 1) / 2
-        positions_z = lo[2] + (hi[2] - lo[2]) * (g6 + 1) / 2
+        first_native = tuple(round(float(v), 14) for v in lo + (hi - lo) * (g3[0] + 1) / 2)
+        axial_rule = g3 if first_native in solid_samples else g6
+        positions_z = lo[2] + (hi[2] - lo[2]) * (axial_rule + 1) / 2
         values = np.array([samples[tuple(round(float(v), 14) for v in (x, y, z))]
-                           for z in positions_z for y in positions_y for x in positions_x]).reshape(6, 3, 3, 9)
+                           for z in positions_z for y in positions_y for x in positions_x]).reshape(len(axial_rule), 3, 3, 9)
         natural = 2 * (target[selected] - lo) / (hi - lo) - 1
         nx = lagrange(g3, natural[:, 0])
         ny = lagrange(g3, natural[:, 1])
-        nz = lagrange(g6, natural[:, 2])
+        nz = lagrange(axial_rule, natural[:, 2])
         interpolated[selected] = np.einsum('pi,pj,pk,kjic->pc', nx, ny, nz, values[:, :, :, :6], optimize=True)
         coverage[selected] += 1
         candidates = axial_nodes[(lo[2], hi[2])]
@@ -152,7 +164,7 @@ def read_modal(path, positions, mesh_path, target_nodes=None):
         selected = candidates[inside]
         natural = 2 * (displacement_positions[selected] - lo) / (hi - lo) - 1
         value = np.einsum('pi,pj,pk,kjic->pc', lagrange(g3, natural[:, 0]), lagrange(g3, natural[:, 1]),
-                          lagrange(g6, natural[:, 2]), values[:, :, :, 6:], optimize=True)
+                          lagrange(axial_rule, natural[:, 2]), values[:, :, :, 6:], optimize=True)
         previous = displacement_coverage[selected] > 0
         if not np.allclose(value[previous], interpolated_u[selected[previous]], rtol=1e-9, atol=1e-13):
             raise ValueError('Reconstructed displacement is discontinuous across a modal cell trace')
@@ -188,7 +200,74 @@ def resultants(positions, stress, area):
                             np.bincount(section, weights=-force * points[:, 0])])
 
 
-def compare(directory, case, counts, mesh_name='plate.e', accuracy_count=None, reference_path=None):
+def stress_diagnostics(path, positions, actual, reference, volume):
+    """Localize errors without removing any point from the full-domain acceptance."""
+    weights = volume[:, :, None] * [1, 1, 1, 2, 2, 2]
+    difference = weights * (actual - reference) ** 2
+    squared = weights * reference ** 2
+    global_error, global_reference = np.sum(difference), np.sum(squared)
+    z = positions[:, :, 2]
+    rows = []
+    for family, selections in [
+            ('region', [('root_0_6mm', z < 0.006), ('tip_194_200mm', z > 0.194),
+                        ('transition_6_30mm', ((z >= 0.006) & (z < 0.03)) | ((z > 0.17) & (z <= 0.194))),
+                        ('interior_30_170mm', (z >= 0.03) & (z <= 0.17))]),
+            ('component', [(name, i) for i, name in enumerate(('xx', 'yy', 'zz', 'xy', 'yz', 'xz'))])]:
+        for name, selection in selections:
+            error = np.sum(difference[selection] if family == 'region' else difference[:, :, selection])
+            norm = np.sum(squared[selection] if family == 'region' else squared[:, :, selection])
+            rows.append(dict(family=family, name=name,
+                             squared_error_share=float(error / global_error) if global_error else 0.0,
+                             error_over_global_reference=float(np.sqrt(error / global_reference)),
+                             relative_L2=float(np.sqrt(error / norm)) if norm else '',
+                             absolute_weighted_error=float(np.sqrt(error))))
+    with path.open('w') as stream:
+        writer = csv.DictWriter(stream, fieldnames=rows[0], lineterminator='\n')
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def check_point_support(xyz, displacement):
+    selections = [((0, 0, 0), (0, 1, 2)), ((0.001, 0, 0), (1, 2)), ((0, 0.01, 0), (2,))]
+    rigid_rows = []
+    for position, components in selections:
+        nodes = np.flatnonzero(np.all(np.abs(xyz - position) < 1e-14, axis=1))
+        if len(nodes) != 1:
+            raise ValueError('A three-point support location is missing or duplicated')
+        if np.max(np.abs(displacement[nodes[0], list(components)])) > 1e-10:
+            raise ValueError('A prescribed three-point support displacement is nonzero')
+        x, y, z = xyz[nodes[0]]
+        rotation = np.array([[0, z, -y], [-z, 0, x], [y, -x, 0]])
+        rigid_rows.extend(np.column_stack([np.eye(3), rotation])[list(components)])
+    if np.linalg.matrix_rank(np.array(rigid_rows)) != 6:
+        raise ValueError('The six scalar constraints do not remove all rigid motions')
+    root_displacement = float(np.max(np.abs(displacement[xyz[:, 2] == 0])))
+    if root_displacement <= 1e-15:
+        raise ValueError('This loaded point-supported fixture unexpectedly retained a fully fixed root')
+    return root_displacement
+
+
+def displacement_diagnostics(path, xyz, actual, reference):
+    """Explain displacement error; never align fields used by the acceptance metrics."""
+    difference = actual - reference
+    position = xyz - np.mean(xyz, axis=0)
+    translation = np.mean(difference, axis=0)
+    inertia = np.eye(3) * np.sum(position * position) - position.T @ position
+    rotation = np.linalg.solve(inertia, np.sum(np.cross(position, difference - translation), axis=0))
+    remainder = difference - translation - np.cross(rotation, position)
+    error = np.sum(difference * difference)
+    row = dict(rigid_fit_squared_error_fraction=1 - np.sum(remainder * remainder) / error if error else 0.0,
+               remaining_displacement_L2=relative(remainder + reference, reference),
+               translation_x=translation[0], translation_y=translation[1], translation_z=translation[2],
+               rotation_x=rotation[0], rotation_y=rotation[1], rotation_z=rotation[2])
+    with path.open('w') as stream:
+        writer = csv.DictWriter(stream, fieldnames=row, lineterminator='\n')
+        writer.writeheader()
+        writer.writerow(row)
+
+
+def compare(directory, case, counts, mesh_name='plate.e', accuracy_count=None, reference_path=None,
+            diagnostics=False, point_support=False):
     reference_path = directory / f'{case}_solid.e' if reference_path is None else reference_path
     xyz, solid_u, positions, solid_s, volume, area, solid_energy, lower, upper = read_solid(reference_path)
     solid_g = resultants(positions, solid_s, area)
@@ -213,11 +292,18 @@ def compare(directory, case, counts, mesh_name='plate.e', accuracy_count=None, r
         previous_count = count
         if report['equilibrium_relative_residual'] > 1e-7 or report['constraint_maximum_error'] > 1e-9:
             raise ValueError('Production equilibrium or physical constraints failed')
-        if np.max(np.abs(modal_u[xyz[:, 2] == 0])) > 1e-10:
+        if point_support:
+            modal_root_displacement = check_point_support(modal_xyz, modal_u)
+            solid_root_displacement = check_point_support(xyz, solid_u)
+            if report['constraint_count'] != 6:
+                raise ValueError('The modal problem did not impose exactly six independent physical constraints')
+        elif np.max(np.abs(modal_u[xyz[:, 2] == 0])) > 1e-10:
             raise ValueError('Reconstructed fixed-end displacement is nonzero')
         with Dataset(directory / mesh_name) as mesh:
             corner_ids = np.asarray(mesh['connect1'][:, :8], dtype=int) - 1
-            axial_nodes = len(np.unique(mesh['coordz'][:][corner_ids]))
+            axial_coordinates = np.unique(mesh['coordz'][:][corner_ids])
+            axial_nodes = len(axial_coordinates)
+            source_z = np.asarray(mesh['coordz'][:])
         if report['axial_nodes'] != axial_nodes:
             raise ValueError('Axial mesh does not match the production extrusion')
         with (directory / f'{case}_{count}_history.csv').open() as stream:
@@ -226,9 +312,17 @@ def compare(directory, case, counts, mesh_name='plate.e', accuracy_count=None, r
         amplitude_ids = {(int(row['id']), int(row['mode'])) for row in amplitudes}
         if len(amplitude_ids) != len(amplitudes):
             raise ValueError('Duplicate axial amplitude output')
-        if {node for node, _ in amplitude_ids} != set(range(axial_nodes)):
+        solid_dofs = 0
+        expected_nodes = set(range(axial_nodes))
+        if report.get('solid_elements', 0):
+            lo, hi = report['solid_lower_interface'], report['solid_upper_interface']
+            expected_nodes = set(np.flatnonzero((axial_coordinates >= lo) & (axial_coordinates <= hi)))
+            solid_dofs = int(3 * np.sum((source_z < lo) | (source_z > hi)))
+            if report['solid_displacement_dofs'] != solid_dofs:
+                raise ValueError('Independent solid displacement count disagrees with the extrusion')
+        if {node for node, _ in amplitude_ids} != expected_nodes:
             raise ValueError('Axial amplitude node coverage disagrees with the mesh')
-        for node in range(axial_nodes):
+        for node in sorted(expected_nodes):
             node_rows = [row for row in amplitudes if int(row['id']) == node]
             if not node_rows:
                 raise ValueError('Missing axial amplitude node')
@@ -243,12 +337,12 @@ def compare(directory, case, counts, mesh_name='plate.e', accuracy_count=None, r
                 raise ValueError('Axial amplitude coverage does not match its section basis')
         retained = 3 * sum(row['kind'] == 'amplitude' for row in amplitudes)
         local = 3 * sum(row['kind'] == 'local_amplitude' for row in amplitudes)
-        if (report['dof_count'] != retained or report['recovered_local_dofs'] != local
+        if (report['dof_count'] != retained or report['recovered_local_dofs'] != local + solid_dofs
                 or report['active_axial_dofs'] != retained + local):
             raise ValueError('Global and recovered local amplitude counts disagree with production output')
         modal_g = resultants(positions, modal_s, area)
         record = dict(case=case, modes=count, modal_dofs=int(report['dof_count']),
-                      local_dofs=local, section_basis_size=int(report['section_basis_size']),
+                      local_dofs=local + solid_dofs, section_basis_size=int(report['section_basis_size']),
                       solid_displacement_dofs=solid_u.size,
                       displacement_L2=relative(modal_u, solid_u),
                       axial_stress_L2=relative(modal_s[:, :, 2], solid_s[:, :, 2], volume),
@@ -257,7 +351,14 @@ def compare(directory, case, counts, mesh_name='plate.e', accuracy_count=None, r
                       bending_moment_absolute=float(np.max(np.abs(modal_g[:, 1:] - solid_g[:, 1:]))),
                       axial_force_absolute=float(np.max(np.abs(modal_g[:, 0] - solid_g[:, 0]))),
                       energy_relative=abs(energy / solid_energy - 1), modal_energy=energy, solid_energy=solid_energy)
+        if point_support:
+            record.update(modal_root_displacement=modal_root_displacement,
+                          solid_root_displacement=solid_root_displacement)
         records.append(record)
+        if diagnostics:
+            stress_diagnostics(directory / f'{case}_{count}_diagnostics.csv', positions, modal_s, solid_s, volume)
+            if point_support:
+                displacement_diagnostics(directory / f'{case}_{count}_displacement_diagnostics.csv', xyz, modal_u, solid_u)
         print(', '.join(f'{key}={value:.8g}' if isinstance(value, float) else f'{key}={value}'
                         for key, value in record.items()))
     output = directory / f'{case}_comparison.csv'

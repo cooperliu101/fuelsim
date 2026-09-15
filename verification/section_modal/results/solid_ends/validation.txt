@@ -1,0 +1,47 @@
+验证完成于 2026-09-15。
+
+构建使用仓库原有 moose Conda 编译器和 PETSc、ADlite 0.2.3、串行 Exodus。
+C++17，Release，FUELSIM_WARNINGS_AS_ERRORS=ON。
+cmake --build build --parallel 4
+返回码为零。
+
+ctest --test-dir build -j8 --output-on-failure
+100% tests passed, 0 tests failed out of 331
+Total Test time (real) = 643.46 sec
+全部测试名称和结果见 regression.log。
+
+连接面内部测试通过六种刚体运动、EA/EI、弯曲剪切消除、残量重复调用、
+能量与虚功、实际残量的中心差分方向导数。
+solid_interface_directional_derivative_error=2.01501e-14
+独立局部静力凝聚与直接完整矩阵求解的一致性测试继续通过。
+
+独立单进程与双进程比较：
+MPI node relative L2 = 1.16664008662e-15
+MPI point relative L2 = 1.08323042827e-12
+MPI solid_point relative L2 = 2.36135120786e-11
+统一回归中的对应三项分别为 6.77847854236e-16、1.06771893832e-12、2.4598009122e-11。
+
+四种载荷均保留三点六个标量约束。根部 25 mm、另一端 6.25 mm 使用 C3D20T；
+中间 32 个一维单元使用 12 个截面方向。全局未知量 1188，端部位移 79680，
+加六个局部约束乘子后局部方程为 79686。完整三维为 510315 个位移未知量，
+另有 46125 个固定温度未知量，总方程 556440。
+
+study.csv 中四组全域比较均通过严格 1% 门槛；轴向零弯矩采用原有 1e-10 N m
+绝对误差门槛，实际差为 4.2744855e-13 N m。没有删去端部节点或材料点，
+没有对位移场作平移、转动对齐。区域及刚体拟合数据仅用于诊断，不参与验收。
+此前较短端部试验的 1.1461% 应力误差明确保留为失败记录。
+
+轴向三维参考将绝对残量容差从 1e-8 收紧至 1e-10 后重新求解，消除原参考中
+微小非零弯矩的求解误差；网格、物理、载荷和验收门槛均保持不变。
+本次三维参考来自实际 Fuelsim 生产程序，不是新增的 Abaqus 对标。
+
+性能命令：
+python verification/section_modal/benchmark.py build/fuelsim build/blackbox/solid_end_benchmark --solid-ends --cpu 0 --repeats 2
+每次调用实际 fuelsim -i 完整输入卡。使用同一可执行文件、CPU 0、单线程和 MUMPS，
+两轮相反顺序，预处理、凝聚、恢复和输出均计时。两轮精度复核均通过。
+混合模型 9.77/9.51 秒，完整三维 78.96/78.35 秒，平均速度提高约 8.16 倍。
+峰值内存分别为 1.49 GiB 和 9.42 GiB。
+
+可执行文件 SHA256：
+fd8b23410bd71c302f11207ebdded62d8bdf06d9f73c347fb5bf709107fc0cc2
+所有源文件、输入和记录的内容校验值见 SHA256SUMS。

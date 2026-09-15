@@ -1247,12 +1247,34 @@ FuelSimCaseDefinition read_case_input(const std::string& path, const MaterialFun
     FuelSimCaseDefinition result{};
     read_case(document, result);
     if (const auto* section = find_section(document, "SectionModes")) {
-        validate_keys(document, *section, {"count"});
+        validate_keys(document, *section, {"count", "width_lines"});
         result.section_modes = read_size(document, *section, "count");
+        if (find_entry(*section, "width_lines")) {
+            std::istringstream names(read_optional_string(*section, "width_lines", {}));
+            std::string name;
+            while (names >> name) {
+                if (!valid_name(name)
+                    || std::find(result.section_width_lines.begin(), result.section_width_lines.end(), name)
+                           != result.section_width_lines.end())
+                    throw std::invalid_argument(path + ": width_lines requires distinct Exodus node set names");
+                result.section_width_lines.push_back(name);
+            }
+            if (result.section_width_lines.size() < 2 || result.section_modes < 10)
+                throw std::invalid_argument(path + ": width_lines requires at least two lines and ten seed modes");
+        }
         if (result.section_modes < 3 || result.section_modes > 768 || result.problem != CaseProblem::steady
             || result.geometry != CaseGeometry::cartesian_3d)
             throw std::invalid_argument(path + ": SectionModes requires steady cartesian_3d and count in [3,768]");
         for (const auto* local : direct_children(document, "SectionModes")) {
+            if (local->name == "solid_ends") {
+                validate_keys(document, *local, {"lower_interface", "upper_interface"});
+                result.section_solid_ends.lower_interface = read_optional_string(*local, "lower_interface", {});
+                result.section_solid_ends.upper_interface = read_optional_string(*local, "upper_interface", {});
+                if (result.section_solid_ends.lower_interface.empty()
+                    && result.section_solid_ends.upper_interface.empty())
+                    throw std::invalid_argument(path + ": solid_ends requires an interface node set");
+                continue;
+            }
             validate_keys(document, *local, {"count", "lower_interface", "upper_interface"});
             ModalEndRegion ends;
             ends.mode_count = read_size(document, *local, "count");
@@ -1267,6 +1289,11 @@ FuelSimCaseDefinition read_case_input(const std::string& path, const MaterialFun
         if (!result.section_end_regions.empty() && result.section_modes < 10)
             throw std::invalid_argument(
                 path + ": end condensation requires at least 10 full-length modes to retain the classical space");
+        if (!result.section_end_regions.empty() && !result.section_width_lines.empty())
+            throw std::invalid_argument(path + ": width_lines experiment requires no end condensation");
+        if (!result.section_solid_ends.lower_interface.empty() || !result.section_solid_ends.upper_interface.empty())
+            if (result.section_modes < 10 || !result.section_end_regions.empty() || !result.section_width_lines.empty())
+                throw std::invalid_argument(path + ": solid_ends requires at least ten modes and no other enrichment");
     }
     read_mesh(document, path, result);
     read_time_functions(document, result);

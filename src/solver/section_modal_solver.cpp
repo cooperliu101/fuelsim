@@ -1,5 +1,6 @@
 #include "solver/section_modal_solver.hpp"
 #include "modal_condensation.hpp"
+#include "modal_solid_end.hpp"
 #include "quad8_face.hpp"
 #include "solver/reduced_section_basis.hpp"
 #include <algorithm>
@@ -40,7 +41,7 @@ std::vector<double> gather(Vec vector) {
 struct Objects final {
     Mat stiffness = nullptr, constrained = nullptr;
     Vec diagonal = nullptr, physical_load = nullptr, rhs = nullptr, solution = nullptr, defect = nullptr;
-    Vec correction = nullptr;
+    Vec correction = nullptr, best_solution = nullptr;
     KSP solver = nullptr;
 
     ~Objects() {
@@ -51,6 +52,7 @@ struct Objects final {
         (void)VecDestroy(&solution);
         (void)VecDestroy(&defect);
         (void)VecDestroy(&correction);
+        (void)VecDestroy(&best_solution);
         (void)MatDestroy(&stiffness);
         (void)MatDestroy(&constrained);
     }
@@ -66,7 +68,10 @@ struct AxialLayout final {
 struct Geometry final {
     std::unique_ptr<CrossSection> section;
     std::vector<double> axial;
-    std::vector<std::size_t> source_to_section, element_section;
+    std::vector<std::size_t> source_to_section, element_section, element_region;
+    std::vector<bool> solid_layers;
+    std::vector<std::array<PetscInt, 3>> solid_nodes;
+    std::vector<ModalSolidElement> solid_elements;
     AxialLayout layout;
 };
 
@@ -186,6 +191,7 @@ Geometry extract(const UnstructuredHex20Mesh& source, const SpatialDefinition& d
             || !coverage.emplace(layer, found->second).second)
             throw std::invalid_argument("Section modal axial mesh overlaps or is nonconforming");
         result.element_section.push_back(found->second);
+        result.element_region.push_back(key[8]);
     }
     if (coverage.size() != (result.axial.size() - 1) * cells.size())
         throw std::invalid_argument("Section modal mesh is missing an extruded cell");
@@ -193,33 +199,38 @@ Geometry extract(const UnstructuredHex20Mesh& source, const SpatialDefinition& d
     return result;
 }
 
-AxialLayout make_layout(const UnstructuredHex20Mesh& source,
+double interface_plane(const UnstructuredHex20Mesh& source,
     const Geometry& geometry,
+    const std::string& name,
+    double fallback) {
+    if (name.empty())
+        return fallback;
+    const auto found = std::find_if(source.node_sets().begin(), source.node_sets().end(), [&](const NodeSet& set) {
+        return set.name == name;
+    });
+    if (found == source.node_sets().end() || found->nodes.empty())
+        throw std::invalid_argument("Modal end interface requires a nonempty Exodus node set: " + name);
+    const double z = source.nodes()[found->nodes.front()].z;
+    std::vector<bool> covered(geometry.section->nodes().size(), false);
+    for (auto node : found->nodes) {
+        if (source.nodes()[node].z != z)
+            throw std::invalid_argument("Modal end interface is not a single axial plane");
+        covered[geometry.source_to_section[node]] = true;
+    }
+    if (std::find(covered.begin(), covered.end(), false) != covered.end()
+        || !std::binary_search(geometry.axial.begin(), geometry.axial.end(), z) || z <= geometry.axial.front()
+        || z >= geometry.axial.back())
+        throw std::invalid_argument("Modal end interface must cover a complete interior axial section");
+    return z;
+}
+
+AxialLayout make_layout(const UnstructuredHex20Mesh& source,
+    Geometry& geometry,
     std::size_t modes,
-    const std::vector<ModalEndRegion>& end_regions) {
+    const std::vector<ModalEndRegion>& end_regions,
+    const ModalSolidEnds& solid_ends) {
     const auto nz = geometry.axial.size();
     std::size_t maximum = modes;
-    const auto interface = [&](const std::string& name, double fallback) {
-        if (name.empty())
-            return fallback;
-        const auto found = std::find_if(source.node_sets().begin(), source.node_sets().end(), [&](const NodeSet& set) {
-            return set.name == name;
-        });
-        if (found == source.node_sets().end() || found->nodes.empty())
-            throw std::invalid_argument("Modal end interface requires a nonempty Exodus node set: " + name);
-        const double z = source.nodes()[found->nodes.front()].z;
-        std::vector<bool> covered(geometry.section->nodes().size(), false);
-        for (auto node : found->nodes) {
-            if (source.nodes()[node].z != z)
-                throw std::invalid_argument("Modal end interface is not a single axial plane");
-            covered[geometry.source_to_section[node]] = true;
-        }
-        if (std::find(covered.begin(), covered.end(), false) != covered.end()
-            || !std::binary_search(geometry.axial.begin(), geometry.axial.end(), z) || z <= geometry.axial.front()
-            || z >= geometry.axial.back())
-            throw std::invalid_argument("Modal end interface must cover a complete interior axial section");
-        return z;
-    };
     AxialLayout result;
     result.modes.assign(nz, modes);
     double outer_lower = geometry.axial.front(), outer_upper = geometry.axial.back();
@@ -228,8 +239,8 @@ AxialLayout make_layout(const UnstructuredHex20Mesh& source,
             || (ends.lower_interface.empty() && ends.upper_interface.empty()))
             throw std::invalid_argument(
                 "Local modal count must exceed the full-length count and requires an interface");
-        const double lower = interface(ends.lower_interface, geometry.axial.front());
-        const double upper = interface(ends.upper_interface, geometry.axial.back());
+        const double lower = interface_plane(source, geometry, ends.lower_interface, geometry.axial.front());
+        const double upper = interface_plane(source, geometry, ends.upper_interface, geometry.axial.back());
         outer_lower = std::max(outer_lower, lower);
         outer_upper = std::min(outer_upper, upper);
         if (outer_lower >= outer_upper)
@@ -239,6 +250,16 @@ AxialLayout make_layout(const UnstructuredHex20Mesh& source,
             if (geometry.axial[node] < lower || geometry.axial[node] > upper)
                 result.modes[node] = std::max(result.modes[node], ends.mode_count);
     }
+    const double lower = interface_plane(source, geometry, solid_ends.lower_interface, geometry.axial.front());
+    const double upper = interface_plane(source, geometry, solid_ends.upper_interface, geometry.axial.back());
+    if (lower >= upper)
+        throw std::invalid_argument("Solid end regions overlap or leave no interior beam interval");
+    for (std::size_t node = 0; node < nz; ++node)
+        if (geometry.axial[node] < lower || geometry.axial[node] > upper)
+            result.modes[node] = 0;
+    geometry.solid_layers.resize(nz - 1);
+    for (std::size_t layer = 0; layer + 1 < nz; ++layer)
+        geometry.solid_layers[layer] = geometry.axial[layer] < lower || geometry.axial[layer + 1] > upper;
     result.indices.resize(3 * maximum * nz, -1);
     for (std::size_t m = 0; m < maximum; ++m)
         for (std::size_t derivative = 0; derivative < 3; ++derivative)
@@ -249,6 +270,17 @@ AxialLayout make_layout(const UnstructuredHex20Mesh& source,
                     result.eliminated.push_back(local);
                     result.retained += local ? 0 : 1;
                 }
+    // Field-major native displacement unknowns exist only strictly outside the
+    // interfaces. Interface nodes are represented exactly by modal traces.
+    geometry.solid_nodes.resize(source.nodes().size(), {-1, -1, -1});
+    for (std::size_t c = 0; c < 3; ++c)
+        for (std::size_t node = 0; node < source.nodes().size(); ++node)
+            if (source.nodes()[node].z < lower || source.nodes()[node].z > upper) {
+                if (result.count >= static_cast<std::size_t>(std::numeric_limits<PetscInt>::max()))
+                    throw std::invalid_argument("Solid end unknown count exceeds PETSc index capacity");
+                geometry.solid_nodes[node][c] = static_cast<PetscInt>(result.count++);
+                result.eliminated.push_back(true);
+            }
     return result;
 }
 
@@ -276,7 +308,13 @@ std::vector<double> displacement_row(const Geometry& geometry,
     double z,
     std::size_t component) {
     const auto n = geometry.section->nodes().size();
-    const auto layer = layer_at(geometry, z);
+    auto layer = layer_at(geometry, z);
+    // At the upper interface upper_bound selects the solid side. Evaluate its
+    // identical trace from the adjacent modal interval instead.
+    if (geometry.solid_layers[layer] && layer > 0 && z == geometry.axial[layer])
+        --layer;
+    if (geometry.solid_layers[layer])
+        throw std::logic_error("Modal interpolation requested inside a native solid end");
     const auto axial = modal_beam_shape(geometry.axial[layer], geometry.axial[layer + 1], z);
     const auto ids = element_dofs(geometry, layer);
     const auto modes = ids.size() / 6;
@@ -291,6 +329,53 @@ std::vector<double> displacement_row(const Geometry& geometry,
                     row[static_cast<std::size_t>(ids[6 * m + j])] += value * axial[order][j];
         }
     return row;
+}
+
+SolidDisplacementRow nodal_displacement_row(const UnstructuredHex20Mesh& source,
+    const Geometry& geometry,
+    const ReducedSectionBasis& basis,
+    std::size_t node,
+    std::size_t component) {
+    const auto solid = geometry.solid_nodes[node][component];
+    if (solid >= 0)
+        return {{static_cast<std::size_t>(solid), 1.0}};
+    const double z = source.nodes()[node].z;
+    auto layer = layer_at(geometry, z);
+    if (geometry.solid_layers[layer] && layer > 0 && z == geometry.axial[layer])
+        --layer;
+    if (geometry.solid_layers[layer])
+        throw std::logic_error("Unrepresented solid end node");
+    const auto axial = modal_beam_shape(geometry.axial[layer], geometry.axial[layer + 1], z);
+    const auto ids = element_dofs(geometry, layer);
+    SolidDisplacementRow result;
+    const auto section_node = component * geometry.section->nodes().size() + geometry.source_to_section[node];
+    for (std::size_t m = 0; m < ids.size() / 6; ++m)
+        for (std::size_t j = 0; j < 6; ++j) {
+            double value = 0.0;
+            for (std::size_t order = 0; order < 3; ++order)
+                value += basis.modes[m].coefficient[order][section_node] * axial[order][j];
+            if (value != 0.0 && ids[6 * m + j] >= 0)
+                result.emplace_back(static_cast<std::size_t>(ids[6 * m + j]), value);
+        }
+    return result;
+}
+
+void make_solid_elements(const UnstructuredHex20Mesh& source, Geometry& geometry, const ReducedSectionBasis& basis) {
+    for (std::size_t e = 0; e < source.elements().size(); ++e) {
+        const auto& nodes = source.elements()[e].nodes;
+        const auto layer = layer_at(geometry, source.nodes()[nodes[0]].z);
+        if (!geometry.solid_layers[layer])
+            continue;
+        Hex20Coordinates coordinates{};
+        std::array<SolidDisplacementRow, 60> rows;
+        for (std::size_t i = 0; i < 20; ++i) {
+            coordinates[i] = source.nodes()[nodes[i]];
+            for (std::size_t c = 0; c < 3; ++c)
+                rows[20 * c + i] = nodal_displacement_row(source, geometry, basis, nodes[i], c);
+        }
+        const auto region = geometry.element_region[e];
+        geometry.solid_elements.push_back(make_modal_solid_element(coordinates, std::move(rows), layer, region));
+    }
 }
 
 std::size_t component(Field field) {
@@ -388,13 +473,11 @@ void physical_boundaries(const UnstructuredHex20Mesh& source,
             }
             std::vector<Constraint> boundary_rows;
             for (auto node : nodes) {
-                std::array<std::size_t, 8> ids{};
-                ids.fill(geometry.source_to_section[node]);
-                std::array<double, 8> shape{};
-                shape[0] = 1.0;
-                boundary_rows.push_back(
-                    {displacement_row(geometry, basis, ids, shape, source.nodes()[node].z, component(boundary.field)),
-                        boundary.value});
+                std::vector<double> row(geometry.layout.count);
+                for (const auto& entry :
+                    nodal_displacement_row(source, geometry, basis, node, component(boundary.field)))
+                    row[entry.first] += entry.second;
+                boundary_rows.push_back({std::move(row), boundary.value});
             }
             constraints.insert(constraints.end(), boundary_rows.begin(), boundary_rows.end());
             reflect_boundary_constraints(source, geometry, basis, nodes, component(boundary.field), boundary_rows);
@@ -412,11 +495,12 @@ void physical_boundaries(const UnstructuredHex20Mesh& source,
             if (owner != static_cast<std::size_t>(PetscGlobalRank))
                 continue;
             Quad8FaceCoordinates coordinates{};
-            std::array<std::size_t, 8> ids{};
+            std::array<std::size_t, 8> ids{}, source_ids{};
             for (std::size_t i = 0; i < 8; ++i) {
                 const auto node = region.source_node_ids()[face.nodes[i]];
                 coordinates[i] = source.nodes()[node];
                 ids[i] = geometry.source_to_section[node];
+                source_ids[i] = node;
             }
             for (const auto& qp : make_quad8_face_geometry(coordinates).mechanical_points) {
                 double z = 0.0;
@@ -436,6 +520,13 @@ void physical_boundaries(const UnstructuredHex20Mesh& source,
                                              : (c == component(boundary.field) ? boundary.value * area : 0.0);
                     if (force == 0.0)
                         continue;
+                    if (geometry.solid_layers[layer_at(geometry, z)]) {
+                        for (std::size_t i = 0; i < 8; ++i)
+                            for (const auto& entry : nodal_displacement_row(source, geometry, basis, source_ids[i], c))
+                                load[entry.first] +=
+                                    qp.quadrature_weight * force * qp.displacement_shape[i] * entry.second;
+                        continue;
+                    }
                     const auto row = displacement_row(geometry, basis, ids, qp.displacement_shape, z, c);
                     for (std::size_t i = 0; i < load.size(); ++i)
                         load[i] += qp.quadrature_weight * force * row[i];
@@ -450,6 +541,8 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
     const SpatialDefinition& definition,
     std::size_t full_length_modes,
     const std::vector<ModalEndRegion>& end_regions,
+    const std::vector<std::string>& width_lines,
+    const ModalSolidEnds& solid_ends,
     const SolverOptions& options) {
     const auto start = std::chrono::steady_clock::now();
     const auto elapsed = [&]() {
@@ -474,6 +567,9 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
     // a three-amplitude prefix alone would silently lose those kinematics.
     if (!end_regions.empty() && full_length_modes < 10)
         throw std::invalid_argument("End condensation requires at least 10 full-length modes for the classical space");
+    const bool native_ends = !solid_ends.lower_interface.empty() || !solid_ends.upper_interface.empty();
+    if (native_ends && (full_length_modes < 10 || !end_regions.empty() || !width_lines.empty()))
+        throw std::invalid_argument("Solid ends require ten modes and no other enrichment");
     auto geometry = extract(source, definition);
     std::size_t modes = full_length_modes;
     for (const auto& region : end_regions)
@@ -482,15 +578,51 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
     auto basis = build_reduced_section_basis(section, modes > 3, modes > 4 ? modes - 4 : 0);
     if (modes >= 6)
         basis = make_independent_section_basis(section, make_mixed_bending_basis(std::move(basis)));
+    result.seed_mode_count = full_length_modes;
+    if (!width_lines.empty()) {
+        if (!end_regions.empty() || full_length_modes < 10)
+            throw std::invalid_argument("Width lines require ten seed modes and no end condensation");
+        std::vector<double> coordinates;
+        for (const auto& name : width_lines) {
+            const auto found = std::find_if(source.node_sets().begin(),
+                source.node_sets().end(),
+                [&](const NodeSet& set) { return set.name == name; });
+            if (found == source.node_sets().end() || found->nodes.empty())
+                throw std::invalid_argument("Width line requires a nonempty Exodus node set: " + name);
+            const double y = source.nodes()[found->nodes.front()].y;
+            std::vector<bool> covered(section.nodes().size(), false);
+            for (auto node : found->nodes) {
+                if (source.nodes()[node].y != y)
+                    throw std::invalid_argument("Width line node set must have a constant y coordinate");
+                covered[geometry.source_to_section[node]] = true;
+            }
+            for (std::size_t node = 0; node < section.nodes().size(); ++node)
+                if (section.nodes()[node].y == y && !covered[node])
+                    throw std::invalid_argument("Width line must cover its complete cross-section trace");
+            coordinates.push_back(y);
+        }
+        basis = enrich_section_width(section, std::move(basis), coordinates);
+        full_length_modes = modes = basis.modes.size();
+        result.width_line_count = coordinates.size();
+    }
     const auto nz = geometry.axial.size();
     if (nz > static_cast<std::size_t>(std::numeric_limits<PetscInt>::max()) / (6 * modes))
         throw std::invalid_argument("Section modal axial mesh exceeds PETSc index capacity");
-    geometry.layout = make_layout(source, geometry, full_length_modes, end_regions);
+    geometry.layout = make_layout(source, geometry, full_length_modes, end_regions, solid_ends);
+    make_solid_elements(source, geometry, basis);
+    result.solid_element_count = geometry.solid_elements.size();
+    result.modal_element_count =
+        static_cast<std::size_t>(std::count(geometry.solid_layers.begin(), geometry.solid_layers.end(), false));
+    result.solid_lower_interface =
+        interface_plane(source, geometry, solid_ends.lower_interface, geometry.axial.front());
+    result.solid_upper_interface = interface_plane(source, geometry, solid_ends.upper_interface, geometry.axial.back());
+    for (const auto& node : geometry.solid_nodes)
+        result.solid_dof_count += node[0] >= 0 ? 3u : 0u;
     std::map<std::size_t, ReducedSectionBasis> element_bases;
     std::map<std::size_t, ModalSectionKinematics> section_kinematics;
     std::map<std::size_t, ModalSectionLinearization> section_linearizations;
     for (auto local_count : geometry.layout.modes)
-        if (element_bases.count(local_count) == 0) {
+        if (local_count > 0 && element_bases.count(local_count) == 0) {
             auto prefix = basis;
             prefix.modes.resize(local_count);
             section_kinematics.emplace(local_count, sample_modal_section(section, prefix));
@@ -525,9 +657,23 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
                 row_entries[static_cast<std::size_t>(geometry.layout.indices[(3 * mode + order) * nz + node])] =
                     entries;
         }
+    if (native_ends) {
+        std::vector<std::vector<std::size_t>> solid_graph(count);
+        for (const auto& element : geometry.solid_elements)
+            for (auto row : element.dofs)
+                solid_graph[row].insert(solid_graph[row].end(), element.dofs.begin(), element.dofs.end());
+        for (std::size_t row = 0; row < count; ++row) {
+            auto& columns = solid_graph[row];
+            std::sort(columns.begin(), columns.end());
+            columns.erase(std::unique(columns.begin(), columns.end()), columns.end());
+            row_entries[row] += static_cast<PetscInt>(columns.size());
+        }
+    }
     create_axial_matrix(local_rows, row_entries, &objects.stiffness, &objects.diagonal);
     result.section_preprocessing_seconds = elapsed();
     for (std::size_t e = 0; e + 1 < nz; ++e) {
+        if (geometry.solid_layers[e])
+            continue;
         if (e % static_cast<std::size_t>(ranks) != static_cast<std::size_t>(rank))
             continue;
         const auto element = make_modal_beam_element(geometry.axial[e], geometry.axial[e + 1]);
@@ -535,6 +681,20 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
         const auto local = modal_beam_linear_stiffness(section_linearizations.at(ids.size() / 6), element);
         const auto size = static_cast<PetscInt>(ids.size());
         check(MatSetValues(objects.stiffness, size, ids.data(), size, ids.data(), local.data(), ADD_VALUES));
+    }
+    for (std::size_t e = 0; e < geometry.solid_elements.size(); ++e) {
+        if (e % static_cast<std::size_t>(ranks) != static_cast<std::size_t>(rank))
+            continue;
+        const auto& element = geometry.solid_elements[e];
+        const auto response = evaluate_modal_solid(element,
+            section.regions()[element.region],
+            std::vector<double>(element.dofs.size()),
+            true,
+            false);
+        const std::vector<PetscInt> ids(element.dofs.begin(), element.dofs.end());
+        const auto size = static_cast<PetscInt>(ids.size());
+        check(
+            MatSetValues(objects.stiffness, size, ids.data(), size, ids.data(), response.jacobian.data(), ADD_VALUES));
     }
     check(MatAssemblyBegin(objects.stiffness, MAT_FINAL_ASSEMBLY));
     check(MatAssemblyEnd(objects.stiffness, MAT_FINAL_ASSEMBLY));
@@ -710,7 +870,7 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
     result.global_constraint_count = orthogonal.size();
     result.assembly_seconds = elapsed() - result.section_preprocessing_seconds;
     const double condensation_start = elapsed();
-    if (!end_regions.empty()) {
+    if (!end_regions.empty() || native_ends) {
         auto eliminated = geometry.layout.eliminated;
         for (const auto& constraint : orthogonal) {
             bool local = false, retained = false;
@@ -754,8 +914,11 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
     // constraints. PETSc vectors require this explicit option, unlike matrices.
     check(VecSetOption(objects.defect, VEC_IGNORE_NEGATIVE_INDICES, PETSC_TRUE));
     check(VecDuplicate(objects.rhs, &objects.correction));
+    check(VecDuplicate(objects.rhs, &objects.best_solution));
     PetscReal defect, norm;
     check(VecNorm(objects.rhs, NORM_2, &norm));
+    double best_defect = std::numeric_limits<double>::infinity();
+    bool best_work_converged = false;
     // On a refined slender beam K*x subtracts very large entries to recover
     // small bending forces. Refine the direct solution using the original
     // material-point virtual work, not a repeatedly rounded matrix product.
@@ -766,6 +929,8 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
         const auto current = gather(objects.solution);
         check(VecSet(objects.defect, 0.0));
         for (std::size_t e = 0; e + 1 < nz; ++e) {
+            if (geometry.solid_layers[e])
+                continue;
             if (e % static_cast<std::size_t>(ranks) != static_cast<std::size_t>(rank))
                 continue;
             const auto ids = element_dofs(geometry, e);
@@ -785,6 +950,23 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
             for (std::size_t i = 0; i < ids.size(); ++i)
                 if (ids[i] >= 0)
                     response.residual[i] *= scaling[static_cast<std::size_t>(ids[i])];
+            check(VecSetValues(objects.defect,
+                static_cast<PetscInt>(ids.size()),
+                ids.data(),
+                response.residual.data(),
+                ADD_VALUES));
+        }
+        for (std::size_t e = 0; e < geometry.solid_elements.size(); ++e) {
+            if (e % static_cast<std::size_t>(ranks) != static_cast<std::size_t>(rank))
+                continue;
+            const auto& element = geometry.solid_elements[e];
+            std::vector<double> state;
+            for (auto dof : element.dofs)
+                state.push_back(current[dof] * scaling[dof]);
+            auto response = evaluate_modal_solid(element, section.regions()[element.region], state, false, false);
+            for (std::size_t i = 0; i < element.dofs.size(); ++i)
+                response.residual[i] *= scaling[element.dofs[i]];
+            const std::vector<PetscInt> ids(element.dofs.begin(), element.dofs.end());
             check(VecSetValues(objects.defect,
                 static_cast<PetscInt>(ids.size()),
                 ids.data(),
@@ -816,6 +998,18 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
         for (std::size_t c = 0; c < orthogonal.size(); ++c)
             external_work -= orthogonal[c].value * current[count + c];
         result.refinement_iterations = iteration;
+        // Refinement can stagnate at roundoff. Never replace a more accurate
+        // material-point equilibrium by the arbitrarily last correction.
+        // Satisfying the existing virtual-work criterion takes precedence;
+        // among such states retain the smallest actual residual norm.
+        const bool work_converged = std::abs(work_defect) <= 1.0e-10 * std::abs(external_work);
+        if ((work_converged && !best_work_converged)
+            || (work_converged == best_work_converged && defect < best_defect)) {
+            best_defect = defect;
+            best_work_converged = work_converged;
+            result.selected_refinement_iteration = iteration;
+            check(VecCopy(objects.solution, objects.best_solution));
+        }
         if ((defect <= std::min(options.absolute_tolerance, 1.0e-9 * norm)
                 && std::abs(work_defect) <= 1.0e-10 * std::abs(external_work))
             || iteration == 6)
@@ -823,6 +1017,9 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
         solve(objects.defect, objects.correction);
         check(VecAXPY(objects.solution, -1.0, objects.correction));
     }
+    result.last_refinement_relative_residual = norm > 0.0 ? defect / norm : defect;
+    check(VecCopy(objects.best_solution, objects.solution));
+    defect = best_defect;
     check(MatMult(objects.constrained, objects.solution, objects.correction));
     check(VecAXPY(objects.correction, -1.0, objects.rhs));
     PetscReal algebraic_defect;
@@ -843,6 +1040,7 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
         result.axial_warping_modes += mode.kind == SectionMode::Kind::axial_warping ? 1 : 0;
         result.shear_free_modes += mode.kind == SectionMode::Kind::shear_free_distortion ? 1 : 0;
         result.transverse_corrector_modes += mode.kind == SectionMode::Kind::transverse_corrector ? 1 : 0;
+        result.width_modes += mode.kind == SectionMode::Kind::width_enrichment ? 1 : 0;
         result.shear_modes +=
             (mode.kind == SectionMode::Kind::shear_x || mode.kind == SectionMode::Kind::shear_y) ? 1 : 0;
     }
@@ -872,6 +1070,8 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
     const double recovery_start = elapsed();
     // Replicated postprocessing is read-only; each stiffness contribution above has exactly one rank owner.
     for (std::size_t e = 0; e + 1 < nz; ++e) {
+        if (geometry.solid_layers[e])
+            continue;
         const auto element = make_modal_beam_element(geometry.axial[e], geometry.axial[e + 1]);
         const auto ids = element_dofs(geometry, e);
         std::vector<double> state(ids.size());
@@ -914,16 +1114,69 @@ SectionModalResult solve_section_modal(const UnstructuredHex20Mesh& source,
             result.resultants.push_back(resultant);
         }
     }
-    for (std::size_t node = 0; node < source.nodes().size(); ++node) {
-        std::array<std::size_t, 8> ids{};
-        ids.fill(geometry.source_to_section[node]);
-        std::array<double, 8> shape{};
-        shape[0] = 1.0;
-        std::array<double, 3> u{};
-        for (std::size_t c = 0; c < 3; ++c) {
-            const auto row = displacement_row(geometry, basis, ids, shape, source.nodes()[node].z, c);
-            u[c] = std::inner_product(row.begin(), row.end(), result.amplitudes.begin(), 0.0);
+    // Native 27-point solid results retain their own axial integration rule.
+    // Accumulate volume-weighted section forces then divide by the axial
+    // Gauss weight, obtained from the common extruded cross-sectional area.
+    std::map<double, SectionModalResultant> solid_resultants;
+    std::map<double, double> section_volumes;
+    for (const auto& element : geometry.solid_elements) {
+        std::vector<double> state;
+        for (auto dof : element.dofs)
+            state.push_back(result.amplitudes[dof]);
+        const auto response = evaluate_modal_solid(element, section.regions()[element.region], state, false, true);
+        result.energy += response.energy;
+        // Analytic axial coordinates avoid transverse roundoff splitting one
+        // integration plane into several groups on an affine extrusion.
+        const double lower = geometry.axial[element.layer], upper = geometry.axial[element.layer + 1];
+        const double g = std::sqrt(3.0 / 5.0);
+        const std::array<double, 3> z{lower + (upper - lower) * (1.0 - g) / 2.0,
+            (lower + upper) / 2.0,
+            lower + (upper - lower) * (1.0 + g) / 2.0};
+        for (std::size_t q = 0; q < element.geometry.mechanical_points.size(); ++q) {
+            const auto& point = element.geometry.mechanical_points[q];
+            auto position = point.position;
+            position.z = z[q / 9];
+            result.samples.push_back({element.layer,
+                q,
+                position,
+                point.weighted_measure,
+                response.strain[q],
+                response.stress[q],
+                response.displacement[q],
+                true});
+            auto& r = solid_resultants[position.z];
+            r.z = position.z;
+            section_volumes[r.z] += point.weighted_measure;
+            const auto& stress = response.stress[q];
+            const double x = position.x - section.elastic_center().x;
+            const double y = position.y - section.elastic_center().y;
+            r.axial_force += point.weighted_measure * stress[2];
+            r.moment_x += point.weighted_measure * y * stress[2];
+            r.moment_y -= point.weighted_measure * x * stress[2];
+            r.torque += point.weighted_measure * (x * stress[4] - y * stress[5]);
+            for (std::size_t c = 0; c < 6; ++c)
+                r.energy_per_length +=
+                    0.5 * point.weighted_measure * (c < 3 ? 1.0 : 2.0) * stress[c] * response.strain[q][c];
         }
+    }
+    for (auto& entry : solid_resultants) {
+        auto& r = entry.second;
+        const double weight = section.area() / section_volumes.at(entry.first);
+        r.axial_force *= weight;
+        r.moment_x *= weight;
+        r.moment_y *= weight;
+        r.torque *= weight;
+        r.energy_per_length *= weight;
+        result.resultants.push_back(r);
+    }
+    std::sort(result.resultants.begin(), result.resultants.end(), [](const auto& a, const auto& b) {
+        return a.z < b.z;
+    });
+    for (std::size_t node = 0; node < source.nodes().size(); ++node) {
+        std::array<double, 3> u{};
+        for (std::size_t c = 0; c < 3; ++c)
+            for (const auto& entry : nodal_displacement_row(source, geometry, basis, node, c))
+                u[c] += entry.second * result.amplitudes[entry.first];
         result.displacement.push_back({u[0], u[1], u[2]});
     }
     result.field_recovery_seconds = elapsed() - recovery_start;

@@ -121,6 +121,7 @@ fuelsim_enable_warnings(fuelsim_io)
 
 add_library(fuelsim_solver
     src/solver/section_modal_solver.cpp
+    src/solver/modal_solid_end.cpp
     src/solver/modal_condensation.cpp
     src/solver/section_distortion.cpp
     src/solver/reduced_section_basis.cpp
@@ -1949,7 +1950,26 @@ if(BUILD_TESTING)
             TIMEOUT 900 PROCESSORS 8 ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
     endforeach()
     set_tests_properties(fuelsim_section_modal_accuracy_nonuniform PROPERTIES FIXTURES_SETUP section_modal_accuracy_serial)
+    add_test(NAME fuelsim_section_solid_ends
+        COMMAND "${FUELSIM_SECTION_PYTHON}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/section_modal/run.py"
+            "$<TARGET_FILE:fuelsim>"
+            "${CMAKE_CURRENT_BINARY_DIR}/blackbox/section_solid_ends_regression"
+            nonuniform --solid-ends)
+    set_tests_properties(fuelsim_section_solid_ends PROPERTIES
+        FIXTURES_SETUP section_solid_ends_serial PROCESSORS 8 TIMEOUT 900
+        ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
     if(FUELSIM_MPIEXEC_EXECUTABLE)
+        add_test(NAME fuelsim_section_solid_ends_mpi
+            COMMAND "${FUELSIM_SECTION_PYTHON}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/section_modal/run.py"
+                "$<TARGET_FILE:fuelsim>"
+                "${CMAKE_CURRENT_BINARY_DIR}/blackbox/section_solid_ends_mpi"
+                nonuniform --solid-ends --mpiexec "${FUELSIM_MPIEXEC_EXECUTABLE}"
+                --serial "${CMAKE_CURRENT_BINARY_DIR}/blackbox/section_solid_ends_regression")
+        set_tests_properties(fuelsim_section_solid_ends_mpi PROPERTIES
+            FIXTURES_REQUIRED section_solid_ends_serial PROCESSORS 2 TIMEOUT 180
+            ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
         add_test(NAME fuelsim_section_modal_mpi
             COMMAND "${FUELSIM_SECTION_PYTHON}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/section_modal/run.py"

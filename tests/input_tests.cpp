@@ -1151,6 +1151,46 @@ bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, co
     invalid_modal = modal_text;
     replace_all(invalid_modal, "\n count = 12\n", "\n count = 3\n");
     passed = expect_case_failure(malformed_path, invalid_modal, "at least 10 full-length modes") && passed;
+    auto width_text =
+        read_text(c3d8rt_path) + "\n[SectionModes]\n count = 12\n width_lines = width_0 width_2 width_4\n[]\n";
+    replace_all(width_text, "  step_tolerance = 1e-12\n", "");
+    const auto width_case = parse_mutation(width_text);
+    passed = check(width_case.section_width_lines == std::vector<std::string>{"width_0", "width_2", "width_4"},
+                 "Width lines preserve ordered Exodus selectors")
+             && passed;
+    invalid_modal = width_text;
+    replace_all(invalid_modal, "width_0 width_2 width_4", "width_0 width_0");
+    passed = expect_case_failure(malformed_path, invalid_modal, "distinct Exodus node set names") && passed;
+    invalid_modal = width_text;
+    replace_all(invalid_modal, "width_0 width_2 width_4", "width_0");
+    passed = expect_case_failure(malformed_path, invalid_modal, "at least two lines") && passed;
+    invalid_modal = modal_text;
+    replace_all(invalid_modal, "\n count = 12\n", "\n count = 12\n width_lines = width_0 width_4\n");
+    passed = expect_case_failure(malformed_path, invalid_modal, "requires no end condensation") && passed;
+    auto solid_text = read_text(c3d8rt_path)
+                      + "\n[SectionModes]\n count = 12\n [solid_ends]\n lower_interface = root_solid\n"
+                        " upper_interface = tip_solid\n []\n[]\n";
+    replace_all(solid_text, "  step_tolerance = 1e-12\n", "");
+    const auto solid_case = parse_mutation(solid_text);
+    passed = check(solid_case.section_solid_ends.lower_interface == "root_solid"
+                       && solid_case.section_solid_ends.upper_interface == "tip_solid"
+                       && solid_case.section_end_regions.empty(),
+                 "Native solid end selectors remain distinct from modal enrichment")
+             && passed;
+    invalid_modal = solid_text;
+    replace_all(invalid_modal, "lower_interface = root_solid", "");
+    replace_all(invalid_modal, "upper_interface = tip_solid", "");
+    passed = expect_case_failure(malformed_path, invalid_modal, "solid_ends requires an interface") && passed;
+    for (const auto& change : {std::string(" count = 9"), std::string(" count = 12\n width_lines = a b")}) {
+        invalid_modal = solid_text;
+        replace_all(invalid_modal, " count = 12", change);
+        passed = expect_case_failure(malformed_path, invalid_modal, "solid_ends requires at least ten") && passed;
+    }
+    invalid_modal = solid_text;
+    replace_all(invalid_modal,
+        " [solid_ends]",
+        " [extra]\n count = 24\n lower_interface = root_outer\n []\n [solid_ends]");
+    passed = expect_case_failure(malformed_path, invalid_modal, "solid_ends requires at least ten") && passed;
     return passed;
 }
 } // namespace

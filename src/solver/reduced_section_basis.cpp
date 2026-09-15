@@ -99,7 +99,7 @@ void project_symmetry(std::vector<double>& field, const ReflectionMaps& maps, co
         for (std::size_t c = 0; c < field.size() / n; ++c) {
             // A transverse vector changes its normal component's sign under
             // reflection. A scalar axial displacement does not.
-            const double sign = field.size() == 2 * n && c == axis ? -1.0 : 1.0;
+            const double sign = field.size() >= 2 * n && c == axis ? -1.0 : 1.0;
             for (std::size_t i = 0; i < n; ++i)
                 field[c * n + i] = 0.5 * (original[c * n + i] + parity[axis] * sign * original[c * n + maps[axis][i]]);
         }
@@ -540,6 +540,129 @@ ReducedSectionBasis make_independent_section_basis(const CrossSection& section, 
             remove(remainder);
             if (inner(remainder, remainder) <= 1e-16 * initial)
                 std::fill(field.begin(), field.end(), 0.0);
+        }
+    return basis;
+}
+
+ReducedSectionBasis
+enrich_section_width(const CrossSection& section, ReducedSectionBasis basis, const std::vector<double>& lines) {
+    if (lines.size() < 2)
+        throw std::invalid_argument("Width enrichment requires at least two line coordinates");
+    double lower = section.nodes().front().y, upper = lower;
+    for (const auto& node : section.nodes()) {
+        lower = std::min(lower, node.y);
+        upper = std::max(upper, node.y);
+    }
+    const double tolerance = 64 * std::numeric_limits<double>::epsilon() * (upper - lower);
+    if (std::abs(lines.front() - lower) > tolerance || std::abs(lines.back() - upper) > tolerance)
+        throw std::invalid_argument("Width lines must span both section boundaries");
+    for (std::size_t i = 0; i < lines.size(); ++i)
+        if (!std::isfinite(lines[i]) || (i && !(lines[i] > lines[i - 1])))
+            throw std::invalid_argument("Width lines must be finite and strictly increasing");
+    // Geometry/material symmetry alone does not make an asymmetric width
+    // partition invariant. Do not introduce unrequested mirrored line fields.
+    for (std::size_t i = 0; i < lines.size(); ++i)
+        if (std::abs(lines[i] + lines[lines.size() - 1 - i] - 2 * section.centroid().y) > tolerance)
+            basis.reflected_nodes[1].clear();
+    for (const auto& point : section.points()) {
+        double lo = upper, hi = lower;
+        for (auto node : point.nodes) {
+            lo = std::min(lo, section.nodes()[node].y);
+            hi = std::max(hi, section.nodes()[node].y);
+        }
+        for (auto y : lines)
+            if (y > lo + tolerance && y < hi - tolerance)
+                throw std::invalid_argument("Width lines must follow section element boundaries");
+    }
+    const auto n = section.nodes().size();
+    const auto inner = [&](const std::vector<double>& a, const std::vector<double>& b) {
+        double value = 0.0;
+        for (const auto& point : section.points())
+            for (std::size_t c = 0; c < 3; ++c) {
+                double x = 0.0, y = 0.0;
+                for (std::size_t i = 0; i < 8; ++i) {
+                    x += point.shape[i] * a[c * n + point.nodes[i]];
+                    y += point.shape[i] * b[c * n + point.nodes[i]];
+                }
+                value += point.weight * x * y;
+            }
+        return value;
+    };
+    std::vector<std::vector<double>> independent;
+    const auto remove = [&](std::vector<double>& field, const std::array<int, 2>& parity) {
+        for (int pass = 0; pass < 2; ++pass) {
+            for (const auto& previous : independent) {
+                const double projection = inner(previous, field);
+                for (std::size_t i = 0; i < field.size(); ++i)
+                    field[i] -= projection * previous[i];
+            }
+            project_symmetry(field, basis.reflected_nodes, parity);
+        }
+    };
+    for (const auto& mode : basis.modes) {
+        auto field = mode.coefficient[0];
+        const double initial = inner(field, field);
+        remove(field, mode.reflection_parity);
+        const double norm = inner(field, field);
+        if (!(norm > 1e-16 * initial))
+            throw std::invalid_argument("Width seed displacement fields are linearly dependent");
+        for (auto& value : field)
+            value /= std::sqrt(norm);
+        independent.push_back(std::move(field));
+    }
+    const auto append = [&](const std::vector<double>& candidate) {
+        const double initial = inner(candidate, candidate);
+        for (auto part : symmetry_components(candidate, basis.reflected_nodes)) {
+            remove(part.field, part.parity);
+            const double norm = inner(part.field, part.field);
+            if (!(norm > 1e-16 * initial))
+                continue;
+            for (auto& value : part.field)
+                value /= std::sqrt(norm);
+            const auto pivot = std::max_element(part.field.begin(), part.field.end(), [](double a, double b) {
+                return std::abs(a) < std::abs(b);
+            });
+            if (*pivot < 0.0)
+                for (auto& value : part.field)
+                    value = -value;
+            independent.push_back(part.field);
+            SectionMode mode;
+            mode.kind = SectionMode::Kind::width_enrichment;
+            mode.reflection_parity = part.parity;
+            for (auto& field : mode.coefficient)
+                field.resize(3 * n);
+            mode.coefficient[0] = std::move(part.field);
+            retain_mode(basis, std::move(mode));
+        }
+    };
+    // A localized independent line amplitude must own its full displacement
+    // field. Complete the seed span with every Phi1/Phi2 before selecting the
+    // independent coordinates. This is the same mixed kinematic choice as
+    // make_independent_section_basis, not deletion of a warping contribution.
+    const auto original = basis.modes;
+    for (const auto& mode : original)
+        for (std::size_t order = 1; order < 3; ++order)
+            append(mode.coefficient[order]);
+    basis = make_independent_section_basis(section, std::move(basis));
+    const auto seed = basis.modes;
+    // psi_ri = I_h[h_r(y)*Phi_i(x,y)], with sum_r h_r=1. I_h uses the existing
+    // shared QUAD8 nodes: every strip trace is conforming. Gradients of psi
+    // enter the full 3D B operator, including transverse/shear coupling.
+    // Retain classical fields explicitly and remove only linear dependencies.
+    for (std::size_t line = 0; line < lines.size(); ++line)
+        for (const auto& mode : seed) {
+            auto field = mode.coefficient[0];
+            for (std::size_t node = 0; node < n; ++node) {
+                const double y = section.nodes()[node].y;
+                double weight = 0.0;
+                if (line && y >= lines[line - 1] && y <= lines[line])
+                    weight = (y - lines[line - 1]) / (lines[line] - lines[line - 1]);
+                if (line + 1 < lines.size() && y >= lines[line] && y <= lines[line + 1])
+                    weight = (lines[line + 1] - y) / (lines[line + 1] - lines[line]);
+                for (std::size_t c = 0; c < 3; ++c)
+                    field[c * n + node] *= weight;
+            }
+            append(field);
         }
     return basis;
 }

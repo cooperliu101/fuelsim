@@ -11,7 +11,8 @@ def names(data, variable, dimension, values):
     data.createVariable(variable, 'S1', (dimension, 'len_name'))[:] = out
 
 
-def write(path, nx=2, ny=4, nz=8, graded=False, local_interfaces=False, coarsen_interior=False):
+def write(path, nx=2, ny=4, nz=8, graded=False, local_interfaces=False, coarsen_interior=False,
+          width_lines=False, point_support=False, axial_planes=None, solid_interfaces=None):
     # Exodus HEX20 order: corner nodes, lower edges, vertical edges, upper edges.
     offsets = [(0,0,0),(2,0,0),(2,2,0),(0,2,0),(0,0,2),(2,0,2),(2,2,2),(0,2,2),
                (1,0,0),(2,1,0),(1,2,0),(0,1,0),(0,0,1),(2,0,1),(2,2,1),(0,2,1),
@@ -31,6 +32,12 @@ def write(path, nx=2, ny=4, nz=8, graded=False, local_interfaces=False, coarsen_
         keep = np.array([i <= 8 or i >= nz - 8 or i % 2 == 0 for i in range(nz + 1)])
         axial = axial[keep]
         nz = len(axial) - 1
+    if axial_planes is not None:
+        axial = np.asarray(axial_planes, dtype=float)
+        if (axial.ndim != 1 or len(axial) < 2 or not np.isfinite(axial).all()
+                or axial[0] != 0 or axial[-1] != 0.2 or np.any(np.diff(axial) <= 0)):
+            raise ValueError('Explicit extrusion planes must increase from zero to 0.2 m')
+        nz, graded = len(axial) - 1, True
     sides = {key: [] for key in ('end', 'end_plus', 'end_minus', 'broad', 'half_broad')}
     for k in range(nz):
         for j in range(ny):
@@ -61,6 +68,23 @@ def write(path, nx=2, ny=4, nz=8, graded=False, local_interfaces=False, coarsen_
                              ('lower_fine', 0.006), ('upper_fine', 0.194)]:
             plane = end_planes[np.argmin(abs(end_planes - target))]
             sets[name] = [i + 1 for i, p in enumerate(nodes) if p[2] == plane]
+    if solid_interfaces is not None:
+        for name, plane in zip(('solid_lower', 'solid_upper'), solid_interfaces):
+            if plane not in axial:
+                raise ValueError('A solid interface must be an existing extrusion plane')
+            sets[name] = [i + 1 for i, p in enumerate(nodes) if p[2] == plane]
+    if width_lines:
+        if ny % 4:
+            raise ValueError('The width study requires four mesh-aligned strips')
+        for j in range(5):
+            y = nodes[ids[(0, j * ny // 2, 0)] - 1][1]
+            sets['width_' + str(j)] = [i + 1 for i, p in enumerate(nodes) if p[2] == 0 and p[1] == y]
+    if point_support:
+        for name, key in [('support_a', (nx, ny, 0)), ('support_b', (2 * nx, ny, 0)),
+                          ('support_c', (nx, 2 * ny, 0))]:
+            if key not in ids:
+                raise ValueError('The support point must coincide with an existing mesh node')
+            sets[name] = [ids[key]]
     with Dataset(path, 'w', format='NETCDF3_64BIT_OFFSET') as data:
         data.api_version = np.float32(8.11); data.version = np.float32(8.11)
         data.floating_point_word_size = np.int32(8); data.file_size = np.int32(1)
@@ -85,6 +109,17 @@ def write(path, nx=2, ny=4, nz=8, graded=False, local_interfaces=False, coarsen_
             data.createVariable(f'elem_ss{i}','i4',(dim,))[:]=[v[0] for v in values]
             data.createVariable(f'side_ss{i}','i4',(dim,))[:]=[v[1] for v in values]
 
+def write_solid_ends(path, end_layers, interior_elements=32, tip_layers=None):
+    tip_layers = end_layers if tip_layers is None else tip_layers
+    if end_layers <= 0 or tip_layers <= 0 or end_layers + tip_layers >= 1024 or interior_elements <= 0:
+        raise ValueError('Solid end fixture must retain a nonempty modal interior')
+    reference = np.linspace(0, 0.2, 1025)
+    lo, hi = reference[end_layers], reference[-tip_layers-1]
+    planes = np.concatenate([reference[:end_layers+1], np.linspace(lo, hi, interior_elements+1)[1:-1],
+                             reference[-tip_layers-1:]])
+    write(path, nx=4, ny=8, point_support=True, axial_planes=planes, solid_interfaces=(lo, hi))
+
+
 if __name__ == '__main__':
     write(Path(__file__).with_name('plate.e'))
     write(Path(__file__).with_name('plate_refined.e'), nx=4, ny=8, nz=128, graded=True)
@@ -92,3 +127,5 @@ if __name__ == '__main__':
           local_interfaces=True, coarsen_interior=True)
     write(Path(__file__).with_name('plate_reference.e'), nx=4, ny=8, nz=1024)
     write(Path(__file__).with_name('plate_reference_check.e'), nx=4, ny=8, nz=512)
+    write_solid_ends(Path(__file__).with_name('plate_solid_ends.e'), 32)
+    write_solid_ends(Path(__file__).with_name('plate_solid_ends_128_32.e'), 128, tip_layers=32)

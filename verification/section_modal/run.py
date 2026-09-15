@@ -51,7 +51,10 @@ def mpi_check(serial, parallel, name='nonuniform_12'):
     for left_row, right_row in zip(a, b):
         if any(left_row[field] != right_row[field] for field in ('kind', 'id', 'x', 'y', 'z')):
             raise ValueError('MPI changed physical result locations or ordering')
-    for kind, fields in [('node', ['ux', 'uy', 'uz']), ('point', ['sxx', 'syy', 'szz', 'sxy', 'syz', 'sxz'])]:
+    fields_by_kind = [('node', ['ux', 'uy', 'uz']), ('point', ['sxx', 'syy', 'szz', 'sxy', 'syz', 'sxz'])]
+    if any(row['kind'] == 'solid_point' for row in a):
+        fields_by_kind.append(('solid_point', ['sxx', 'syy', 'szz', 'sxy', 'syz', 'sxz']))
+    for kind, fields in fields_by_kind:
         x = np.array([[float(row[field]) for field in fields] for row in a if row['kind'] == kind])
         y = np.array([[float(row[field]) for field in fields] for row in b if row['kind'] == kind])
         if not np.isfinite(x).all() or not np.isfinite(y).all():
@@ -70,9 +73,21 @@ if __name__ == '__main__':
     parser.add_argument('--mpiexec', type=Path)
     parser.add_argument('--serial', type=Path)
     parser.add_argument('--accuracy', action='store_true')
+    parser.add_argument('--solid-ends', action='store_true')
     args = parser.parse_args()
     source = Path(__file__).resolve().parent
-    if args.accuracy and args.mpiexec:
+    if args.solid_ends:
+        name = args.case + '_hybrid_12'
+        if args.mpiexec:
+            run(args.executable, source, args.directory, name, [str(args.mpiexec), '-n', '2'], 'plate_solid_ends_128_32.e')
+            mpi_check(args.serial, args.directory, name)
+        else:
+            reference = args.case + '_support_solid'
+            run(args.executable, source, args.directory, reference, [], 'plate_support_reference.e')
+            run(args.executable, source, args.directory, name, [], 'plate_solid_ends_128_32.e')
+            compare(args.directory, args.case + '_hybrid', [12], 'plate_solid_ends_128_32.e', accuracy_count=12,
+                    reference_path=args.directory / (reference + '.e'), diagnostics=True, point_support=True)
+    elif args.accuracy and args.mpiexec:
         if args.case != 'nonuniform' or args.serial is None:
             raise ValueError('Refined MPI comparison requires the serial nonuniform case')
         name = 'nonuniform_local_12'
