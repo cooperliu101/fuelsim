@@ -66,6 +66,19 @@ void quad8_shape_impl(const Scalar& xi,
 } // namespace
 
 void quad8_shape(const adlite::Scalar& xi, const adlite::Scalar& eta, Quad8ShapeValues& result) {
+    if (xi.derivative_size() == 0 && eta.derivative_size() == 0) {
+        DoubleQuad8ShapeValues values;
+        double_quad8_shape(xi.value(), eta.value(), values);
+        for (std::size_t node = 0; node < values.shape.size(); ++node) {
+            result.shape[node] = values.shape[node];
+            result.derivative_xi[node] = values.derivative_xi[node];
+            result.derivative_eta[node] = values.derivative_eta[node];
+            result.second_xi[node] = values.second_xi[node];
+            result.second_xi_eta[node] = values.second_xi_eta[node];
+            result.second_eta[node] = values.second_eta[node];
+        }
+        return;
+    }
     quad8_shape_impl(xi,
         eta,
         result.shape,
@@ -964,6 +977,18 @@ double quad8_disk_fraction_double(const Quad8ToQuad8HeatGeometry& geometry,
 // by the current secondary-face radius before circle/polygon integration.
 adlite::Scalar quad8_disk_fraction_ad(const Quad8ToQuad8HeatGeometry& geometry,
     const std::array<std::array<adlite::Scalar, 3>, 16>& nodes) {
+    bool passive = true;
+    for (const auto& node : nodes)
+        for (const auto& coordinate : node)
+            passive = passive && coordinate.derivative_size() == 0;
+    if (passive) {
+        std::array<std::array<double, 3>, 16> coordinates{};
+        for (std::size_t node = 0; node < nodes.size(); ++node)
+            for (std::size_t component = 0; component < 3; ++component)
+                coordinates[node][component] = nodes[node][component].value();
+        return quad8_disk_fraction_double(geometry, coordinates);
+    }
+
     std::array<adlite::Scalar, 3> center{}, first{}, second{};
     for (std::size_t i = 0; i < 8; ++i)
         for (std::size_t c = 0; c < 3; ++c) {

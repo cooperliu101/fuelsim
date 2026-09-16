@@ -1,5 +1,10 @@
 # Solver benchmarks
 
+2026-09-16：C3D20RT 接触性能优化使用已有生产输入卡，通过
+`run_c3d20rt_comparison.py` 交替运行两个版本。六单元有限应变接触首增量的
+外部总耗时中位数减少 8.65%，完整记录与适用范围见
+[C3D20RT 性能验证](../verification/c3d20rt_performance/README.md)。
+
 2026-09-09: Axisymmetric MOOSE comparison inputs and the dedicated PCMI parallel
 comparison script were removed. Commands and measurements below that refer to
 those files are historical records; they are not current runnable comparisons.
