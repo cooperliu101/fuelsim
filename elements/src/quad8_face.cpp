@@ -66,19 +66,6 @@ void quad8_shape_impl(const Scalar& xi,
 } // namespace
 
 void quad8_shape(const adlite::Scalar& xi, const adlite::Scalar& eta, Quad8ShapeValues& result) {
-    if (xi.derivative_size() == 0 && eta.derivative_size() == 0) {
-        DoubleQuad8ShapeValues values;
-        double_quad8_shape(xi.value(), eta.value(), values);
-        for (std::size_t node = 0; node < values.shape.size(); ++node) {
-            result.shape[node] = values.shape[node];
-            result.derivative_xi[node] = values.derivative_xi[node];
-            result.derivative_eta[node] = values.derivative_eta[node];
-            result.second_xi[node] = values.second_xi[node];
-            result.second_xi_eta[node] = values.second_xi_eta[node];
-            result.second_eta[node] = values.second_eta[node];
-        }
-        return;
-    }
     quad8_shape_impl(xi,
         eta,
         result.shape,
@@ -380,6 +367,14 @@ ActivePoint3 interpolate_primary(const std::array<ActivePoint3, 16>& nodes,
     return interpolate_point(nodes, 8, coefficients);
 }
 
+ActivePoint3 interpolate_primary(const std::array<ActivePoint3, 16>& nodes, const std::array<double, 8>& coefficients) {
+    ActivePoint3 result{};
+    for (std::size_t node = 0; node < 8; ++node)
+        for (std::size_t component = 0; component < 3; ++component)
+            result[component] += coefficients[node] * nodes[8 + node][component];
+    return result;
+}
+
 SurfaceProjection8 project_to_primary(const ActivePoint3& secondary_point,
     const std::array<ActivePoint3, 16>& nodes,
     double normal_orientation,
@@ -393,14 +388,28 @@ SurfaceProjection8 project_to_primary(const ActivePoint3& secondary_point,
         local_nodes[node] = subtract(nodes[node], nodes[8]);
     const ActivePoint3 local_secondary = subtract(secondary_point, nodes[8]);
     for (std::size_t iteration = 0; iteration < 16; ++iteration) {
-        Quad8ShapeValues values;
-        quad8_shape(xi, eta, values);
-        const ActivePoint3 point = interpolate_primary(local_nodes, values.shape);
-        const ActivePoint3 tangent_xi = interpolate_primary(local_nodes, values.derivative_xi);
-        const ActivePoint3 tangent_eta = interpolate_primary(local_nodes, values.derivative_eta);
-        const ActivePoint3 tangent_xi_xi = interpolate_primary(local_nodes, values.second_xi);
-        const ActivePoint3 tangent_xi_eta = interpolate_primary(local_nodes, values.second_xi_eta);
-        const ActivePoint3 tangent_eta_eta = interpolate_primary(local_nodes, values.second_eta);
+        ActivePoint3 point{}, tangent_xi{}, tangent_eta{}, tangent_xi_xi{}, tangent_xi_eta{}, tangent_eta_eta{};
+        if (xi.derivative_size() == 0 && eta.derivative_size() == 0) {
+            // Passive shape weights can multiply active nodes directly. The
+            // node derivatives still enter the projection's Newton update.
+            DoubleQuad8ShapeValues values;
+            double_quad8_shape(xi.value(), eta.value(), values);
+            point = interpolate_primary(local_nodes, values.shape);
+            tangent_xi = interpolate_primary(local_nodes, values.derivative_xi);
+            tangent_eta = interpolate_primary(local_nodes, values.derivative_eta);
+            tangent_xi_xi = interpolate_primary(local_nodes, values.second_xi);
+            tangent_xi_eta = interpolate_primary(local_nodes, values.second_xi_eta);
+            tangent_eta_eta = interpolate_primary(local_nodes, values.second_eta);
+        } else {
+            Quad8ShapeValues values;
+            quad8_shape(xi, eta, values);
+            point = interpolate_primary(local_nodes, values.shape);
+            tangent_xi = interpolate_primary(local_nodes, values.derivative_xi);
+            tangent_eta = interpolate_primary(local_nodes, values.derivative_eta);
+            tangent_xi_xi = interpolate_primary(local_nodes, values.second_xi);
+            tangent_xi_eta = interpolate_primary(local_nodes, values.second_xi_eta);
+            tangent_eta_eta = interpolate_primary(local_nodes, values.second_eta);
+        }
         const ActivePoint3 difference = subtract(local_secondary, point);
         const adlite::Scalar residual_xi = dot(difference, tangent_xi), residual_eta = dot(difference, tangent_eta);
         const adlite::Scalar jacobian_xi_xi = -dot(tangent_xi, tangent_xi) + dot(difference, tangent_xi_xi);
