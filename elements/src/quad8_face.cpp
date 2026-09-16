@@ -539,7 +539,8 @@ struct HeatAdValue8 final {
 
 HeatAdValue8 evaluate_heat_geometry(const Quad8ToQuad8HeatGeometry& geometry,
     const Quad8SurfaceContactLocalAdValues& state,
-    bool disk_transfer = false) {
+    bool disk_transfer = false,
+    double secondary_normal_orientation = 1.0) {
     const std::array<ActivePoint3, 16> nodes =
         current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, state);
     const ActivePoint3 secondary_point = interpolate_point(nodes, 0, geometry.secondary_displacement_shape);
@@ -576,9 +577,15 @@ HeatAdValue8 evaluate_heat_geometry(const Quad8ToQuad8HeatGeometry& geometry,
     const adlite::Scalar secondary_temperature = temperature(state, 0, geometry.secondary_temperature_shape);
     const adlite::Scalar measure =
         current_surface_measure(nodes, geometry.secondary_derivative_xi, geometry.secondary_derivative_eta, 0);
+    adlite::Scalar gap = projection.gap;
+    if (disk_transfer) {
+        const auto normal = cross(interpolate_point(nodes, 0, geometry.secondary_derivative_xi),
+            interpolate_point(nodes, 0, geometry.secondary_derivative_eta));
+        gap = secondary_normal_orientation * dot(subtract(projection.primary_point, secondary_point), normal) / measure;
+    }
     return {true,
         primary_temperature_shape,
-        projection.gap,
+        gap,
         0.0,
         fraction * measure * geometry.quadrature_weight,
         secondary_temperature,
@@ -1128,10 +1135,12 @@ std::vector<double> compute_quad8_gap_heat_patch(const GapHeatProperties& proper
     if (samples.empty() || state.empty())
         throw std::invalid_argument("HEX20 thermal patch requires samples and a local state");
     const std::size_t size = state.size();
-    // Moments are area, area*gap, area*T_secondary, area*T_primary, then
-    // the area-weighted signed temperature test functions for each patch DOF.
-    std::vector<double> moments(size + 4, 0.0);
-    std::vector<double> derivatives(jacobian == nullptr ? 0 : (size + 4) * size, 0.0);
+    // Temperature and clearance have distinct averaging measures. The first
+    // five moments are thermal area, gap area, gap integral, and the two
+    // temperature integrals, followed by the signed thermal test integrals.
+    constexpr std::size_t test_offset = 5;
+    std::vector<double> moments(size + test_offset, 0.0);
+    std::vector<double> derivatives(jacobian == nullptr ? 0 : (size + test_offset) * size, 0.0);
     std::vector<std::vector<std::size_t>> groups;
     std::map<std::size_t, std::size_t> disk_groups;
     std::size_t plain_group = std::numeric_limits<std::size_t>::max();
@@ -1156,6 +1165,8 @@ std::vector<double> compute_quad8_gap_heat_patch(const GapHeatProperties& proper
         double fraction = disk ? 0.0 : 1.0;
         for (const std::size_t sample_index : group) {
             const Quad8HeatPatchSample& sample = samples[sample_index];
+            if (!std::isfinite(sample.gap_weight) || sample.gap_weight < 0.0)
+                throw std::invalid_argument("HEX20 thermal patch requires nonnegative finite gap weights");
             Quad8SurfaceContactLocalValues local{};
             for (std::size_t column = 0; column < local.size(); ++column) {
                 if (sample.local_dofs[column] >= size)
@@ -1164,7 +1175,8 @@ std::vector<double> compute_quad8_gap_heat_patch(const GapHeatProperties& proper
             }
             const HeatAdValue8 point = evaluate_heat_geometry(sample.geometry,
                 make_ad_state(local, jacobian != nullptr),
-                sample.disk_transfer);
+                sample.disk_transfer,
+                sample.secondary_normal_orientation);
             if (!point.projected)
                 throw std::domain_error("HEX20 thermal patch lost a required primary projection");
             if (sample.disk_transfer && point.transfer_fraction.value() == 0.0)
@@ -1180,17 +1192,19 @@ std::vector<double> compute_quad8_gap_heat_patch(const GapHeatProperties& proper
                         fraction_derivatives[sample.local_dofs[column]] += partials[column];
                 }
             }
-            std::array<adlite::Scalar, 12> local_moments{};
+            std::array<adlite::Scalar, test_offset + 8> local_moments{};
             local_moments[0] = point.weighted_measure;
-            local_moments[1] = point.weighted_measure * point.gap;
-            local_moments[2] = point.weighted_measure * point.secondary_temperature;
-            local_moments[3] = point.weighted_measure * point.primary_temperature;
+            local_moments[1] = sample.gap_weight * point.weighted_measure;
+            local_moments[2] = local_moments[1] * point.gap;
+            local_moments[3] = point.weighted_measure * point.secondary_temperature;
+            local_moments[4] = point.weighted_measure * point.primary_temperature;
             for (std::size_t node = 0; node < 4; ++node) {
-                local_moments[4 + node] = point.weighted_measure * sample.geometry.secondary_temperature_shape[node];
-                local_moments[8 + node] = -point.weighted_measure * point.primary_temperature_shape[node];
+                local_moments[test_offset + node] =
+                    point.weighted_measure * sample.geometry.secondary_temperature_shape[node];
+                local_moments[test_offset + 4 + node] = -point.weighted_measure * point.primary_temperature_shape[node];
             }
             for (std::size_t row = 0; row < local_moments.size(); ++row) {
-                const std::size_t target = row < 4 ? row : 4 + sample.local_dofs[row - 4];
+                const std::size_t target = row < test_offset ? row : test_offset + sample.local_dofs[row - test_offset];
                 group_moments[target] += local_moments[row].value();
                 if (jacobian != nullptr) {
                     std::array<double, quad8_surface_contact_local_dof_count> local_derivatives{};
@@ -1211,10 +1225,10 @@ std::vector<double> compute_quad8_gap_heat_patch(const GapHeatProperties& proper
                         (group_derivatives[row * size + column] - normalized * fraction_derivatives[column]) / fraction;
         }
     }
-    const double area = moments[0];
-    if (!std::isfinite(area) || !(area > 0.0))
-        throw std::domain_error("HEX20 thermal patch has invalid total area");
-    const std::array<double, 3> averages{moments[1] / area, moments[2] / area, moments[3] / area};
+    const double area = moments[0], gap_area = moments[1];
+    if (!std::isfinite(area) || !(area > 0.0) || !std::isfinite(gap_area) || !(gap_area > 0.0))
+        throw std::domain_error("HEX20 thermal patch has invalid thermal or clearance area");
+    const std::array<double, 3> averages{moments[2] / gap_area, moments[3] / area, moments[4] / area};
     std::array<adlite::Scalar, 3> active{};
     if (jacobian == nullptr)
         ad_local_system::make_passive(averages.data(), averages.size(), active.data());
@@ -1224,7 +1238,7 @@ std::vector<double> compute_quad8_gap_heat_patch(const GapHeatProperties& proper
         contact_common::gap_conductance(properties, active[0], active[1], active[2]) * (active[1] - active[2]);
     std::vector<double> result(size, 0.0);
     for (std::size_t row = 0; row < size; ++row)
-        result[row] = moments[4 + row] * flux.value();
+        result[row] = moments[test_offset + row] * flux.value();
     if (value != nullptr)
         *value = {true, averages[0], flux.value(), area};
     if (jacobian != nullptr) {
@@ -1233,13 +1247,16 @@ std::vector<double> compute_quad8_gap_heat_patch(const GapHeatProperties& proper
         jacobian->assign(size * size, 0.0);
         for (std::size_t column = 0; column < size; ++column) {
             double flux_derivative = 0.0;
-            for (std::size_t moment = 0; moment < 3; ++moment)
-                flux_derivative +=
-                    flux_derivatives[moment]
-                    * (derivatives[(moment + 1) * size + column] - averages[moment] * derivatives[column]) / area;
+            for (std::size_t moment = 0; moment < 3; ++moment) {
+                const std::size_t area_moment = moment == 0 ? 1 : 0;
+                flux_derivative += flux_derivatives[moment]
+                                   * (derivatives[(moment + 2) * size + column]
+                                       - averages[moment] * derivatives[area_moment * size + column])
+                                   / moments[area_moment];
+            }
             for (std::size_t row = 0; row < size; ++row)
-                (*jacobian)[row * size + column] =
-                    derivatives[(4 + row) * size + column] * flux.value() + moments[4 + row] * flux_derivative;
+                (*jacobian)[row * size + column] = derivatives[(test_offset + row) * size + column] * flux.value()
+                                                   + moments[test_offset + row] * flux_derivative;
         }
     }
     return result;

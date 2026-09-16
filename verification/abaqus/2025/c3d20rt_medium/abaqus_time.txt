@@ -1,5 +1,5 @@
-external_wall_seconds=599.5188506
+external_wall_seconds=535.6596689
 exit_status=0
 cpus=1
-work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_c3d20rt_medium_6696d18d1bea4a4fb2d6d6190f5be797
-completed_utc=2026-09-16T03:02:03.9362823Z
+work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_c3d20rt_medium_5a5b72abea9b4f4dbf08619d749b9e3e
+completed_utc=2026-09-16T05:01:57.0585232Z

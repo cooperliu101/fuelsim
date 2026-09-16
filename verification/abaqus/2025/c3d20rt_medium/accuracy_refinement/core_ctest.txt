@@ -1,0 +1,19 @@
+Internal ctest changing into directory: /home/cooper/ai_project/fuelsim/build
+Test project /home/cooper/ai_project/fuelsim/build
+    Start 220: fuelsim_mpi_hex20_solver_tests
+1/2 Test #220: fuelsim_mpi_hex20_solver_tests ...   Passed    1.40 sec
+    Start 135: fuelsim_hex20_solver_tests
+2/2 Test #135: fuelsim_hex20_solver_tests .......   Passed    1.66 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Label Time Summary:
+checkpoint           =   1.66 sec*proc (1 test)
+contact              =   1.66 sec*proc (1 test)
+integration          =   4.46 sec*proc (2 tests)
+mpi                  =   2.80 sec*proc (1 test)
+multiblock           =   1.66 sec*proc (1 test)
+quadratic            =   4.46 sec*proc (2 tests)
+three-dimensional    =   4.46 sec*proc (2 tests)
+
+Total Test time (real) =   3.07 sec

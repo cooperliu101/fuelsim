@@ -33,6 +33,8 @@ def metrics(name, actual, reference, labels, zero_tolerance, scope):
     nonzero = ~zero
     relative = np.zeros(len(ref))
     relative[nonzero] = delta[nonzero] / ref[nonzero]
+    failed = np.flatnonzero(nonzero & (relative >= 0.001))
+    failed_worst = failed[np.argmax(delta[failed])] if len(failed) else None
     worst = int(np.argmax(relative))
     absolute_worst = int(np.argmax(delta))
     maximum_ref = float(np.max(ref))
@@ -51,6 +53,11 @@ def metrics(name, actual, reference, labels, zero_tolerance, scope):
             "worst_absolute_sample": labels[absolute_worst],
             "zero_reference_samples": int(np.count_nonzero(zero)),
             "maximum_zero_reference_absolute_difference": zero_difference,
+            "nonzero_pointwise_failures": len(failed),
+            "largest_failed_reference_norm": float(np.max(ref[failed], initial=0.0)),
+            "largest_failed_absolute_difference": float(np.max(delta[failed], initial=0.0)),
+            "largest_difference_sample": labels[failed_worst] if failed_worst is not None else "",
+            "zero_reference_absolute_failures": int(np.count_nonzero(zero & (delta >= zero_tolerance))),
             "zero_absolute_tolerance": zero_tolerance, "strict_0_1_percent_passed": int(passed)}
 
 
@@ -58,8 +65,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("results", type=Path)
     parser.add_argument("--reference-directory", type=Path, default=Path(__file__).resolve().parent)
+    parser.add_argument("--output-directory", type=Path)
     arguments = parser.parse_args()
     root = arguments.reference_directory
+    output = arguments.output_directory or root
+    output.mkdir(parents=True, exist_ok=True)
     nodes, contact, points = [read_reference(root / ("reference_" + kind + ".csv.gz"))
                               for kind in ("nodes", "contact", "points")]
     times = np.unique(nodes["time"])
@@ -207,12 +217,15 @@ def main():
                                  (reference_increments[:, :, 0] > 0) & (reference_increments[:, :, 1] > 0))),
                              "projected_contact_nodes": int(np.sum(nodal("contact_projected_fuel_cladding")[secondary])),
                              "sliding_contact_nodes": int(np.sum(nodal("contact_sliding_fuel_cladding")[secondary]))})
-    rows = []
+    rows, by_frame = [], []
     for name, (actual, reference, labels, tolerance) in collected.items():
         rows.append(metrics(name, np.concatenate(actual), np.concatenate(reference), sum(labels, []), tolerance, "all_frames"))
         rows.append(metrics(name, actual[-1], reference[-1], labels[-1], tolerance, "final"))
-    for filename, records in (("comparison.csv", rows), ("coverage.csv", coverage)):
-        with (root / filename).open("w", newline="") as stream:
+        for frame, time in enumerate(times):
+            record = metrics(name, actual[frame], reference[frame], labels[frame], tolerance, "frame")
+            by_frame.append({"time": time, **record})
+    for filename, records in (("comparison.csv", rows), ("comparison_by_frame.csv", by_frame), ("coverage.csv", coverage)):
+        with (output / filename).open("w", newline="") as stream:
             writer = csv.DictWriter(stream, fieldnames=list(records[0]), lineterminator="\n")
             writer.writeheader()
             writer.writerows(records)

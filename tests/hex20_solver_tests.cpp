@@ -294,13 +294,14 @@ std::array<double, 2> mechanical_contact_balance(fuelsim::SteadyProblem& problem
     return {std::hypot(force[0], force[1], force[2]), std::hypot(moment[0], moment[1], moment[2])};
 }
 
-double mechanical_contact_directional_error(fuelsim::SteadyProblem& problem,
+double contact_directional_error(fuelsim::SteadyProblem& problem,
     const std::vector<double>& global_state,
-    double perturbation) {
+    double perturbation,
+    fuelsim::SpatialContributionType type = fuelsim::SpatialContributionType::mechanical_contact) {
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
     double maximum_error = 0.0;
     for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
-        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact)
+        if (spatial.contribution_type(contribution) != type)
             continue;
         std::vector<std::size_t> dofs;
         problem.contribution_dofs(contribution, dofs);
@@ -562,7 +563,7 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
         sticking_state[view.dof(fuelsim::Field::displacement_y, global)] = 1.0e-6;
     }
     problem.validate_state(sticking_state);
-    const double sticking_jacobian_error = mechanical_contact_directional_error(problem, sticking_state, 1.0e-8);
+    const double sticking_jacobian_error = contact_directional_error(problem, sticking_state, 1.0e-8);
     problem.commit_internal_state(sticking_state);
     const auto& sticking_history = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
     passed = check(sticking_history.size() == 8
@@ -632,6 +633,43 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
                                       && std::abs(magnitude - 1.0e-5) < 1.0e-13;
                            }),
                  "HEX20 finite-strain surface contact commits nine biaxial sliding histories at slip_tolerance")
+             && passed;
+    auto thermal_definition = spatial;
+    thermal_definition.contacts[0].mechanical_sliding = fuelsim::MechanicalContactSliding::finite;
+    fuelsim::SteadyProblem thermal_problem(thermal_definition, contact_mesh);
+    const auto& thermal_view = fuelsim::cartesian::ProblemAccess::view(thermal_problem);
+    auto thermal_state = thermal_problem.initial_state();
+    for (std::size_t region = 0; region < 2; ++region)
+        for (std::size_t node = 0; node < thermal_view.hex20_region_mesh(region).nodes().size(); ++node) {
+            const auto& point = thermal_view.hex20_region_mesh(region).nodes()[node];
+            const auto global = thermal_view.global_node(region, node);
+            thermal_state[thermal_view.dof(fuelsim::Field::displacement_x, global)] =
+                region == 0 ? 0.005 * point.y * point.y : 0.02;
+            thermal_state[thermal_view.dof(fuelsim::Field::displacement_z, global)] = -0.1 * point.z;
+        }
+    thermal_problem.validate_state(thermal_state);
+    const auto thermal_nodes = thermal_view.summarize_contact_nodes(0, thermal_state);
+    const auto thermal_sources = thermal_view.contact_secondary_source_nodes(0);
+    double expected_heat = 0.0;
+    for (std::size_t node = 0; node < thermal_sources.size(); ++node)
+        if (thermal_sources[node] < 28)
+            expected_heat += 0.225 * 100.0 / thermal_nodes[node].gap;
+    const double actual_heat = thermal_view.summarize_interface(0, thermal_state).total_heat_rate;
+    const double thermal_derivative_error = contact_directional_error(thermal_problem,
+        thermal_state,
+        1e-7,
+        fuelsim::SpatialContributionType::thermal_contact);
+    std::cout << "finite_thermal_clearance_directional_error=" << thermal_derivative_error << '\n';
+    thermal_definition.contacts[0].mechanical = false;
+    fuelsim::SteadyProblem thermal_only(thermal_definition, contact_mesh);
+    const auto& thermal_only_view = fuelsim::cartesian::ProblemAccess::view(thermal_only);
+    const double thermal_only_heat = thermal_only_view.summarize_interface(0, thermal_state).total_heat_rate;
+    passed = check(std::abs(actual_heat - expected_heat) < 1e-10 * expected_heat,
+                 "Finite HEX20 heat conductance uses the mechanical clearance at each temperature corner")
+             && check(thermal_only_heat == actual_heat,
+                 "Finite HEX20 thermal clearance does not require mechanical contact to be enabled")
+             && check(thermal_derivative_error < 2e-5,
+                 "Finite HEX20 clearance averaging retains the assembled thermal geometry derivative")
              && passed;
     fuelsim::SpatialDefinition disabled_node_to_surface = spatial;
     disabled_node_to_surface.contacts[0].mechanical_discretization =
@@ -812,7 +850,7 @@ bool test_surface_contact_finite_sliding() {
                                [](const auto& node) { return node.projected && node.primary_face == 1; }),
                      "HEX20 finite-sliding output recovery follows the current upper primary face")
                  && passed;
-        const double jacobian_error = mechanical_contact_directional_error(problem, upper_state, 1.0e-8);
+        const double jacobian_error = contact_directional_error(problem, upper_state, 1.0e-8);
         passed = check(jacobian_error < 2.0e-5,
                      "HEX20 finite-sliding contact Jacobian matches a centered directional difference")
                  && passed;
@@ -834,7 +872,7 @@ bool test_surface_contact_finite_sliding() {
             }
         }
         problem.validate_state(curved_state);
-        passed = check(mechanical_contact_directional_error(problem, curved_state, 1.0e-8) < 2.0e-5,
+        passed = check(contact_directional_error(problem, curved_state, 1.0e-8) < 2.0e-5,
                      "HEX20 curved finite friction retains the full gap, surface-gradient and slip Jacobian")
                  && passed;
         problem.validate_state(upper_state);
@@ -893,7 +931,7 @@ bool test_surface_contact_finite_sliding() {
                      "HEX20 planar finite sliding commits eight biaxial friction histories on the new primary face")
                  && passed;
         const std::array<std::size_t, 3> reverse_owners = owner_counts(lower_state);
-        const double transported_jacobian_error = mechanical_contact_directional_error(problem, lower_state, 1.0e-8);
+        const double transported_jacobian_error = contact_directional_error(problem, lower_state, 1.0e-8);
         passed = check(reverse_owners == std::array<std::size_t, 3>{8, 0, 0},
                      "HEX20 planar finite sliding uniquely transfers ownership back across the primary-face edge")
                  && check(transported_jacobian_error < 2.0e-5,
@@ -980,7 +1018,7 @@ bool test_finite_sliding_folded_surface(bool flat_first_face) {
         summaries.size() == 13 && std::all_of(summaries.begin(), summaries.end(), [](const auto& summary) {
             return summary.projected && std::abs(summary.tangential_slip[2] - 1e-3) < 1e-12;
         });
-    const double jacobian_error = mechanical_contact_directional_error(problem, state, 1e-8);
+    const double jacobian_error = contact_directional_error(problem, state, 1e-8);
     std::cout << (flat_first_face ? "asymmetric_folded_contact_directional_error="
                                   : "symmetric_folded_contact_directional_error=")
               << jacobian_error << '\n';
@@ -1078,7 +1116,7 @@ bool test_finite_sliding_search_tree() {
             excludes_disconnected_face =
                 excludes_disconnected_face && std::find(dofs.begin(), dofs.end(), dof) == dofs.end();
     }
-    const double jacobian_error = mechanical_contact_directional_error(problem, state, 1.0e-8);
+    const double jacobian_error = contact_directional_error(problem, state, 1.0e-8);
     const auto initial_snapshot = problem.capture_internal_state();
     problem.commit_internal_state(state);
     const auto& slip_histories = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
@@ -1094,7 +1132,7 @@ bool test_finite_sliding_search_tree() {
         mixed_state[view.dof(fuelsim::Field::displacement_y, global)] = 63.5;
     }
     problem.validate_state(mixed_state);
-    const double mixed_jacobian_error = mechanical_contact_directional_error(problem, mixed_state, 1.0e-8);
+    const double mixed_jacobian_error = contact_directional_error(problem, mixed_state, 1.0e-8);
     problem.commit_internal_state(mixed_state);
     const auto& reversed_histories = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
     const bool geometric_slip_reversed =

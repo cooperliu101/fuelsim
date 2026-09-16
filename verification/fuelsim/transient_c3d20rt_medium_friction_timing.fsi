@@ -217,14 +217,14 @@
   direct_factorization = mumps
   jacobian_lag = 3
   line_search = backtracking
-  absolute_tolerance = 1e-7
-  relative_tolerance = 1e-8
+  absolute_tolerance = 1e-9
+  relative_tolerance = 1e-10
   step_tolerance = 1e-12
   maximum_iterations = 40
   backtracking_fallback = true
   field_residual_scaling = true
   temperature_residual_absolute_tolerance = 1e-8
-  mechanical_residual_absolute_tolerance = 1e-4
+  mechanical_residual_absolute_tolerance = 1e-6
 []
 
 [Outputs]

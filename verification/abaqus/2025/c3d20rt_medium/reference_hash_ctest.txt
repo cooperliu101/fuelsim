@@ -1,12 +1,12 @@
 Internal ctest changing into directory: /home/cooper/ai_project/fuelsim/build
 Test project /home/cooper/ai_project/fuelsim/build
     Start 323: fuelsim_abaqus_reference_sha256
-1/1 Test #323: fuelsim_abaqus_reference_sha256 ...   Passed    1.68 sec
+1/1 Test #323: fuelsim_abaqus_reference_sha256 ...   Passed    0.31 sec
 
 100% tests passed, 0 tests failed out of 1
 
 Label Time Summary:
-audit      =   1.68 sec*proc (1 test)
-release    =   1.68 sec*proc (1 test)
+audit      =   0.31 sec*proc (1 test)
+release    =   0.31 sec*proc (1 test)
 
-Total Test time (real) =   1.70 sec
+Total Test time (real) =   0.32 sec

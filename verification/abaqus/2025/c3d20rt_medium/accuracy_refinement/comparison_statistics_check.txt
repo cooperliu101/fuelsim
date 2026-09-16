@@ -1,0 +1,2 @@
+All 46 original metric records are byte-for-byte identical after adding failure statistics.
+No acceptance criterion or original metric changed.

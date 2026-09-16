@@ -5247,7 +5247,9 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                 {},
                 {},
                 {}});
-            if (definition.thermal)
+            if (definition.thermal) {
+                const double secondary_orientation = -primary_material_orientation(coordinates,
+                    hex20_element_centroid(secondary_mesh, secondary_face.parent_element));
                 for (std::size_t local_constraint = 0; local_constraint < 8; ++local_constraint) {
                     const double fraction = local_constraint < 4 ? 1.0 / 24.0 : 5.0 / 24.0;
                     for (const auto& sample : abaqus_quad8_primary_transfer_rule(local_constraint)) {
@@ -5264,10 +5266,12 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                         thermal.derivative_eta = point.derivative_eta;
                         thermal.quadrature_weight = weight;
                         thermal.weighted_measure = weight * reference_measure(point);
-                        _hex20_thermal_points.push_back({contact_value, secondary_face_index, thermal});
+                        _hex20_thermal_points.push_back(
+                            {contact_value, secondary_face_index, local_constraint, secondary_orientation, thermal});
                         ++thermal_point_count;
                     }
                 }
+            }
             if (definition.mechanical && !surface_to_surface)
                 for (std::size_t secondary_local_node = 0; secondary_local_node < 8; ++secondary_local_node) {
                     const auto found = std::find(secondary.boundary.displacement_nodes.begin(),
@@ -6021,6 +6025,11 @@ std::vector<Quad8HeatPatchSample> SpatialAssembly::hex20_thermal_patch_samples(s
             const auto candidate = hex20_thermal_candidate(point, primary);
             Quad8HeatPatchSample sample{candidate.geometry, {}, disk, point};
             sample.geometry.quadrature_weight *= patch.fractions[entry];
+            if (disk) {
+                const auto& metadata = _hex20_thermal_points[point];
+                sample.gap_weight = metadata.local_constraint < 4 ? 1.0 : 0.0;
+                sample.secondary_normal_orientation = metadata.secondary_normal_orientation;
+            }
             const auto global = hex20_contact_dofs(candidate);
             for (std::size_t local = 0; local < global.size(); ++local) {
                 const auto found = std::lower_bound(dofs.begin(), dofs.end(), global[local]);

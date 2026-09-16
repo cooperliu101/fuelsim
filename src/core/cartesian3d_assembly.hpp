@@ -214,7 +214,8 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     };
 
     struct Hex20ThermalPoint final {
-        std::size_t contact, secondary_face;
+        std::size_t contact, secondary_face, local_constraint;
+        double secondary_normal_orientation;
         Quad8FaceThermalQuadraturePoint quadrature;
     };
 

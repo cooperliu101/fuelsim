@@ -1,0 +1,5 @@
+Source: build/Testing/Temporary/LastTest.log from the complete 326/326 CTest run.
+finite_thermal_clearance_directional_error=5.33975e-09
+hex20_heat_patch_directional_error=3.49609e-10
+millimetre_disk_projection_directional_error=5.02052e-08
+distinct_clearance_directional_error=7.92247e-11

@@ -1,3 +1,3 @@
 program,environment,solver,cpu_budget,external_wall_seconds,reported_internal_seconds,completed_steps
 Fuelsim,WSL2 Linux,MUMPS,1,412.11,410.264214667,20
-Abaqus 2025,Windows native,Abaqus sparse direct,1,405.7474492,1.0,20
+Abaqus 2025,Windows native,Abaqus sparse direct,1,405.7474492,401.0,20

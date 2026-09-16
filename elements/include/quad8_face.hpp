@@ -98,6 +98,10 @@ struct Quad8HeatPatchSample final {
     // Supported faces of one finite-sliding sample share a transfer group.
     bool disk_transfer = false;
     std::size_t transfer_group = 0;
+    // Clearance uses the corner's mechanical averaging rule; temperature
+    // averages also include the edge-rule samples in the same quadrant.
+    double gap_weight = 1.0;
+    double secondary_normal_orientation = 1.0;
 };
 
 std::vector<double> compute_quad8_gap_heat_patch(const GapHeatProperties& properties,

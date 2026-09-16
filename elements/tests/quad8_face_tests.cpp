@@ -218,6 +218,86 @@ bool test_millimetre_disk_projection() {
                "Implicit millimetre projection derivatives match a centered direction difference");
 }
 
+bool test_distinct_clearance_average() {
+    // A tilted secondary plane has a different normal from the primary plane.
+    // Only the first sample belongs to the corner's clearance average; both
+    // samples contribute to the temperature average and heat-transfer area.
+    const std::array<std::array<double, 2>, 8> natural = {
+        {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}, {0, -1}, {1, 0}, {0, 1}, {-1, 0}}};
+    fuelsim::Quad8FaceCoordinates secondary{}, primary{};
+    for (std::size_t node = 0; node < 8; ++node) {
+        secondary[node] = {natural[node][0], natural[node][1], 0.04 + 0.02 * natural[node][0]};
+        primary[node] = {natural[node][0], natural[node][1], 0.0};
+    }
+    std::vector<fuelsim::Quad8HeatPatchSample> samples;
+    for (std::size_t index = 0; index < 2; ++index) {
+        const double xi = index == 0 ? -0.4 : 0.3, eta = index == 0 ? -0.2 : 0.2;
+        const auto point = fuelsim::make_quad8_face_mechanical_point(secondary, xi, eta, index == 0 ? 0.6 : 1.4);
+        fuelsim::Quad8HeatPatchSample sample{{secondary,
+                                                 primary,
+                                                 {0.25 * (1 - xi) * (1 - eta),
+                                                     0.25 * (1 + xi) * (1 - eta),
+                                                     0.25 * (1 + xi) * (1 + eta),
+                                                     0.25 * (1 - xi) * (1 + eta)},
+                                                 point.displacement_shape,
+                                                 point.derivative_xi,
+                                                 point.derivative_eta,
+                                                 point.quadrature_weight,
+                                                 -1.0},
+            {},
+            true,
+            index,
+            index == 0 ? 1.0 : 0.0,
+            -1.0};
+        for (std::size_t i = 0; i < sample.local_dofs.size(); ++i)
+            sample.local_dofs[i] = i;
+        samples.push_back(sample);
+    }
+    std::vector<double> state(fuelsim::quad8_surface_contact_local_dof_count, 0.0), jacobian;
+    for (std::size_t node = 0; node < 4; ++node) {
+        state[node] = 400.0;
+        state[node + 4] = 300.0;
+    }
+    const fuelsim::GapHeatProperties properties{0.004, 1e-6};
+    fuelsim::CartesianHeatQuadratureValue value{};
+    const auto residual = fuelsim::compute_quad8_gap_heat_patch(properties, samples, state, &jacobian, &value);
+    const double measure = std::sqrt(1.0 + 0.02 * 0.02), gap = 0.032 / measure;
+    bool passed = check(near(value.gap, gap, 1e-13) && near(value.weighted_measure, 2 * measure, 1e-13)
+                            && near(value.heat_flux, 0.4 / gap, 1e-13),
+        "Finite Q8 heat uses the corner clearance average and the secondary normal");
+    passed = check(residual == fuelsim::compute_quad8_gap_heat_patch(properties, samples, state),
+                 "Distinct clearance averaging has identical passive and active residuals")
+             && passed;
+    constexpr double step = 1e-6;
+    auto plus = state, minus = state;
+    std::vector<double> direction(state.size());
+    for (std::size_t i = 0; i < state.size(); ++i) {
+        direction[i] = (i < 8 ? 1.0 : 0.1) * std::cos(0.73 * static_cast<double>(i));
+        plus[i] += step * direction[i];
+        minus[i] -= step * direction[i];
+    }
+    const auto forward = fuelsim::compute_quad8_gap_heat_patch(properties, samples, plus),
+               backward = fuelsim::compute_quad8_gap_heat_patch(properties, samples, minus);
+    double error = 0.0, scale = 0.0, balance = 0.0, column_balance = 0.0;
+    for (std::size_t row = 0; row < state.size(); ++row) {
+        double analytic = 0.0, column_sum = 0.0;
+        for (std::size_t column = 0; column < state.size(); ++column) {
+            analytic += jacobian[row * state.size() + column] * direction[column];
+            column_sum += jacobian[column * state.size() + row];
+        }
+        const double difference = (forward[row] - backward[row]) / (2 * step);
+        error = std::hypot(error, analytic - difference);
+        scale = std::hypot(scale, difference);
+        balance += residual[row];
+        column_balance = std::max(column_balance, std::abs(column_sum));
+    }
+    std::cout << "distinct_clearance_directional_error=" << error / scale << '\n';
+    return check(error < 1e-6 * scale, "Clearance and thermal measures retain complete geometric derivatives")
+           && check(std::abs(balance) < 1e-12 && column_balance < 1e-10,
+               "Distinct clearance averaging conserves heat and every tangent column")
+           && passed;
+}
+
 bool test_hex20_contact_kernels() {
     const auto cube = unit_cube();
     const fuelsim::Quad8FaceCoordinates face =
@@ -785,17 +865,17 @@ bool test_constant_disk_transfer() {
     }
     passed =
         check(derivative_norm > 0.1, "Constant disk fraction retains nonzero projection-weight derivatives") && passed;
-    fuelsim::Quad8HeatPatchSample sample{geometry, {}, true, 0};
+    fuelsim::Quad8HeatPatchSample sample{geometry, {}, true, 0, 1.0, -1.0};
     for (std::size_t i = 0; i < state.size(); ++i)
         sample.local_dofs[i] = i;
-    const fuelsim::GapHeatProperties properties{0.001, 1e-5};
+    const fuelsim::GapHeatProperties properties{0.001, 1e-5, fuelsim::GapHeatConductanceLaw::affine, 20.0};
     const std::vector<double> patch_state(state.begin(), state.end());
     std::vector<double> disk_jacobian, plain_jacobian;
     const auto disk = fuelsim::compute_quad8_gap_heat_patch(properties, {sample}, patch_state, &disk_jacobian);
     sample.disk_transfer = false;
     const auto plain = fuelsim::compute_quad8_gap_heat_patch(properties, {sample}, patch_state, &plain_jacobian);
     passed = check(disk == plain && disk_jacobian == plain_jacobian,
-                 "Fully covered thermal disk retains all gap, temperature and surface-measure derivatives")
+                 "Fully covered thermal disk retains temperature and measure derivatives for constant conductance")
              && passed;
     for (auto& coordinate : geometry.primary_coordinates)
         coordinate.x += 4.0;
@@ -876,7 +956,7 @@ bool test_disk_transfer() {
     std::vector<fuelsim::Quad8HeatPatchSample> heat_samples;
     const double a = 0.38603095325083064, b = 0.047248941508978792;
     for (std::size_t face = 0; face < 2; ++face) {
-        fuelsim::Quad8HeatPatchSample sample{face == 0 ? geometry : neighbor, {}, true, 0};
+        fuelsim::Quad8HeatPatchSample sample{face == 0 ? geometry : neighbor, {}, true, 0, 1.0, -1.0};
         sample.geometry.quadrature_weight = 1.0;
         sample.geometry.secondary_temperature_shape = {(1 - a) * (1 - b), a * (1 - b), a * b, (1 - a) * b};
         for (std::size_t i = 0; i < 4; ++i) {
@@ -923,7 +1003,7 @@ bool test_disk_transfer() {
 int main() {
     return (test_quadratic_face() && test_hex20_heat_patch() && test_hex20_contact_kernels()
                && test_primary_projection_shape_derivatives() && test_millimetre_disk_projection()
-               && test_constant_disk_transfer() && test_disk_transfer())
+               && test_constant_disk_transfer() && test_disk_transfer() && test_distinct_clearance_average())
                ? 0
                : 1;
 }
