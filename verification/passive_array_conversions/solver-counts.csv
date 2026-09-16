@@ -1,0 +1,13 @@
+case,version,accepted_steps,rejected_steps,total_cutbacks,load_steps_completed,nonlinear_iterations_total,residual_evaluations_total,jacobian_evaluations_total
+b37_quad4_contact,before,,,,1,4,5,4
+b37_quad4_contact,after,,,,1,4,5,4
+b517_c3d8t,before,10,0,0,,20,30,20
+b517_c3d8t,after,10,0,0,,20,30,20
+b537_c3d8rt,before,10,0,0,,20,30,20
+b537_c3d8rt,after,10,0,0,,20,30,20
+b71_cax4t,before,5,0,0,,10,20,10
+b71_cax4t,after,5,0,0,,10,20,10
+b94_cax4rt,before,5,0,0,,10,20,10
+b94_cax4rt,after,5,0,0,,10,20,10
+finite_contact_first_increment,before,1,0,0,,14,22,14
+finite_contact_first_increment,after,1,0,0,,14,22,14

@@ -24,13 +24,14 @@ AxisymmetricStress rotate_axisymmetric_tensor(const AxisymmetricStress& tensor, 
 
 std::array<double, 4> rotate_axisymmetric_tensor_values(const std::array<double, 4>& tensor,
     const AxisymmetricRotation& rotation) {
-    const AxisymmetricRotation passive = {rotation.rr.value(),
-        rotation.rz.value(),
-        rotation.zr.value(),
-        rotation.zz.value(),
-        rotation.hoop.value()};
-    const auto rotated = rotate_axisymmetric_tensor({tensor[0], tensor[1], tensor[2], tensor[3]}, passive);
-    return {rotated.rr.value(), rotated.zz.value(), rotated.hoop.value(), rotated.rz.value()};
+    const double rr = rotation.rr.value(), rz = rotation.rz.value();
+    const double zr = rotation.zr.value(), zz = rotation.zz.value(), hoop = rotation.hoop.value();
+    return {
+        rr * rr * tensor[0] + rz * rz * tensor[1] + 2.0 * rr * rz * tensor[3],
+        zr * zr * tensor[0] + zz * zz * tensor[1] + 2.0 * zr * zz * tensor[3],
+        hoop * hoop * tensor[2],
+        rr * zr * tensor[0] + rz * zz * tensor[1] + (rr * zz + rz * zr) * tensor[3],
+    };
 }
 
 IsotropicThermoelasticMaterial::IsotropicThermoelasticMaterial(ThermoelasticProperties properties)

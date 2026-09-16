@@ -367,12 +367,18 @@ ActivePoint3 interpolate_primary(const std::array<ActivePoint3, 16>& nodes,
     return interpolate_point(nodes, 8, coefficients);
 }
 
-ActivePoint3 interpolate_primary(const std::array<ActivePoint3, 16>& nodes, const std::array<double, 8>& coefficients) {
+ActivePoint3 interpolate_point(const std::array<ActivePoint3, 16>& nodes,
+    std::size_t offset,
+    const std::array<double, 8>& coefficients) {
     ActivePoint3 result{};
     for (std::size_t node = 0; node < 8; ++node)
         for (std::size_t component = 0; component < 3; ++component)
-            result[component] += coefficients[node] * nodes[8 + node][component];
+            result[component] += coefficients[node] * nodes[offset + node][component];
     return result;
+}
+
+ActivePoint3 interpolate_primary(const std::array<ActivePoint3, 16>& nodes, const std::array<double, 8>& coefficients) {
+    return interpolate_point(nodes, 8, coefficients);
 }
 
 SurfaceProjection8 project_to_primary(const ActivePoint3& secondary_point,
@@ -472,8 +478,8 @@ SurfaceProjection8 project_to_primary(const ActivePoint3& secondary_point,
 }
 
 adlite::Scalar current_surface_measure(const std::array<ActivePoint3, 16>& nodes,
-    const std::array<adlite::Scalar, 8>& derivative_xi,
-    const std::array<adlite::Scalar, 8>& derivative_eta,
+    const std::array<double, 8>& derivative_xi,
+    const std::array<double, 8>& derivative_eta,
     std::size_t offset) {
     const ActivePoint3 tangent_xi = interpolate_point(nodes, offset, derivative_xi);
     const ActivePoint3 tangent_eta = interpolate_point(nodes, offset, derivative_eta);
@@ -483,26 +489,11 @@ adlite::Scalar current_surface_measure(const std::array<ActivePoint3, 16>& nodes
     return measure;
 }
 
-adlite::Scalar temperature(const Quad8SurfaceContactLocalAdValues& state,
-    std::size_t offset,
-    const std::array<adlite::Scalar, 4>& shape) {
+adlite::Scalar
+temperature(const Quad8SurfaceContactLocalAdValues& state, std::size_t offset, const std::array<double, 4>& shape) {
     adlite::Scalar result = 0.0;
     for (std::size_t node = 0; node < 4; ++node)
         result += shape[node] * state[offset + node];
-    return result;
-}
-
-std::array<adlite::Scalar, 8> active_values(const std::array<double, 8>& values) {
-    std::array<adlite::Scalar, 8> result{};
-    for (std::size_t node = 0; node < 8; ++node)
-        result[node] = values[node];
-    return result;
-}
-
-std::array<adlite::Scalar, 4> active_temperature_values(const std::array<double, 4>& values) {
-    std::array<adlite::Scalar, 4> result{};
-    for (std::size_t node = 0; node < 4; ++node)
-        result[node] = values[node];
     return result;
 }
 
@@ -519,11 +510,7 @@ HeatAdValue8 evaluate_heat_geometry(const Quad8ToQuad8HeatGeometry& geometry,
     bool disk_transfer = false) {
     const std::array<ActivePoint3, 16> nodes =
         current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, state);
-    Quad8ShapeValues secondary_shape;
-    secondary_shape.shape = {};
-    for (std::size_t node = 0; node < 8; ++node)
-        secondary_shape.shape[node] = geometry.secondary_displacement_shape[node];
-    const ActivePoint3 secondary_point = interpolate_point(nodes, 0, secondary_shape.shape);
+    const ActivePoint3 secondary_point = interpolate_point(nodes, 0, geometry.secondary_displacement_shape);
     const adlite::Scalar fraction = disk_transfer ? quad8_disk_fraction_ad(geometry, nodes) : adlite::Scalar(1.0);
     if (fraction.value() == 0.0) {
         HeatAdValue8 empty{};
@@ -540,12 +527,9 @@ HeatAdValue8 evaluate_heat_geometry(const Quad8ToQuad8HeatGeometry& geometry,
     adlite::Scalar primary_temperature = 0.0;
     for (std::size_t node = 0; node < 4; ++node)
         primary_temperature += primary_temperature_shape[node] * state[4 + node];
-    const adlite::Scalar secondary_temperature =
-        temperature(state, 0, active_temperature_values(geometry.secondary_temperature_shape));
-    const adlite::Scalar measure = current_surface_measure(nodes,
-        active_values(geometry.secondary_derivative_xi),
-        active_values(geometry.secondary_derivative_eta),
-        0);
+    const adlite::Scalar secondary_temperature = temperature(state, 0, geometry.secondary_temperature_shape);
+    const adlite::Scalar measure =
+        current_surface_measure(nodes, geometry.secondary_derivative_xi, geometry.secondary_derivative_eta, 0);
     return {true,
         primary_temperature_shape,
         projection.gap,
@@ -644,7 +628,7 @@ transport_surface_vector(const ActivePoint3& vector, const SurfaceBasis& current
 }
 
 ActivePoint3 relative_displacement(const Quad8SurfaceContactLocalAdValues& state,
-    const std::array<adlite::Scalar, 8>& secondary_shape,
+    const std::array<double, 8>& secondary_shape,
     const std::array<adlite::Scalar, 8>& primary_shape) {
     ActivePoint3 result{};
     for (std::size_t component = 0; component < 3; ++component) {
@@ -659,7 +643,7 @@ ActivePoint3 relative_displacement(const Quad8SurfaceContactLocalAdValues& state
 
 ActivePoint3 incremental_relative_displacement(const Quad8SurfaceContactLocalAdValues& state,
     const Quad8SurfaceContactLocalAdValues& committed_state,
-    const std::array<adlite::Scalar, 8>& secondary_shape,
+    const std::array<double, 8>& secondary_shape,
     const std::array<adlite::Scalar, 8>& primary_shape) {
     const ActivePoint3 current = relative_displacement(state, secondary_shape, primary_shape),
                        committed = relative_displacement(committed_state, secondary_shape, primary_shape);
@@ -667,14 +651,14 @@ ActivePoint3 incremental_relative_displacement(const Quad8SurfaceContactLocalAdV
 }
 
 ActivePoint3 relative_position(const std::array<ActivePoint3, 16>& nodes,
-    const std::array<adlite::Scalar, 8>& secondary_shape,
+    const std::array<double, 8>& secondary_shape,
     const std::array<adlite::Scalar, 8>& primary_shape) {
     return subtract(interpolate_point(nodes, 0, secondary_shape), interpolate_point(nodes, 8, primary_shape));
 }
 
 ActivePoint3 objective_surface_increment(const std::array<ActivePoint3, 16>& nodes,
     const std::array<ActivePoint3, 16>& committed_nodes,
-    const std::array<adlite::Scalar, 8>& secondary_shape,
+    const std::array<double, 8>& secondary_shape,
     const std::array<adlite::Scalar, 8>& primary_shape,
     const SurfaceBasis& current_basis,
     const SurfaceBasis& committed_basis) {
@@ -691,19 +675,18 @@ ActivePoint3 objective_surface_increment(const std::array<ActivePoint3, 16>& nod
 
 SurfaceProjection8 small_sliding_projection(const std::array<ActivePoint3, 16>& nodes,
     const Quad8ToQuad8MechanicalGeometry& geometry) {
-    const ActivePoint3 secondary_point =
-                           interpolate_point(nodes, 0, active_values(geometry.secondary_displacement_shape)),
-                       primary_point = interpolate_point(nodes, 8, active_values(geometry.primary_displacement_shape)),
-                       primary_tangent_xi = interpolate_point(nodes, 8, active_values(geometry.primary_derivative_xi)),
-                       primary_tangent_eta =
-                           interpolate_point(nodes, 8, active_values(geometry.primary_derivative_eta)),
+    const ActivePoint3 secondary_point = interpolate_point(nodes, 0, geometry.secondary_displacement_shape),
+                       primary_point = interpolate_point(nodes, 8, geometry.primary_displacement_shape),
+                       primary_tangent_xi = interpolate_point(nodes, 8, geometry.primary_derivative_xi),
+                       primary_tangent_eta = interpolate_point(nodes, 8, geometry.primary_derivative_eta),
                        primary_area = cross(primary_tangent_xi, primary_tangent_eta);
     const adlite::Scalar primary_measure = norm(primary_area);
     if (!std::isfinite(primary_measure.value()) || !(primary_measure.value() > 0.0))
         throw std::domain_error("HEX20 small-sliding primary tangent plane has a nonpositive current measure");
     SurfaceProjection8 result;
     result.projected = true;
-    result.primary_shape = active_values(geometry.primary_displacement_shape);
+    for (std::size_t node = 0; node < 8; ++node)
+        result.primary_shape[node] = geometry.primary_displacement_shape[node];
     result.primary_point = primary_point;
     result.tangent_xi = primary_tangent_xi;
     for (std::size_t component = 0; component < result.normal.size(); ++component)
@@ -713,7 +696,7 @@ SurfaceProjection8 small_sliding_projection(const std::array<ActivePoint3, 16>& 
 }
 
 SurfaceProjection8 finite_sliding_committed_projection(const std::array<ActivePoint3, 16>& nodes,
-    const std::array<adlite::Scalar, 8>& secondary_shape,
+    const std::array<double, 8>& secondary_shape,
     const adlite::Scalar& xi,
     const adlite::Scalar& eta,
     double normal_orientation) {
@@ -747,7 +730,7 @@ CartesianContactAdValue8 evaluate_surface_mechanical(const NormalContactProperti
     const ContactPointHistory& history) {
     const std::array<ActivePoint3, 16> nodes =
         current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, state);
-    const std::array<adlite::Scalar, 8> secondary_shape = active_values(geometry.secondary_displacement_shape);
+    const auto& secondary_shape = geometry.secondary_displacement_shape;
     const ActivePoint3 secondary_point = interpolate_point(nodes, 0, secondary_shape);
     const SurfaceProjection8 projection = geometry.finite_sliding
                                               ? project_to_primary(secondary_point, nodes, geometry.normal_orientation)
@@ -760,11 +743,9 @@ CartesianContactAdValue8 evaluate_surface_mechanical(const NormalContactProperti
     result.normal = projection.normal;
     result.gap = projection.gap;
     result.pressure = adlite::max(-properties.penalty * result.gap, adlite::Scalar(0.0));
-    result.tributary_area = geometry.quadrature_weight
-                            * current_surface_measure(nodes,
-                                active_values(geometry.secondary_derivative_xi),
-                                active_values(geometry.secondary_derivative_eta),
-                                0);
+    result.tributary_area =
+        geometry.quadrature_weight
+        * current_surface_measure(nodes, geometry.secondary_derivative_xi, geometry.secondary_derivative_eta, 0);
     result.contact_force = result.pressure * result.tributary_area;
     if (properties.friction_coefficient != 0.0) {
         const Quad8SurfaceContactLocalAdValues committed_ad_state = make_ad_state(committed_state, false);
@@ -817,10 +798,10 @@ CartesianContactAdValue8 evaluate_mechanical(const NormalContactProperties& prop
     std::array<adlite::Scalar, 8> raw{};
     for (std::size_t q = 0; q < quad8_surface_contact_quadrature_point_count; ++q) {
         const adlite::Scalar measure = current_surface_measure(nodes,
-            active_values(geometry.secondary_derivatives_xi[q]),
-            active_values(geometry.secondary_derivatives_eta[q]),
+            geometry.secondary_derivatives_xi[q],
+            geometry.secondary_derivatives_eta[q],
             0);
-        const std::array<adlite::Scalar, 8> shape = active_values(geometry.secondary_shapes[q]);
+        const auto& shape = geometry.secondary_shapes[q];
         face_measure += geometry.secondary_quadrature_weights[q] * measure;
         for (std::size_t node = 0; node < 8; ++node)
             raw[node] += geometry.secondary_quadrature_weights[q] * measure
@@ -840,7 +821,7 @@ CartesianContactAdValue8 evaluate_mechanical(const NormalContactProperties& prop
     result.contact_force = result.pressure * result.tributary_area;
     if (geometry.nodal_area_rule == Quad8NodalAreaRule::consistent_shape && !(result.tributary_area.value() > 0.0))
         return result;
-    std::array<adlite::Scalar, 8> secondary_shape{};
+    std::array<double, 8> secondary_shape{};
     secondary_shape[geometry.secondary_local_node] = 1.0;
     const Quad8SurfaceContactLocalAdValues committed_ad_state = make_ad_state(committed_state, false);
     apply_friction(properties,
@@ -1258,11 +1239,10 @@ ContactProjectionValue compute_quad8_to_quad8_heat_projection(const Quad8ToQuad8
     const Quad8SurfaceContactLocalAdValues ad_state = make_ad_state(state, false);
     const std::array<ActivePoint3, 16> nodes =
         current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, ad_state);
-    Quad8ShapeValues shape;
-    for (std::size_t node = 0; node < 8; ++node)
-        shape.shape[node] = geometry.secondary_displacement_shape[node];
     const SurfaceProjection8 projection =
-        project_to_primary(interpolate_point(nodes, 0, shape.shape), nodes, geometry.normal_orientation);
+        project_to_primary(interpolate_point(nodes, 0, geometry.secondary_displacement_shape),
+            nodes,
+            geometry.normal_orientation);
     return {projection.projected, projection.projected ? projection.gap.value() : 0.0};
 }
 
@@ -1271,7 +1251,7 @@ std::array<adlite::Scalar, 8> compute_quad8_primary_shape_derivatives(const Quad
     bool allow_extrapolation) {
     const auto active = make_ad_state(state, false);
     const auto nodes = current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, active);
-    const auto shape = active_values(geometry.secondary_displacement_shape);
+    const auto& shape = geometry.secondary_displacement_shape;
     const auto projection =
         project_to_primary(interpolate_point(nodes, 0, shape), nodes, geometry.normal_orientation, allow_extrapolation);
     if (!projection.projected)
@@ -1379,7 +1359,7 @@ Quad8SurfaceContactLocalResidual compute_quad8_to_quad8_contact(const NormalCont
     const CartesianContactAdValue8 value =
         evaluate_surface_mechanical(properties, geometry, ad_state, committed_state, history);
     if (value.projected) {
-        const std::array<adlite::Scalar, 8> secondary_shape = active_values(geometry.secondary_displacement_shape);
+        const auto& secondary_shape = geometry.secondary_displacement_shape;
         for (std::size_t component = 0; component < 3; ++component) {
             const std::size_t offset = 8 + 16 * component;
             const adlite::Scalar force = value.contact_force * value.normal[component]
@@ -1427,8 +1407,7 @@ ContactProjectionValue compute_quad8_to_quad8_contact_projection(const Quad8ToQu
         current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, ad_state);
     if (!geometry.finite_sliding)
         return {true, small_sliding_projection(nodes, geometry).gap.value()};
-    const ActivePoint3 secondary_point =
-        interpolate_point(nodes, 0, active_values(geometry.secondary_displacement_shape));
+    const ActivePoint3 secondary_point = interpolate_point(nodes, 0, geometry.secondary_displacement_shape);
     const SurfaceProjection8 projection = project_to_primary(secondary_point, nodes, geometry.normal_orientation);
     return {projection.projected, projection.projected ? projection.gap.value() : 0.0};
 }

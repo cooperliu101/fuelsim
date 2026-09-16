@@ -166,7 +166,7 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point,
     const Hex8LocalValues* committed_state,
     const CartesianMaterialPointState* committed_material,
     double time_step,
-    Hex8LocalAdValues& residual,
+    Hex8LocalResidual& residual,
     Hex8LocalJacobian& jacobian,
     double average_strain_trace,
     const std::array<std::array<double, 3>, hex8_node_count>& average_trace_displacement_derivatives,
@@ -192,7 +192,7 @@ void add_hex8_nodal_body_source_system(const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     StrainFormulation strain_formulation,
     double volumetric_heat_source,
-    Hex8LocalAdValues& residual,
+    Hex8LocalResidual& residual,
     Hex8LocalJacobian& jacobian);
 void add_hex8_lumped_capacity(const Hex8Geometry& geometry,
     const Hex8LocalAdValues& state,
@@ -209,7 +209,7 @@ void add_hex8_lumped_capacity_system(const Hex8Geometry& geometry,
     double time,
     double time_step,
     double initial_temperature,
-    Hex8LocalAdValues& residual,
+    Hex8LocalResidual& residual,
     Hex8LocalJacobian& jacobian);
 void assemble_c3d8t_finite_strain_system(const elements::C3d8Input& data,
     const Hex8Geometry& geometry,
@@ -218,7 +218,7 @@ void assemble_c3d8t_finite_strain_system(const elements::C3d8Input& data,
     const CartesianMaterialHistory* history,
     double time_step,
     bool include_thermal_time_term,
-    Hex8LocalAdValues& residual,
+    Hex8LocalResidual& residual,
     Hex8LocalJacobian* jacobian);
 void assemble_c3d8t_small_strain_system(const elements::C3d8Input& data,
     const Hex8Geometry& geometry,
@@ -227,7 +227,7 @@ void assemble_c3d8t_small_strain_system(const elements::C3d8Input& data,
     const CartesianMaterialHistory* history,
     double time_step,
     bool include_thermal_time_term,
-    Hex8LocalAdValues& residual,
+    Hex8LocalResidual& residual,
     Hex8LocalJacobian* jacobian);
 std::array<SymmetricTensor3Values, 8> evaluate_hex8_stress(const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
@@ -978,7 +978,7 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point,
     const Hex8LocalValues* committed_state,
     const CartesianMaterialPointState* committed_material,
     double time_step,
-    Hex8LocalAdValues& residual,
+    Hex8LocalResidual& residual,
     Hex8LocalJacobian& jacobian,
     double average_strain_trace,
     const std::array<std::array<double, 3>, hex8_node_count>& average_trace_displacement_derivatives,
@@ -1306,7 +1306,7 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point,
         }
     }
     for (std::size_t row = 0; row < residual.size(); ++row)
-        residual[row] += point_residual[row];
+        residual[row] += point_residual[row].value();
 }
 
 adlite::Scalar hex8_nodal_volume_measure(const Hex8Geometry& geometry,
@@ -1367,7 +1367,7 @@ void add_hex8_nodal_body_source_system(const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
     StrainFormulation strain_formulation,
     double volumetric_heat_source,
-    Hex8LocalAdValues& residual,
+    Hex8LocalResidual& residual,
     Hex8LocalJacobian& jacobian) {
     for (std::size_t node = 0; node < hex8_node_count; ++node) {
         const Hex8QuadraturePoint& point = geometry.points[hex8_node_gauss_permutation[node]];
@@ -1408,7 +1408,7 @@ void add_hex8_lumped_capacity_system(const Hex8Geometry& geometry,
     double time,
     double time_step,
     double initial_temperature,
-    Hex8LocalAdValues& residual,
+    Hex8LocalResidual& residual,
     Hex8LocalJacobian& jacobian) {
     for (std::size_t node = 0; node < hex8_node_count; ++node) {
         const Hex8CapacityPoint& point = geometry.capacity_points[node];
@@ -1429,18 +1429,16 @@ void assemble_c3d8t_finite_strain_system(const elements::C3d8Input& data,
     const CartesianMaterialHistory* history,
     double time_step,
     bool include_thermal_time_term,
-    Hex8LocalAdValues& residual,
+    Hex8LocalResidual& residual,
     Hex8LocalJacobian* jacobian) {
     if (jacobian == nullptr) {
-        const Hex8LocalResidual passive_residual = c3d8t_finite_residual_values(data,
+        residual = c3d8t_finite_residual_values(data,
             geometry,
             state,
             committed_state,
             history,
             time_step,
             include_thermal_time_term);
-        for (std::size_t row = 0; row < hex8_local_dof_count; ++row)
-            residual[row] = passive_residual[row];
         return;
     }
 
@@ -1509,10 +1507,11 @@ void assemble_c3d8t_small_strain_system(const elements::C3d8Input& data,
     const CartesianMaterialHistory* history,
     double time_step,
     bool include_thermal_time_term,
-    Hex8LocalAdValues& residual,
+    Hex8LocalResidual& residual,
     Hex8LocalJacobian* jacobian) {
     const double average_trace = average_hex8_strain_trace(geometry, state);
     if (jacobian == nullptr) {
+        Hex8LocalAdValues passive_residual{};
         Hex8LocalAdValues passive{};
         ad_local_system::make_passive(state.data(), state.size(), passive.data());
         const adlite::Scalar element_pressure =
@@ -1532,8 +1531,12 @@ void assemble_c3d8t_small_strain_system(const elements::C3d8Input& data,
                 geometry.reference_volume,
                 0.0,
                 0.0,
-                residual);
-        add_hex8_nodal_body_source(geometry, passive, StrainFormulation::small, data.volumetric_heat_source, residual);
+                passive_residual);
+        add_hex8_nodal_body_source(geometry,
+            passive,
+            StrainFormulation::small,
+            data.volumetric_heat_source,
+            passive_residual);
         if (committed_state != nullptr && include_thermal_time_term)
             add_hex8_lumped_capacity(geometry,
                 passive,
@@ -1542,7 +1545,8 @@ void assemble_c3d8t_small_strain_system(const elements::C3d8Input& data,
                 data.time,
                 time_step,
                 data.initial_temperature,
-                residual);
+                passive_residual);
+        ad_local_system::extract_residual(passive_residual.data(), passive_residual.size(), residual.data());
         return;
     }
 
@@ -1636,8 +1640,7 @@ Hex8LocalResidual compute_hex8_local(const elements::C3d8Input& data, Hex8LocalJ
         throw std::invalid_argument("HEX8 time step must be finite and positive");
     if (history != nullptr && history->size() != 8)
         throw std::invalid_argument("C3D8T material history has the wrong integration point count");
-    Hex8LocalAdValues residual{};
-    residual.fill(adlite::Scalar(0.0));
+    Hex8LocalResidual residual{};
     if (data.strain_formulation == StrainFormulation::finite)
         assemble_c3d8t_finite_strain_system(data,
             geometry,
@@ -1658,9 +1661,7 @@ Hex8LocalResidual compute_hex8_local(const elements::C3d8Input& data, Hex8LocalJ
             include_thermal_time_term,
             residual,
             jacobian);
-    Hex8LocalResidual result{};
-    ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
-    return result;
+    return residual;
 }
 
 CartesianMaterialHistory compute_hex8_transient_update(const elements::C3d8Input& data) {

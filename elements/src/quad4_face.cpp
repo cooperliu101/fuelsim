@@ -608,13 +608,6 @@ adlite::Scalar current_surface_measure(const std::array<ActivePoint3, 8>& nodes,
     return measure;
 }
 
-std::array<adlite::Scalar, 4> active_values(const std::array<double, 4>& values) {
-    std::array<adlite::Scalar, 4> result{};
-    for (std::size_t node = 0; node < 4; ++node)
-        result[node] = values[node];
-    return result;
-}
-
 ActivePoint3 interpolate_point(const std::array<ActivePoint3, 8>& nodes,
     std::size_t offset,
     const std::array<adlite::Scalar, 4>& shape) {
@@ -737,14 +730,14 @@ ActivePoint3 stored_total_history(const ContactPointHistory& history) {
 }
 
 ActivePoint3 relative_position(const std::array<ActivePoint3, 8>& nodes,
-    const std::array<adlite::Scalar, 4>& secondary_shape,
+    const std::array<double, 4>& secondary_shape,
     const std::array<adlite::Scalar, 4>& primary_shape) {
     return subtract(interpolate_point(nodes, 0, secondary_shape), interpolate_point(nodes, 4, primary_shape));
 }
 
 ActivePoint3 objective_surface_increment(const std::array<ActivePoint3, 8>& nodes,
     const std::array<ActivePoint3, 8>& committed_nodes,
-    const std::array<adlite::Scalar, 4>& secondary_shape,
+    const std::array<double, 4>& secondary_shape,
     const std::array<adlite::Scalar, 4>& primary_shape,
     const SurfaceBasis& current_basis,
     const SurfaceBasis& committed_basis) {
@@ -760,7 +753,7 @@ ActivePoint3 objective_surface_increment(const std::array<ActivePoint3, 8>& node
 }
 
 SurfaceProjection finite_sliding_committed_projection(const std::array<ActivePoint3, 8>& nodes,
-    const std::array<adlite::Scalar, 4>& secondary_shape,
+    const std::array<double, 4>& secondary_shape,
     const adlite::Scalar& xi,
     const adlite::Scalar& eta,
     double normal_orientation) {
@@ -855,7 +848,7 @@ CartesianContactAdValue evaluate_surface_mechanical(const NormalContactPropertie
     const ContactPointHistory& history) {
     const std::array<ActivePoint3, 8> nodes =
         current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, state);
-    const std::array<adlite::Scalar, 4> secondary_shape = active_values(geometry.secondary_shape);
+    const auto& secondary_shape = geometry.secondary_shape;
     const ActivePoint3 secondary_point = interpolate_point(nodes, 0, secondary_shape);
     const SurfaceProjection projection = project_to_primary(secondary_point, nodes, geometry.normal_orientation);
     if (!projection.projected)
@@ -1099,7 +1092,7 @@ Quad4SurfaceContactLocalResidual compute_quad4_to_quad4_contact(const NormalCont
     const CartesianContactAdValue value =
         evaluate_surface_mechanical(properties, geometry, ad_state, committed_state, history);
     if (value.projected) {
-        const std::array<adlite::Scalar, 4> secondary_shape = active_values(geometry.secondary_shape);
+        const auto& secondary_shape = geometry.secondary_shape;
         for (std::size_t component = 0; component < 3; ++component) {
             const std::size_t offset = 8 * (component + 1);
             const adlite::Scalar force = value.contact_force * value.normal[component]
@@ -1294,7 +1287,7 @@ Quad4FiniteRegionNormalGeometryValue compute_quad4_finite_region_normal_geometry
     const Quad4SurfaceContactLocalAdValues ad_state = make_ad_state(state, jacobian != nullptr);
     const std::array<ActivePoint3, 8> nodes =
         current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, ad_state);
-    const std::array<adlite::Scalar, 4> secondary_shape = active_values(geometry.secondary_shape);
+    const auto& secondary_shape = geometry.secondary_shape;
     const ActivePoint3 secondary_point = interpolate_point(nodes, 0, secondary_shape);
     const SurfaceProjection projection =
         project_to_primary_from_double(secondary_point, nodes, geometry.normal_orientation, double_projection);
@@ -1370,9 +1363,7 @@ ContactProjectionValue compute_quad4_to_quad4_contact_projection(const Quad4ToQu
     const std::array<ActivePoint3, 8> nodes =
         current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, ad_state);
     const SurfaceProjection projection =
-        project_to_primary(interpolate_point(nodes, 0, active_values(geometry.secondary_shape)),
-            nodes,
-            geometry.normal_orientation);
+        project_to_primary(interpolate_point(nodes, 0, geometry.secondary_shape), nodes, geometry.normal_orientation);
     return {projection.projected, projection.projected ? projection.gap.value() : 0.0};
 }
 

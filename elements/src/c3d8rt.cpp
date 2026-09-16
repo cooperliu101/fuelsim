@@ -133,7 +133,7 @@ void assemble_c3d8rt_finite_strain_system(const elements::C3d8Input& data,
     const CartesianMaterialPointState* committed_material,
     double time_step,
     bool include_thermal_time_term,
-    Hex8LocalAdValues& residual,
+    Hex8LocalResidual& residual,
     Hex8LocalJacobian* jacobian);
 void assemble_c3d8rt_small_strain_system(const elements::C3d8Input& data,
     const Hex8Geometry& geometry,
@@ -142,7 +142,7 @@ void assemble_c3d8rt_small_strain_system(const elements::C3d8Input& data,
     const CartesianMaterialPointState* committed_material,
     double time_step,
     bool include_thermal_time_term,
-    Hex8LocalAdValues& residual,
+    Hex8LocalResidual& residual,
     Hex8LocalJacobian* jacobian);
 Hex8LocalResidual compute_hex8_local(const elements::C3d8Input& data, Hex8LocalJacobian* jacobian);
 CartesianMaterialHistory compute_hex8_transient_update(const elements::C3d8Input& data);
@@ -1172,7 +1172,7 @@ void assemble_c3d8rt_finite_strain_system(const elements::C3d8Input& data,
     const CartesianMaterialPointState* committed_material,
     double time_step,
     bool include_thermal_time_term,
-    Hex8LocalAdValues& residual,
+    Hex8LocalResidual& residual,
     Hex8LocalJacobian* jacobian) {
     if (!std::isfinite(data.initial_temperature) || !(data.initial_temperature > 0.0))
         throw std::invalid_argument("C3D8RT requires a finite positive initial temperature");
@@ -1206,7 +1206,7 @@ void assemble_c3d8rt_finite_strain_system(const elements::C3d8Input& data,
     if (!std::isfinite(initial_shear_modulus) || !(initial_shear_modulus > 0.0))
         throw std::invalid_argument("C3D8RT initial shear modulus must be finite and positive");
     const bool add_thermal_time_term = committed_state != nullptr && include_thermal_time_term;
-    const Hex8LocalResidual passive_residual = reduced_hex8_finite_residual_values(data,
+    residual = reduced_hex8_finite_residual_values(data,
         geometry,
         state,
         old_state,
@@ -1215,8 +1215,6 @@ void assemble_c3d8rt_finite_strain_system(const elements::C3d8Input& data,
         initial_shear_modulus,
         current,
         stress);
-    for (std::size_t row = 0; row < hex8_local_dof_count; ++row)
-        residual[row] = passive_residual[row];
     if (jacobian == nullptr)
         return;
 
@@ -1287,7 +1285,7 @@ void assemble_c3d8rt_small_strain_system(const elements::C3d8Input& data,
     const CartesianMaterialPointState* committed_material,
     double time_step,
     bool include_thermal_time_term,
-    Hex8LocalAdValues& residual,
+    Hex8LocalResidual& residual,
     Hex8LocalJacobian* jacobian) {
     if (data.strain_formulation != StrainFormulation::small)
         throw std::logic_error("C3D8RT small-strain integration received a non-small strain formulation");
@@ -1455,8 +1453,7 @@ Hex8LocalResidual compute_hex8_local(const elements::C3d8Input& data, Hex8LocalJ
         throw std::invalid_argument("HEX8 time step must be finite and positive");
     if (history != nullptr && history->size() != 1)
         throw std::invalid_argument("C3D8RT material history has the wrong integration point count");
-    Hex8LocalAdValues residual{};
-    residual.fill(adlite::Scalar(0.0));
+    Hex8LocalResidual residual{};
     if (data.strain_formulation == StrainFormulation::finite)
         assemble_c3d8rt_finite_strain_system(data,
             geometry,
@@ -1477,9 +1474,7 @@ Hex8LocalResidual compute_hex8_local(const elements::C3d8Input& data, Hex8LocalJ
             include_thermal_time_term,
             residual,
             jacobian);
-    Hex8LocalResidual result{};
-    ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
-    return result;
+    return residual;
 }
 
 CartesianMaterialHistory compute_hex8_transient_update(const elements::C3d8Input& data) {

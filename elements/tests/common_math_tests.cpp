@@ -213,6 +213,22 @@ void axisymmetric() {
     const AxisymmetricRotation quarter_turn = {Scalar::independent(0.0, 0, 1), -1.0, 1.0, 0.0, 1.0};
     check(rotate_axisymmetric_tensor_values(tensor, quarter_turn) == std::array<double, 4>{5.0, 2.0, 7.0, -3.0},
         "Value-only tensor rotation swaps in-plane axes and reverses tensor shear");
+    for (double angle : {0.17, -0.63, 1.2}) {
+        const Scalar active_angle = Scalar::independent(angle, 0, 1);
+        const Scalar cosine = adlite::cos(active_angle), sine = adlite::sin(active_angle);
+        const AxisymmetricRotation rotation = {cosine, -sine, sine, cosine, 1.0};
+        const auto values = rotate_axisymmetric_tensor_values(tensor, rotation);
+        const auto active = rotate_axisymmetric_tensor({tensor[0], tensor[1], tensor[2], tensor[3]}, rotation);
+        const std::array<double, 4> expected = {active.rr.value(),
+            active.zz.value(),
+            active.hoop.value(),
+            active.rz.value()};
+        for (std::size_t component = 0; component < values.size(); ++component)
+            check(near(values[component], expected[component], 1e-14),
+                "Value-only rotation agrees with active rotation at non-axis-aligned angles");
+        check(near(values[0] + values[1] + values[2], tensor[0] + tensor[1] + tensor[2], 1e-14),
+            "Value-only rotation preserves tensor trace");
+    }
     MaterialPointState history;
     history.elastic_strain = tensor;
     history.plastic_strain = {1.0, -2.0, 1.0, 3.0};
