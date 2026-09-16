@@ -675,6 +675,71 @@ bool test_primary_projection_shape_derivatives() {
     return true;
 }
 
+bool test_constant_disk_transfer() {
+    const std::array<std::array<double, 2>, 8> natural = {
+        {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}, {0, -1}, {1, 0}, {0, 1}, {-1, 0}}};
+    fuelsim::Quad8ToQuad8HeatGeometry geometry{};
+    for (std::size_t node = 0; node < 8; ++node) {
+        geometry.secondary_coordinates[node] = {natural[node][0], natural[node][1], 0.05};
+        geometry.primary_coordinates[node] = {natural[node][0], natural[node][1], 0.0};
+    }
+    const auto point = fuelsim::make_quad8_face_mechanical_point(geometry.secondary_coordinates, 0.21, -0.17, 1.0);
+    geometry.secondary_displacement_shape = point.displacement_shape;
+    geometry.secondary_derivative_xi = point.derivative_xi;
+    geometry.secondary_derivative_eta = point.derivative_eta;
+    geometry.secondary_temperature_shape = {0.25 * 0.79 * 1.17,
+        0.25 * 1.21 * 1.17,
+        0.25 * 1.21 * 0.83,
+        0.25 * 0.79 * 0.83};
+    geometry.normal_orientation = -1.0;
+    geometry.quadrature_weight = 1.0;
+    fuelsim::Quad8SurfaceContactLocalValues state{};
+    for (std::size_t node = 0; node < 4; ++node) {
+        state[node] = 400.0 + static_cast<double>(node);
+        state[4 + node] = 300.0 + static_cast<double>(node);
+    }
+    for (std::size_t i = 8; i < state.size(); ++i)
+        state[i] = 1e-4 * std::sin(0.73 * static_cast<double>(i));
+    std::array<adlite::Scalar, 8> derivatives{};
+    const auto weights = fuelsim::compute_quad8_disk_transfer(geometry, state, &derivatives);
+    double sum = 0.0, derivative_norm = 0.0;
+    for (double weight : weights)
+        sum += weight;
+    bool passed = check(near(sum, 1.0, 1e-13), "Fully covered disk transfers unit total weight");
+    for (std::size_t column = 0; column < state.size(); ++column) {
+        double derivative_sum = 0.0;
+        for (const auto& weight : derivatives) {
+            derivative_sum += weight.derivative(column);
+            derivative_norm = std::hypot(derivative_norm, weight.derivative(column));
+        }
+        passed =
+            check(std::abs(derivative_sum) < 1e-12, "Fully covered disk has zero total-weight derivative") && passed;
+    }
+    passed =
+        check(derivative_norm > 0.1, "Constant disk fraction retains nonzero projection-weight derivatives") && passed;
+    fuelsim::Quad8HeatPatchSample sample{geometry, {}, true, 0};
+    for (std::size_t i = 0; i < state.size(); ++i)
+        sample.local_dofs[i] = i;
+    const fuelsim::GapHeatProperties properties{0.001, 1e-5};
+    const std::vector<double> patch_state(state.begin(), state.end());
+    std::vector<double> disk_jacobian, plain_jacobian;
+    const auto disk = fuelsim::compute_quad8_gap_heat_patch(properties, {sample}, patch_state, &disk_jacobian);
+    sample.disk_transfer = false;
+    const auto plain = fuelsim::compute_quad8_gap_heat_patch(properties, {sample}, patch_state, &plain_jacobian);
+    passed = check(disk == plain && disk_jacobian == plain_jacobian,
+                 "Fully covered thermal disk retains all gap, temperature and surface-measure derivatives")
+             && passed;
+    for (auto& coordinate : geometry.primary_coordinates)
+        coordinate.x += 4.0;
+    const auto separated = fuelsim::compute_quad8_disk_transfer(geometry, state, &derivatives);
+    for (std::size_t node = 0; node < 8; ++node)
+        passed = check(separated[node] == 0.0 && derivatives[node].value() == 0.0
+                           && derivatives[node].derivative_size() == 0,
+                     "Separated disk has zero transfer and zero derivative")
+                 && passed;
+    return passed;
+}
+
 bool test_disk_transfer() {
     const std::array<std::array<double, 2>, 8> natural = {
         {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}, {0, -1}, {1, 0}, {0, 1}, {-1, 0}}};
@@ -789,7 +854,7 @@ bool test_disk_transfer() {
 
 int main() {
     return (test_quadratic_face() && test_hex20_heat_patch() && test_hex20_contact_kernels()
-               && test_primary_projection_shape_derivatives() && test_disk_transfer())
+               && test_primary_projection_shape_derivatives() && test_constant_disk_transfer() && test_disk_transfer())
                ? 0
                : 1;
 }

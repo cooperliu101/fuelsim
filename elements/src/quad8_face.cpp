@@ -264,6 +264,13 @@ Quad8FaceLocalResidual compute_quad8_face_boundary(const Quad4FaceBoundaryData& 
 
 namespace fuelsim {
 namespace {
+struct Quad8DiskFraction final {
+    double value = 0.0;
+    bool constant = false;
+};
+
+Quad8DiskFraction quad8_disk_fraction_double(const Quad8ToQuad8HeatGeometry& geometry,
+    const std::array<std::array<double, 3>, 16>& nodes);
 adlite::Scalar quad8_disk_fraction_ad(const Quad8ToQuad8HeatGeometry& geometry,
     const std::array<ActivePoint3, 16>& nodes);
 
@@ -511,7 +518,21 @@ HeatAdValue8 evaluate_heat_geometry(const Quad8ToQuad8HeatGeometry& geometry,
     const std::array<ActivePoint3, 16> nodes =
         current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, state);
     const ActivePoint3 secondary_point = interpolate_point(nodes, 0, geometry.secondary_displacement_shape);
-    const adlite::Scalar fraction = disk_transfer ? quad8_disk_fraction_ad(geometry, nodes) : adlite::Scalar(1.0);
+    adlite::Scalar fraction = 1.0;
+    if (disk_transfer) {
+        std::array<std::array<double, 3>, 16> coordinates{};
+        bool passive = true;
+        for (std::size_t node = 0; node < nodes.size(); ++node)
+            for (std::size_t component = 0; component < 3; ++component) {
+                coordinates[node][component] = nodes[node][component].value();
+                passive = passive && nodes[node][component].derivative_size() == 0;
+            }
+        const Quad8DiskFraction fraction_values = quad8_disk_fraction_double(geometry, coordinates);
+        // The no-crossing branch is locally constant. An area rounded to zero
+        // or one is insufficient to skip the partial-intersection derivatives.
+        fraction = passive || fraction_values.constant ? adlite::Scalar(fraction_values.value)
+                                                       : quad8_disk_fraction_ad(geometry, nodes);
+    }
     if (fraction.value() == 0.0) {
         HeatAdValue8 empty{};
         empty.projected = true;
@@ -855,7 +876,7 @@ Quad8SurfaceContactLocalResidual extract(const Quad8SurfaceContactLocalAdValues&
 
 // Circular averaging of extrapolated primary shapes. Coordinates are scaled
 // by the current secondary-face radius before circle/polygon integration.
-double quad8_disk_fraction_double(const Quad8ToQuad8HeatGeometry& geometry,
+Quad8DiskFraction quad8_disk_fraction_double(const Quad8ToQuad8HeatGeometry& geometry,
     const std::array<std::array<double, 3>, 16>& nodes) {
     std::array<double, 3> center{}, first{}, second{};
     for (std::size_t i = 0; i < 8; ++i)
@@ -956,29 +977,17 @@ double quad8_disk_fraction_double(const Quad8ToQuad8HeatGeometry& geometry,
         }
     }
     if (!intersects && !vertex_inside)
-        return origin_inside ? 1.0 : 0.0;
+        return {origin_inside ? 1.0 : 0.0, true};
     constexpr double pi = 3.141592653589793238462643383279502884;
     if (!std::isfinite(area))
         throw std::domain_error("Disk transfer has nonfinite intersection area");
-    return (area < 0.0 ? -area : area) / pi;
+    return {(area < 0.0 ? -area : area) / pi, false};
 }
 
 // Circular averaging of extrapolated primary shapes. Coordinates are scaled
 // by the current secondary-face radius before circle/polygon integration.
 adlite::Scalar quad8_disk_fraction_ad(const Quad8ToQuad8HeatGeometry& geometry,
     const std::array<std::array<adlite::Scalar, 3>, 16>& nodes) {
-    bool passive = true;
-    for (const auto& node : nodes)
-        for (const auto& coordinate : node)
-            passive = passive && coordinate.derivative_size() == 0;
-    if (passive) {
-        std::array<std::array<double, 3>, 16> coordinates{};
-        for (std::size_t node = 0; node < nodes.size(); ++node)
-            for (std::size_t component = 0; component < 3; ++component)
-                coordinates[node][component] = nodes[node][component].value();
-        return quad8_disk_fraction_double(geometry, coordinates);
-    }
-
     std::array<adlite::Scalar, 3> center{}, first{}, second{};
     for (std::size_t i = 0; i < 8; ++i)
         for (std::size_t c = 0; c < 3; ++c) {
@@ -1321,7 +1330,8 @@ std::array<double, 8> compute_quad8_disk_transfer(const Quad8ToQuad8HeatGeometry
         secondary[i] = {nodes[i][0], nodes[i][1], nodes[i][2]};
         primary[i] = {nodes[8 + i][0], nodes[8 + i][1], nodes[8 + i][2]};
     }
-    const double fraction = quad8_disk_fraction_double(geometry, nodes);
+    const Quad8DiskFraction fraction_values = quad8_disk_fraction_double(geometry, nodes);
+    const double fraction = fraction_values.value;
     std::array<double, 8> result{};
     if (fraction == 0.0) {
         if (derivatives)
@@ -1338,9 +1348,13 @@ std::array<double, 8> compute_quad8_disk_transfer(const Quad8ToQuad8HeatGeometry
     for (std::size_t i = 0; i < 8; ++i)
         result[i] = fraction * projection.primary_shape[i];
     if (derivatives) {
-        const auto active = make_ad_state(state, true);
-        const auto active_nodes = current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, active);
-        const auto active_fraction = quad8_disk_fraction_ad(geometry, active_nodes);
+        adlite::Scalar active_fraction = fraction;
+        if (!fraction_values.constant) {
+            const auto active = make_ad_state(state, true);
+            const auto active_nodes =
+                current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, active);
+            active_fraction = quad8_disk_fraction_ad(geometry, active_nodes);
+        }
         const auto shapes = compute_quad8_primary_shape_derivatives(geometry, state, true);
         for (std::size_t i = 0; i < 8; ++i)
             (*derivatives)[i] = adlite::compose(result[i], active_fraction * shapes[i], 1.0);
