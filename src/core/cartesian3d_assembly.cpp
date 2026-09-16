@@ -109,14 +109,13 @@ SurfacePullbackCovectors surface_pullback_covectors(const Quad4FaceQuadraturePoi
 
 // Reference coordinates of the conventional first contact tangent. Convect
 // this material direction with the surface instead of choosing a mesh edge.
-std::array<double, 2> quad8_reference_tangent_coordinates(const Quad8FaceMechanicalQuadraturePoint& point) {
+std::array<double, 2> quad8_reference_tangent_coordinates(const Quad8FaceMechanicalQuadraturePoint& point,
+    const CartesianPoint3& axis) {
     const auto area = cross(point.tangent_xi, point.tangent_eta);
     const double measure = std::sqrt(dot(area, area));
     if (!(measure > 0.0))
         throw std::domain_error("HEX20 reference contact tangent has a singular surface");
     const CartesianPoint3 normal{area.x / measure, area.y / measure, area.z / measure};
-    const CartesianPoint3 axis =
-        std::abs(normal.x) > 0.9999984769132877 ? CartesianPoint3{0.0, 0.0, 1.0} : CartesianPoint3{1.0, 0.0, 0.0};
     const double normal_component = dot(axis, normal);
     const CartesianPoint3 first{axis.x - normal_component * normal.x,
         axis.y - normal_component * normal.y,
@@ -2885,7 +2884,8 @@ void SpatialAssembly::compute_c3d20_finite_constraint_jacobian(const AbaqusAvera
             auto point_normal = normalized(area_vector);
             for (auto& component : point_normal)
                 component *= sample.normal_orientation;
-            const auto reference_weights = quad8_reference_tangent_coordinates(point);
+            const auto reference_weights =
+                quad8_reference_tangent_coordinates(point, constraint.reference_tangent_axis);
             ActivePoint point_first{};
             for (std::size_t c = 0; c < 3; ++c)
                 point_first[c] = reference_weights[0] * basis[0][c] + reference_weights[1] * basis[1][c];
@@ -2963,7 +2963,8 @@ void SpatialAssembly::compute_c3d20_finite_constraint_jacobian(const AbaqusAvera
             }
             if (!(total_fraction.value() > 0.0))
                 throw std::domain_error("HEX20 disk transfer has no primary support");
-            const auto reference_weights = quad8_reference_tangent_coordinates(point);
+            const auto reference_weights =
+                quad8_reference_tangent_coordinates(point, constraint.reference_tangent_axis);
             ActivePoint point_first{};
             for (std::size_t c = 0; c < 3; ++c)
                 point_first[c] = reference_weights[0] * point_basis[0][c] + reference_weights[1] * point_basis[1][c];
@@ -3364,7 +3365,7 @@ void SpatialAssembly::refresh_hex20_finite_averaged_constraints(const std::vecto
                     2.0 * transfer.first - 1.0,
                     2.0 * transfer.second - 1.0,
                     1.0);
-                const auto weights = quad8_reference_tangent_coordinates(reference);
+                const auto weights = quad8_reference_tangent_coordinates(reference, constraint.reference_tangent_axis);
                 CartesianPoint3 first{weights[0] * point.tangent_xi.x + weights[1] * point.tangent_eta.x,
                     weights[0] * point.tangent_xi.y + weights[1] * point.tangent_eta.y,
                     weights[0] * point.tangent_xi.z + weights[1] * point.tangent_eta.z};
@@ -3472,26 +3473,11 @@ void SpatialAssembly::refresh_hex20_finite_averaged_constraints(const std::vecto
                     constraint.projected = false;
                     continue;
                 }
-                std::vector<std::pair<std::size_t, std::array<double, 8>>> support;
+                const auto support =
+                    hex20_disk_support(constraint.contact, selected, secondary_current, secondary_point, state);
                 double total_fraction = 0.0;
-                for (std::size_t primary_index = 0; primary_index < primary_faces.size(); ++primary_index) {
-                    const auto& primary = primary_faces[primary_index];
-                    const auto primary_current = current_face(primary.displacement_nodes, primary.coordinates);
-                    const Quad8ToQuad8HeatGeometry geometry{secondary_current,
-                        primary_current,
-                        {},
-                        secondary_point.displacement_shape,
-                        secondary_point.derivative_xi,
-                        secondary_point.derivative_eta,
-                        1.0,
-                        normal_orientation(primary.coordinates, secondary.parent_centroid, primary.parent_centroid)};
-                    const auto weights = compute_quad8_disk_transfer(geometry, {});
-                    const double fraction = std::accumulate(weights.begin(), weights.end(), 0.0);
-                    if (!(fraction > 0.0))
-                        continue;
-                    support.emplace_back(primary_index, weights);
-                    total_fraction += fraction;
-                }
+                for (const auto& entry : support)
+                    total_fraction += std::accumulate(entry.second.begin(), entry.second.end(), 0.0);
                 if (!(total_fraction > 0.0))
                     throw std::domain_error("HEX20 disk transfer has no primary support");
                 CartesianPoint3 separation{};
@@ -3514,7 +3500,8 @@ void SpatialAssembly::refresh_hex20_finite_averaged_constraints(const std::vecto
                 const auto& tx = secondary_point.tangent_xi;
                 const auto& ty = secondary_point.tangent_eta;
                 const auto reference_point = make_quad8_face_mechanical_point(secondary.coordinates, xi, eta, 1.0);
-                const auto tangent_weights = quad8_reference_tangent_coordinates(reference_point);
+                const auto tangent_weights =
+                    quad8_reference_tangent_coordinates(reference_point, constraint.reference_tangent_axis);
                 CartesianPoint3 point_first{tangent_weights[0] * tx.x + tangent_weights[1] * ty.x,
                     tangent_weights[0] * tx.y + tangent_weights[1] * ty.y,
                     tangent_weights[0] * tx.z + tangent_weights[1] * ty.z};
@@ -5220,8 +5207,20 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
             primary_faces.push_back({temperature_nodes,
                 displacement_nodes,
                 coordinates,
-                hex20_element_centroid(primary_mesh, primary_face.parent_element)});
+                hex20_element_centroid(primary_mesh, primary_face.parent_element),
+                {}});
         }
+        std::map<std::pair<std::size_t, std::size_t>, std::vector<std::size_t>> edge_faces;
+        for (std::size_t face = 0; face < primary_faces.size(); ++face)
+            for (std::size_t edge = 0; edge < 4; ++edge) {
+                const auto& nodes = primary_faces[face].displacement_nodes;
+                edge_faces[std::minmax(nodes[edge], nodes[(edge + 1) % 4])].push_back(face);
+            }
+        for (const auto& entry : edge_faces)
+            for (std::size_t face : entry.second)
+                for (std::size_t neighbor : entry.second)
+                    if (face != neighbor)
+                        primary_faces[face].neighbors.push_back(neighbor);
 
         std::vector<Hex20SecondaryContactFace> secondary_faces;
         secondary_faces.reserve(secondary.boundary.faces.size());
@@ -5634,6 +5633,17 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                     builder.normal.z / normal_measure};
                 constraint.area = builder.area;
                 if (finite_averaged) {
+                    // Start with the averaged reference tangent, then project
+                    // that one material direction onto each face. Projecting a
+                    // global axis independently reverses tangents at a pole,
+                    // or vanishes on a face normal to that axis.
+                    const CartesianPoint3 axis = std::abs(constraint.normal.x) > 0.9999984769132877
+                                                     ? CartesianPoint3{0.0, 0.0, 1.0}
+                                                     : CartesianPoint3{1.0, 0.0, 0.0};
+                    const double normal_component = dot(axis, constraint.normal);
+                    constraint.reference_tangent_axis = {axis.x - normal_component * constraint.normal.x,
+                        axis.y - normal_component * constraint.normal.y,
+                        axis.z - normal_component * constraint.normal.z};
                     CartesianPoint3 tangent{}, second{};
                     for (const auto& sample : builder.samples) {
                         const auto& face = secondary_faces[sample.secondary_face];
@@ -5643,7 +5653,8 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                                 2.0 * transfer.first - 1.0,
                                 2.0 * transfer.second - 1.0,
                                 1.0);
-                            const auto weights = quad8_reference_tangent_coordinates(point);
+                            const auto weights =
+                                quad8_reference_tangent_coordinates(point, constraint.reference_tangent_axis);
                             CartesianPoint3 first{weights[0] * point.tangent_xi.x + weights[1] * point.tangent_eta.x,
                                 weights[0] * point.tangent_xi.y + weights[1] * point.tangent_eta.y,
                                 weights[0] * point.tangent_xi.z + weights[1] * point.tangent_eta.z};
@@ -5802,6 +5813,7 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
     _mechanical_selected_primary.resize(_mechanical_contact_offsets.back());
     _mechanical_cached_primary.assign(_mechanical_contact_offsets.back(), std::numeric_limits<std::size_t>::max());
     _mechanical_active_primary.resize(_hex20_mechanical_points.size());
+    _hex20_thermal_disk_primary.resize(_thermal_contact_offsets.back());
     _contact_search_trees.resize(_definition.contacts.size());
 }
 
@@ -5918,6 +5930,52 @@ SpatialAssembly::Hex20ThermalCandidate SpatialAssembly::hex20_thermal_candidate(
         primary};
 }
 
+std::vector<std::pair<std::size_t, std::array<double, 8>>> SpatialAssembly::hex20_disk_support(std::size_t contact,
+    std::size_t selected,
+    const Quad8FaceCoordinates& secondary,
+    const Quad8FaceMechanicalQuadraturePoint& point,
+    const std::vector<double>& state) const {
+    const auto& faces = _hex20_primary_contact_faces.at(contact);
+    if (selected >= faces.size())
+        throw std::domain_error("HEX20 disk transfer has no nearest primary face");
+    std::vector<std::pair<std::size_t, std::array<double, 8>>> support;
+    std::vector<std::size_t> pending{selected};
+    std::vector<unsigned char> visited(faces.size(), 0U);
+    visited[selected] = 1U;
+    for (std::size_t entry = 0; entry < pending.size(); ++entry) {
+        const std::size_t index = pending[entry];
+        const auto& face = faces[index];
+        auto current = face.coordinates;
+        for (std::size_t node = 0; node < 8; ++node) {
+            current[node].x += state.at(dof(Field::displacement_x, face.displacement_nodes[node]));
+            current[node].y += state.at(dof(Field::displacement_y, face.displacement_nodes[node]));
+            current[node].z += state.at(dof(Field::displacement_z, face.displacement_nodes[node]));
+        }
+        const Quad8ToQuad8HeatGeometry geometry{secondary,
+            current,
+            {},
+            point.displacement_shape,
+            point.derivative_xi,
+            point.derivative_eta,
+            1.0,
+            1.0};
+        const auto weights = compute_quad8_disk_transfer(geometry, {});
+        if (!(std::accumulate(weights.begin(), weights.end(), 0.0) > 0.0))
+            continue;
+        support.emplace_back(index, weights);
+        // A disk lives on the connected patch around its nearest projection.
+        // Projecting every face into its tangent plane also includes the far
+        // side of a closed surface, producing spurious heat and contact forces.
+        for (std::size_t neighbor : face.neighbors)
+            if (visited[neighbor] == 0U) {
+                visited[neighbor] = 1U;
+                pending.push_back(neighbor);
+            }
+    }
+    std::sort(support.begin(), support.end());
+    return support;
+}
+
 void SpatialAssembly::hex20_thermal_patch_dofs(std::size_t patch_index,
     std::vector<std::size_t>& dofs,
     bool all_candidates) const {
@@ -5925,8 +5983,18 @@ void SpatialAssembly::hex20_thermal_patch_dofs(std::size_t patch_index,
     const auto& patch = _hex20_thermal_patches.at(patch_index);
     const bool disk = _definition.contacts[patch.contact].mechanical_sliding == MechanicalContactSliding::finite;
     for (std::size_t point : patch.points) {
-        const std::size_t begin = all_candidates || disk ? 0 : _thermal_active_primary.at(point);
-        const std::size_t end = all_candidates || disk ? _hex20_primary_contact_faces[patch.contact].size() : begin + 1;
+        if (disk && !all_candidates) {
+            const auto& support = _hex20_thermal_disk_primary.at(point);
+            if (support.empty())
+                throw std::domain_error("HEX20 thermal disk has no valid primary support");
+            for (std::size_t primary : support) {
+                const auto local = hex20_contact_dofs(hex20_thermal_candidate(point, primary));
+                dofs.insert(dofs.end(), local.begin(), local.end());
+            }
+            continue;
+        }
+        const std::size_t begin = all_candidates ? 0 : _thermal_active_primary.at(point);
+        const std::size_t end = all_candidates ? _hex20_primary_contact_faces[patch.contact].size() : begin + 1;
         if (begin == std::numeric_limits<std::size_t>::max())
             throw std::domain_error("HEX20 thermal patch has no valid primary projection");
         for (std::size_t primary = begin; primary < end; ++primary) {
@@ -5946,9 +6014,10 @@ std::vector<Quad8HeatPatchSample> SpatialAssembly::hex20_thermal_patch_samples(s
     samples.reserve(patch.points.size());
     for (std::size_t entry = 0; entry < patch.points.size(); ++entry) {
         const std::size_t point = patch.points[entry];
-        const std::size_t begin = disk ? 0 : _thermal_active_primary.at(point);
-        const std::size_t end = disk ? _hex20_primary_contact_faces[patch.contact].size() : begin + 1;
-        for (std::size_t primary = begin; primary < end; ++primary) {
+        const auto& support = _hex20_thermal_disk_primary.at(point);
+        const std::size_t count = disk ? support.size() : 1;
+        for (std::size_t candidate_index = 0; candidate_index < count; ++candidate_index) {
+            const std::size_t primary = disk ? support[candidate_index] : _thermal_active_primary.at(point);
             const auto candidate = hex20_thermal_candidate(point, primary);
             Quad8HeatPatchSample sample{candidate.geometry, {}, disk, point};
             sample.geometry.quadrature_weight *= patch.fractions[entry];
@@ -6233,6 +6302,27 @@ void SpatialAssembly::update_thermal_candidates(std::size_t first,
                     consider(primary);
         if (_thermal_active_primary[point] != std::numeric_limits<std::size_t>::max())
             _thermal_cached_primary[point] = _thermal_active_primary[point];
+        if (_uses_hex20 && _definition.contacts[contact].mechanical_sliding == MechanicalContactSliding::finite) {
+            auto& support = _hex20_thermal_disk_primary[point];
+            support.clear();
+            if (_thermal_active_primary[point] == std::numeric_limits<std::size_t>::max())
+                continue;
+            const auto& metadata = _hex20_thermal_points[point];
+            const auto& face = _hex20_secondary_contact_faces[contact][metadata.secondary_face];
+            auto current = face.coordinates;
+            for (std::size_t node = 0; node < 8; ++node) {
+                current[node].x += state.at(dof(Field::displacement_x, face.displacement_nodes[node]));
+                current[node].y += state.at(dof(Field::displacement_y, face.displacement_nodes[node]));
+                current[node].z += state.at(dof(Field::displacement_z, face.displacement_nodes[node]));
+            }
+            Quad8FaceMechanicalQuadraturePoint sample{};
+            sample.displacement_shape = metadata.quadrature.displacement_shape;
+            sample.derivative_xi = metadata.quadrature.derivative_xi;
+            sample.derivative_eta = metadata.quadrature.derivative_eta;
+            for (const auto& entry :
+                hex20_disk_support(contact, _thermal_active_primary[point], current, sample, state))
+                support.push_back(entry.first);
+        }
     }
 }
 

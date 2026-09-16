@@ -1,0 +1,2 @@
+hex20_heat_patch_directional_error=3.49609e-10
+millimetre_disk_projection_directional_error=5.01198e-08

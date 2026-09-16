@@ -1,0 +1,5 @@
+# Preserve native solver output bytes, including Windows line endings and spaces.
+*.dat -text -whitespace
+*.msg -text -whitespace
+*.sta -text -whitespace
+abaqus_*.txt -text -whitespace

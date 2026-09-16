@@ -197,6 +197,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         std::array<std::size_t, 8> displacement_nodes;
         Quad8FaceCoordinates coordinates;
         CartesianPoint3 parent_centroid;
+        std::vector<std::size_t> neighbors;
     };
 
     struct Hex20SecondaryContactFace final {
@@ -250,7 +251,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
             secondary_tangent_second_coefficients;
         std::vector<CartesianPoint3> reference_coordinates;
         std::vector<FiniteSlidingSample> finite_sliding_samples;
-        CartesianPoint3 normal, tangent_first, reference_normal, reference_tangent_first;
+        CartesianPoint3 normal, tangent_first, reference_normal, reference_tangent_first, reference_tangent_axis;
         double reference_gap, area;
         std::size_t primary_face = 0;
         bool finite_sliding = false, finite_region_normal = false, friction_only = false, projected = true;
@@ -279,6 +280,11 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     MechanicalCandidate mechanical_candidate(std::size_t point, std::size_t primary) const;
     NormalContactProperties mechanical_contact_properties(const MechanicalCandidate& candidate) const;
     Hex20ThermalCandidate hex20_thermal_candidate(std::size_t point, std::size_t primary) const;
+    std::vector<std::pair<std::size_t, std::array<double, 8>>> hex20_disk_support(std::size_t contact,
+        std::size_t selected,
+        const Quad8FaceCoordinates& secondary,
+        const Quad8FaceMechanicalQuadraturePoint& point,
+        const std::vector<double>& state) const;
     void hex20_thermal_patch_dofs(std::size_t patch, std::vector<std::size_t>& dofs, bool all_candidates = false) const;
     std::vector<Quad8HeatPatchSample> hex20_thermal_patch_samples(std::size_t patch,
         const std::vector<std::size_t>& dofs) const;
@@ -378,6 +384,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     mutable std::vector<double> _thermal_minimum_distance, _mechanical_minimum_distance;
     mutable std::vector<std::size_t> _mechanical_selected_primary, _mechanical_cached_primary;
     mutable std::vector<std::size_t> _thermal_active_primary, _thermal_cached_primary, _mechanical_active_primary;
+    mutable std::vector<std::vector<std::size_t>> _hex20_thermal_disk_primary;
     mutable std::vector<spatial_detail::ContactSearchTree> _contact_search_trees;
     mutable std::vector<spatial_detail::ContactSearchBox> _contact_search_boxes;
     mutable spatial_detail::ContactSearchQuery _contact_search_query;

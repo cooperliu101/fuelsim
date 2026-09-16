@@ -324,7 +324,10 @@ double mechanical_contact_directional_error(fuelsim::SteadyProblem& problem,
             std::vector<std::size_t> perturbed_dofs;
             problem.contribution_dofs(contribution, perturbed_dofs);
             if (perturbed_dofs != dofs)
-                throw std::runtime_error("Contact directional test crossed a candidate support transition");
+                throw std::runtime_error(
+                    "Contact directional test crossed a candidate support transition at contribution "
+                    + std::to_string(contribution) + " (" + std::to_string(dofs.size()) + " -> "
+                    + std::to_string(perturbed_dofs.size()) + " degrees of freedom)");
             spatial.compute_contribution(contribution, local, nullptr, nullptr, 0.0, result, nullptr);
         };
         evaluate_perturbed(plus, plus_residual);
@@ -925,6 +928,73 @@ bool test_surface_contact_finite_sliding() {
     return passed;
 }
 
+bool test_finite_sliding_folded_surface(bool flat_first_face) {
+    std::vector<fuelsim::CartesianPoint3> nodes;
+    std::map<std::array<double, 3>, std::size_t> primary_nodes, secondary_nodes;
+    std::vector<fuelsim::Hex20Element> elements;
+    for (int face = 0; face < 2; ++face)
+        elements.push_back(append_cuboid(nodes, primary_nodes, 0.0, 1.0, 1.2 * (face - 1.0), 1.2 * face, -0.2, 1.2));
+    for (int face = 0; face < 2; ++face)
+        elements.push_back(append_cuboid(nodes, secondary_nodes, 1.0, 2.0, face - 1.0, face, 0.0, 1.0));
+    // Exercise both a cylindrical pole and an asymmetric corner where one
+    // face remains normal to x although the averaged normal is tilted.
+    for (auto& node : nodes) {
+        node.x -= 0.1 * (flat_first_face ? std::max(node.y, 0.0) : std::abs(node.y));
+        // Give each secondary face one shortest edge. The disk radius uses
+        // min(edge length), which is not differentiable at equal-length ties.
+        node.z *= 1.0 + 0.1 * node.y;
+    }
+    fuelsim::UnstructuredHex20Mesh mesh(std::move(nodes),
+        std::move(elements),
+        {1, 1, 2, 2},
+        {{1, "primary"}, {2, "secondary"}},
+        {},
+        {{10, "primary_right", {{0, 1}, {1, 1}}}, {20, "secondary_left", {{2, 3}, {3, 3}}}});
+    fuelsim::SpatialDefinition spatial;
+    spatial.regions = {{"primary", "primary", material(), 0.0, 300.0, -1, "", fuelsim::StrainFormulation::finite},
+        {"secondary", "secondary", material(), 0.0, 300.0, -1, "", fuelsim::StrainFormulation::finite}};
+    fuelsim::ContactDefinition contact;
+    contact.name = "folded_surface";
+    contact.primary = "primary_right";
+    contact.secondary = "secondary_left";
+    contact.thermal = false;
+    contact.mechanical = true;
+    contact.penalty = 1.0e8;
+    contact.friction_coefficient = 0.2;
+    contact.mechanical_discretization = fuelsim::MechanicalContactDiscretization::surface_to_surface;
+    contact.mechanical_sliding = fuelsim::MechanicalContactSliding::finite;
+    spatial.contacts.push_back(contact);
+    fuelsim::SteadyProblem problem(spatial, mesh);
+    const auto& view = fuelsim::cartesian::ProblemAccess::view(problem);
+    auto state = problem.initial_state();
+    for (std::size_t local = 0; local < view.hex20_region_mesh(1).nodes().size(); ++local) {
+        const auto global = view.global_node(1, local);
+        state[view.dof(fuelsim::Field::displacement_x, global)] = -1.0e-4;
+        // Keep the finite-difference samples away from a primary-face switch.
+        state[view.dof(fuelsim::Field::displacement_y, global)] = flat_first_face ? 5.0e-4 : 0.0;
+        state[view.dof(fuelsim::Field::displacement_z, global)] = 1.0e-3;
+    }
+    problem.validate_state(state);
+    const auto summaries = fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, state);
+    const bool slip_preserved =
+        summaries.size() == 13 && std::all_of(summaries.begin(), summaries.end(), [](const auto& summary) {
+            return summary.projected && std::abs(summary.tangential_slip[2] - 1e-3) < 1e-12;
+        });
+    const double jacobian_error = mechanical_contact_directional_error(problem, state, 1e-8);
+    std::cout << (flat_first_face ? "asymmetric_folded_contact_directional_error="
+                                  : "symmetric_folded_contact_directional_error=")
+              << jacobian_error << '\n';
+    problem.commit_internal_state(state);
+    const auto& histories = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
+    const bool committed_slip_preserved = std::all_of(histories.begin(), histories.end(), [](const auto& history) {
+        return std::abs(history.cartesian_total_tangential_slip[2] - 1e-3) < 1e-12;
+    });
+    return check(slip_preserved && committed_slip_preserved,
+               "HEX20 friction retains axial slip across faces whose normals straddle the global x axis")
+           && check(jacobian_error < 2e-5,
+               "HEX20 friction on a folded surface retains its complete geometric Jacobian");
+}
+
 bool test_finite_sliding_search_tree() {
     constexpr std::size_t primary_face_count = 65;
     std::vector<fuelsim::CartesianPoint3> nodes;
@@ -938,6 +1008,11 @@ bool test_finite_sliding_search_tree() {
         blocks.push_back(1);
         primary_faces.push_back({face, 1});
     }
+    // This disconnected face has the same tangent-plane image as the last
+    // face, but lies behind the primary solid. It must not enter the disk.
+    primary_faces.push_back({elements.size(), 1});
+    elements.push_back(append_cuboid(nodes, primary_nodes, -2.0, -1.0, 64.0, 65.0, 0.0, 1.0));
+    blocks.push_back(1);
     const std::size_t secondary_element = elements.size();
     elements.push_back(append_cuboid(nodes, secondary_nodes, 1.0, 2.0, 0.1, 0.9, 0.0, 1.0));
     blocks.push_back(2);
@@ -949,11 +1024,14 @@ bool test_finite_sliding_search_tree() {
         {{10, "primary_right", std::move(primary_faces)}, {20, "secondary_left", {{secondary_element, 3}}}});
     fuelsim::SpatialDefinition spatial;
     spatial.regions = {{"primary", "primary", material(), 0.0, 300.0, -1, "", fuelsim::StrainFormulation::small},
-        {"secondary", "secondary", material(), 0.0, 300.0, -1, "", fuelsim::StrainFormulation::small}};
+        {"secondary", "secondary", material(), 0.0, 301.0, -1, "", fuelsim::StrainFormulation::small}};
     fuelsim::ContactDefinition contact;
     contact.name = "finite_sliding_search_tree_interface";
     contact.primary = "primary_right";
     contact.secondary = "secondary_left";
+    contact.thermal = true;
+    contact.gap_conductivity = 0.001;
+    contact.minimum_gap = 1e-6;
     contact.mechanical = true;
     contact.penalty = 1.0e8;
     contact.mechanical_discretization = fuelsim::MechanicalContactDiscretization::surface_to_surface;
@@ -977,12 +1055,28 @@ bool test_finite_sliding_search_tree() {
                                            return summary.projected && summary.primary_face == 64;
                                        });
     std::size_t active_contributions = 0;
+    bool excludes_disconnected_face = true;
+    const auto& primary_mesh = view.hex20_region_mesh(0);
+    std::vector<std::size_t> disconnected_dofs;
+    for (std::size_t local = 0; local < primary_mesh.nodes().size(); ++local)
+        if (primary_mesh.nodes()[local].x == -1.0) {
+            const auto global = view.global_node(0, local);
+            for (auto field :
+                {fuelsim::Field::displacement_x, fuelsim::Field::displacement_y, fuelsim::Field::displacement_z})
+                disconnected_dofs.push_back(view.dof(field, global));
+            if (primary_mesh.temperature_nodes()[local])
+                disconnected_dofs.push_back(
+                    view.dof(fuelsim::Field::temperature, view.global_temperature_node(0, local)));
+        }
     for (std::size_t contribution = view.volume_contribution_count(); contribution < view.contribution_count();
         ++contribution) {
         std::vector<std::size_t> dofs;
         problem.contribution_dofs(contribution, dofs);
         if (!dofs.empty())
             ++active_contributions;
+        for (std::size_t dof : disconnected_dofs)
+            excludes_disconnected_face =
+                excludes_disconnected_face && std::find(dofs.begin(), dofs.end(), dof) == dofs.end();
     }
     const double jacobian_error = mechanical_contact_directional_error(problem, state, 1.0e-8);
     const auto initial_snapshot = problem.capture_internal_state();
@@ -1020,8 +1114,13 @@ bool test_finite_sliding_search_tree() {
     } catch (const std::domain_error&) {
         outside_rejected = true;
     }
-    return check(selected_last_face && active_contributions == 8,
-               "HEX20 finite-sliding averaged constraints use the search tree to find the last of 65 primary faces")
+    return check(selected_last_face && active_contributions == 12,
+               "HEX20 finite-sliding thermal and mechanical constraints find the last of 65 adjacent primary faces")
+           && check(excludes_disconnected_face,
+               "HEX20 thermal and mechanical disks exclude a disconnected primary face with the same projected image")
+           && check(std::abs(std::abs(interface.total_heat_rate) - 800.0) < 1e-8,
+               "HEX20 local disk heat transfer uses the physical gap and conserves the prescribed unit temperature "
+               "jump")
            && check(jacobian_error < 2.0e-5,
                "HEX20 finite-sliding averaged contact Jacobian matches a centered directional difference")
            && check(mixed_jacobian_error < 2.0e-5,
@@ -1146,6 +1245,7 @@ int main(int argc, char** argv) {
     if (!mpi_only)
         passed = test_hex20_node_set_constraints() && test_multiblock_shared_nodes() && test_contact_projection(mesh)
                  && test_surface_contact_fixed_reference_graph() && test_surface_contact_finite_sliding()
+                 && test_finite_sliding_folded_surface(false) && test_finite_sliding_folded_surface(true)
                  && test_finite_sliding_search_tree() && test_initial_mass_heat_diagnostics() && passed;
     session.collective_root_action([&]() {
         (void)std::remove(argv[1]);

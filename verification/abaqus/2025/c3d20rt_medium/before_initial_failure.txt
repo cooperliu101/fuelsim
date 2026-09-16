@@ -1,0 +1,4 @@
+input_file=verification/fuelsim/transient_c3d20rt_medium_friction.fsi
+mesh_file=/home/cooper/ai_project/fuelsim/verification/moose/m58_integrated_hex20_mesh.e
+mpi_ranks=1
+fuelsim failed: collective root-rank I/O failed: Contact projection Newton iteration did not converge

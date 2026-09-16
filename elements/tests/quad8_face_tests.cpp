@@ -150,6 +150,74 @@ bool test_hex20_heat_patch() {
            && passed;
 }
 
+bool test_millimetre_disk_projection() {
+    // Geometry from the medium C3D20RT cylinder: the projection is on a
+    // primary axial edge and differentiated Newton iterations used to stall.
+    const fuelsim::Quad8FaceCoordinates secondary = {{{0.00412, 0.0, 0.0},
+        {0.003806383673946502, 0.00157665574134417, 0.0},
+        {0.003806383673946502, 0.00157665574134417, 0.000625},
+        {0.00412, 0.0, 0.000625},
+        {0.003963191836973251, 0.000788327870672085, 0.0},
+        {0.003806383673946502, 0.00157665574134417, 0.0003125},
+        {0.003963191836973251, 0.000788327870672085, 0.000625},
+        {0.00412, 0.0, 0.0003125}}};
+    const fuelsim::Quad8FaceCoordinates primary = {{{0.0038068573302641206, 0.0015846417629876346, -0.000125},
+        {0.0041234937195507564, 7.1968615172010006e-06, -0.000125},
+        {0.0041234937195507564, 7.1968615172010006e-06, 0.00031250000000000006},
+        {0.0038068573302641206, 0.0015846417629876346, 0.00031250000000000006},
+        {0.0039651755249074383, 0.00079591931225241779, -0.000125},
+        {0.0041234937195507564, 7.1968615172010006e-06, 9.3750000000000029e-05},
+        {0.0039651755249074383, 0.00079591931225241779, 0.00031250000000000006},
+        {0.0038068573302641206, 0.0015846417629876346, 9.3750000000000029e-05}}};
+    const double xi = -0.5 - 0.5 / std::sqrt(3.0);
+    const auto point = fuelsim::make_quad8_face_mechanical_point(secondary, xi, 0.0, 1.0);
+    fuelsim::Quad8HeatPatchSample sample{
+        {secondary,
+            primary,
+            {0.25 * (1.0 - xi), 0.25 * (1.0 + xi), 0.25 * (1.0 + xi), 0.25 * (1.0 - xi)},
+            point.displacement_shape,
+            point.derivative_xi,
+            point.derivative_eta,
+            1.0,
+            -1.0},
+        {},
+        true,
+        0};
+    std::vector<double> state(fuelsim::quad8_surface_contact_local_dof_count), direction(state.size());
+    for (std::size_t i = 0; i < state.size(); ++i) {
+        sample.local_dofs[i] = i;
+        state[i] = i < 4 ? 601.0 : (i < 8 ? 600.0 : 0.0);
+        direction[i] = (i < 8 ? 0.2 : 1e-4) * std::cos(static_cast<double>(i + 1));
+    }
+    const fuelsim::GapHeatProperties properties{0.004, 1e-6};
+    std::vector<double> jacobian;
+    const auto active = fuelsim::compute_quad8_gap_heat_patch(properties, {sample}, state, &jacobian),
+               passive = fuelsim::compute_quad8_gap_heat_patch(properties, {sample}, state);
+    constexpr double step = 1e-5;
+    auto plus = state, minus = state;
+    for (std::size_t i = 0; i < state.size(); ++i) {
+        plus[i] += step * direction[i];
+        minus[i] -= step * direction[i];
+    }
+    const auto forward = fuelsim::compute_quad8_gap_heat_patch(properties, {sample}, plus),
+               backward = fuelsim::compute_quad8_gap_heat_patch(properties, {sample}, minus);
+    double error = 0.0, scale = 0.0, balance = 0.0;
+    for (std::size_t row = 0; row < state.size(); ++row) {
+        double analytic = 0.0;
+        for (std::size_t column = 0; column < state.size(); ++column)
+            analytic += jacobian[row * state.size() + column] * direction[column];
+        const double numerical = (forward[row] - backward[row]) / (2.0 * step);
+        error = std::hypot(error, analytic - numerical);
+        scale = std::hypot(scale, numerical);
+        balance += active[row];
+    }
+    std::cout << "millimetre_disk_projection_directional_error=" << error / scale << '\n';
+    return check(active == passive, "Millimetre disk heat residuals agree with and without derivatives")
+           && check(std::abs(balance) < 1e-14, "Millimetre disk heat transfer conserves heat")
+           && check(scale > 0.0 && error < 2e-5 * scale,
+               "Implicit millimetre projection derivatives match a centered direction difference");
+}
+
 bool test_hex20_contact_kernels() {
     const auto cube = unit_cube();
     const fuelsim::Quad8FaceCoordinates face =
@@ -854,7 +922,8 @@ bool test_disk_transfer() {
 
 int main() {
     return (test_quadratic_face() && test_hex20_heat_patch() && test_hex20_contact_kernels()
-               && test_primary_projection_shape_derivatives() && test_constant_disk_transfer() && test_disk_transfer())
+               && test_primary_projection_shape_derivatives() && test_millimetre_disk_projection()
+               && test_constant_disk_transfer() && test_disk_transfer())
                ? 0
                : 1;
 }

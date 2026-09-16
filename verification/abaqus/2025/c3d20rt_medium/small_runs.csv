@@ -1,0 +1,13 @@
+case,version,repeat,wall_seconds,total_seconds,accepted_steps,rejected_steps,total_cutbacks,nonlinear_iterations_total,linear_iterations_total,residual_evaluations_total,jacobian_evaluations_total
+finite_contact_first_increment,after,-1,2.346306318999268,1.383591331000e+00,1,0,0,14,14,22,14
+finite_contact_first_increment,before,-1,3.4476722319959663,2.459858313000e+00,1,0,0,14,14,22,14
+finite_contact_first_increment,before,0,3.444534216003376,2.470159529000e+00,1,0,0,14,14,22,14
+finite_contact_first_increment,after,0,2.3738777649996337,1.368581482000e+00,1,0,0,14,14,22,14
+finite_contact_first_increment,after,1,2.30313599499641,1.353816902000e+00,1,0,0,14,14,22,14
+finite_contact_first_increment,before,1,3.4546741579979425,2.467576989000e+00,1,0,0,14,14,22,14
+finite_contact_first_increment,before,2,3.4603343999915523,2.469753309000e+00,1,0,0,14,14,22,14
+finite_contact_first_increment,after,2,2.335863875996438,1.370435531000e+00,1,0,0,14,14,22,14
+finite_contact_first_increment,after,3,2.3183854800008703,1.357923037000e+00,1,0,0,14,14,22,14
+finite_contact_first_increment,before,3,3.665551712998422,2.506591910000e+00,1,0,0,14,14,22,14
+finite_contact_first_increment,before,4,3.611818283010507,2.528859467000e+00,1,0,0,14,14,22,14
+finite_contact_first_increment,after,4,2.4396946219931124,1.380578892000e+00,1,0,0,14,14,22,14

@@ -392,74 +392,99 @@ SurfaceProjection8 project_to_primary(const ActivePoint3& secondary_point,
     const std::array<ActivePoint3, 16>& nodes,
     double normal_orientation,
     bool allow_extrapolation = false) {
-    adlite::Scalar xi = 0.0, eta = 0.0;
+    double xi_value = 0.0, eta_value = 0.0;
     bool converged = false;
-    // Translate the Newton geometry to one primary node so global translations
-    // do not set the attainable projection increment through cancellation.
-    std::array<ActivePoint3, 16> local_nodes{};
-    for (std::size_t node = 8; node < 16; ++node)
-        local_nodes[node] = subtract(nodes[node], nodes[8]);
-    const ActivePoint3 local_secondary = subtract(secondary_point, nodes[8]);
+    std::array<CartesianPoint3, 8> local_nodes{};
+    for (std::size_t node = 0; node < 8; ++node)
+        local_nodes[node] = {nodes[8 + node][0].value() - nodes[8][0].value(),
+            nodes[8 + node][1].value() - nodes[8][1].value(),
+            nodes[8 + node][2].value() - nodes[8][2].value()};
+    const CartesianPoint3 local_secondary{secondary_point[0].value() - nodes[8][0].value(),
+        secondary_point[1].value() - nodes[8][1].value(),
+        secondary_point[2].value() - nodes[8][2].value()};
+    // Solve only the two geometric coordinates. Differentiating every Newton
+    // iteration suffers cancellation in nearly zero derivatives on small faces.
     for (std::size_t iteration = 0; iteration < 16; ++iteration) {
-        ActivePoint3 point{}, tangent_xi{}, tangent_eta{}, tangent_xi_xi{}, tangent_xi_eta{}, tangent_eta_eta{};
-        if (xi.derivative_size() == 0 && eta.derivative_size() == 0) {
-            // Passive shape weights can multiply active nodes directly. The
-            // node derivatives still enter the projection's Newton update.
-            DoubleQuad8ShapeValues values;
-            double_quad8_shape(xi.value(), eta.value(), values);
-            point = interpolate_primary(local_nodes, values.shape);
-            tangent_xi = interpolate_primary(local_nodes, values.derivative_xi);
-            tangent_eta = interpolate_primary(local_nodes, values.derivative_eta);
-            tangent_xi_xi = interpolate_primary(local_nodes, values.second_xi);
-            tangent_xi_eta = interpolate_primary(local_nodes, values.second_xi_eta);
-            tangent_eta_eta = interpolate_primary(local_nodes, values.second_eta);
-        } else {
-            Quad8ShapeValues values;
-            quad8_shape(xi, eta, values);
-            point = interpolate_primary(local_nodes, values.shape);
-            tangent_xi = interpolate_primary(local_nodes, values.derivative_xi);
-            tangent_eta = interpolate_primary(local_nodes, values.derivative_eta);
-            tangent_xi_xi = interpolate_primary(local_nodes, values.second_xi);
-            tangent_xi_eta = interpolate_primary(local_nodes, values.second_xi_eta);
-            tangent_eta_eta = interpolate_primary(local_nodes, values.second_eta);
-        }
-        const ActivePoint3 difference = subtract(local_secondary, point);
-        const adlite::Scalar residual_xi = dot(difference, tangent_xi), residual_eta = dot(difference, tangent_eta);
-        const adlite::Scalar jacobian_xi_xi = -dot(tangent_xi, tangent_xi) + dot(difference, tangent_xi_xi);
-        const adlite::Scalar jacobian_xi_eta = -dot(tangent_eta, tangent_xi) + dot(difference, tangent_xi_eta);
-        const adlite::Scalar jacobian_eta_xi = -dot(tangent_xi, tangent_eta) + dot(difference, tangent_xi_eta);
-        const adlite::Scalar jacobian_eta_eta = -dot(tangent_eta, tangent_eta) + dot(difference, tangent_eta_eta);
-        const adlite::Scalar determinant = jacobian_xi_xi * jacobian_eta_eta - jacobian_xi_eta * jacobian_eta_xi;
-        if (!std::isfinite(determinant.value()) || std::abs(determinant.value()) <= std::numeric_limits<double>::min())
+        DoubleQuad8ShapeValues values;
+        double_quad8_shape(xi_value, eta_value, values);
+        const auto point = double_interpolate(local_nodes, values.shape),
+                   tangent_xi = double_interpolate(local_nodes, values.derivative_xi),
+                   tangent_eta = double_interpolate(local_nodes, values.derivative_eta),
+                   tangent_xi_xi = double_interpolate(local_nodes, values.second_xi),
+                   tangent_xi_eta = double_interpolate(local_nodes, values.second_xi_eta),
+                   tangent_eta_eta = double_interpolate(local_nodes, values.second_eta),
+                   difference = double_subtract(local_secondary, point);
+        const double rx = double_dot(difference, tangent_xi), ry = double_dot(difference, tangent_eta),
+                     a = -double_dot(tangent_xi, tangent_xi) + double_dot(difference, tangent_xi_xi),
+                     b = -double_dot(tangent_xi, tangent_eta) + double_dot(difference, tangent_xi_eta),
+                     c = -double_dot(tangent_eta, tangent_eta) + double_dot(difference, tangent_eta_eta),
+                     determinant = a * c - b * b;
+        if (!std::isfinite(determinant) || std::abs(determinant) <= std::numeric_limits<double>::min())
             throw std::domain_error("HEX20 contact projection has a singular Q8 surface Jacobian");
-        const adlite::Scalar delta_xi =
-                                 (-residual_xi * jacobian_eta_eta + jacobian_xi_eta * residual_eta) / determinant,
-                             delta_eta = (-jacobian_xi_xi * residual_eta + jacobian_eta_xi * residual_xi) / determinant;
-        xi += delta_xi;
-        eta += delta_eta;
-        if (contact_common::projection_increment_converged(delta_xi,
-                delta_eta,
-                xi,
-                eta,
-                quad8_surface_contact_local_dof_count)) {
+        const double delta_xi = (-c * rx + b * ry) / determinant, delta_eta = (b * rx - a * ry) / determinant;
+        xi_value += delta_xi;
+        eta_value += delta_eta;
+        if (!std::isfinite(xi_value) || !std::isfinite(eta_value))
+            throw std::domain_error("Contact projection has a nonfinite coordinate or increment");
+        const double scale = std::max({1.0, std::abs(xi_value), std::abs(eta_value)});
+        if (std::max(std::abs(delta_xi), std::abs(delta_eta))
+            <= 64.0 * std::numeric_limits<double>::epsilon() * scale) {
             converged = true;
             break;
         }
     }
+    constexpr double tolerance = 1.0e-10;
+    if (!allow_extrapolation
+        && (xi_value < -1.0 - tolerance || xi_value > 1.0 + tolerance || eta_value < -1.0 - tolerance
+            || eta_value > 1.0 + tolerance))
+        return {};
     if (!converged)
         throw std::domain_error("Contact projection Newton iteration did not converge");
-    constexpr double tolerance = 1.0e-10;
-    if (!std::isfinite(xi.value()) || !std::isfinite(eta.value())
-        || (!allow_extrapolation
-            && (xi.value() < -1.0 - tolerance || xi.value() > 1.0 + tolerance || eta.value() < -1.0 - tolerance
-                || eta.value() > 1.0 + tolerance)))
-        return {};
-    const bool xi_clamped = !allow_extrapolation && (xi.value() < -1.0 || xi.value() > 1.0);
-    const bool eta_clamped = !allow_extrapolation && (eta.value() < -1.0 || eta.value() > 1.0);
+    const bool xi_clamped = !allow_extrapolation && (xi_value < -1.0 || xi_value > 1.0);
+    const bool eta_clamped = !allow_extrapolation && (eta_value < -1.0 || eta_value > 1.0);
     if (xi_clamped)
-        xi = xi.value() < 0.0 ? -1.0 : 1.0;
+        xi_value = xi_value < 0.0 ? -1.0 : 1.0;
     if (eta_clamped)
-        eta = eta.value() < 0.0 ? -1.0 : 1.0;
+        eta_value = eta_value < 0.0 ? -1.0 : 1.0;
+    adlite::Scalar xi = xi_value, eta = eta_value;
+    const bool active = std::any_of(nodes.begin(), nodes.end(), [](const ActivePoint3& point) {
+        return std::any_of(point.begin(), point.end(), [](const adlite::Scalar& value) {
+            return value.derivative_size() != 0;
+        });
+    });
+    if (active) {
+        // At the converged coordinates, J * d(xi,eta) = -d(r_xi,r_eta).
+        // The fixed-coordinate residuals retain all node/secondary derivatives.
+        DoubleQuad8ShapeValues fixed;
+        double_quad8_shape(xi_value, eta_value, fixed);
+        std::array<ActivePoint3, 16> local_active{};
+        for (std::size_t node = 8; node < 16; ++node)
+            local_active[node] = subtract(nodes[node], nodes[8]);
+        const auto difference =
+                       subtract(subtract(secondary_point, nodes[8]), interpolate_primary(local_active, fixed.shape)),
+                   tx = interpolate_primary(local_active, fixed.derivative_xi),
+                   ty = interpolate_primary(local_active, fixed.derivative_eta);
+        const auto rx = dot(difference, tx), ry = dot(difference, ty);
+        const double a = (-dot(tx, tx) + dot(difference, interpolate_primary(local_active, fixed.second_xi))).value(),
+                     b = (-dot(tx, ty) + dot(difference, interpolate_primary(local_active, fixed.second_xi_eta)))
+                             .value(),
+                     c = (-dot(ty, ty) + dot(difference, interpolate_primary(local_active, fixed.second_eta))).value(),
+                     determinant = a * c - b * b;
+        const std::size_t width = rx.derivative_size();
+        if (width > quad8_surface_contact_local_dof_count || ry.derivative_size() != width)
+            throw std::logic_error("Contact projection derivative widths are inconsistent");
+        if (!std::isfinite(determinant) || std::abs(determinant) <= std::numeric_limits<double>::min())
+            throw std::domain_error("HEX20 contact projection has a singular Q8 surface Jacobian");
+        std::array<double, quad8_surface_contact_local_dof_count> dxi{}, deta{};
+        for (std::size_t column = 0; column < width; ++column) {
+            dxi[column] = xi_clamped ? 0.0 : (-c * rx.derivative(column) + b * ry.derivative(column)) / determinant;
+            deta[column] = eta_clamped ? 0.0 : (b * rx.derivative(column) - a * ry.derivative(column)) / determinant;
+            if (!std::isfinite(dxi[column]) || !std::isfinite(deta[column]))
+                throw std::domain_error("Contact projection has a nonfinite coordinate derivative");
+        }
+        xi = adlite::Scalar::seeded(xi_value, dxi.data(), width);
+        eta = adlite::Scalar::seeded(eta_value, deta.data(), width);
+    }
     Quad8ShapeValues values;
     quad8_shape(xi, eta, values);
     const ActivePoint3 primary_point = interpolate_primary(nodes, values.shape);

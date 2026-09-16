@@ -1,0 +1,13 @@
+finite_contact_first_increment after repeat=-1 wall=2.346306s
+finite_contact_first_increment before repeat=-1 wall=3.447672s
+finite_contact_first_increment before repeat=0 wall=3.444534s
+finite_contact_first_increment after repeat=0 wall=2.373878s
+finite_contact_first_increment after repeat=1 wall=2.303136s
+finite_contact_first_increment before repeat=1 wall=3.454674s
+finite_contact_first_increment before repeat=2 wall=3.460334s
+finite_contact_first_increment after repeat=2 wall=2.335864s
+finite_contact_first_increment after repeat=3 wall=2.318385s
+finite_contact_first_increment before repeat=3 wall=3.665552s
+finite_contact_first_increment before repeat=4 wall=3.611818s
+finite_contact_first_increment after repeat=4 wall=2.439695s
+finite_contact_first_increment: median before=3.460334s after=2.335864s speedup=1.4814

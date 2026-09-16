@@ -1,0 +1,2 @@
+Compared 18 final region/contact summaries and solver counters.
+All values are textually identical between field-output and no-field-output runs.

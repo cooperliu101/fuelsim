@@ -1,0 +1,2460 @@
+1
+
+   Abaqus 2025                                  Date 16-9ÔÂ-2026   Time 10:52:13
+   For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
+
+
+
+                         The Abaqus Software is a product of:
+
+                           Dassault Systemes Americas Corp.
+                           1301 Atwood Avenue, Suite 101W
+                              Johnston, RI 02919, USA
+ 
+
+
+                   The Abaqus Software is available only under license
+                   from Dassault Systemes or its subsidiary and may be
+                   used or reproduced only in accordance with the terms
+                   of such license.
+ 
+                          On machine MSI 
+                          you are authorized to run
+                          Abaqus/Standard until 31-Dec-2055
+
+                          Your site id is:  
+
+
+ 
+                    For assistance or any other information you may
+                    obtain contact information for your local office
+                    from the world wide web at:
+
+                      https://www.3ds.com/products-services/simulia/services-support/
+
+ 
+                * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+                *                                                         * 
+                *                   *****************                     * 
+                *                   *  N O T I C E  *                     * 
+                *                   *****************                     * 
+                *                                                         * 
+                *                                                         * 
+                *                       Abaqus 2025                       * 
+                *                                                         * 
+                *       BUILD ID: 2024_09_20-21.00.46 RELr427 198590      * 
+                *                                                         * 
+                *                                                         * 
+                *  Please make sure you are using                         * 
+                *  release Abaqus 2025 manuals                            * 
+                *  plus the notes accompanying this release.              * 
+                *                                                         * 
+                *                                                         * 
+                *                                                         * 
+                *                                                         * 
+                * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+
+
+ 
+
+
+
+     PROCESSING PART, INSTANCE, AND ASSEMBLY INFORMATION
+   *******************************************************
+
+
+     END PROCESSING PART, INSTANCE, AND ASSEMBLY INFORMATION
+   ***********************************************************
+
+
+
+
+     OPTIONS BEING PROCESSED
+   ***************************
+
+
+  *Include, input=c3d20rt_medium_mesh.inc
+  *Element, type=C3D20RT, elset=FUEL
+  *Element, type=C3D20RT, elset=CLAD
+  *heading
+  *coupledtemperature-displacement
+  *material, name=FUEL_MATERIAL
+  *elastic
+  *expansion, zero=600
+  *conductivity
+  *density
+  *specificheat
+
+ ***WARNING: THE ABSOLUTE ZERO TEMPERATURE HAS NOT BEEN SPECIFIED FOR COMPUTING 
+             INTERNAL THERMAL ENERGY USING THE ABSOLUTE ZERO PARAMETER ON THE 
+             *PHYSICAL CONSTANTS OPTION. A DEFAULT VALUE OF 0.0000 WILL BE 
+             ASSUMED.
+  *material, name=CLAD_MATERIAL
+  *elastic
+  *expansion, zero=600
+  *plastic
+  *creep, law=TIME
+
+ ***WARNING: Using *CREEP, LAW=TIME with a time exponent (m) that is nonzero 
+             will lead to inaccuracies in the predicted creep strains. This 
+             inaccuracy increases as the value of the exponent (m) approaches 
+             -1. Use of *CREEP, LAW=STRAIN is recommended in such situations.
+
+ ***WARNING: THE TIME HARDENING CREEP LAW WAS SPECIFIED (*CREEP, LAW=TIME). 
+             THIS CREEP LAW HAS BEEN SUPERSEDED BY THE POWER LAW TIME HARDENING 
+             LAW (*CREEP, LAW=TIME POWER LAW). IT IS RECOMMENDED THAT THE TIME 
+             CREEP LAW IN THE MODEL IS REPLACED WITH THE NEW LAW.
+  *conductivity
+  *density
+  *specificheat
+  *initialconditions, type=TEMPERATURE
+  *solidsection, elset=FUEL, material=FUEL_MATERIAL
+  *solidsection, elset=CLAD, material=CLAD_MATERIAL
+  *solidsection, elset=FUEL, material=FUEL_MATERIAL
+  *solidsection, elset=CLAD, material=CLAD_MATERIAL
+  *contactpair, interaction=FUEL_CLADDING_CONTACT, type=SURFACETOSURFACE, adjust=0
+  *surface, type=ELEMENT, name=FUEL_OUTER
+  *surface, type=ELEMENT, name=FUEL_BOTTOM
+  *surface, type=ELEMENT, name=FUEL_TOP
+  *surface, type=ELEMENT, name=CLAD_RMIN
+  *surface, type=ELEMENT, name=CLAD_RMAX
+  *surface, type=ELEMENT, name=CLAD_BOTTOM
+  *surface, type=ELEMENT, name=CLAD_TOP
+  *contactpair, interaction=FUEL_CLADDING_CONTACT, type=SURFACETOSURFACE, adjust=0
+  *surface, type=ELEMENT, name=FUEL_OUTER
+  *surface, type=ELEMENT, name=FUEL_BOTTOM
+  *surface, type=ELEMENT, name=FUEL_TOP
+  *surface, type=ELEMENT, name=CLAD_RMIN
+  *surface, type=ELEMENT, name=CLAD_RMAX
+  *surface, type=ELEMENT, name=CLAD_BOTTOM
+  *surface, type=ELEMENT, name=CLAD_TOP
+  *surface, type=ELEMENT, name=FUEL_OUTER
+  *surface, type=ELEMENT, name=FUEL_BOTTOM
+  *surface, type=ELEMENT, name=FUEL_TOP
+  *surface, type=ELEMENT, name=CLAD_RMIN
+  *surface, type=ELEMENT, name=CLAD_RMAX
+  *surface, type=ELEMENT, name=CLAD_BOTTOM
+  *surface, type=ELEMENT, name=CLAD_TOP
+  *contactpair, interaction=FUEL_CLADDING_CONTACT, type=SURFACETOSURFACE, adjust=0
+  *surfaceinteraction, name=FUEL_CLADDING_CONTACT
+  *surfacebehavior, pressure-overclosure=LINEAR
+  *contactpair, interaction=FUEL_CLADDING_CONTACT, type=SURFACETOSURFACE, adjust=0
+  *contactpair, interaction=FUEL_CLADDING_CONTACT, type=SURFACETOSURFACE, adjust=0
+  *surfaceinteraction, name=FUEL_CLADDING_CONTACT
+  *surfacebehavior, pressure-overclosure=LINEAR
+  *friction
+  *gapconductance
+  *initialconditions, type=TEMPERATURE
+  *surfaceinteraction, name=FUEL_CLADDING_CONTACT
+  *boundary
+  *boundary, amplitude=FUEL_AXIAL_PATH
+  *boundary, amplitude=CLAD_AXIAL_PATH
+  *boundary
+  *boundary, amplitude=FUEL_AXIAL_PATH
+  *boundary, amplitude=CLAD_AXIAL_PATH
+  *contactpair, interaction=FUEL_CLADDING_CONTACT, type=SURFACETOSURFACE, adjust=0
+
+ ***WARNING: FOR CONTACT PAIR (FUEL_OUTER-CLAD_RMIN), ADJUSTMENT WAS SPECIFIED 
+             BUT NO NODE WAS ADJUSTED MORE THAN THE ADJUSTMENT DISTANCE = 
+             2.22000E-16.
+  *surfaceinteraction, name=FUEL_CLADDING_CONTACT
+  *contactpair, interaction=FUEL_CLADDING_CONTACT, type=SURFACETOSURFACE, adjust=0
+  *surface, type=ELEMENT, name=FUEL_OUTER
+  *surface, type=ELEMENT, name=FUEL_BOTTOM
+  *surface, type=ELEMENT, name=FUEL_TOP
+  *surface, type=ELEMENT, name=CLAD_RMIN
+  *surface, type=ELEMENT, name=CLAD_RMAX
+  *surface, type=ELEMENT, name=CLAD_BOTTOM
+  *surface, type=ELEMENT, name=CLAD_TOP
+  *output, field, frequency=1
+  *output, history, frequency=1
+  *elementoutput, directions=YES
+  *initialconditions, type=TEMPERATURE
+  *output, field, frequency=1
+  *output, history, frequency=1
+  *elementoutput, directions=YES
+  *initialconditions, type=TEMPERATURE
+  *output, field, frequency=1
+  *output, history, frequency=1
+  *elementoutput, directions=YES
+  *step, name=PATH, nlgeom=YES, inc=20
+  *step, name=PATH, nlgeom=YES, inc=20
+  *output, field, frequency=1
+  *output, history, frequency=1
+  *step, name=PATH, nlgeom=YES, inc=20
+  *step, name=PATH, nlgeom=YES, inc=20
+  *coupledtemperature-displacement
+  *controls, parameters=FIELD, field=DISPLACEMENT
+  *boundary
+  *boundary, amplitude=FUEL_AXIAL_PATH
+  *boundary, amplitude=CLAD_AXIAL_PATH
+  *dflux, amplitude=POWER_PATH
+  *dsload, follower=YES, amplitude=INTERNAL_PRESSURE_PATH
+  *dsload, follower=YES, amplitude=EXTERNAL_PRESSURE_PATH
+  *output, field, frequency=1
+  *nodeoutput
+  *elementoutput, directions=YES
+  *contactoutput
+  *output, history, frequency=1
+  *energyoutput
+  *endstep
+
+ ***NOTE: OUTPUT REQUEST CE IS NOT AVAILABLE FOR THE MATERIAL FUEL_MATERIAL
+
+ ***NOTE: OUTPUT REQUEST CEEQ IS NOT AVAILABLE FOR THE MATERIAL FUEL_MATERIAL
+
+ ***NOTE: OUTPUT REQUEST PE IS NOT AVAILABLE FOR THE MATERIAL FUEL_MATERIAL
+
+ ***NOTE: OUTPUT REQUEST PEEQ IS NOT AVAILABLE FOR THE MATERIAL FUEL_MATERIAL
+  *step, name=PATH, nlgeom=YES, inc=20
+  *coupledtemperature-displacement
+  *boundary
+  *boundary, amplitude=FUEL_AXIAL_PATH
+  *boundary, amplitude=CLAD_AXIAL_PATH
+  *endstep
+
+
+          FINITE SLIDING NON-RIGID  3D ELEMENT(S) 
+          GENERATED INTERNALLY
+          SECONDARY  SURFACE : FUEL_OUTER                                                                      
+          MAIN SURFACE : CLAD_RMIN                                                                       
+          SURFACE INTERACTION : FUEL_CLADDING_CONTACT                                                           
+
+    ELEMENT  SECONDARY
+    NUMBER   NODE(S)
+
+       9974         25
+       9975         25
+       9976         26
+       9977         26
+       9978         27
+       9979         27
+       9980         28
+       9981         28
+       9982         29
+       9983         29
+       9984         48
+       9985         48
+       9986         49
+       9987         49
+       9988         50
+       9989         50
+       9990         51
+       9991         51
+       9992         70
+       9993         70
+       9994         71
+       9995         71
+       9996         72
+       9997         72
+       9998         73
+       9999         73
+      10000         87
+      10001         87
+      10002         88
+      10003         88
+      10004         89
+      10005         89
+      10006        114
+      10007        114
+      10008        114
+      10009        114
+      10010        115
+      10011        115
+      10012        115
+      10013        115
+      10014        116
+      10015        116
+      10016        116
+      10017        116
+      10018        117
+      10019        117
+      10020        117
+      10021        117
+      10022        118
+      10023        118
+      10024        118
+      10025        118
+      10026        137
+      10027        137
+      10028        137
+      10029        137
+      10030        138
+      10031        138
+      10032        138
+      10033        138
+      10034        139
+      10035        139
+      10036        139
+      10037        139
+      10038        140
+      10039        140
+      10040        140
+      10041        140
+      10042        159
+      10043        159
+      10044        159
+      10045        159
+      10046        160
+      10047        160
+      10048        160
+      10049        160
+      10050        161
+      10051        161
+      10052        161
+      10053        161
+      10054        162
+      10055        162
+      10056        162
+      10057        162
+      10058        176
+      10059        176
+      10060        176
+      10061        176
+      10062        177
+      10063        177
+      10064        177
+      10065        177
+      10066        178
+      10067        178
+      10068        178
+      10069        178
+      10070        203
+      10071        203
+      10072        203
+      10073        203
+      10074        204
+      10075        204
+      10076        204
+      10077        204
+      10078        205
+      10079        205
+      10080        205
+      10081        205
+      10082        206
+      10083        206
+      10084        206
+      10085        206
+      10086        207
+      10087        207
+      10088        207
+      10089        207
+      10090        226
+      10091        226
+      10092        226
+      10093        226
+      10094        227
+      10095        227
+      10096        227
+      10097        227
+      10098        228
+      10099        228
+      10100        228
+      10101        228
+      10102        229
+      10103        229
+      10104        229
+      10105        229
+      10106        248
+      10107        248
+      10108        248
+      10109        248
+      10110        249
+      10111        249
+      10112        249
+      10113        249
+      10114        250
+      10115        250
+      10116        250
+      10117        250
+      10118        251
+      10119        251
+      10120        251
+      10121        251
+      10122        265
+      10123        265
+      10124        265
+      10125        265
+      10126        266
+      10127        266
+      10128        266
+      10129        266
+      10130        267
+      10131        267
+      10132        267
+      10133        267
+      10134        292
+      10135        292
+      10136        292
+      10137        292
+      10138        293
+      10139        293
+      10140        293
+      10141        293
+      10142        294
+      10143        294
+      10144        294
+      10145        294
+      10146        295
+      10147        295
+      10148        295
+      10149        295
+      10150        296
+      10151        296
+      10152        296
+      10153        296
+      10154        315
+      10155        315
+      10156        315
+      10157        315
+      10158        316
+      10159        316
+      10160        316
+      10161        316
+      10162        317
+      10163        317
+      10164        317
+      10165        317
+      10166        318
+      10167        318
+      10168        318
+      10169        318
+      10170        337
+      10171        337
+      10172        337
+      10173        337
+      10174        338
+      10175        338
+      10176        338
+      10177        338
+      10178        339
+      10179        339
+      10180        339
+      10181        339
+      10182        340
+      10183        340
+      10184        340
+      10185        340
+      10186        354
+      10187        354
+      10188        354
+      10189        354
+      10190        355
+      10191        355
+      10192        355
+      10193        355
+      10194        356
+      10195        356
+      10196        356
+      10197        356
+      10198        381
+      10199        381
+      10200        381
+      10201        381
+      10202        382
+      10203        382
+      10204        382
+      10205        382
+      10206        383
+      10207        383
+      10208        383
+      10209        383
+      10210        384
+      10211        384
+      10212        384
+      10213        384
+      10214        385
+      10215        385
+      10216        385
+      10217        385
+      10218        404
+      10219        404
+      10220        404
+      10221        404
+      10222        405
+      10223        405
+      10224        405
+      10225        405
+      10226        406
+      10227        406
+      10228        406
+      10229        406
+      10230        407
+      10231        407
+      10232        407
+      10233        407
+      10234        426
+      10235        426
+      10236        426
+      10237        426
+      10238        427
+      10239        427
+      10240        427
+      10241        427
+      10242        428
+      10243        428
+      10244        428
+      10245        428
+      10246        429
+      10247        429
+      10248        429
+      10249        429
+      10250        443
+      10251        443
+      10252        443
+      10253        443
+      10254        444
+      10255        444
+      10256        444
+      10257        444
+      10258        445
+      10259        445
+      10260        445
+      10261        445
+      10262        470
+      10263        470
+      10264        470
+      10265        470
+      10266        471
+      10267        471
+      10268        471
+      10269        471
+      10270        472
+      10271        472
+      10272        472
+      10273        472
+      10274        473
+      10275        473
+      10276        473
+      10277        473
+      10278        474
+      10279        474
+      10280        474
+      10281        474
+      10282        493
+      10283        493
+      10284        493
+      10285        493
+      10286        494
+      10287        494
+      10288        494
+      10289        494
+      10290        495
+      10291        495
+      10292        495
+      10293        495
+      10294        496
+      10295        496
+      10296        496
+      10297        496
+      10298        515
+      10299        515
+      10300        515
+      10301        515
+      10302        516
+      10303        516
+      10304        516
+      10305        516
+      10306        517
+      10307        517
+      10308        517
+      10309        517
+      10310        518
+      10311        518
+      10312        518
+      10313        518
+      10314        532
+      10315        532
+      10316        532
+      10317        532
+      10318        533
+      10319        533
+      10320        533
+      10321        533
+      10322        534
+      10323        534
+      10324        534
+      10325        534
+      10326        559
+      10327        559
+      10328        559
+      10329        559
+      10330        560
+      10331        560
+      10332        560
+      10333        560
+      10334        561
+      10335        561
+      10336        561
+      10337        561
+      10338        562
+      10339        562
+      10340        562
+      10341        562
+      10342        563
+      10343        563
+      10344        563
+      10345        563
+      10346        582
+      10347        582
+      10348        582
+      10349        582
+      10350        583
+      10351        583
+      10352        583
+      10353        583
+      10354        584
+      10355        584
+      10356        584
+      10357        584
+      10358        585
+      10359        585
+      10360        585
+      10361        585
+      10362        604
+      10363        604
+      10364        604
+      10365        604
+      10366        605
+      10367        605
+      10368        605
+      10369        605
+      10370        606
+      10371        606
+      10372        606
+      10373        606
+      10374        607
+      10375        607
+      10376        607
+      10377        607
+      10378        621
+      10379        621
+      10380        621
+      10381        621
+      10382        622
+      10383        622
+      10384        622
+      10385        622
+      10386        623
+      10387        623
+      10388        623
+      10389        623
+      10390        648
+      10391        648
+      10392        648
+      10393        648
+      10394        649
+      10395        649
+      10396        649
+      10397        649
+      10398        650
+      10399        650
+      10400        650
+      10401        650
+      10402        651
+      10403        651
+      10404        651
+      10405        651
+      10406        652
+      10407        652
+      10408        652
+      10409        652
+      10410        671
+      10411        671
+      10412        671
+      10413        671
+      10414        672
+      10415        672
+      10416        672
+      10417        672
+      10418        673
+      10419        673
+      10420        673
+      10421        673
+      10422        674
+      10423        674
+      10424        674
+      10425        674
+      10426        693
+      10427        693
+      10428        693
+      10429        693
+      10430        694
+      10431        694
+      10432        694
+      10433        694
+      10434        695
+      10435        695
+      10436        695
+      10437        695
+      10438        696
+      10439        696
+      10440        696
+      10441        696
+      10442        710
+      10443        710
+      10444        710
+      10445        710
+      10446        711
+      10447        711
+      10448        711
+      10449        711
+      10450        712
+      10451        712
+      10452        712
+      10453        712
+      10454        737
+      10455        737
+      10456        738
+      10457        738
+      10458        739
+      10459        739
+      10460        740
+      10461        740
+      10462        741
+      10463        741
+      10464        760
+      10465        760
+      10466        761
+      10467        761
+      10468        762
+      10469        762
+      10470        763
+      10471        763
+      10472        782
+      10473        782
+      10474        783
+      10475        783
+      10476        784
+      10477        784
+      10478        785
+      10479        785
+      10480        799
+      10481        799
+      10482        800
+      10483        800
+      10484        801
+      10485        801
+      10486       1721
+      10487       1723
+      10488       1723
+      10489       1724
+      10490       1724
+      10491       1726
+      10492       1726
+      10493       1728
+      10494       1730
+      10495       1730
+      10496       1731
+      10497       1731
+      10498       1733
+      10499       1735
+      10500       1735
+      10501       1736
+      10502       1736
+      10503       1738
+      10504       1740
+      10505       1740
+      10506       1741
+      10507       1741
+      10508       1829
+      10509       1831
+      10510       1831
+      10511       1832
+      10512       1832
+      10513       1834
+      10514       1836
+      10515       1836
+      10516       1837
+      10517       1837
+      10518       1839
+      10519       1841
+      10520       1841
+      10521       1842
+      10522       1842
+      10523       1844
+      10524       1846
+      10525       1846
+      10526       1847
+      10527       1847
+      10528       1935
+      10529       1937
+      10530       1937
+      10531       1938
+      10532       1938
+      10533       1940
+      10534       1942
+      10535       1942
+      10536       1943
+      10537       1943
+      10538       1945
+      10539       1947
+      10540       1947
+      10541       1948
+      10542       1948
+      10543       1950
+      10544       1952
+      10545       1952
+      10546       1953
+      10547       1953
+      10548       2026
+      10549       2028
+      10550       2028
+      10551       2029
+      10552       2029
+      10553       2031
+      10554       2033
+      10555       2033
+      10556       2034
+      10557       2034
+      10558       2036
+      10559       2038
+      10560       2038
+      10561       2039
+      10562       2039
+      10563       2041
+      10564       2042
+      10565       2042
+      10566       2106
+      10567       2106
+      10568       2107
+      10569       2107
+      10570       2109
+      10571       2109
+      10572       2111
+      10573       2111
+      10574       2112
+      10575       2112
+      10576       2114
+      10577       2114
+      10578       2115
+      10579       2115
+      10580       2117
+      10581       2117
+      10582       2118
+      10583       2118
+      10584       2172
+      10585       2172
+      10586       2173
+      10587       2173
+      10588       2175
+      10589       2175
+      10590       2176
+      10591       2176
+      10592       2178
+      10593       2178
+      10594       2179
+      10595       2179
+      10596       2181
+      10597       2181
+      10598       2182
+      10599       2182
+      10600       2236
+      10601       2236
+      10602       2237
+      10603       2237
+      10604       2239
+      10605       2239
+      10606       2240
+      10607       2240
+      10608       2242
+      10609       2242
+      10610       2243
+      10611       2243
+      10612       2245
+      10613       2245
+      10614       2246
+      10615       2246
+      10616       2290
+      10617       2290
+      10618       2291
+      10619       2291
+      10620       2293
+      10621       2293
+      10622       2294
+      10623       2294
+      10624       2296
+      10625       2296
+      10626       2297
+      10627       2297
+      10628       2299
+      10629       2299
+      10630       2363
+      10631       2363
+      10632       2364
+      10633       2364
+      10634       2366
+      10635       2366
+      10636       2368
+      10637       2368
+      10638       2369
+      10639       2369
+      10640       2371
+      10641       2371
+      10642       2372
+      10643       2372
+      10644       2374
+      10645       2374
+      10646       2375
+      10647       2375
+      10648       2429
+      10649       2429
+      10650       2430
+      10651       2430
+      10652       2432
+      10653       2432
+      10654       2433
+      10655       2433
+      10656       2435
+      10657       2435
+      10658       2436
+      10659       2436
+      10660       2438
+      10661       2438
+      10662       2439
+      10663       2439
+      10664       2493
+      10665       2493
+      10666       2494
+      10667       2494
+      10668       2496
+      10669       2496
+      10670       2497
+      10671       2497
+      10672       2499
+      10673       2499
+      10674       2500
+      10675       2500
+      10676       2502
+      10677       2502
+      10678       2503
+      10679       2503
+      10680       2547
+      10681       2547
+      10682       2548
+      10683       2548
+      10684       2550
+      10685       2550
+      10686       2551
+      10687       2551
+      10688       2553
+      10689       2553
+      10690       2554
+      10691       2554
+      10692       2556
+      10693       2556
+      10694       2620
+      10695       2620
+      10696       2621
+      10697       2621
+      10698       2623
+      10699       2623
+      10700       2625
+      10701       2625
+      10702       2626
+      10703       2626
+      10704       2628
+      10705       2628
+      10706       2629
+      10707       2629
+      10708       2631
+      10709       2631
+      10710       2632
+      10711       2632
+      10712       2686
+      10713       2686
+      10714       2687
+      10715       2687
+      10716       2689
+      10717       2689
+      10718       2690
+      10719       2690
+      10720       2692
+      10721       2692
+      10722       2693
+      10723       2693
+      10724       2695
+      10725       2695
+      10726       2696
+      10727       2696
+      10728       2750
+      10729       2750
+      10730       2751
+      10731       2751
+      10732       2753
+      10733       2753
+      10734       2754
+      10735       2754
+      10736       2756
+      10737       2756
+      10738       2757
+      10739       2757
+      10740       2759
+      10741       2759
+      10742       2760
+      10743       2760
+      10744       2804
+      10745       2804
+      10746       2805
+      10747       2805
+      10748       2807
+      10749       2807
+      10750       2808
+      10751       2808
+      10752       2810
+      10753       2810
+      10754       2811
+      10755       2811
+      10756       2813
+      10757       2813
+      10758       2877
+      10759       2877
+      10760       2878
+      10761       2878
+      10762       2880
+      10763       2880
+      10764       2882
+      10765       2882
+      10766       2883
+      10767       2883
+      10768       2885
+      10769       2885
+      10770       2886
+      10771       2886
+      10772       2888
+      10773       2888
+      10774       2889
+      10775       2889
+      10776       2943
+      10777       2943
+      10778       2944
+      10779       2944
+      10780       2946
+      10781       2946
+      10782       2947
+      10783       2947
+      10784       2949
+      10785       2949
+      10786       2950
+      10787       2950
+      10788       2952
+      10789       2952
+      10790       2953
+      10791       2953
+      10792       3007
+      10793       3007
+      10794       3008
+      10795       3008
+      10796       3010
+      10797       3010
+      10798       3011
+      10799       3011
+      10800       3013
+      10801       3013
+      10802       3014
+      10803       3014
+      10804       3016
+      10805       3016
+      10806       3017
+      10807       3017
+      10808       3061
+      10809       3061
+      10810       3062
+      10811       3062
+      10812       3064
+      10813       3064
+      10814       3065
+      10815       3065
+      10816       3067
+      10817       3067
+      10818       3068
+      10819       3068
+      10820       3070
+      10821       3070
+      10822       3134
+      10823       3134
+      10824       3135
+      10825       3135
+      10826       3137
+      10827       3137
+      10828       3139
+      10829       3139
+      10830       3140
+      10831       3140
+      10832       3142
+      10833       3142
+      10834       3143
+      10835       3143
+      10836       3145
+      10837       3145
+      10838       3146
+      10839       3146
+      10840       3200
+      10841       3200
+      10842       3201
+      10843       3201
+      10844       3203
+      10845       3203
+      10846       3204
+      10847       3204
+      10848       3206
+      10849       3206
+      10850       3207
+      10851       3207
+      10852       3209
+      10853       3209
+      10854       3210
+      10855       3210
+      10856       3264
+      10857       3264
+      10858       3265
+      10859       3265
+      10860       3267
+      10861       3267
+      10862       3268
+      10863       3268
+      10864       3270
+      10865       3270
+      10866       3271
+      10867       3271
+      10868       3273
+      10869       3273
+      10870       3274
+      10871       3274
+      10872       3318
+      10873       3318
+      10874       3319
+      10875       3319
+      10876       3321
+      10877       3321
+      10878       3322
+      10879       3322
+      10880       3324
+      10881       3324
+      10882       3325
+      10883       3325
+      10884       3327
+      10885       3327
+      10886       3391
+      10887       3391
+      10888       3392
+      10889       3392
+      10890       3394
+      10891       3394
+      10892       3396
+      10893       3396
+      10894       3397
+      10895       3397
+      10896       3399
+      10897       3399
+      10898       3400
+      10899       3400
+      10900       3402
+      10901       3402
+      10902       3403
+      10903       3403
+      10904       3457
+      10905       3457
+      10906       3458
+      10907       3458
+      10908       3460
+      10909       3460
+      10910       3461
+      10911       3461
+      10912       3463
+      10913       3463
+      10914       3464
+      10915       3464
+      10916       3466
+      10917       3466
+      10918       3467
+      10919       3467
+      10920       3521
+      10921       3521
+      10922       3522
+      10923       3522
+      10924       3524
+      10925       3524
+      10926       3525
+      10927       3525
+      10928       3527
+      10929       3527
+      10930       3528
+      10931       3528
+      10932       3530
+      10933       3530
+      10934       3531
+      10935       3531
+      10936       3575
+      10937       3575
+      10938       3576
+      10939       3576
+      10940       3578
+      10941       3578
+      10942       3579
+      10943       3579
+      10944       3581
+      10945       3581
+      10946       3582
+      10947       3582
+      10948       3584
+      10949       3584
+      10950       3648
+      10951       3648
+      10952       3649
+      10953       3649
+      10954       3651
+      10955       3653
+      10956       3653
+      10957       3654
+      10958       3656
+      10959       3656
+      10960       3657
+      10961       3659
+      10962       3659
+      10963       3660
+      10964       3714
+      10965       3714
+      10966       3715
+      10967       3717
+      10968       3717
+      10969       3718
+      10970       3720
+      10971       3720
+      10972       3721
+      10973       3723
+      10974       3723
+      10975       3724
+      10976       3778
+      10977       3778
+      10978       3779
+      10979       3781
+      10980       3781
+      10981       3782
+      10982       3784
+      10983       3784
+      10984       3785
+      10985       3787
+      10986       3787
+      10987       3788
+      10988       3832
+      10989       3832
+      10990       3833
+      10991       3835
+      10992       3835
+      10993       3836
+      10994       3838
+      10995       3838
+      10996       3839
+      10997       3841
+
+
+
+
+
+                         S U R F A C E   I N T E R A C T I O N S
+
+
+
+
+  NAME FUEL_CLADDING_CONTACT                                                           
+
+  THICKNESS / AREA:               1.0000    
+
+
+  LINEAR PRESSURE-CLEARANCE RELATIONSHIP, STIFFNESS =     1.00000E+10
+
+
+
+
+
+
+                         C O N T A C T   P A I R (S)
+
+                                               FILLET RADIUS  CHARACTERISTIC  EXTENSION
+  SECONDARY     MAIN    INTERACTION     HCRIT       OR SMOOTH      LENGTH         RATIO      NOTE
+
+    -6-       -4-        -18-                                   1.00235E-03                FINITE SLIDING WITH ADJUST =  2.22000E-16
+                                                                                           SURFACE TO SURFACE WITH THICKNESS
+                                                                                           CONSTRAINT POSITION IS AT NODE 
+                                                                                           MINIMUM DISTANCE = YES
+                                                                                           ADAPTIVE INTEGRATION = FIXED
+                                                                                           SUPPLEMENTARY CONSTRAINTS = NO
+
+
+     LABELS REFERENCED IN THE ABOVE TABLE
+
+      -4-      CLAD_RMIN                                                                       
+      -6-      FUEL_OUTER                                                                      
+      -18-     FUEL_CLADDING_CONTACT                                                           
+
+ ***WARNING: THE TOTAL TIME IS SPECIFIED IN THE TIME HARDENING CREEP LAW. IF 
+             THE ANALYSIS INCLUDES STEPS IN WHICH CREEP IS NOT ACTIVE, IT IS 
+             RECOMMENDED THAT SMALL STEP TIMES COMPARED TO THE CREEP TIME BE 
+             USED IN THESE STEPS. THIS IS NECESSARY TO AVOID CHANGES IN 
+             HARDENING BEHAVIOR IN SUBSEQUENT STEPS.
+
+
+
+                                 I N I T I A L   C O N T A C T   S T A T U S
+
+
+
+ ***NOTE: The following initial contact status information will reflect some 
+          but not all types of automated nodal position adjustments. Output 
+          variables such as CSTATUS and COPEN written to the output database 
+          (.odb) at the initial output frame (if the CSTATUS and CDISP output 
+          variables are requested) will reflect all types of automated nodal 
+          position adjustments. Viewing CSTATUS and COPEN in a post-processor 
+          is the recommended way to determine the initial contact status. 
+          Initial contact status information may not be available in the .dat 
+          file in a future version.
+
+
+    SECONDARY SURFACE:     FUEL_OUTER                                                                      
+    MAIN SURFACE:          CLAD_RMIN                                                                       
+
+
+       NODE        STATUS            CLEARANCE            NOTE
+       NUMBER
+
+         25        OPEN             1.0000E+36      NO INTERSECTION    
+         25        OPEN             3.4389E-06                         
+         26        OPEN             1.0000E+36      NO INTERSECTION    
+         26        OPEN             3.4389E-06                         
+         27        OPEN             1.0000E+36      NO INTERSECTION    
+         27        OPEN             3.4389E-06                         
+         28        OPEN             1.0000E+36      NO INTERSECTION    
+         28        OPEN             3.4389E-06                         
+         29        OPEN             1.0000E+36      NO INTERSECTION    
+         29        OPEN             3.4389E-06                         
+         48        OPEN             1.0000E+36      NO INTERSECTION    
+         48        OPEN             3.4389E-06                         
+         49        OPEN             1.0000E+36      NO INTERSECTION    
+         49        OPEN             3.4389E-06                         
+         50        OPEN             1.0000E+36      NO INTERSECTION    
+         50        OPEN             3.4389E-06                         
+         51        OPEN             1.0000E+36      NO INTERSECTION    
+         51        OPEN             3.4389E-06                         
+         70        OPEN             1.0000E+36      NO INTERSECTION    
+         70        OPEN             3.4389E-06                         
+         71        OPEN             1.0000E+36      NO INTERSECTION    
+         71        OPEN             3.4389E-06                         
+         72        OPEN             1.0000E+36      NO INTERSECTION    
+         72        OPEN             3.4389E-06                         
+         73        OPEN             1.0000E+36      NO INTERSECTION    
+         73        OPEN             3.4389E-06                         
+         87        OPEN             1.0000E+36      NO INTERSECTION    
+         87        OPEN             3.4389E-06                         
+         88        OPEN             1.0000E+36      NO INTERSECTION    
+         88        OPEN             3.4389E-06                         
+         89        OPEN             1.0000E+36      NO INTERSECTION    
+         89        OPEN             3.4389E-06                         
+        114        OPEN             1.0000E+36      NO INTERSECTION    
+        114        OPEN             1.0000E+36      NO INTERSECTION    
+        114        OPEN             1.0000E+36      NO INTERSECTION    
+        114        OPEN             3.4389E-06                         
+        115        OPEN             1.0000E+36      NO INTERSECTION    
+        115        OPEN             1.0000E+36      NO INTERSECTION    
+        115        OPEN             1.0000E+36      NO INTERSECTION    
+        115        OPEN             3.4389E-06                         
+        116        OPEN             1.0000E+36      NO INTERSECTION    
+        116        OPEN             1.0000E+36      NO INTERSECTION    
+        116        OPEN             1.0000E+36      NO INTERSECTION    
+        116        OPEN             3.4389E-06                         
+        117        OPEN             1.0000E+36      NO INTERSECTION    
+        117        OPEN             1.0000E+36      NO INTERSECTION    
+        117        OPEN             1.0000E+36      NO INTERSECTION    
+        117        OPEN             3.4389E-06                         
+        118        OPEN             1.0000E+36      NO INTERSECTION    
+        118        OPEN             1.0000E+36      NO INTERSECTION    
+        118        OPEN             1.0000E+36      NO INTERSECTION    
+        118        OPEN             3.4389E-06                         
+        137        OPEN             1.0000E+36      NO INTERSECTION    
+        137        OPEN             1.0000E+36      NO INTERSECTION    
+        137        OPEN             1.0000E+36      NO INTERSECTION    
+        137        OPEN             3.4389E-06                         
+        138        OPEN             1.0000E+36      NO INTERSECTION    
+        138        OPEN             1.0000E+36      NO INTERSECTION    
+        138        OPEN             1.0000E+36      NO INTERSECTION    
+        138        OPEN             3.4389E-06                         
+        139        OPEN             1.0000E+36      NO INTERSECTION    
+        139        OPEN             1.0000E+36      NO INTERSECTION    
+        139        OPEN             1.0000E+36      NO INTERSECTION    
+        139        OPEN             3.4389E-06                         
+        140        OPEN             1.0000E+36      NO INTERSECTION    
+        140        OPEN             1.0000E+36      NO INTERSECTION    
+        140        OPEN             1.0000E+36      NO INTERSECTION    
+        140        OPEN             3.4389E-06                         
+        159        OPEN             1.0000E+36      NO INTERSECTION    
+        159        OPEN             1.0000E+36      NO INTERSECTION    
+        159        OPEN             1.0000E+36      NO INTERSECTION    
+        159        OPEN             3.4389E-06                         
+        160        OPEN             1.0000E+36      NO INTERSECTION    
+        160        OPEN             1.0000E+36      NO INTERSECTION    
+        160        OPEN             1.0000E+36      NO INTERSECTION    
+        160        OPEN             3.4389E-06                         
+        161        OPEN             1.0000E+36      NO INTERSECTION    
+        161        OPEN             1.0000E+36      NO INTERSECTION    
+        161        OPEN             1.0000E+36      NO INTERSECTION    
+        161        OPEN             3.4389E-06                         
+        162        OPEN             1.0000E+36      NO INTERSECTION    
+        162        OPEN             1.0000E+36      NO INTERSECTION    
+        162        OPEN             1.0000E+36      NO INTERSECTION    
+        162        OPEN             3.4389E-06                         
+        176        OPEN             1.0000E+36      NO INTERSECTION    
+        176        OPEN             1.0000E+36      NO INTERSECTION    
+        176        OPEN             1.0000E+36      NO INTERSECTION    
+        176        OPEN             3.4389E-06                         
+        177        OPEN             1.0000E+36      NO INTERSECTION    
+        177        OPEN             1.0000E+36      NO INTERSECTION    
+        177        OPEN             1.0000E+36      NO INTERSECTION    
+        177        OPEN             3.4389E-06                         
+        178        OPEN             1.0000E+36      NO INTERSECTION    
+        178        OPEN             1.0000E+36      NO INTERSECTION    
+        178        OPEN             1.0000E+36      NO INTERSECTION    
+        178        OPEN             3.4389E-06                         
+        203        OPEN             1.0000E+36      NO INTERSECTION    
+        203        OPEN             1.0000E+36      NO INTERSECTION    
+        203        OPEN             1.0000E+36      NO INTERSECTION    
+        203        OPEN             3.4389E-06                         
+        204        OPEN             1.0000E+36      NO INTERSECTION    
+        204        OPEN             1.0000E+36      NO INTERSECTION    
+        204        OPEN             1.0000E+36      NO INTERSECTION    
+        204        OPEN             3.4389E-06                         
+        205        OPEN             1.0000E+36      NO INTERSECTION    
+        205        OPEN             1.0000E+36      NO INTERSECTION    
+        205        OPEN             1.0000E+36      NO INTERSECTION    
+        205        OPEN             3.4389E-06                         
+        206        OPEN             1.0000E+36      NO INTERSECTION    
+        206        OPEN             1.0000E+36      NO INTERSECTION    
+        206        OPEN             1.0000E+36      NO INTERSECTION    
+        206        OPEN             3.4389E-06                         
+        207        OPEN             1.0000E+36      NO INTERSECTION    
+        207        OPEN             1.0000E+36      NO INTERSECTION    
+        207        OPEN             1.0000E+36      NO INTERSECTION    
+        207        OPEN             3.4389E-06                         
+        226        OPEN             1.0000E+36      NO INTERSECTION    
+        226        OPEN             1.0000E+36      NO INTERSECTION    
+        226        OPEN             1.0000E+36      NO INTERSECTION    
+        226        OPEN             3.4389E-06                         
+        227        OPEN             1.0000E+36      NO INTERSECTION    
+        227        OPEN             1.0000E+36      NO INTERSECTION    
+        227        OPEN             1.0000E+36      NO INTERSECTION    
+        227        OPEN             3.4389E-06                         
+        228        OPEN             1.0000E+36      NO INTERSECTION    
+        228        OPEN             1.0000E+36      NO INTERSECTION    
+        228        OPEN             1.0000E+36      NO INTERSECTION    
+        228        OPEN             3.4389E-06                         
+        229        OPEN             1.0000E+36      NO INTERSECTION    
+        229        OPEN             1.0000E+36      NO INTERSECTION    
+        229        OPEN             1.0000E+36      NO INTERSECTION    
+        229        OPEN             3.4389E-06                         
+        248        OPEN             1.0000E+36      NO INTERSECTION    
+        248        OPEN             1.0000E+36      NO INTERSECTION    
+        248        OPEN             1.0000E+36      NO INTERSECTION    
+        248        OPEN             3.4389E-06                         
+        249        OPEN             1.0000E+36      NO INTERSECTION    
+        249        OPEN             1.0000E+36      NO INTERSECTION    
+        249        OPEN             1.0000E+36      NO INTERSECTION    
+        249        OPEN             3.4389E-06                         
+        250        OPEN             1.0000E+36      NO INTERSECTION    
+        250        OPEN             1.0000E+36      NO INTERSECTION    
+        250        OPEN             1.0000E+36      NO INTERSECTION    
+        250        OPEN             3.4389E-06                         
+        251        OPEN             1.0000E+36      NO INTERSECTION    
+        251        OPEN             1.0000E+36      NO INTERSECTION    
+        251        OPEN             1.0000E+36      NO INTERSECTION    
+        251        OPEN             3.4389E-06                         
+        265        OPEN             1.0000E+36      NO INTERSECTION    
+        265        OPEN             1.0000E+36      NO INTERSECTION    
+        265        OPEN             1.0000E+36      NO INTERSECTION    
+        265        OPEN             3.4389E-06                         
+        266        OPEN             1.0000E+36      NO INTERSECTION    
+        266        OPEN             1.0000E+36      NO INTERSECTION    
+        266        OPEN             1.0000E+36      NO INTERSECTION    
+        266        OPEN             3.4389E-06                         
+        267        OPEN             1.0000E+36      NO INTERSECTION    
+        267        OPEN             1.0000E+36      NO INTERSECTION    
+        267        OPEN             1.0000E+36      NO INTERSECTION    
+        267        OPEN             3.4389E-06                         
+        292        OPEN             1.0000E+36      NO INTERSECTION    
+        292        OPEN             1.0000E+36      NO INTERSECTION    
+        292        OPEN             1.0000E+36      NO INTERSECTION    
+        292        OPEN             3.4389E-06                         
+        293        OPEN             1.0000E+36      NO INTERSECTION    
+        293        OPEN             1.0000E+36      NO INTERSECTION    
+        293        OPEN             1.0000E+36      NO INTERSECTION    
+        293        OPEN             3.4389E-06                         
+        294        OPEN             1.0000E+36      NO INTERSECTION    
+        294        OPEN             1.0000E+36      NO INTERSECTION    
+        294        OPEN             1.0000E+36      NO INTERSECTION    
+        294        OPEN             3.4389E-06                         
+        295        OPEN             1.0000E+36      NO INTERSECTION    
+        295        OPEN             1.0000E+36      NO INTERSECTION    
+        295        OPEN             1.0000E+36      NO INTERSECTION    
+        295        OPEN             3.4389E-06                         
+        296        OPEN             1.0000E+36      NO INTERSECTION    
+        296        OPEN             1.0000E+36      NO INTERSECTION    
+        296        OPEN             1.0000E+36      NO INTERSECTION    
+        296        OPEN             3.4389E-06                         
+        315        OPEN             1.0000E+36      NO INTERSECTION    
+        315        OPEN             1.0000E+36      NO INTERSECTION    
+        315        OPEN             1.0000E+36      NO INTERSECTION    
+        315        OPEN             3.4389E-06                         
+        316        OPEN             1.0000E+36      NO INTERSECTION    
+        316        OPEN             1.0000E+36      NO INTERSECTION    
+        316        OPEN             1.0000E+36      NO INTERSECTION    
+        316        OPEN             3.4389E-06                         
+        317        OPEN             1.0000E+36      NO INTERSECTION    
+        317        OPEN             1.0000E+36      NO INTERSECTION    
+        317        OPEN             1.0000E+36      NO INTERSECTION    
+        317        OPEN             3.4389E-06                         
+        318        OPEN             1.0000E+36      NO INTERSECTION    
+        318        OPEN             1.0000E+36      NO INTERSECTION    
+        318        OPEN             1.0000E+36      NO INTERSECTION    
+        318        OPEN             3.4389E-06                         
+        337        OPEN             1.0000E+36      NO INTERSECTION    
+        337        OPEN             1.0000E+36      NO INTERSECTION    
+        337        OPEN             1.0000E+36      NO INTERSECTION    
+        337        OPEN             3.4389E-06                         
+        338        OPEN             1.0000E+36      NO INTERSECTION    
+        338        OPEN             1.0000E+36      NO INTERSECTION    
+        338        OPEN             1.0000E+36      NO INTERSECTION    
+        338        OPEN             3.4389E-06                         
+        339        OPEN             1.0000E+36      NO INTERSECTION    
+        339        OPEN             1.0000E+36      NO INTERSECTION    
+        339        OPEN             1.0000E+36      NO INTERSECTION    
+        339        OPEN             3.4389E-06                         
+        340        OPEN             1.0000E+36      NO INTERSECTION    
+        340        OPEN             1.0000E+36      NO INTERSECTION    
+        340        OPEN             1.0000E+36      NO INTERSECTION    
+        340        OPEN             3.4389E-06                         
+        354        OPEN             1.0000E+36      NO INTERSECTION    
+        354        OPEN             1.0000E+36      NO INTERSECTION    
+        354        OPEN             1.0000E+36      NO INTERSECTION    
+        354        OPEN             3.4389E-06                         
+        355        OPEN             1.0000E+36      NO INTERSECTION    
+        355        OPEN             1.0000E+36      NO INTERSECTION    
+        355        OPEN             1.0000E+36      NO INTERSECTION    
+        355        OPEN             3.4389E-06                         
+        356        OPEN             1.0000E+36      NO INTERSECTION    
+        356        OPEN             1.0000E+36      NO INTERSECTION    
+        356        OPEN             1.0000E+36      NO INTERSECTION    
+        356        OPEN             3.4389E-06                         
+        381        OPEN             1.0000E+36      NO INTERSECTION    
+        381        OPEN             1.0000E+36      NO INTERSECTION    
+        381        OPEN             1.0000E+36      NO INTERSECTION    
+        381        OPEN             3.4389E-06                         
+        382        OPEN             1.0000E+36      NO INTERSECTION    
+        382        OPEN             1.0000E+36      NO INTERSECTION    
+        382        OPEN             1.0000E+36      NO INTERSECTION    
+        382        OPEN             3.4389E-06                         
+        383        OPEN             1.0000E+36      NO INTERSECTION    
+        383        OPEN             1.0000E+36      NO INTERSECTION    
+        383        OPEN             1.0000E+36      NO INTERSECTION    
+        383        OPEN             3.4389E-06                         
+        384        OPEN             1.0000E+36      NO INTERSECTION    
+        384        OPEN             1.0000E+36      NO INTERSECTION    
+        384        OPEN             1.0000E+36      NO INTERSECTION    
+        384        OPEN             3.4389E-06                         
+        385        OPEN             1.0000E+36      NO INTERSECTION    
+        385        OPEN             1.0000E+36      NO INTERSECTION    
+        385        OPEN             1.0000E+36      NO INTERSECTION    
+        385        OPEN             3.4389E-06                         
+        404        OPEN             1.0000E+36      NO INTERSECTION    
+        404        OPEN             1.0000E+36      NO INTERSECTION    
+        404        OPEN             1.0000E+36      NO INTERSECTION    
+        404        OPEN             3.4389E-06                         
+        405        OPEN             1.0000E+36      NO INTERSECTION    
+        405        OPEN             1.0000E+36      NO INTERSECTION    
+        405        OPEN             1.0000E+36      NO INTERSECTION    
+        405        OPEN             3.4389E-06                         
+        406        OPEN             1.0000E+36      NO INTERSECTION    
+        406        OPEN             1.0000E+36      NO INTERSECTION    
+        406        OPEN             1.0000E+36      NO INTERSECTION    
+        406        OPEN             3.4389E-06                         
+        407        OPEN             1.0000E+36      NO INTERSECTION    
+        407        OPEN             1.0000E+36      NO INTERSECTION    
+        407        OPEN             1.0000E+36      NO INTERSECTION    
+        407        OPEN             3.4389E-06                         
+        426        OPEN             1.0000E+36      NO INTERSECTION    
+        426        OPEN             1.0000E+36      NO INTERSECTION    
+        426        OPEN             1.0000E+36      NO INTERSECTION    
+        426        OPEN             3.4389E-06                         
+        427        OPEN             1.0000E+36      NO INTERSECTION    
+        427        OPEN             1.0000E+36      NO INTERSECTION    
+        427        OPEN             1.0000E+36      NO INTERSECTION    
+        427        OPEN             3.4389E-06                         
+        428        OPEN             1.0000E+36      NO INTERSECTION    
+        428        OPEN             1.0000E+36      NO INTERSECTION    
+        428        OPEN             1.0000E+36      NO INTERSECTION    
+        428        OPEN             3.4389E-06                         
+        429        OPEN             1.0000E+36      NO INTERSECTION    
+        429        OPEN             1.0000E+36      NO INTERSECTION    
+        429        OPEN             1.0000E+36      NO INTERSECTION    
+        429        OPEN             3.4389E-06                         
+        443        OPEN             1.0000E+36      NO INTERSECTION    
+        443        OPEN             1.0000E+36      NO INTERSECTION    
+        443        OPEN             1.0000E+36      NO INTERSECTION    
+        443        OPEN             3.4389E-06                         
+        444        OPEN             1.0000E+36      NO INTERSECTION    
+        444        OPEN             1.0000E+36      NO INTERSECTION    
+        444        OPEN             1.0000E+36      NO INTERSECTION    
+        444        OPEN             3.4389E-06                         
+        445        OPEN             1.0000E+36      NO INTERSECTION    
+        445        OPEN             1.0000E+36      NO INTERSECTION    
+        445        OPEN             1.0000E+36      NO INTERSECTION    
+        445        OPEN             3.4389E-06                         
+        470        OPEN             1.0000E+36      NO INTERSECTION    
+        470        OPEN             1.0000E+36      NO INTERSECTION    
+        470        OPEN             1.0000E+36      NO INTERSECTION    
+        470        OPEN             3.4389E-06                         
+        471        OPEN             1.0000E+36      NO INTERSECTION    
+        471        OPEN             1.0000E+36      NO INTERSECTION    
+        471        OPEN             1.0000E+36      NO INTERSECTION    
+        471        OPEN             3.4389E-06                         
+        472        OPEN             1.0000E+36      NO INTERSECTION    
+        472        OPEN             1.0000E+36      NO INTERSECTION    
+        472        OPEN             1.0000E+36      NO INTERSECTION    
+        472        OPEN             3.4389E-06                         
+        473        OPEN             1.0000E+36      NO INTERSECTION    
+        473        OPEN             1.0000E+36      NO INTERSECTION    
+        473        OPEN             1.0000E+36      NO INTERSECTION    
+        473        OPEN             3.4389E-06                         
+        474        OPEN             1.0000E+36      NO INTERSECTION    
+        474        OPEN             1.0000E+36      NO INTERSECTION    
+        474        OPEN             1.0000E+36      NO INTERSECTION    
+        474        OPEN             3.4389E-06                         
+        493        OPEN             1.0000E+36      NO INTERSECTION    
+        493        OPEN             1.0000E+36      NO INTERSECTION    
+        493        OPEN             1.0000E+36      NO INTERSECTION    
+        493        OPEN             3.4389E-06                         
+        494        OPEN             1.0000E+36      NO INTERSECTION    
+        494        OPEN             1.0000E+36      NO INTERSECTION    
+        494        OPEN             1.0000E+36      NO INTERSECTION    
+        494        OPEN             3.4389E-06                         
+        495        OPEN             1.0000E+36      NO INTERSECTION    
+        495        OPEN             1.0000E+36      NO INTERSECTION    
+        495        OPEN             1.0000E+36      NO INTERSECTION    
+        495        OPEN             3.4389E-06                         
+        496        OPEN             1.0000E+36      NO INTERSECTION    
+        496        OPEN             1.0000E+36      NO INTERSECTION    
+        496        OPEN             1.0000E+36      NO INTERSECTION    
+        496        OPEN             3.4389E-06                         
+        515        OPEN             1.0000E+36      NO INTERSECTION    
+        515        OPEN             1.0000E+36      NO INTERSECTION    
+        515        OPEN             1.0000E+36      NO INTERSECTION    
+        515        OPEN             3.4389E-06                         
+        516        OPEN             1.0000E+36      NO INTERSECTION    
+        516        OPEN             1.0000E+36      NO INTERSECTION    
+        516        OPEN             1.0000E+36      NO INTERSECTION    
+        516        OPEN             3.4389E-06                         
+        517        OPEN             1.0000E+36      NO INTERSECTION    
+        517        OPEN             1.0000E+36      NO INTERSECTION    
+        517        OPEN             1.0000E+36      NO INTERSECTION    
+        517        OPEN             3.4389E-06                         
+        518        OPEN             1.0000E+36      NO INTERSECTION    
+        518        OPEN             1.0000E+36      NO INTERSECTION    
+        518        OPEN             1.0000E+36      NO INTERSECTION    
+        518        OPEN             3.4389E-06                         
+        532        OPEN             1.0000E+36      NO INTERSECTION    
+        532        OPEN             1.0000E+36      NO INTERSECTION    
+        532        OPEN             1.0000E+36      NO INTERSECTION    
+        532        OPEN             3.4389E-06                         
+        533        OPEN             1.0000E+36      NO INTERSECTION    
+        533        OPEN             1.0000E+36      NO INTERSECTION    
+        533        OPEN             1.0000E+36      NO INTERSECTION    
+        533        OPEN             3.4389E-06                         
+        534        OPEN             1.0000E+36      NO INTERSECTION    
+        534        OPEN             1.0000E+36      NO INTERSECTION    
+        534        OPEN             1.0000E+36      NO INTERSECTION    
+        534        OPEN             3.4389E-06                         
+        559        OPEN             1.0000E+36      NO INTERSECTION    
+        559        OPEN             1.0000E+36      NO INTERSECTION    
+        559        OPEN             1.0000E+36      NO INTERSECTION    
+        559        OPEN             3.4389E-06                         
+        560        OPEN             1.0000E+36      NO INTERSECTION    
+        560        OPEN             1.0000E+36      NO INTERSECTION    
+        560        OPEN             1.0000E+36      NO INTERSECTION    
+        560        OPEN             3.4389E-06                         
+        561        OPEN             1.0000E+36      NO INTERSECTION    
+        561        OPEN             1.0000E+36      NO INTERSECTION    
+        561        OPEN             1.0000E+36      NO INTERSECTION    
+        561        OPEN             3.4389E-06                         
+        562        OPEN             1.0000E+36      NO INTERSECTION    
+        562        OPEN             1.0000E+36      NO INTERSECTION    
+        562        OPEN             1.0000E+36      NO INTERSECTION    
+        562        OPEN             3.4389E-06                         
+        563        OPEN             1.0000E+36      NO INTERSECTION    
+        563        OPEN             1.0000E+36      NO INTERSECTION    
+        563        OPEN             1.0000E+36      NO INTERSECTION    
+        563        OPEN             3.4389E-06                         
+        582        OPEN             1.0000E+36      NO INTERSECTION    
+        582        OPEN             1.0000E+36      NO INTERSECTION    
+        582        OPEN             1.0000E+36      NO INTERSECTION    
+        582        OPEN             3.4389E-06                         
+        583        OPEN             1.0000E+36      NO INTERSECTION    
+        583        OPEN             1.0000E+36      NO INTERSECTION    
+        583        OPEN             1.0000E+36      NO INTERSECTION    
+        583        OPEN             3.4389E-06                         
+        584        OPEN             1.0000E+36      NO INTERSECTION    
+        584        OPEN             1.0000E+36      NO INTERSECTION    
+        584        OPEN             1.0000E+36      NO INTERSECTION    
+        584        OPEN             3.4389E-06                         
+        585        OPEN             1.0000E+36      NO INTERSECTION    
+        585        OPEN             1.0000E+36      NO INTERSECTION    
+        585        OPEN             1.0000E+36      NO INTERSECTION    
+        585        OPEN             3.4389E-06                         
+        604        OPEN             1.0000E+36      NO INTERSECTION    
+        604        OPEN             1.0000E+36      NO INTERSECTION    
+        604        OPEN             1.0000E+36      NO INTERSECTION    
+        604        OPEN             3.4389E-06                         
+        605        OPEN             1.0000E+36      NO INTERSECTION    
+        605        OPEN             1.0000E+36      NO INTERSECTION    
+        605        OPEN             1.0000E+36      NO INTERSECTION    
+        605        OPEN             3.4389E-06                         
+        606        OPEN             1.0000E+36      NO INTERSECTION    
+        606        OPEN             1.0000E+36      NO INTERSECTION    
+        606        OPEN             1.0000E+36      NO INTERSECTION    
+        606        OPEN             3.4389E-06                         
+        607        OPEN             1.0000E+36      NO INTERSECTION    
+        607        OPEN             1.0000E+36      NO INTERSECTION    
+        607        OPEN             1.0000E+36      NO INTERSECTION    
+        607        OPEN             3.4389E-06                         
+        621        OPEN             1.0000E+36      NO INTERSECTION    
+        621        OPEN             1.0000E+36      NO INTERSECTION    
+        621        OPEN             1.0000E+36      NO INTERSECTION    
+        621        OPEN             3.4389E-06                         
+        622        OPEN             1.0000E+36      NO INTERSECTION    
+        622        OPEN             1.0000E+36      NO INTERSECTION    
+        622        OPEN             1.0000E+36      NO INTERSECTION    
+        622        OPEN             3.4389E-06                         
+        623        OPEN             1.0000E+36      NO INTERSECTION    
+        623        OPEN             1.0000E+36      NO INTERSECTION    
+        623        OPEN             1.0000E+36      NO INTERSECTION    
+        623        OPEN             3.4389E-06                         
+        648        OPEN             1.0000E+36      NO INTERSECTION    
+        648        OPEN             1.0000E+36      NO INTERSECTION    
+        648        OPEN             1.0000E+36      NO INTERSECTION    
+        648        OPEN             3.4389E-06                         
+        649        OPEN             1.0000E+36      NO INTERSECTION    
+        649        OPEN             1.0000E+36      NO INTERSECTION    
+        649        OPEN             1.0000E+36      NO INTERSECTION    
+        649        OPEN             3.4389E-06                         
+        650        OPEN             1.0000E+36      NO INTERSECTION    
+        650        OPEN             1.0000E+36      NO INTERSECTION    
+        650        OPEN             1.0000E+36      NO INTERSECTION    
+        650        OPEN             3.4389E-06                         
+        651        OPEN             1.0000E+36      NO INTERSECTION    
+        651        OPEN             1.0000E+36      NO INTERSECTION    
+        651        OPEN             1.0000E+36      NO INTERSECTION    
+        651        OPEN             3.4389E-06                         
+        652        OPEN             1.0000E+36      NO INTERSECTION    
+        652        OPEN             1.0000E+36      NO INTERSECTION    
+        652        OPEN             1.0000E+36      NO INTERSECTION    
+        652        OPEN             3.4389E-06                         
+        671        OPEN             1.0000E+36      NO INTERSECTION    
+        671        OPEN             1.0000E+36      NO INTERSECTION    
+        671        OPEN             1.0000E+36      NO INTERSECTION    
+        671        OPEN             3.4389E-06                         
+        672        OPEN             1.0000E+36      NO INTERSECTION    
+        672        OPEN             1.0000E+36      NO INTERSECTION    
+        672        OPEN             1.0000E+36      NO INTERSECTION    
+        672        OPEN             3.4389E-06                         
+        673        OPEN             1.0000E+36      NO INTERSECTION    
+        673        OPEN             1.0000E+36      NO INTERSECTION    
+        673        OPEN             1.0000E+36      NO INTERSECTION    
+        673        OPEN             3.4389E-06                         
+        674        OPEN             1.0000E+36      NO INTERSECTION    
+        674        OPEN             1.0000E+36      NO INTERSECTION    
+        674        OPEN             1.0000E+36      NO INTERSECTION    
+        674        OPEN             3.4389E-06                         
+        693        OPEN             1.0000E+36      NO INTERSECTION    
+        693        OPEN             1.0000E+36      NO INTERSECTION    
+        693        OPEN             1.0000E+36      NO INTERSECTION    
+        693        OPEN             3.4389E-06                         
+        694        OPEN             1.0000E+36      NO INTERSECTION    
+        694        OPEN             1.0000E+36      NO INTERSECTION    
+        694        OPEN             1.0000E+36      NO INTERSECTION    
+        694        OPEN             3.4389E-06                         
+        695        OPEN             1.0000E+36      NO INTERSECTION    
+        695        OPEN             1.0000E+36      NO INTERSECTION    
+        695        OPEN             1.0000E+36      NO INTERSECTION    
+        695        OPEN             3.4389E-06                         
+        696        OPEN             1.0000E+36      NO INTERSECTION    
+        696        OPEN             1.0000E+36      NO INTERSECTION    
+        696        OPEN             1.0000E+36      NO INTERSECTION    
+        696        OPEN             3.4389E-06                         
+        710        OPEN             1.0000E+36      NO INTERSECTION    
+        710        OPEN             1.0000E+36      NO INTERSECTION    
+        710        OPEN             1.0000E+36      NO INTERSECTION    
+        710        OPEN             3.4389E-06                         
+        711        OPEN             1.0000E+36      NO INTERSECTION    
+        711        OPEN             1.0000E+36      NO INTERSECTION    
+        711        OPEN             1.0000E+36      NO INTERSECTION    
+        711        OPEN             3.4389E-06                         
+        712        OPEN             1.0000E+36      NO INTERSECTION    
+        712        OPEN             1.0000E+36      NO INTERSECTION    
+        712        OPEN             1.0000E+36      NO INTERSECTION    
+        712        OPEN             3.4389E-06                         
+        737        OPEN             1.0000E+36      NO INTERSECTION    
+        737        OPEN             3.4389E-06                         
+        738        OPEN             1.0000E+36      NO INTERSECTION    
+        738        OPEN             3.4389E-06                         
+        739        OPEN             1.0000E+36      NO INTERSECTION    
+        739        OPEN             3.4389E-06                         
+        740        OPEN             1.0000E+36      NO INTERSECTION    
+        740        OPEN             3.4389E-06                         
+        741        OPEN             1.0000E+36      NO INTERSECTION    
+        741        OPEN             3.4389E-06                         
+        760        OPEN             1.0000E+36      NO INTERSECTION    
+        760        OPEN             3.4389E-06                         
+        761        OPEN             1.0000E+36      NO INTERSECTION    
+        761        OPEN             3.4389E-06                         
+        762        OPEN             1.0000E+36      NO INTERSECTION    
+        762        OPEN             3.4389E-06                         
+        763        OPEN             1.0000E+36      NO INTERSECTION    
+        763        OPEN             3.4389E-06                         
+        782        OPEN             1.0000E+36      NO INTERSECTION    
+        782        OPEN             3.4389E-06                         
+        783        OPEN             1.0000E+36      NO INTERSECTION    
+        783        OPEN             3.4389E-06                         
+        784        OPEN             1.0000E+36      NO INTERSECTION    
+        784        OPEN             3.4389E-06                         
+        785        OPEN             1.0000E+36      NO INTERSECTION    
+        785        OPEN             3.4389E-06                         
+        799        OPEN             1.0000E+36      NO INTERSECTION    
+        799        OPEN             3.4389E-06                         
+        800        OPEN             1.0000E+36      NO INTERSECTION    
+        800        OPEN             3.4389E-06                         
+        801        OPEN             1.0000E+36      NO INTERSECTION    
+        801        OPEN             3.4389E-06                         
+       1721        OPEN             3.4389E-06                         
+       1723        OPEN             1.0000E+36      NO INTERSECTION    
+       1723        OPEN             3.4389E-06                         
+       1724        OPEN             1.0000E+36      NO INTERSECTION    
+       1724        OPEN             3.4389E-06                         
+       1726        OPEN             1.0000E+36      NO INTERSECTION    
+       1726        OPEN             3.4389E-06                         
+       1728        OPEN             3.4389E-06                         
+       1730        OPEN             1.0000E+36      NO INTERSECTION    
+       1730        OPEN             3.4389E-06                         
+       1731        OPEN             1.0000E+36      NO INTERSECTION    
+       1731        OPEN             3.4389E-06                         
+       1733        OPEN             3.4389E-06                         
+       1735        OPEN             1.0000E+36      NO INTERSECTION    
+       1735        OPEN             3.4389E-06                         
+       1736        OPEN             1.0000E+36      NO INTERSECTION    
+       1736        OPEN             3.4389E-06                         
+       1738        OPEN             3.4389E-06                         
+       1740        OPEN             1.0000E+36      NO INTERSECTION    
+       1740        OPEN             3.4389E-06                         
+       1741        OPEN             1.0000E+36      NO INTERSECTION    
+       1741        OPEN             3.4389E-06                         
+       1829        OPEN             3.4389E-06                         
+       1831        OPEN             1.0000E+36      NO INTERSECTION    
+       1831        OPEN             3.4389E-06                         
+       1832        OPEN             1.0000E+36      NO INTERSECTION    
+       1832        OPEN             3.4389E-06                         
+       1834        OPEN             3.4389E-06                         
+       1836        OPEN             1.0000E+36      NO INTERSECTION    
+       1836        OPEN             3.4389E-06                         
+       1837        OPEN             1.0000E+36      NO INTERSECTION    
+       1837        OPEN             3.4389E-06                         
+       1839        OPEN             3.4389E-06                         
+       1841        OPEN             1.0000E+36      NO INTERSECTION    
+       1841        OPEN             3.4389E-06                         
+       1842        OPEN             1.0000E+36      NO INTERSECTION    
+       1842        OPEN             3.4389E-06                         
+       1844        OPEN             3.4389E-06                         
+       1846        OPEN             1.0000E+36      NO INTERSECTION    
+       1846        OPEN             3.4389E-06                         
+       1847        OPEN             1.0000E+36      NO INTERSECTION    
+       1847        OPEN             3.4389E-06                         
+       1935        OPEN             3.4389E-06                         
+       1937        OPEN             1.0000E+36      NO INTERSECTION    
+       1937        OPEN             3.4389E-06                         
+       1938        OPEN             1.0000E+36      NO INTERSECTION    
+       1938        OPEN             3.4389E-06                         
+       1940        OPEN             3.4389E-06                         
+       1942        OPEN             1.0000E+36      NO INTERSECTION    
+       1942        OPEN             3.4389E-06                         
+       1943        OPEN             1.0000E+36      NO INTERSECTION    
+       1943        OPEN             3.4389E-06                         
+       1945        OPEN             3.4389E-06                         
+       1947        OPEN             1.0000E+36      NO INTERSECTION    
+       1947        OPEN             3.4389E-06                         
+       1948        OPEN             1.0000E+36      NO INTERSECTION    
+       1948        OPEN             3.4389E-06                         
+       1950        OPEN             3.4389E-06                         
+       1952        OPEN             1.0000E+36      NO INTERSECTION    
+       1952        OPEN             3.4389E-06                         
+       1953        OPEN             1.0000E+36      NO INTERSECTION    
+       1953        OPEN             3.4389E-06                         
+       2026        OPEN             3.4389E-06                         
+       2028        OPEN             1.0000E+36      NO INTERSECTION    
+       2028        OPEN             3.4389E-06                         
+       2029        OPEN             1.0000E+36      NO INTERSECTION    
+       2029        OPEN             3.4389E-06                         
+       2031        OPEN             3.4389E-06                         
+       2033        OPEN             1.0000E+36      NO INTERSECTION    
+       2033        OPEN             3.4389E-06                         
+       2034        OPEN             1.0000E+36      NO INTERSECTION    
+       2034        OPEN             3.4389E-06                         
+       2036        OPEN             3.4389E-06                         
+       2038        OPEN             1.0000E+36      NO INTERSECTION    
+       2038        OPEN             3.4389E-06                         
+       2039        OPEN             1.0000E+36      NO INTERSECTION    
+       2039        OPEN             3.4389E-06                         
+       2041        OPEN             3.4389E-06                         
+       2042        OPEN             1.0000E+36      NO INTERSECTION    
+       2042        OPEN             3.4389E-06                         
+       2106        OPEN             1.0000E+36      NO INTERSECTION    
+       2106        OPEN             3.4389E-06                         
+       2107        OPEN             1.0000E+36      NO INTERSECTION    
+       2107        OPEN             3.4389E-06                         
+       2109        OPEN             1.0000E+36      NO INTERSECTION    
+       2109        OPEN             3.4389E-06                         
+       2111        OPEN             1.0000E+36      NO INTERSECTION    
+       2111        OPEN             3.4389E-06                         
+       2112        OPEN             1.0000E+36      NO INTERSECTION    
+       2112        OPEN             3.4389E-06                         
+       2114        OPEN             1.0000E+36      NO INTERSECTION    
+       2114        OPEN             3.4389E-06                         
+       2115        OPEN             1.0000E+36      NO INTERSECTION    
+       2115        OPEN             3.4389E-06                         
+       2117        OPEN             1.0000E+36      NO INTERSECTION    
+       2117        OPEN             3.4389E-06                         
+       2118        OPEN             1.0000E+36      NO INTERSECTION    
+       2118        OPEN             3.4389E-06                         
+       2172        OPEN             1.0000E+36      NO INTERSECTION    
+       2172        OPEN             3.4389E-06                         
+       2173        OPEN             1.0000E+36      NO INTERSECTION    
+       2173        OPEN             3.4389E-06                         
+       2175        OPEN             1.0000E+36      NO INTERSECTION    
+       2175        OPEN             3.4389E-06                         
+       2176        OPEN             1.0000E+36      NO INTERSECTION    
+       2176        OPEN             3.4389E-06                         
+       2178        OPEN             1.0000E+36      NO INTERSECTION    
+       2178        OPEN             3.4389E-06                         
+       2179        OPEN             1.0000E+36      NO INTERSECTION    
+       2179        OPEN             3.4389E-06                         
+       2181        OPEN             1.0000E+36      NO INTERSECTION    
+       2181        OPEN             3.4389E-06                         
+       2182        OPEN             1.0000E+36      NO INTERSECTION    
+       2182        OPEN             3.4389E-06                         
+       2236        OPEN             1.0000E+36      NO INTERSECTION    
+       2236        OPEN             3.4389E-06                         
+       2237        OPEN             1.0000E+36      NO INTERSECTION    
+       2237        OPEN             3.4389E-06                         
+       2239        OPEN             1.0000E+36      NO INTERSECTION    
+       2239        OPEN             3.4389E-06                         
+       2240        OPEN             1.0000E+36      NO INTERSECTION    
+       2240        OPEN             3.4389E-06                         
+       2242        OPEN             1.0000E+36      NO INTERSECTION    
+       2242        OPEN             3.4389E-06                         
+       2243        OPEN             1.0000E+36      NO INTERSECTION    
+       2243        OPEN             3.4389E-06                         
+       2245        OPEN             1.0000E+36      NO INTERSECTION    
+       2245        OPEN             3.4389E-06                         
+       2246        OPEN             1.0000E+36      NO INTERSECTION    
+       2246        OPEN             3.4389E-06                         
+       2290        OPEN             1.0000E+36      NO INTERSECTION    
+       2290        OPEN             3.4389E-06                         
+       2291        OPEN             1.0000E+36      NO INTERSECTION    
+       2291        OPEN             3.4389E-06                         
+       2293        OPEN             1.0000E+36      NO INTERSECTION    
+       2293        OPEN             3.4389E-06                         
+       2294        OPEN             1.0000E+36      NO INTERSECTION    
+       2294        OPEN             3.4389E-06                         
+       2296        OPEN             1.0000E+36      NO INTERSECTION    
+       2296        OPEN             3.4389E-06                         
+       2297        OPEN             1.0000E+36      NO INTERSECTION    
+       2297        OPEN             3.4389E-06                         
+       2299        OPEN             1.0000E+36      NO INTERSECTION    
+       2299        OPEN             3.4389E-06                         
+       2363        OPEN             1.0000E+36      NO INTERSECTION    
+       2363        OPEN             3.4389E-06                         
+       2364        OPEN             1.0000E+36      NO INTERSECTION    
+       2364        OPEN             3.4389E-06                         
+       2366        OPEN             1.0000E+36      NO INTERSECTION    
+       2366        OPEN             3.4389E-06                         
+       2368        OPEN             1.0000E+36      NO INTERSECTION    
+       2368        OPEN             3.4389E-06                         
+       2369        OPEN             1.0000E+36      NO INTERSECTION    
+       2369        OPEN             3.4389E-06                         
+       2371        OPEN             1.0000E+36      NO INTERSECTION    
+       2371        OPEN             3.4389E-06                         
+       2372        OPEN             1.0000E+36      NO INTERSECTION    
+       2372        OPEN             3.4389E-06                         
+       2374        OPEN             1.0000E+36      NO INTERSECTION    
+       2374        OPEN             3.4389E-06                         
+       2375        OPEN             1.0000E+36      NO INTERSECTION    
+       2375        OPEN             3.4389E-06                         
+       2429        OPEN             1.0000E+36      NO INTERSECTION    
+       2429        OPEN             3.4389E-06                         
+       2430        OPEN             1.0000E+36      NO INTERSECTION    
+       2430        OPEN             3.4389E-06                         
+       2432        OPEN             1.0000E+36      NO INTERSECTION    
+       2432        OPEN             3.4389E-06                         
+       2433        OPEN             1.0000E+36      NO INTERSECTION    
+       2433        OPEN             3.4389E-06                         
+       2435        OPEN             1.0000E+36      NO INTERSECTION    
+       2435        OPEN             3.4389E-06                         
+       2436        OPEN             1.0000E+36      NO INTERSECTION    
+       2436        OPEN             3.4389E-06                         
+       2438        OPEN             1.0000E+36      NO INTERSECTION    
+       2438        OPEN             3.4389E-06                         
+       2439        OPEN             1.0000E+36      NO INTERSECTION    
+       2439        OPEN             3.4389E-06                         
+       2493        OPEN             1.0000E+36      NO INTERSECTION    
+       2493        OPEN             3.4389E-06                         
+       2494        OPEN             1.0000E+36      NO INTERSECTION    
+       2494        OPEN             3.4389E-06                         
+       2496        OPEN             1.0000E+36      NO INTERSECTION    
+       2496        OPEN             3.4389E-06                         
+       2497        OPEN             1.0000E+36      NO INTERSECTION    
+       2497        OPEN             3.4389E-06                         
+       2499        OPEN             1.0000E+36      NO INTERSECTION    
+       2499        OPEN             3.4389E-06                         
+       2500        OPEN             1.0000E+36      NO INTERSECTION    
+       2500        OPEN             3.4389E-06                         
+       2502        OPEN             1.0000E+36      NO INTERSECTION    
+       2502        OPEN             3.4389E-06                         
+       2503        OPEN             1.0000E+36      NO INTERSECTION    
+       2503        OPEN             3.4389E-06                         
+       2547        OPEN             1.0000E+36      NO INTERSECTION    
+       2547        OPEN             3.4389E-06                         
+       2548        OPEN             1.0000E+36      NO INTERSECTION    
+       2548        OPEN             3.4389E-06                         
+       2550        OPEN             1.0000E+36      NO INTERSECTION    
+       2550        OPEN             3.4389E-06                         
+       2551        OPEN             1.0000E+36      NO INTERSECTION    
+       2551        OPEN             3.4389E-06                         
+       2553        OPEN             1.0000E+36      NO INTERSECTION    
+       2553        OPEN             3.4389E-06                         
+       2554        OPEN             1.0000E+36      NO INTERSECTION    
+       2554        OPEN             3.4389E-06                         
+       2556        OPEN             1.0000E+36      NO INTERSECTION    
+       2556        OPEN             3.4389E-06                         
+       2620        OPEN             1.0000E+36      NO INTERSECTION    
+       2620        OPEN             3.4389E-06                         
+       2621        OPEN             1.0000E+36      NO INTERSECTION    
+       2621        OPEN             3.4389E-06                         
+       2623        OPEN             1.0000E+36      NO INTERSECTION    
+       2623        OPEN             3.4389E-06                         
+       2625        OPEN             1.0000E+36      NO INTERSECTION    
+       2625        OPEN             3.4389E-06                         
+       2626        OPEN             1.0000E+36      NO INTERSECTION    
+       2626        OPEN             3.4389E-06                         
+       2628        OPEN             1.0000E+36      NO INTERSECTION    
+       2628        OPEN             3.4389E-06                         
+       2629        OPEN             1.0000E+36      NO INTERSECTION    
+       2629        OPEN             3.4389E-06                         
+       2631        OPEN             1.0000E+36      NO INTERSECTION    
+       2631        OPEN             3.4389E-06                         
+       2632        OPEN             1.0000E+36      NO INTERSECTION    
+       2632        OPEN             3.4389E-06                         
+       2686        OPEN             1.0000E+36      NO INTERSECTION    
+       2686        OPEN             3.4389E-06                         
+       2687        OPEN             1.0000E+36      NO INTERSECTION    
+       2687        OPEN             3.4389E-06                         
+       2689        OPEN             1.0000E+36      NO INTERSECTION    
+       2689        OPEN             3.4389E-06                         
+       2690        OPEN             1.0000E+36      NO INTERSECTION    
+       2690        OPEN             3.4389E-06                         
+       2692        OPEN             1.0000E+36      NO INTERSECTION    
+       2692        OPEN             3.4389E-06                         
+       2693        OPEN             1.0000E+36      NO INTERSECTION    
+       2693        OPEN             3.4389E-06                         
+       2695        OPEN             1.0000E+36      NO INTERSECTION    
+       2695        OPEN             3.4389E-06                         
+       2696        OPEN             1.0000E+36      NO INTERSECTION    
+       2696        OPEN             3.4389E-06                         
+       2750        OPEN             1.0000E+36      NO INTERSECTION    
+       2750        OPEN             3.4389E-06                         
+       2751        OPEN             1.0000E+36      NO INTERSECTION    
+       2751        OPEN             3.4389E-06                         
+       2753        OPEN             1.0000E+36      NO INTERSECTION    
+       2753        OPEN             3.4389E-06                         
+       2754        OPEN             1.0000E+36      NO INTERSECTION    
+       2754        OPEN             3.4389E-06                         
+       2756        OPEN             1.0000E+36      NO INTERSECTION    
+       2756        OPEN             3.4389E-06                         
+       2757        OPEN             1.0000E+36      NO INTERSECTION    
+       2757        OPEN             3.4389E-06                         
+       2759        OPEN             1.0000E+36      NO INTERSECTION    
+       2759        OPEN             3.4389E-06                         
+       2760        OPEN             1.0000E+36      NO INTERSECTION    
+       2760        OPEN             3.4389E-06                         
+       2804        OPEN             1.0000E+36      NO INTERSECTION    
+       2804        OPEN             3.4389E-06                         
+       2805        OPEN             1.0000E+36      NO INTERSECTION    
+       2805        OPEN             3.4389E-06                         
+       2807        OPEN             1.0000E+36      NO INTERSECTION    
+       2807        OPEN             3.4389E-06                         
+       2808        OPEN             1.0000E+36      NO INTERSECTION    
+       2808        OPEN             3.4389E-06                         
+       2810        OPEN             1.0000E+36      NO INTERSECTION    
+       2810        OPEN             3.4389E-06                         
+       2811        OPEN             1.0000E+36      NO INTERSECTION    
+       2811        OPEN             3.4389E-06                         
+       2813        OPEN             1.0000E+36      NO INTERSECTION    
+       2813        OPEN             3.4389E-06                         
+       2877        OPEN             1.0000E+36      NO INTERSECTION    
+       2877        OPEN             3.4389E-06                         
+       2878        OPEN             1.0000E+36      NO INTERSECTION    
+       2878        OPEN             3.4389E-06                         
+       2880        OPEN             1.0000E+36      NO INTERSECTION    
+       2880        OPEN             3.4389E-06                         
+       2882        OPEN             1.0000E+36      NO INTERSECTION    
+       2882        OPEN             3.4389E-06                         
+       2883        OPEN             1.0000E+36      NO INTERSECTION    
+       2883        OPEN             3.4389E-06                         
+       2885        OPEN             1.0000E+36      NO INTERSECTION    
+       2885        OPEN             3.4389E-06                         
+       2886        OPEN             1.0000E+36      NO INTERSECTION    
+       2886        OPEN             3.4389E-06                         
+       2888        OPEN             1.0000E+36      NO INTERSECTION    
+       2888        OPEN             3.4389E-06                         
+       2889        OPEN             1.0000E+36      NO INTERSECTION    
+       2889        OPEN             3.4389E-06                         
+       2943        OPEN             1.0000E+36      NO INTERSECTION    
+       2943        OPEN             3.4389E-06                         
+       2944        OPEN             1.0000E+36      NO INTERSECTION    
+       2944        OPEN             3.4389E-06                         
+       2946        OPEN             1.0000E+36      NO INTERSECTION    
+       2946        OPEN             3.4389E-06                         
+       2947        OPEN             1.0000E+36      NO INTERSECTION    
+       2947        OPEN             3.4389E-06                         
+       2949        OPEN             1.0000E+36      NO INTERSECTION    
+       2949        OPEN             3.4389E-06                         
+       2950        OPEN             1.0000E+36      NO INTERSECTION    
+       2950        OPEN             3.4389E-06                         
+       2952        OPEN             1.0000E+36      NO INTERSECTION    
+       2952        OPEN             3.4389E-06                         
+       2953        OPEN             1.0000E+36      NO INTERSECTION    
+       2953        OPEN             3.4389E-06                         
+       3007        OPEN             1.0000E+36      NO INTERSECTION    
+       3007        OPEN             3.4389E-06                         
+       3008        OPEN             1.0000E+36      NO INTERSECTION    
+       3008        OPEN             3.4389E-06                         
+       3010        OPEN             1.0000E+36      NO INTERSECTION    
+       3010        OPEN             3.4389E-06                         
+       3011        OPEN             1.0000E+36      NO INTERSECTION    
+       3011        OPEN             3.4389E-06                         
+       3013        OPEN             1.0000E+36      NO INTERSECTION    
+       3013        OPEN             3.4389E-06                         
+       3014        OPEN             1.0000E+36      NO INTERSECTION    
+       3014        OPEN             3.4389E-06                         
+       3016        OPEN             1.0000E+36      NO INTERSECTION    
+       3016        OPEN             3.4389E-06                         
+       3017        OPEN             1.0000E+36      NO INTERSECTION    
+       3017        OPEN             3.4389E-06                         
+       3061        OPEN             1.0000E+36      NO INTERSECTION    
+       3061        OPEN             3.4389E-06                         
+       3062        OPEN             1.0000E+36      NO INTERSECTION    
+       3062        OPEN             3.4389E-06                         
+       3064        OPEN             1.0000E+36      NO INTERSECTION    
+       3064        OPEN             3.4389E-06                         
+       3065        OPEN             1.0000E+36      NO INTERSECTION    
+       3065        OPEN             3.4389E-06                         
+       3067        OPEN             1.0000E+36      NO INTERSECTION    
+       3067        OPEN             3.4389E-06                         
+       3068        OPEN             1.0000E+36      NO INTERSECTION    
+       3068        OPEN             3.4389E-06                         
+       3070        OPEN             1.0000E+36      NO INTERSECTION    
+       3070        OPEN             3.4389E-06                         
+       3134        OPEN             1.0000E+36      NO INTERSECTION    
+       3134        OPEN             3.4389E-06                         
+       3135        OPEN             1.0000E+36      NO INTERSECTION    
+       3135        OPEN             3.4389E-06                         
+       3137        OPEN             1.0000E+36      NO INTERSECTION    
+       3137        OPEN             3.4389E-06                         
+       3139        OPEN             1.0000E+36      NO INTERSECTION    
+       3139        OPEN             3.4389E-06                         
+       3140        OPEN             1.0000E+36      NO INTERSECTION    
+       3140        OPEN             3.4389E-06                         
+       3142        OPEN             1.0000E+36      NO INTERSECTION    
+       3142        OPEN             3.4389E-06                         
+       3143        OPEN             1.0000E+36      NO INTERSECTION    
+       3143        OPEN             3.4389E-06                         
+       3145        OPEN             1.0000E+36      NO INTERSECTION    
+       3145        OPEN             3.4389E-06                         
+       3146        OPEN             1.0000E+36      NO INTERSECTION    
+       3146        OPEN             3.4389E-06                         
+       3200        OPEN             1.0000E+36      NO INTERSECTION    
+       3200        OPEN             3.4389E-06                         
+       3201        OPEN             1.0000E+36      NO INTERSECTION    
+       3201        OPEN             3.4389E-06                         
+       3203        OPEN             1.0000E+36      NO INTERSECTION    
+       3203        OPEN             3.4389E-06                         
+       3204        OPEN             1.0000E+36      NO INTERSECTION    
+       3204        OPEN             3.4389E-06                         
+       3206        OPEN             1.0000E+36      NO INTERSECTION    
+       3206        OPEN             3.4389E-06                         
+       3207        OPEN             1.0000E+36      NO INTERSECTION    
+       3207        OPEN             3.4389E-06                         
+       3209        OPEN             1.0000E+36      NO INTERSECTION    
+       3209        OPEN             3.4389E-06                         
+       3210        OPEN             1.0000E+36      NO INTERSECTION    
+       3210        OPEN             3.4389E-06                         
+       3264        OPEN             1.0000E+36      NO INTERSECTION    
+       3264        OPEN             3.4389E-06                         
+       3265        OPEN             1.0000E+36      NO INTERSECTION    
+       3265        OPEN             3.4389E-06                         
+       3267        OPEN             1.0000E+36      NO INTERSECTION    
+       3267        OPEN             3.4389E-06                         
+       3268        OPEN             1.0000E+36      NO INTERSECTION    
+       3268        OPEN             3.4389E-06                         
+       3270        OPEN             1.0000E+36      NO INTERSECTION    
+       3270        OPEN             3.4389E-06                         
+       3271        OPEN             1.0000E+36      NO INTERSECTION    
+       3271        OPEN             3.4389E-06                         
+       3273        OPEN             1.0000E+36      NO INTERSECTION    
+       3273        OPEN             3.4389E-06                         
+       3274        OPEN             1.0000E+36      NO INTERSECTION    
+       3274        OPEN             3.4389E-06                         
+       3318        OPEN             1.0000E+36      NO INTERSECTION    
+       3318        OPEN             3.4389E-06                         
+       3319        OPEN             1.0000E+36      NO INTERSECTION    
+       3319        OPEN             3.4389E-06                         
+       3321        OPEN             1.0000E+36      NO INTERSECTION    
+       3321        OPEN             3.4389E-06                         
+       3322        OPEN             1.0000E+36      NO INTERSECTION    
+       3322        OPEN             3.4389E-06                         
+       3324        OPEN             1.0000E+36      NO INTERSECTION    
+       3324        OPEN             3.4389E-06                         
+       3325        OPEN             1.0000E+36      NO INTERSECTION    
+       3325        OPEN             3.4389E-06                         
+       3327        OPEN             1.0000E+36      NO INTERSECTION    
+       3327        OPEN             3.4389E-06                         
+       3391        OPEN             1.0000E+36      NO INTERSECTION    
+       3391        OPEN             3.4389E-06                         
+       3392        OPEN             1.0000E+36      NO INTERSECTION    
+       3392        OPEN             3.4389E-06                         
+       3394        OPEN             1.0000E+36      NO INTERSECTION    
+       3394        OPEN             3.4389E-06                         
+       3396        OPEN             1.0000E+36      NO INTERSECTION    
+       3396        OPEN             3.4389E-06                         
+       3397        OPEN             1.0000E+36      NO INTERSECTION    
+       3397        OPEN             3.4389E-06                         
+       3399        OPEN             1.0000E+36      NO INTERSECTION    
+       3399        OPEN             3.4389E-06                         
+       3400        OPEN             1.0000E+36      NO INTERSECTION    
+       3400        OPEN             3.4389E-06                         
+       3402        OPEN             1.0000E+36      NO INTERSECTION    
+       3402        OPEN             3.4389E-06                         
+       3403        OPEN             1.0000E+36      NO INTERSECTION    
+       3403        OPEN             3.4389E-06                         
+       3457        OPEN             1.0000E+36      NO INTERSECTION    
+       3457        OPEN             3.4389E-06                         
+       3458        OPEN             1.0000E+36      NO INTERSECTION    
+       3458        OPEN             3.4389E-06                         
+       3460        OPEN             1.0000E+36      NO INTERSECTION    
+       3460        OPEN             3.4389E-06                         
+       3461        OPEN             1.0000E+36      NO INTERSECTION    
+       3461        OPEN             3.4389E-06                         
+       3463        OPEN             1.0000E+36      NO INTERSECTION    
+       3463        OPEN             3.4389E-06                         
+       3464        OPEN             1.0000E+36      NO INTERSECTION    
+       3464        OPEN             3.4389E-06                         
+       3466        OPEN             1.0000E+36      NO INTERSECTION    
+       3466        OPEN             3.4389E-06                         
+       3467        OPEN             1.0000E+36      NO INTERSECTION    
+       3467        OPEN             3.4389E-06                         
+       3521        OPEN             1.0000E+36      NO INTERSECTION    
+       3521        OPEN             3.4389E-06                         
+       3522        OPEN             1.0000E+36      NO INTERSECTION    
+       3522        OPEN             3.4389E-06                         
+       3524        OPEN             1.0000E+36      NO INTERSECTION    
+       3524        OPEN             3.4389E-06                         
+       3525        OPEN             1.0000E+36      NO INTERSECTION    
+       3525        OPEN             3.4389E-06                         
+       3527        OPEN             1.0000E+36      NO INTERSECTION    
+       3527        OPEN             3.4389E-06                         
+       3528        OPEN             1.0000E+36      NO INTERSECTION    
+       3528        OPEN             3.4389E-06                         
+       3530        OPEN             1.0000E+36      NO INTERSECTION    
+       3530        OPEN             3.4389E-06                         
+       3531        OPEN             1.0000E+36      NO INTERSECTION    
+       3531        OPEN             3.4389E-06                         
+       3575        OPEN             1.0000E+36      NO INTERSECTION    
+       3575        OPEN             3.4389E-06                         
+       3576        OPEN             1.0000E+36      NO INTERSECTION    
+       3576        OPEN             3.4389E-06                         
+       3578        OPEN             1.0000E+36      NO INTERSECTION    
+       3578        OPEN             3.4389E-06                         
+       3579        OPEN             1.0000E+36      NO INTERSECTION    
+       3579        OPEN             3.4389E-06                         
+       3581        OPEN             1.0000E+36      NO INTERSECTION    
+       3581        OPEN             3.4389E-06                         
+       3582        OPEN             1.0000E+36      NO INTERSECTION    
+       3582        OPEN             3.4389E-06                         
+       3584        OPEN             1.0000E+36      NO INTERSECTION    
+       3584        OPEN             3.4389E-06                         
+       3648        OPEN             1.0000E+36      NO INTERSECTION    
+       3648        OPEN             3.4389E-06                         
+       3649        OPEN             1.0000E+36      NO INTERSECTION    
+       3649        OPEN             3.4389E-06                         
+       3651        OPEN             3.4389E-06                         
+       3653        OPEN             1.0000E+36      NO INTERSECTION    
+       3653        OPEN             3.4389E-06                         
+       3654        OPEN             3.4389E-06                         
+       3656        OPEN             1.0000E+36      NO INTERSECTION    
+       3656        OPEN             3.4389E-06                         
+       3657        OPEN             3.4389E-06                         
+       3659        OPEN             1.0000E+36      NO INTERSECTION    
+       3659        OPEN             3.4389E-06                         
+       3660        OPEN             3.4389E-06                         
+       3714        OPEN             1.0000E+36      NO INTERSECTION    
+       3714        OPEN             3.4389E-06                         
+       3715        OPEN             3.4389E-06                         
+       3717        OPEN             1.0000E+36      NO INTERSECTION    
+       3717        OPEN             3.4389E-06                         
+       3718        OPEN             3.4389E-06                         
+       3720        OPEN             1.0000E+36      NO INTERSECTION    
+       3720        OPEN             3.4389E-06                         
+       3721        OPEN             3.4389E-06                         
+       3723        OPEN             1.0000E+36      NO INTERSECTION    
+       3723        OPEN             3.4389E-06                         
+       3724        OPEN             3.4389E-06                         
+       3778        OPEN             1.0000E+36      NO INTERSECTION    
+       3778        OPEN             3.4389E-06                         
+       3779        OPEN             3.4389E-06                         
+       3781        OPEN             1.0000E+36      NO INTERSECTION    
+       3781        OPEN             3.4389E-06                         
+       3782        OPEN             3.4389E-06                         
+       3784        OPEN             1.0000E+36      NO INTERSECTION    
+       3784        OPEN             3.4389E-06                         
+       3785        OPEN             3.4389E-06                         
+       3787        OPEN             1.0000E+36      NO INTERSECTION    
+       3787        OPEN             3.4389E-06                         
+       3788        OPEN             3.4389E-06                         
+       3832        OPEN             1.0000E+36      NO INTERSECTION    
+       3832        OPEN             3.4389E-06                         
+       3833        OPEN             3.4389E-06                         
+       3835        OPEN             1.0000E+36      NO INTERSECTION    
+       3835        OPEN             3.4389E-06                         
+       3836        OPEN             3.4389E-06                         
+       3838        OPEN             1.0000E+36      NO INTERSECTION    
+       3838        OPEN             3.4389E-06                         
+       3839        OPEN             3.4389E-06                         
+       3841        OPEN             3.4389E-06                         
+
+
+     LABELS REFERENCED IN THE ABOVE TABLE
+
+      -12-     INTERNAL_PRESSURE_PATH                                                          
+
+
+     LABELS REFERENCED IN THE ABOVE TABLE
+
+      -13-     EXTERNAL_PRESSURE_PATH                                                          
+
+
+
+                            P R O B L E M   S I Z E
+
+
+          NUMBER OF ELEMENTS IS                                  2176
+          NUMBER OF ELEMENTS DEFINED BY THE USER AND *TIE        1152
+          NUMBER OF INTERNAL ELEMENTS GENERATED FOR CONTACT      1024
+          NUMBER OF NODES IS                                     9041
+          NUMBER OF NODES DEFINED BY THE USER                    5969
+          NUMBER OF INTERNAL NODES GENERATED BY THE PROGRAM      3072
+          TOTAL NUMBER OF VARIABLES IN THE MODEL                23892
+          (DEGREES OF FREEDOM PLUS MAX NO. OF ANY LAGRANGE MULTIPLIER
+           VARIABLES. INCLUDE *PRINT,SOLVE=YES TO GET THE ACTUAL NUMBER.)
+
+
+
+                              END OF USER INPUT PROCESSING
+
+
+
+     JOB TIME SUMMARY
+       USER TIME (SEC)      =     0.30    
+       SYSTEM TIME (SEC)    =     0.10    
+       TOTAL CPU TIME (SEC) =     0.40    
+       WALLCLOCK TIME (SEC) =            0
+1
+
+   Abaqus 2025                                  Date 16-9ÔÂ-2026   Time 10:52:17
+   For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
+
+                                                                                               STEP    1  INCREMENT    1
+                                                                                          TIME COMPLETED IN THIS STEP   0.00    
+
+
+                        S T E P       1     C O U P L E D - T E M P E R A T U R E - D I S P L A C E M E N T   A N A L Y S I S
+
+
+                                                                                          
+
+          FIXED TIME INCREMENTS
+          TIME INCREMENT IS                                    5.000E-02
+          TIME PERIOD IS                                        1.00    
+          THE RATE DEPENDENCY WILL BE CONSIDERED IN THIS STEP
+
+          IMPLICIT TIME INTEGRATION WILL BE USED 
+          FOR CREEP AND SWELLING EFFECTS.
+
+          LARGE DISPLACEMENT THEORY WILL BE USED
+
+          UNSYMMETRIC MATRIX STORAGE AND SOLUTION WILL BE USED
+  
+                   M E M O R Y   E S T I M A T E
+  
+ PROCESS      FLOATING PT       MINIMUM MEMORY        MEMORY TO
+              OPERATIONS           REQUIRED          MINIMIZE I/O
+             PER ITERATION           (MB)               (MB)
+  
+     1          3.99E+10               52                416
+  
+ NOTE:
+      (1) SINCE ABAQUS DOES NOT PRE-ALLOCATE MEMORY AND ONLY ALLOCATES MEMORY AS NEEDED DURING THE ANALYSIS,
+          THE MEMORY REQUIREMENT PRINTED HERE CAN ONLY BE VIEWED AS A GENERAL GUIDELINE BASED ON THE BEST
+          KNOWLEDGE AVAILABLE AT THE BEGINNING OF A STEP BEFORE THE SOLUTION PROCESS HAS BEGUN.
+      (2) THE ESTIMATE IS NORMALLY UPDATED AT THE BEGINNING OF EVERY STEP. IT IS THE MAXIMUM VALUE OF THE
+          ESTIMATE FROM THE CURRENT STEP TO THE LAST STEP OF THE ANALYSIS, WITH UNSYMMETRIC SOLUTION TAKEN
+          INTO ACCOUNT IF APPLICABLE. 
+      (3) SINCE THE ESTIMATE IS BASED ON THE ACTIVE DEGREES OF FREEDOM IN THE FIRST ITERATION OF THE 
+          CURRENT STEP, THE MEMORY ESTIMATE MIGHT BE SIGNIFICANTLY DIFFERENT THAN ACTUAL USAGE FOR 
+          PROBLEMS WITH SUBSTANTIAL CHANGES IN ACTIVE DEGREES OF FREEDOM BETWEEN STEPS (OR EVEN WITHIN
+          THE SAME STEP). EXAMPLES ARE: PROBLEMS WITH SIGNIFICANT CONTACT CHANGES, PROBLEMS WITH MODEL
+          CHANGE, PROBLEMS WITH BOTH STATIC STEP AND STEADY STATE DYNAMIC PROCEDURES WHERE ACOUSTIC 
+          ELEMENTS WILL ONLY BE ACTIVATED IN THE STEADY STATE DYNAMIC STEPS.
+      (4) FOR MULTI-PROCESS EXECUTION, THE ESTIMATED VALUE OF FLOATING POINT OPERATIONS FOR EACH PROCESS
+          IS BASED ON AN INITIAL SCHEDULING OF OPERATIONS AND MIGHT NOT REFLECT THE ACTUAL FLOATING 
+          POINT OPERATIONS COMPLETED ON EACH PROCESS. OPERATIONS ARE DYNAMICALLY BALANCED DURING EXECUTION, 
+          SO THE ACTUAL BALANCE OF OPERATIONS BETWEEN PROCESSES IS EXPECTED TO BE BETTER THAN THE ESTIMATE
+          PRINTED HERE.
+      (5) THE UPPER LIMIT OF MEMORY THAT CAN BE ALLOCATED BY ABAQUS WILL IN GENERAL DEPEND ON THE VALUE OF
+          THE "MEMORY" PARAMETER AND THE AMOUNT OF PHYSICAL MEMORY AVAILABLE ON THE MACHINE. PLEASE SEE
+          THE "ABAQUS ANALYSIS USER'S MANUAL" FOR MORE DETAILS. THE ACTUAL USAGE OF MEMORY AND OF DISK
+          SPACE FOR SCRATCH DATA WILL DEPEND ON THIS UPPER LIMIT AS WELL AS THE MEMORY REQUIRED TO MINIMIZE
+          I/O. IF THE MEMORY UPPER LIMIT IS GREATER THAN THE MEMORY REQUIRED TO MINIMIZE I/O, THEN THE ACTUAL
+          MEMORY USAGE WILL BE CLOSE TO THE ESTIMATED "MEMORY TO MINIMIZE I/O" VALUE, AND THE SCRATCH DISK
+          USAGE WILL BE CLOSE-TO-ZERO; OTHERWISE, THE ACTUAL MEMORY USED WILL BE CLOSE TO THE PREVIOUSLY
+          MENTIONED MEMORY LIMIT, AND THE SCRATCH DISK USAGE WILL BE ROUGHLY PROPORTIONAL TO THE DIFFERENCE
+          BETWEEN THE ESTIMATED "MEMORY TO MINIMIZE I/O" AND THE MEMORY UPPER LIMIT. HOWEVER ACCURATE
+          ESTIMATE OF THE SCRATCH DISK SPACE IS NOT POSSIBLE.
+      (6) USING "*RESTART, WRITE" CAN GENERATE A LARGE AMOUNT OF DATA WRITTEN IN THE WORK DIRECTORY.
+
+
+          THE ANALYSIS HAS BEEN COMPLETED
+
+
+
+                              ANALYSIS COMPLETE
+                              WITH      5 WARNING MESSAGES ON THE DAT FILE
+
+
+
+     JOB TIME SUMMARY
+       USER TIME (SEC)      =     6.92E+02
+       SYSTEM TIME (SEC)    =     1.22E+02
+       TOTAL CPU TIME (SEC) =     8.15E+02
+       WALLCLOCK TIME (SEC) =          584
