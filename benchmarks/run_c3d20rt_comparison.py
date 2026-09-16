@@ -73,7 +73,7 @@ def main():
                     row[key] = values[key]
                 rows.append(row)
                 with (output / "runs.csv").open("w", newline="") as stream:
-                    writer = csv.DictWriter(stream, fieldnames=list(row))
+                    writer = csv.DictWriter(stream, fieldnames=list(row), lineterminator="\n")
                     writer.writeheader()
                     writer.writerows(rows)
                 print(f"{case} {label} repeat={repeat} wall={elapsed:.6f}s", flush=True)
