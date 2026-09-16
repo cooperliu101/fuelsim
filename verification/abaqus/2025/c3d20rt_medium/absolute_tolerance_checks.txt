@@ -1,0 +1,31 @@
+PASS displacement nonzero absolute boundary 0.5
+PASS displacement zero reference boundary 0.5
+PASS displacement nonzero absolute boundary 1
+PASS displacement zero reference boundary 1
+PASS displacement nonzero absolute boundary 2
+PASS displacement zero reference boundary 2
+PASS displacement relative pass with larger absolute difference
+PASS reaction nonzero absolute boundary 0.5
+PASS reaction zero reference boundary 0.5
+PASS reaction nonzero absolute boundary 1
+PASS reaction zero reference boundary 1
+PASS reaction nonzero absolute boundary 2
+PASS reaction zero reference boundary 2
+PASS reaction relative pass with larger absolute difference
+PASS contact_slip nonzero absolute boundary 0.5
+PASS contact_slip zero reference boundary 0.5
+PASS contact_slip nonzero absolute boundary 1
+PASS contact_slip zero reference boundary 1
+PASS contact_slip nonzero absolute boundary 2
+PASS contact_slip zero reference boundary 2
+PASS contact_slip relative pass with larger absolute difference
+PASS unapproved field retains its relative check
+PASS absolute check uses the vector difference norm
+PASS relative threshold equality still fails
+PASS entire near-zero field uses its absolute check
+PASS entire near-zero field rejects excessive absolute difference
+PASS field scale at the absolute threshold retains aggregate relative checks
+PASS unapproved entire near-zero field retains its relative check
+PASS aggregate peak failure cannot pass by absolute tolerance
+PASS aggregate L2 failure cannot pass by absolute tolerance
+All 30 tolerance checks passed.

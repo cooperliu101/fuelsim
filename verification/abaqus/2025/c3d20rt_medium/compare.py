@@ -44,6 +44,15 @@ def metrics(name, actual, reference, labels, zero_tolerance, scope):
     zero_difference = float(np.max(delta[zero], initial=0.0))
     passed = (not np.any(nonzero) or max(l2, peak, float(relative[worst])) < 0.001)
     passed = passed and zero_difference < zero_tolerance
+    # This case's authorized near-zero checks reuse its existing absolute tolerances.
+    pointwise_absolute_tolerance = zero_tolerance if name in ("displacement", "reaction", "contact_slip") else 0.0
+    absolute_accepted = int(np.count_nonzero(delta[failed] < pointwise_absolute_tolerance))
+    remaining_failures = len(failed) - absolute_accepted
+    qualified = (not np.any(nonzero) or max(l2, peak) < 0.001)
+    near_zero_field = 0.0 < maximum_ref < pointwise_absolute_tolerance
+    if near_zero_field:
+        qualified = float(delta[absolute_worst]) < pointwise_absolute_tolerance
+    qualified = qualified and remaining_failures == 0 and zero_difference < zero_tolerance
     return {"scope": scope, "field": name, "samples": len(ref), "relative_l2_percent": 100 * l2,
             "relative_absolute_peak_percent": 100 * peak,
             "maximum_pointwise_relative_percent": 100 * float(relative[worst]) if np.any(nonzero) else float("nan"),
@@ -58,7 +67,13 @@ def metrics(name, actual, reference, labels, zero_tolerance, scope):
             "largest_failed_absolute_difference": float(np.max(delta[failed], initial=0.0)),
             "largest_difference_sample": labels[failed_worst] if failed_worst is not None else "",
             "zero_reference_absolute_failures": int(np.count_nonzero(zero & (delta >= zero_tolerance))),
-            "zero_absolute_tolerance": zero_tolerance, "strict_0_1_percent_passed": int(passed)}
+            "zero_absolute_tolerance": zero_tolerance, "strict_0_1_percent_passed": int(passed),
+            "pointwise_absolute_tolerance": pointwise_absolute_tolerance,
+            "nonzero_pointwise_absolute_accepted": absolute_accepted,
+            "nonzero_pointwise_failures_after_absolute_check": remaining_failures,
+            "maximum_reference_norm": maximum_ref,
+            "near_zero_field_absolute_check": int(near_zero_field),
+            "qualified_passed": int(qualified)}
 
 
 def main():
@@ -229,14 +244,18 @@ def main():
             writer = csv.DictWriter(stream, fieldnames=list(records[0]), lineterminator="\n")
             writer.writeheader()
             writer.writerows(records)
-    passed = all(row["strict_0_1_percent_passed"] for row in rows)
-    print(json.dumps({"completed_increments": 20, "complete_coverage": True, "strict_0_1_percent_passed": passed}))
+    strict_passed = all(row["strict_0_1_percent_passed"] for row in rows + by_frame)
+    passed = all(row["qualified_passed"] for row in rows + by_frame)
+    print(json.dumps({"completed_increments": 20, "complete_coverage": True,
+                      "strict_0_1_percent_passed": strict_passed, "qualified_passed": passed}))
     for row in rows:
         if row["scope"] == "all_frames":
-            print("%s L2=%.8g%% peak=%.8g%% pointwise=%.8g%% zero_abs=%.8g passed=%d" %
+            print("%s L2=%.8g%% peak=%.8g%% pointwise=%.8g%% zero_abs=%.8g "
+                  "strict_passed=%d absolute_accepted=%d remaining_failures=%d qualified_passed=%d" %
                   (row["field"], row["relative_l2_percent"], row["relative_absolute_peak_percent"],
                    row["maximum_pointwise_relative_percent"], row["maximum_zero_reference_absolute_difference"],
-                   row["strict_0_1_percent_passed"]))
+                   row["strict_0_1_percent_passed"], row["nonzero_pointwise_absolute_accepted"],
+                   row["nonzero_pointwise_failures_after_absolute_check"], row["qualified_passed"]))
     return 0 if passed else 1
 
 

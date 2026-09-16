@@ -1,24 +1,24 @@
-{"completed_increments": 20, "complete_coverage": true, "strict_0_1_percent_passed": false}
-temperature_corner L2=1.137417e-06% peak=5.5904507e-09% pointwise=1.7164601e-05% zero_abs=0 passed=1
-temperature_interpolated L2=1.0336928e-06% peak=6.226709e-09% pointwise=1.716458e-05% zero_abs=0 passed=1
-displacement L2=1.3043211e-07% peak=2.9157763e-07% pointwise=100% zero_abs=0 passed=0
-reaction L2=7.3589407e-06% peak=1.4097559e-05% pointwise=6163.4575% zero_abs=6.5521021e-06 passed=0
-heat_reaction L2=0.00072369954% peak=0.00055678638% pointwise=0.0098211982% zero_abs=5.2752531e-12 passed=1
-contact_gap L2=0.0007221072% peak=0.00033631858% pointwise=0.0041672469% zero_abs=0 passed=1
-contact_pressure L2=0.00073204432% peak=0.00038955965% pointwise=0.0041255793% zero_abs=0 passed=1
-contact_normal_force L2=0.000631632% peak=0.0016264624% pointwise=0.003006217% zero_abs=0 passed=1
-contact_tangential_force L2=0.00063255728% peak=0.0016621317% pointwise=0.0030709976% zero_abs=0 passed=1
-contact_slip L2=0.0035827398% peak=0.0047882722% pointwise=100% zero_abs=0 passed=0
-contact_heat_rate L2=3.3994059e-05% peak=4.1392849e-05% pointwise=0.00039563238% zero_abs=0 passed=1
-fuel_stress L2=5.3808144e-06% peak=9.4557462e-06% pointwise=0.0005066703% zero_abs=0 passed=1
-fuel_equivalent_stress L2=3.3439007e-06% peak=2.2490211e-06% pointwise=0.00028650486% zero_abs=0 passed=1
-cladding_stress L2=1.3407001e-05% peak=2.0493325e-05% pointwise=9.317471e-05% zero_abs=0 passed=1
-cladding_equivalent_stress L2=2.9201943e-06% peak=2.5547588e-06% pointwise=2.4061049e-05% zero_abs=0 passed=1
-fuel_elastic_strain L2=5.9025785e-06% peak=1.1413154e-05% pointwise=0.00031910809% zero_abs=0 passed=1
-cladding_elastic_strain L2=1.1316292e-05% peak=4.5349278e-05% pointwise=9.5030317e-05% zero_abs=0 passed=1
-fuel_plastic_strain L2=nan% peak=nan% pointwise=nan% zero_abs=0 passed=1
-cladding_plastic_strain L2=4.6564818e-06% peak=1.1863195e-05% pointwise=7.1556132e-05% zero_abs=0 passed=1
-fuel_creep_strain L2=nan% peak=nan% pointwise=nan% zero_abs=0 passed=1
-cladding_creep_strain L2=1.1455388e-05% peak=1.6390403e-05% pointwise=7.6717783e-05% zero_abs=0 passed=1
-cladding_equiv_plastic L2=2.9954089e-06% peak=2.5927048e-06% pointwise=3.5127091e-05% zero_abs=0 passed=1
-cladding_equiv_creep L2=7.0265024e-06% peak=5.1907524e-06% pointwise=4.2731308e-05% zero_abs=0 passed=1
+{"completed_increments": 20, "complete_coverage": true, "strict_0_1_percent_passed": false, "qualified_passed": true}
+temperature_corner L2=1.137417e-06% peak=5.5904507e-09% pointwise=1.7164601e-05% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+temperature_interpolated L2=1.0336928e-06% peak=6.226709e-09% pointwise=1.716458e-05% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+displacement L2=1.3043211e-07% peak=2.9157763e-07% pointwise=100% zero_abs=0 strict_passed=0 absolute_accepted=2560 remaining_failures=0 qualified_passed=1
+reaction L2=7.3589407e-06% peak=1.4097559e-05% pointwise=6163.4575% zero_abs=6.5521021e-06 strict_passed=0 absolute_accepted=20 remaining_failures=0 qualified_passed=1
+heat_reaction L2=0.00072369954% peak=0.00055678638% pointwise=0.0098211982% zero_abs=5.2752531e-12 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+contact_gap L2=0.0007221072% peak=0.00033631858% pointwise=0.0041672469% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+contact_pressure L2=0.00073204432% peak=0.00038955965% pointwise=0.0041255793% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+contact_normal_force L2=0.000631632% peak=0.0016264624% pointwise=0.003006217% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+contact_tangential_force L2=0.00063255728% peak=0.0016621317% pointwise=0.0030709976% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+contact_slip L2=0.0035827398% peak=0.0047882722% pointwise=100% zero_abs=0 strict_passed=0 absolute_accepted=1856 remaining_failures=0 qualified_passed=1
+contact_heat_rate L2=3.3994059e-05% peak=4.1392849e-05% pointwise=0.00039563238% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+fuel_stress L2=5.3808144e-06% peak=9.4557462e-06% pointwise=0.0005066703% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+fuel_equivalent_stress L2=3.3439007e-06% peak=2.2490211e-06% pointwise=0.00028650486% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+cladding_stress L2=1.3407001e-05% peak=2.0493325e-05% pointwise=9.317471e-05% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+cladding_equivalent_stress L2=2.9201943e-06% peak=2.5547588e-06% pointwise=2.4061049e-05% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+fuel_elastic_strain L2=5.9025785e-06% peak=1.1413154e-05% pointwise=0.00031910809% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+cladding_elastic_strain L2=1.1316292e-05% peak=4.5349278e-05% pointwise=9.5030317e-05% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+fuel_plastic_strain L2=nan% peak=nan% pointwise=nan% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+cladding_plastic_strain L2=4.6564818e-06% peak=1.1863195e-05% pointwise=7.1556132e-05% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+fuel_creep_strain L2=nan% peak=nan% pointwise=nan% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+cladding_creep_strain L2=1.1455388e-05% peak=1.6390403e-05% pointwise=7.6717783e-05% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+cladding_equiv_plastic L2=2.9954089e-06% peak=2.5927048e-06% pointwise=3.5127091e-05% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
+cladding_equiv_creep L2=7.0265024e-06% peak=5.1907524e-06% pointwise=4.2731308e-05% zero_abs=0 strict_passed=1 absolute_accepted=0 remaining_failures=0 qualified_passed=1
