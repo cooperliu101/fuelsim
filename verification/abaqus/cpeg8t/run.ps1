@@ -5,7 +5,7 @@ $SourceDirectory = (Resolve-Path $SourceDirectory).Path
 $Work = Join-Path $env:TEMP ('cpeg8t_'+$JobName+'_'+(Get-Date -Format 'yyyyMMdd_HHmmss'))
 New-Item -ItemType Directory -Path $Work | Out-Null
 Copy-Item (Join-Path $SourceDirectory ($JobName+'.inp')) $Work
-Copy-Item (Join-Path $SourceDirectory 'extract.py') $Work
+Copy-Item (Join-Path $PSScriptRoot 'extract.py') $Work
 Set-Location $Work
 & 'C:\SIMULIA\Commands\abaqus.bat' "job=$JobName" "input=$JobName.inp" cpus=1 output_precision=full ask_delete=OFF interactive
 $SolveCode = $LASTEXITCODE

@@ -1,0 +1,22 @@
+{
+  "base_commit": "e3aa43a",
+  "source": "independent source snapshot containing the CPEG8T changes only",
+  "executable_sha256": "e39ec94ce046ff991d9e9274e16a4245f0e679daf0877c1bf65f972ddfe1e964",
+  "regression": {
+    "command": "ctest --test-dir /tmp/cpeg8t-validation-build -j8 --output-on-failure",
+    "passed": 348,
+    "failed": 0,
+    "wall_seconds": 154.77,
+    "scope": "independent source snapshot excluding unrelated shared-workspace changes"
+  },
+  "return_codes": {
+    "sections": 1,
+    "inelastic": 1,
+    "cycle": 0
+  },
+  "interpretation": {
+    "sections": "native comparison failed",
+    "inelastic": "native comparison failed; analytical check passed",
+    "cycle": "analytical distribution passed; native distribution remains failed"
+  }
+}

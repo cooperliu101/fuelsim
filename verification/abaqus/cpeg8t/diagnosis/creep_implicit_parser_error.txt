@@ -1,0 +1,4 @@
+ ***ERROR: in keyword *COUPLEDTEMPERATURE-DISPLACEMENT, file
+           "creep_implicit_request.inp", line 90: Illegal value "IMPLICIT" for
+           parameter "creep".  The value may be misspelled, obsolete, or
+           invalid.

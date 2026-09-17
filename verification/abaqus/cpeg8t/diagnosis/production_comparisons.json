@@ -1,0 +1,1415 @@
+{
+  "sections_contact": {
+    "status": "failed",
+    "metrics": {
+      "temperature": {
+        "count": 8,
+        "maximum_absolute": 3.4962084782819147e-06,
+        "relative_l2": 4.139710609374865e-09,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 9.535113372613245e-09
+      },
+      "displacement_x": {
+        "count": 16,
+        "maximum_absolute": 1.236574894807835e-38,
+        "zero_absolute": 1.236574894807835e-38
+      },
+      "displacement_y": {
+        "count": 16,
+        "maximum_absolute": 8.074829860215869e-08,
+        "zero_absolute": 1.3550199419693745e-42,
+        "relative_l2": 0.00023060466110449456,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 0.0008261992265228145
+      },
+      "reaction_x": {
+        "status": "failed",
+        "reason": "reaction_x: exceeds 0.5%: {'count': 16, 'maximum_absolute': 0.0039796010808567095, 'relative_l2': 0.003163257926038996, 'relative_peak': 0.0012217849699727493, 'maximum_pointwise_relative': 0.43307565095522965}",
+        "actual": [
+          0.30078095334554034,
+          0.1109269612934713,
+          0.0600531849142056,
+          0.07188297107207453,
+          -0.30910223405139525,
+          0.06363743754745707,
+          -0.7479331848936023,
+          0.46749785020020446,
+          -0.03765981611543253,
+          -0.6025177280230025,
+          -0.9253768560889801,
+          -0.005208435909114323,
+          1.2797684908275833,
+          -1.760235903748471,
+          0.8241596437696087,
+          1.2093266658598525
+        ],
+        "reference": [
+          0.3023547913423075,
+          0.11250065525657293,
+          0.06292049698097789,
+          0.074747140573015,
+          -0.3130814972545404,
+          0.0614844333210639,
+          -0.7477230549208139,
+          0.46534542210845126,
+          -0.03506127205247934,
+          -0.5999206241386276,
+          -0.9238030468928887,
+          -0.0036344458896099396,
+          1.2789059946572061,
+          -1.7623891643407052,
+          0.820180042688752,
+          1.2071741285613182
+        ]
+      },
+      "reaction_y": {
+        "count": 16,
+        "maximum_absolute": 0.0027523447394961487,
+        "zero_absolute": 1.865174681370263e-14,
+        "relative_l2": 0.0003088325222128608,
+        "relative_peak": 1.1000350364707891e-09,
+        "maximum_pointwise_relative": 0.0010355315271345046
+      },
+      "heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 1.405247715524638e-06,
+        "zero_absolute": 5.684341886080802e-14,
+        "relative_l2": 3.0962062901803325e-08,
+        "relative_peak": 1.70659037614087e-08,
+        "maximum_pointwise_relative": 4.215743701165564e-08
+      },
+      "stress_xx": {
+        "status": "failed",
+        "reason": "stress_xx: exceeds 0.5%: {'count': 18, 'maximum_absolute': 2.9420482011628337, 'relative_l2': 0.001148133474142706, 'relative_peak': 0.000525348244544583, 'maximum_pointwise_relative': 0.012277121053787459}",
+        "actual": [
+          -1184.7291702398863,
+          -509.45435344390626,
+          165.8207075881969,
+          -923.849404013434,
+          -302.8952416461929,
+          318.05916495717264,
+          -662.969637786983,
+          -96.33612984847814,
+          470.297622326149,
+          -641.2519353128199,
+          -1814.0534301837208,
+          -2986.8539407172,
+          -998.0271686696747,
+          -2227.1716537791835,
+          -3456.3151545512746,
+          -1354.8024020265336,
+          -2640.28987737466,
+          -3925.776368385356
+        ],
+        "reference": [
+          -1186.789868589245,
+          -509.45455854620513,
+          167.8818129282463,
+          -926.3504306680438,
+          -302.8954467484773,
+          320.56059860250116,
+          -665.9109927468453,
+          -96.3363349507481,
+          473.2393842767551,
+          -644.1935035553365,
+          -1814.0536932077005,
+          -2983.9118925160374,
+          -1000.5283712188075,
+          -2227.1719168031514,
+          -3453.813472043478,
+          -1356.8632388822866,
+          -2640.2901403986025,
+          -3923.71505157092
+        ]
+      },
+      "stress_yy": {
+        "count": 18,
+        "maximum_absolute": 8.826161025795955,
+        "relative_l2": 0.0006942774925644407,
+        "relative_peak": 0.0006401240874552863,
+        "maximum_pointwise_relative": 0.001038504894831619
+      },
+      "stress_zz": {
+        "status": "failed",
+        "reason": "stress_zz: exceeds 0.5%: {'count': 18, 'maximum_absolute': 2.9420317788531065, 'relative_l2': 0.0003301786591169112, 'relative_peak': 0.0002686062566846832, 'maximum_pointwise_relative': 0.5054435545755372}",
+        "actual": [
+          4336.561488187439,
+          6870.868311162958,
+          9405.1753783746,
+          5217.1185898070335,
+          7697.104758353815,
+          10177.091171136719,
+          6097.675691426627,
+          8523.341205544672,
+          10949.006963898839,
+          5923.660792791624,
+          1652.4726209547866,
+          -2618.7145665446287,
+          4327.530888648373,
+          -0.00027342707244315534,
+          -4327.5304511651,
+          2731.4009845051173,
+          -1652.473167808946,
+          -6036.346335785578
+        ],
+        "reference": [
+          4334.500789838019,
+          6870.868106060611,
+          9407.236483714616,
+          5214.617563152406,
+          7697.104553251523,
+          10179.592604782054,
+          6094.734336466785,
+          8523.341000442435,
+          10951.948725849492,
+          5920.719208126765,
+          1652.472341508481,
+          -2615.7725347657756,
+          4325.0296696769265,
+          -0.0005528733372557326,
+          -4325.028785079584,
+          2729.3401312270794,
+          -1652.4734472551568,
+          -6034.285035393394
+        ]
+      },
+      "stress_xy": {
+        "status": "failed",
+        "reason": "stress_xy: exceeds 0.5%: {'count': 18, 'maximum_absolute': 2.7931535688081226, 'relative_l2': 0.007955556432960401, 'relative_peak': 0.00775834139974083, 'maximum_pointwise_relative': 0.008175719280354531}",
+        "actual": [
+          -35.84146673402816,
+          -35.84143119835003,
+          -35.841395662672156,
+          -176.5422845471383,
+          -176.54212689339894,
+          -176.5419692396592,
+          -344.40342957461854,
+          -344.40314980281664,
+          -344.4028700310147,
+          -357.2240110504381,
+          -357.22513860621564,
+          -357.2262661619901,
+          -183.11408288841022,
+          -183.11471827547956,
+          -183.11535366254822,
+          -37.17564984568669,
+          -37.175793064047824,
+          -37.17593628241346
+        ],
+        "reference": [
+          -35.55105164022688,
+          -35.550897204903364,
+          -35.550742769579976,
+          -175.11174505231742,
+          -175.11105990128686,
+          -175.11037475025637,
+          -341.6126015261425,
+          -341.611385659407,
+          -341.61016979267055,
+          -360.0148598637036,
+          -360.01713979725076,
+          -360.01941973079823,
+          -184.544622017406,
+          -184.5459067789431,
+          -184.54719154048018,
+          -37.466062137092926,
+          -37.46635172662584,
+          -37.46664131615762
+        ]
+      },
+      "section_lower_u3": {
+        "count": 1,
+        "maximum_absolute": 3.725290258563274e-12,
+        "relative_l2": 3.7252902724410615e-09,
+        "relative_peak": 3.7252902724410615e-09,
+        "maximum_pointwise_relative": 3.7252902724410615e-09
+      },
+      "section_lower_rotation_x": {
+        "count": 1,
+        "maximum_absolute": 4.470348362317633e-10,
+        "relative_l2": 2.235174231118854e-08,
+        "relative_peak": 2.235174231118854e-08,
+        "maximum_pointwise_relative": 2.235174231118854e-08
+      },
+      "section_lower_rotation_y": {
+        "count": 1,
+        "maximum_absolute": 6.705522526129215e-10,
+        "relative_l2": 2.235174225336442e-08,
+        "relative_peak": 2.235174225336442e-08,
+        "maximum_pointwise_relative": 2.235174225336442e-08
+      },
+      "section_lower_axial_force": {
+        "count": 1,
+        "maximum_absolute": 2.905757412463572e-09,
+        "relative_l2": 1.8875651842876042e-09,
+        "relative_peak": 1.8875651842876042e-09,
+        "maximum_pointwise_relative": 1.8875651842876042e-09
+      },
+      "section_lower_moment_x": {
+        "count": 1,
+        "maximum_absolute": 1.0016866893239329e-11,
+        "relative_l2": 2.8172438930923844e-08,
+        "relative_peak": 2.8172438930923844e-08,
+        "maximum_pointwise_relative": 2.8172438930923844e-08
+      },
+      "section_lower_moment_y": {
+        "count": 1,
+        "maximum_absolute": 2.1527136941403013e-06,
+        "relative_l2": 0.0010075487864011769,
+        "relative_peak": 0.0010075487864011769,
+        "maximum_pointwise_relative": 0.0010075487864011769
+      },
+      "section_upper_u3": {
+        "count": 1,
+        "maximum_absolute": 8.393558580382238e-12,
+        "relative_l2": 3.0149663025904164e-08,
+        "relative_peak": 3.0149663025904164e-08,
+        "maximum_pointwise_relative": 3.0149663025904164e-08
+      },
+      "section_upper_rotation_x": {
+        "count": 1,
+        "maximum_absolute": 8.940696724635266e-10,
+        "relative_l2": 2.235174231118854e-08,
+        "relative_peak": 2.235174231118854e-08,
+        "maximum_pointwise_relative": 2.235174231118854e-08
+      },
+      "section_upper_rotation_y": {
+        "count": 1,
+        "maximum_absolute": 7.450580569168253e-10,
+        "relative_l2": 1.4901160916291903e-08,
+        "relative_peak": 1.4901160916291903e-08,
+        "maximum_pointwise_relative": 1.4901160916291903e-08
+      },
+      "section_upper_axial_force": {
+        "count": 1,
+        "maximum_absolute": 2.942091015256665e-15,
+        "zero_absolute": 2.942091015256665e-15
+      },
+      "section_upper_moment_x": {
+        "count": 1,
+        "maximum_absolute": 7.905879076397504e-12,
+        "relative_l2": 1.1117642327581786e-08,
+        "relative_peak": 1.1117642327581786e-08,
+        "maximum_pointwise_relative": 1.1117642327581786e-08
+      },
+      "section_upper_moment_y": {
+        "count": 1,
+        "maximum_absolute": 2.1528927846951873e-06,
+        "relative_l2": 0.0005783626502253064,
+        "relative_peak": 0.0005783626502253064,
+        "maximum_pointwise_relative": 0.0005783626502253064
+      },
+      "contact_force": {
+        "count": 1,
+        "maximum_absolute": 8.966781411601232e-06,
+        "relative_l2": 5.032606357116715e-07,
+        "relative_peak": 5.032606357116715e-07,
+        "maximum_pointwise_relative": 5.032606357116715e-07
+      },
+      "contact_heat_rate": {
+        "count": 1,
+        "maximum_absolute": 1.974111228264519e-06,
+        "relative_l2": 2.9611668595702063e-08,
+        "relative_peak": 2.9611668595702063e-08,
+        "maximum_pointwise_relative": 2.9611668595702063e-08
+      }
+    },
+    "failures": [
+      "reaction_x: exceeds 0.5%: {'count': 16, 'maximum_absolute': 0.0039796010808567095, 'relative_l2': 0.003163257926038996, 'relative_peak': 0.0012217849699727493, 'maximum_pointwise_relative': 0.43307565095522965}",
+      "stress_xx: exceeds 0.5%: {'count': 18, 'maximum_absolute': 2.9420482011628337, 'relative_l2': 0.001148133474142706, 'relative_peak': 0.000525348244544583, 'maximum_pointwise_relative': 0.012277121053787459}",
+      "stress_zz: exceeds 0.5%: {'count': 18, 'maximum_absolute': 2.9420317788531065, 'relative_l2': 0.0003301786591169112, 'relative_peak': 0.0002686062566846832, 'maximum_pointwise_relative': 0.5054435545755372}",
+      "stress_xy: exceeds 0.5%: {'count': 18, 'maximum_absolute': 2.7931535688081226, 'relative_l2': 0.007955556432960401, 'relative_peak': 0.00775834139974083, 'maximum_pointwise_relative': 0.008175719280354531}"
+    ]
+  },
+  "inelastic_history": {
+    "analytical_status": "passed",
+    "analytical": {
+      "plastic stress_xx": {
+        "count": 117,
+        "maximum_absolute": 4.001776687800884e-11
+      },
+      "plastic stress_yy": {
+        "count": 117,
+        "maximum_absolute": 4.001776687800884e-11
+      },
+      "plastic stress_zz": {
+        "count": 117,
+        "maximum_absolute": 6.275513442233205e-11
+      },
+      "plastic stress_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic elastic_xx": {
+        "count": 117,
+        "maximum_absolute": 2.0166160408230382e-17
+      },
+      "plastic elastic_yy": {
+        "count": 117,
+        "maximum_absolute": 2.0166160408230382e-17
+      },
+      "plastic elastic_zz": {
+        "count": 117,
+        "maximum_absolute": 5.4643789493269423e-17
+      },
+      "plastic elastic_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic elastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic elastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic plastic_xx": {
+        "count": 117,
+        "maximum_absolute": 2.0166160408230382e-17
+      },
+      "plastic plastic_yy": {
+        "count": 117,
+        "maximum_absolute": 2.0166160408230382e-17
+      },
+      "plastic plastic_zz": {
+        "count": 117,
+        "maximum_absolute": 3.7730235602495554e-17
+      },
+      "plastic plastic_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic plastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic plastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic creep_xx": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic creep_yy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic creep_zz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic creep_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic creep_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic creep_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic equivalent_plastic_strain": {
+        "count": 117,
+        "maximum_absolute": 2.7755575615628914e-17
+      },
+      "plastic equivalent_creep_strain": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep stress_xx": {
+        "count": 117,
+        "maximum_absolute": 2.3646862246096134e-11
+      },
+      "creep stress_yy": {
+        "count": 117,
+        "maximum_absolute": 2.3646862246096134e-11
+      },
+      "creep stress_zz": {
+        "count": 117,
+        "maximum_absolute": 6.775735528208315e-11
+      },
+      "creep stress_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep elastic_xx": {
+        "count": 117,
+        "maximum_absolute": 1.4094628242311558e-18
+      },
+      "creep elastic_yy": {
+        "count": 117,
+        "maximum_absolute": 1.4094628242311558e-18
+      },
+      "creep elastic_zz": {
+        "count": 117,
+        "maximum_absolute": 5.421010862427522e-17
+      },
+      "creep elastic_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep elastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep elastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep plastic_xx": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep plastic_yy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep plastic_zz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep plastic_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep plastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep plastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep creep_xx": {
+        "count": 117,
+        "maximum_absolute": 1.4094628242311558e-18
+      },
+      "creep creep_yy": {
+        "count": 117,
+        "maximum_absolute": 1.4094628242311558e-18
+      },
+      "creep creep_zz": {
+        "count": 117,
+        "maximum_absolute": 3.0357660829594124e-18
+      },
+      "creep creep_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep creep_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep creep_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep equivalent_plastic_strain": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep equivalent_creep_strain": {
+        "count": 117,
+        "maximum_absolute": 2.3852447794681098e-18
+      },
+      "coupled stress_xx": {
+        "count": 117,
+        "maximum_absolute": 3.6834535421803594e-11
+      },
+      "coupled stress_yy": {
+        "count": 117,
+        "maximum_absolute": 3.6834535421803594e-11
+      },
+      "coupled stress_zz": {
+        "count": 117,
+        "maximum_absolute": 6.366462912410498e-11
+      },
+      "coupled stress_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled elastic_xx": {
+        "count": 117,
+        "maximum_absolute": 1.7997756063259374e-17
+      },
+      "coupled elastic_yy": {
+        "count": 117,
+        "maximum_absolute": 1.7997756063259374e-17
+      },
+      "coupled elastic_zz": {
+        "count": 117,
+        "maximum_absolute": 5.421010862427522e-17
+      },
+      "coupled elastic_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled elastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled elastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled plastic_xx": {
+        "count": 117,
+        "maximum_absolute": 1.8648277366750676e-17
+      },
+      "coupled plastic_yy": {
+        "count": 117,
+        "maximum_absolute": 1.8648277366750676e-17
+      },
+      "coupled plastic_zz": {
+        "count": 117,
+        "maximum_absolute": 3.903127820947816e-17
+      },
+      "coupled plastic_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled plastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled plastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled creep_xx": {
+        "count": 117,
+        "maximum_absolute": 5.89534931288993e-19
+      },
+      "coupled creep_yy": {
+        "count": 117,
+        "maximum_absolute": 5.89534931288993e-19
+      },
+      "coupled creep_zz": {
+        "count": 117,
+        "maximum_absolute": 9.486769009248164e-19
+      },
+      "coupled creep_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled creep_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled creep_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled equivalent_plastic_strain": {
+        "count": 117,
+        "maximum_absolute": 2.7755575615628914e-17
+      },
+      "coupled equivalent_creep_strain": {
+        "count": 117,
+        "maximum_absolute": 1.3552527156068805e-18
+      }
+    },
+    "native_status": "failed",
+    "native": {
+      "plastic stress_xx": {
+        "count": 117,
+        "maximum_absolute": 3.9108272176235914e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 3.1021757168001043e-15,
+        "relative_peak": 1.152344072403396e-15,
+        "maximum_pointwise_relative": 2.303531480046787e-14
+      },
+      "plastic stress_yy": {
+        "count": 117,
+        "maximum_absolute": 3.9108272176235914e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 3.1021757168001043e-15,
+        "relative_peak": 1.152344072403396e-15,
+        "maximum_pointwise_relative": 2.303531480046787e-14
+      },
+      "plastic stress_zz": {
+        "count": 117,
+        "maximum_absolute": 6.366462912410498e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 4.323788466111646e-15,
+        "relative_peak": 8.636121215265361e-16,
+        "maximum_pointwise_relative": 6.88333827551387e-14
+      },
+      "plastic stress_xy": {
+        "count": 117,
+        "maximum_absolute": 4.897091012402392e-29,
+        "zero_absolute": 4.897091012402392e-29
+      },
+      "plastic elastic_xx": {
+        "count": 117,
+        "maximum_absolute": 1.8648277366750676e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 3.0512807564779404e-15,
+        "relative_peak": 1.349367046670531e-15,
+        "maximum_pointwise_relative": 1.6617737609652852e-14
+      },
+      "plastic elastic_yy": {
+        "count": 117,
+        "maximum_absolute": 1.8648277366750676e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 3.0512807564779404e-15,
+        "relative_peak": 1.349367046670531e-15,
+        "maximum_pointwise_relative": 1.6617737609652852e-14
+      },
+      "plastic elastic_zz": {
+        "count": 117,
+        "maximum_absolute": 5.5077470362263625e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 5.749800737469459e-15,
+        "relative_peak": 1.0289291205548707e-15,
+        "maximum_pointwise_relative": 9.139194034421982e-14
+      },
+      "plastic elastic_xy": {
+        "count": 117,
+        "maximum_absolute": 1.224272753100598e-34,
+        "zero_absolute": 1.224272753100598e-34
+      },
+      "plastic elastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic elastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic plastic_xx": {
+        "count": 117,
+        "maximum_absolute": 1.8648277366750676e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 3.0512807564779404e-15,
+        "relative_peak": 1.349367046670531e-15,
+        "maximum_pointwise_relative": 1.6617737609652852e-14
+      },
+      "plastic plastic_yy": {
+        "count": 117,
+        "maximum_absolute": 1.8648277366750676e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 3.0512807564779404e-15,
+        "relative_peak": 1.349367046670531e-15,
+        "maximum_pointwise_relative": 1.6617737609652852e-14
+      },
+      "plastic plastic_zz": {
+        "count": 117,
+        "maximum_absolute": 3.382710778154774e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 2.757614068352276e-15,
+        "relative_peak": 8.99578031113687e-16,
+        "maximum_pointwise_relative": 1.507190155294095e-14
+      },
+      "plastic plastic_xy": {
+        "count": 117,
+        "maximum_absolute": 5.950413223140524e-35,
+        "zero_absolute": 5.950413223140524e-35
+      },
+      "plastic plastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic plastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic creep_xx": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic creep_yy": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic creep_zz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic creep_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic creep_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic creep_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic equivalent_plastic_strain": {
+        "count": 117,
+        "maximum_absolute": 2.5326962749261384e-16,
+        "zero_absolute": 0.0,
+        "relative_l2": 3.774617258566198e-14,
+        "relative_peak": 2.7157760481318802e-14,
+        "maximum_pointwise_relative": 2.6552544885031904e-13
+      },
+      "plastic equivalent_creep_strain": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic u3": {
+        "count": 13,
+        "maximum_absolute": 4.749745128457272e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 4.348066694794522e-08,
+        "relative_peak": 4.749744902856495e-08,
+        "maximum_pointwise_relative": 4.749744902856495e-08
+      },
+      "plastic rotation_x": {
+        "count": 13,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic rotation_y": {
+        "count": 13,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic axial_force": {
+        "count": 13,
+        "maximum_absolute": 3.4876107335435336e-08,
+        "zero_absolute": 0.0,
+        "relative_l2": 2.09092186999998e-08,
+        "relative_peak": 2.018004927858969e-08,
+        "maximum_pointwise_relative": 3.096071492882308e-08
+      },
+      "plastic moment_x": {
+        "count": 13,
+        "maximum_absolute": 4.87890977618477e-19,
+        "zero_absolute": 3.7947076036992655e-19
+      },
+      "plastic moment_y": {
+        "count": 13,
+        "maximum_absolute": 3.2526065174565133e-19,
+        "zero_absolute": 3.2526065174565133e-19
+      },
+      "creep stress_xx": {
+        "count": 117,
+        "maximum_absolute": 70.98306479309122,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.0140553980403381,
+        "relative_peak": 0.012454674313345468,
+        "maximum_pointwise_relative": 0.019417475728155976
+      },
+      "creep stress_yy": {
+        "count": 117,
+        "maximum_absolute": 70.98306479309122,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.0140553980403381,
+        "relative_peak": 0.012454674313345468,
+        "maximum_pointwise_relative": 0.019417475728155976
+      },
+      "creep stress_zz": {
+        "count": 117,
+        "maximum_absolute": 141.96612958616606,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.010799891510808497,
+        "relative_peak": 0.012067061403540781,
+        "maximum_pointwise_relative": 0.024302115592283426
+      },
+      "creep stress_xy": {
+        "count": 117,
+        "maximum_absolute": 4.9314249120000364e-29,
+        "zero_absolute": 4.9314249120000364e-29
+      },
+      "creep elastic_xx": {
+        "count": 117,
+        "maximum_absolute": 8.872883099135897e-05,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.13028920576819114,
+        "relative_peak": 0.025065608431709595,
+        "maximum_pointwise_relative": 6.619593998234682e+29
+      },
+      "creep elastic_yy": {
+        "count": 117,
+        "maximum_absolute": 8.872883099135897e-05,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.13028920576819114,
+        "relative_peak": 0.025065608431709595,
+        "maximum_pointwise_relative": 1.654898499558672e+29
+      },
+      "creep elastic_zz": {
+        "count": 117,
+        "maximum_absolute": 0.0001774576619827089,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.016667921332130797,
+        "relative_peak": 0.018283379840799682,
+        "maximum_pointwise_relative": 0.06746219888702393
+      },
+      "creep elastic_xy": {
+        "count": 117,
+        "maximum_absolute": 1.2328562280000092e-34,
+        "zero_absolute": 1.2328562280000092e-34
+      },
+      "creep elastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep elastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep plastic_xx": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep plastic_yy": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep plastic_zz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep plastic_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep plastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep plastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep creep_xx": {
+        "count": 117,
+        "maximum_absolute": 8.872883099135897e-05,
+        "zero_absolute": 0.0
+      },
+      "creep creep_yy": {
+        "count": 117,
+        "maximum_absolute": 8.872883099135897e-05,
+        "zero_absolute": 0.0
+      },
+      "creep creep_zz": {
+        "count": 117,
+        "maximum_absolute": 0.000177457661982718,
+        "zero_absolute": 0.0
+      },
+      "creep creep_xy": {
+        "count": 117,
+        "maximum_absolute": 3.6000000000000264e-36,
+        "zero_absolute": 3.6000000000000264e-36
+      },
+      "creep creep_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep creep_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep equivalent_plastic_strain": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep equivalent_creep_strain": {
+        "count": 117,
+        "maximum_absolute": 0.0001774576619827179,
+        "zero_absolute": 0.0
+      },
+      "creep u3": {
+        "count": 13,
+        "maximum_absolute": 4.749745128457272e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 4.348066694794522e-08,
+        "relative_peak": 4.749744902856495e-08,
+        "maximum_pointwise_relative": 4.749744902856495e-08
+      },
+      "creep rotation_x": {
+        "count": 13,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep rotation_y": {
+        "count": 13,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep axial_force": {
+        "count": 13,
+        "maximum_absolute": 0.028393144651973845,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.010799891382285213,
+        "relative_peak": 0.012067027282741899,
+        "maximum_pointwise_relative": 0.024302130293947406
+      },
+      "creep moment_x": {
+        "count": 13,
+        "maximum_absolute": 7.589415207398531e-19,
+        "zero_absolute": 6.505213034913027e-19
+      },
+      "creep moment_y": {
+        "count": 13,
+        "maximum_absolute": 5.204170427930421e-18,
+        "zero_absolute": 7.15573433840433e-18
+      },
+      "coupled stress_xx": {
+        "count": 117,
+        "maximum_absolute": 16.898964232108483,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.000988244250365281,
+        "relative_peak": 0.00017707130996556713,
+        "maximum_pointwise_relative": 0.003037112161473862
+      },
+      "coupled stress_yy": {
+        "count": 117,
+        "maximum_absolute": 16.898964232108483,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.000988244250365281,
+        "relative_peak": 0.00017707130996556713,
+        "maximum_pointwise_relative": 0.003037112161473862
+      },
+      "coupled stress_zz": {
+        "count": 117,
+        "maximum_absolute": 33.79792846411601,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.0017857539863106984,
+        "relative_peak": 9.87076679110448e-16,
+        "maximum_pointwise_relative": 0.006937620193565046
+      },
+      "coupled stress_xy": {
+        "count": 117,
+        "maximum_absolute": 4.894042773384629e-29,
+        "zero_absolute": 4.894042773384629e-29
+      },
+      "coupled elastic_xx": {
+        "count": 117,
+        "maximum_absolute": 2.112370529011023e-05,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.0025782882925695335,
+        "relative_peak": 0.004433409457453381,
+        "maximum_pointwise_relative": 0.007147991948860301
+      },
+      "coupled elastic_yy": {
+        "count": 117,
+        "maximum_absolute": 2.112370529011023e-05,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.0025782882925695335,
+        "relative_peak": 0.004433409457453381,
+        "maximum_pointwise_relative": 0.007147991948860301
+      },
+      "coupled elastic_zz": {
+        "count": 117,
+        "maximum_absolute": 4.224741058017059e-05,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.003992131303313371,
+        "relative_peak": 4.1165498195840275e-16,
+        "maximum_pointwise_relative": 0.020217831823111026
+      },
+      "coupled elastic_xy": {
+        "count": 117,
+        "maximum_absolute": 1.2235106933461573e-34,
+        "zero_absolute": 1.2235106933461573e-34
+      },
+      "coupled elastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "coupled elastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "coupled plastic_xx": {
+        "count": 117,
+        "maximum_absolute": 2.0943936501816897e-05,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.004545471544649888,
+        "relative_peak": 1.2210483174643779e-15,
+        "maximum_pointwise_relative": 0.019963070726734346
+      },
+      "coupled plastic_yy": {
+        "count": 117,
+        "maximum_absolute": 2.0943936501816897e-05,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.004545471544649888,
+        "relative_peak": 1.2210483174643779e-15,
+        "maximum_pointwise_relative": 0.019963070726734346
+      },
+      "coupled plastic_zz": {
+        "count": 117,
+        "maximum_absolute": 4.188787300363466e-05,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.004545471544649981,
+        "relative_peak": 1.2210483174643777e-15,
+        "maximum_pointwise_relative": 0.01996307072673475
+      },
+      "coupled plastic_xy": {
+        "count": 117,
+        "maximum_absolute": 5.770470131372435e-35,
+        "zero_absolute": 5.770470131372435e-35
+      },
+      "coupled plastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "coupled plastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "coupled creep_xx": {
+        "count": 117,
+        "maximum_absolute": 2.112370529011294e-05,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.1601115053313369,
+        "relative_peak": 0.11510099411105396,
+        "maximum_pointwise_relative": 0.2878218589231517
+      },
+      "coupled creep_yy": {
+        "count": 117,
+        "maximum_absolute": 2.112370529011294e-05,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.1601115053313369,
+        "relative_peak": 0.11510099411105396,
+        "maximum_pointwise_relative": 0.2878218589231517
+      },
+      "coupled creep_zz": {
+        "count": 117,
+        "maximum_absolute": 4.2247410580225665e-05,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.16011150533133592,
+        "relative_peak": 0.11510099411105312,
+        "maximum_pointwise_relative": 0.28782185892315
+      },
+      "coupled creep_xy": {
+        "count": 117,
+        "maximum_absolute": 2.8187580948514354e-36,
+        "zero_absolute": 2.8187580948514354e-36
+      },
+      "coupled creep_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "coupled creep_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "coupled equivalent_plastic_strain": {
+        "count": 117,
+        "maximum_absolute": 4.188787300362165e-05,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.003578651958033162,
+        "relative_peak": 0.004517265565320496,
+        "maximum_pointwise_relative": 0.006273010599720485
+      },
+      "coupled equivalent_creep_strain": {
+        "count": 117,
+        "maximum_absolute": 1.0190343532636727e-05,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.03176264033627283,
+        "relative_peak": 0.03301762670856194,
+        "maximum_pointwise_relative": 0.04462450274343597
+      },
+      "coupled u3": {
+        "count": 13,
+        "maximum_absolute": 4.749745128457272e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 4.348066694794522e-08,
+        "relative_peak": 4.749744902856495e-08,
+        "maximum_pointwise_relative": 4.749744902856495e-08
+      },
+      "coupled rotation_x": {
+        "count": 13,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "coupled rotation_y": {
+        "count": 13,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "coupled axial_force": {
+        "count": 13,
+        "maximum_absolute": 0.006759583319327023,
+        "zero_absolute": 0.0,
+        "relative_l2": 0.0017857544181586942,
+        "relative_peak": 3.833004649881245e-09,
+        "maximum_pointwise_relative": 0.0069376177406554355
+      },
+      "coupled moment_x": {
+        "count": 13,
+        "maximum_absolute": 4.87890977618477e-19,
+        "zero_absolute": 8.131516293641283e-19
+      },
+      "coupled moment_y": {
+        "count": 13,
+        "maximum_absolute": 4.228388472693467e-18,
+        "zero_absolute": 3.469446951953614e-18
+      },
+      "reaction_x": {
+        "count": 312,
+        "maximum_absolute": 0.047322043195359154,
+        "zero_absolute": 8.881784197001252e-16,
+        "relative_l2": 0.006090018704826824,
+        "relative_peak": 0.00017707130997879271,
+        "maximum_pointwise_relative": 0.019417475728152535
+      },
+      "reaction_y": {
+        "count": 312,
+        "maximum_absolute": 0.0946440863907192,
+        "zero_absolute": 2.6645352591003757e-15,
+        "relative_l2": 0.006090018704826889,
+        "relative_peak": 0.00017707130997879271,
+        "maximum_pointwise_relative": 0.019417475728153718
+      }
+    },
+    "native_failures": [
+      "creep stress_xx: exceeds 0.5%: {'count': 117, 'maximum_absolute': 70.98306479309122, 'zero_absolute': 0.0, 'relative_l2': 0.0140553980403381, 'relative_peak': 0.012454674313345468, 'maximum_pointwise_relative': 0.019417475728155976}",
+      "creep stress_yy: exceeds 0.5%: {'count': 117, 'maximum_absolute': 70.98306479309122, 'zero_absolute': 0.0, 'relative_l2': 0.0140553980403381, 'relative_peak': 0.012454674313345468, 'maximum_pointwise_relative': 0.019417475728155976}",
+      "creep stress_zz: exceeds 0.5%: {'count': 117, 'maximum_absolute': 141.96612958616606, 'zero_absolute': 0.0, 'relative_l2': 0.010799891510808497, 'relative_peak': 0.012067061403540781, 'maximum_pointwise_relative': 0.024302115592283426}",
+      "creep elastic_xx: exceeds 0.5%: {'count': 117, 'maximum_absolute': 8.872883099135897e-05, 'zero_absolute': 0.0, 'relative_l2': 0.13028920576819114, 'relative_peak': 0.025065608431709595, 'maximum_pointwise_relative': 6.619593998234682e+29}",
+      "creep elastic_yy: exceeds 0.5%: {'count': 117, 'maximum_absolute': 8.872883099135897e-05, 'zero_absolute': 0.0, 'relative_l2': 0.13028920576819114, 'relative_peak': 0.025065608431709595, 'maximum_pointwise_relative': 1.654898499558672e+29}",
+      "creep elastic_zz: exceeds 0.5%: {'count': 117, 'maximum_absolute': 0.0001774576619827089, 'zero_absolute': 0.0, 'relative_l2': 0.016667921332130797, 'relative_peak': 0.018283379840799682, 'maximum_pointwise_relative': 0.06746219888702393}",
+      "creep creep_xx: unexpected zero reference needs an explicit analytical mask",
+      "creep creep_yy: unexpected zero reference needs an explicit analytical mask",
+      "creep creep_zz: unexpected zero reference needs an explicit analytical mask",
+      "creep equivalent_creep_strain: unexpected zero reference needs an explicit analytical mask",
+      "creep axial_force: exceeds 0.5%: {'count': 13, 'maximum_absolute': 0.028393144651973845, 'zero_absolute': 0.0, 'relative_l2': 0.010799891382285213, 'relative_peak': 0.012067027282741899, 'maximum_pointwise_relative': 0.024302130293947406}",
+      "coupled stress_zz: exceeds 0.5%: {'count': 117, 'maximum_absolute': 33.79792846411601, 'zero_absolute': 0.0, 'relative_l2': 0.0017857539863106984, 'relative_peak': 9.87076679110448e-16, 'maximum_pointwise_relative': 0.006937620193565046}",
+      "coupled elastic_xx: exceeds 0.5%: {'count': 117, 'maximum_absolute': 2.112370529011023e-05, 'zero_absolute': 0.0, 'relative_l2': 0.0025782882925695335, 'relative_peak': 0.004433409457453381, 'maximum_pointwise_relative': 0.007147991948860301}",
+      "coupled elastic_yy: exceeds 0.5%: {'count': 117, 'maximum_absolute': 2.112370529011023e-05, 'zero_absolute': 0.0, 'relative_l2': 0.0025782882925695335, 'relative_peak': 0.004433409457453381, 'maximum_pointwise_relative': 0.007147991948860301}",
+      "coupled elastic_zz: exceeds 0.5%: {'count': 117, 'maximum_absolute': 4.224741058017059e-05, 'zero_absolute': 0.0, 'relative_l2': 0.003992131303313371, 'relative_peak': 4.1165498195840275e-16, 'maximum_pointwise_relative': 0.020217831823111026}",
+      "coupled plastic_xx: exceeds 0.5%: {'count': 117, 'maximum_absolute': 2.0943936501816897e-05, 'zero_absolute': 0.0, 'relative_l2': 0.004545471544649888, 'relative_peak': 1.2210483174643779e-15, 'maximum_pointwise_relative': 0.019963070726734346}",
+      "coupled plastic_yy: exceeds 0.5%: {'count': 117, 'maximum_absolute': 2.0943936501816897e-05, 'zero_absolute': 0.0, 'relative_l2': 0.004545471544649888, 'relative_peak': 1.2210483174643779e-15, 'maximum_pointwise_relative': 0.019963070726734346}",
+      "coupled plastic_zz: exceeds 0.5%: {'count': 117, 'maximum_absolute': 4.188787300363466e-05, 'zero_absolute': 0.0, 'relative_l2': 0.004545471544649981, 'relative_peak': 1.2210483174643777e-15, 'maximum_pointwise_relative': 0.01996307072673475}",
+      "coupled creep_xx: exceeds 0.5%: {'count': 117, 'maximum_absolute': 2.112370529011294e-05, 'zero_absolute': 0.0, 'relative_l2': 0.1601115053313369, 'relative_peak': 0.11510099411105396, 'maximum_pointwise_relative': 0.2878218589231517}",
+      "coupled creep_yy: exceeds 0.5%: {'count': 117, 'maximum_absolute': 2.112370529011294e-05, 'zero_absolute': 0.0, 'relative_l2': 0.1601115053313369, 'relative_peak': 0.11510099411105396, 'maximum_pointwise_relative': 0.2878218589231517}",
+      "coupled creep_zz: exceeds 0.5%: {'count': 117, 'maximum_absolute': 4.2247410580225665e-05, 'zero_absolute': 0.0, 'relative_l2': 0.16011150533133592, 'relative_peak': 0.11510099411105312, 'maximum_pointwise_relative': 0.28782185892315}",
+      "coupled equivalent_plastic_strain: exceeds 0.5%: {'count': 117, 'maximum_absolute': 4.188787300362165e-05, 'zero_absolute': 0.0, 'relative_l2': 0.003578651958033162, 'relative_peak': 0.004517265565320496, 'maximum_pointwise_relative': 0.006273010599720485}",
+      "coupled equivalent_creep_strain: exceeds 0.5%: {'count': 117, 'maximum_absolute': 1.0190343532636727e-05, 'zero_absolute': 0.0, 'relative_l2': 0.03176264033627283, 'relative_peak': 0.03301762670856194, 'maximum_pointwise_relative': 0.04462450274343597}",
+      "coupled axial_force: exceeds 0.5%: {'count': 13, 'maximum_absolute': 0.006759583319327023, 'zero_absolute': 0.0, 'relative_l2': 0.0017857544181586942, 'relative_peak': 3.833004649881245e-09, 'maximum_pointwise_relative': 0.0069376177406554355}",
+      "reaction_x: exceeds 0.5%: {'count': 312, 'maximum_absolute': 0.047322043195359154, 'zero_absolute': 8.881784197001252e-16, 'relative_l2': 0.006090018704826824, 'relative_peak': 0.00017707130997879271, 'maximum_pointwise_relative': 0.019417475728152535}",
+      "reaction_y: exceeds 0.5%: {'count': 312, 'maximum_absolute': 0.0946440863907192, 'zero_absolute': 2.6645352591003757e-15, 'relative_l2': 0.006090018704826889, 'relative_peak': 0.00017707130997879271, 'maximum_pointwise_relative': 0.019417475728153718}"
+    ]
+  },
+  "contact_cycle": {
+    "balance_status": "passed",
+    "frames": [
+      {
+        "time": 0.0,
+        "gap": 0.0001,
+        "pressure": 0.0,
+        "area": 0.001,
+        "primary_elements": [
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "time": 0.25,
+        "gap": 0.0,
+        "pressure": 0.0,
+        "area": 0.001,
+        "primary_elements": [
+          1,
+          1,
+          1,
+          2,
+          2,
+          2
+        ]
+      },
+      {
+        "time": 0.5,
+        "gap": -0.0001,
+        "pressure": 100000.0,
+        "area": 0.001,
+        "primary_elements": [
+          1,
+          1,
+          1,
+          2,
+          2,
+          2
+        ]
+      },
+      {
+        "time": 0.75,
+        "gap": -0.0001,
+        "pressure": 100000.0,
+        "area": 0.001,
+        "primary_elements": [
+          1,
+          1,
+          1,
+          2,
+          2,
+          2
+        ]
+      },
+      {
+        "time": 1.0,
+        "gap": -0.0001,
+        "pressure": 100000.0,
+        "area": 0.001,
+        "primary_elements": [
+          1,
+          1,
+          1,
+          2,
+          2,
+          2
+        ]
+      },
+      {
+        "time": 1.25,
+        "gap": 0.0,
+        "pressure": 0.0,
+        "area": 0.001,
+        "primary_elements": [
+          1,
+          1,
+          1,
+          2,
+          2,
+          2
+        ]
+      },
+      {
+        "time": 1.5,
+        "gap": 0.0001,
+        "pressure": 0.0,
+        "area": 0.001,
+        "primary_elements": [
+          1,
+          1,
+          1,
+          2,
+          2,
+          2
+        ]
+      },
+      {
+        "time": 1.75,
+        "gap": 0.0001,
+        "pressure": 0.0,
+        "area": 0.001,
+        "primary_elements": [
+          1,
+          1,
+          1,
+          2,
+          2,
+          2
+        ]
+      },
+      {
+        "time": 2.0,
+        "gap": 0.0001,
+        "pressure": 0.0,
+        "area": 0.001,
+        "primary_elements": [
+          2,
+          2,
+          2
+        ]
+      },
+      {
+        "time": 2.25,
+        "gap": 0.0,
+        "pressure": 0.0,
+        "area": 0.001,
+        "primary_elements": [
+          2,
+          2,
+          2
+        ]
+      },
+      {
+        "time": 2.5,
+        "gap": -0.0001,
+        "pressure": 100000.0,
+        "area": 0.001,
+        "primary_elements": [
+          2,
+          2,
+          2
+        ]
+      },
+      {
+        "time": 2.75,
+        "gap": -0.0001,
+        "pressure": 100000.0,
+        "area": 0.001,
+        "primary_elements": [
+          2,
+          2,
+          2
+        ]
+      },
+      {
+        "time": 3.0,
+        "gap": -0.0001,
+        "pressure": 100000.0,
+        "area": 0.001,
+        "primary_elements": [
+          2,
+          2,
+          2
+        ]
+      }
+    ],
+    "nodal_distribution_status": "passed",
+    "nodal_distribution": {
+      "primary_nodal_contact_force": {
+        "count": 156,
+        "maximum_absolute": 1.7763568394002505e-14,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.9419897532330021e-16,
+        "relative_peak": 1.5502750598402185e-16,
+        "maximum_pointwise_relative": 6.650680006714538e-15
+      },
+      "native_primary_nodal_contact_force": {
+        "count": 156,
+        "maximum_absolute": 0.3367350481121747,
+        "zero_absolute": 5.4310746146240645e-15,
+        "relative_l2": 0.003409568414597297,
+        "relative_peak": 4.650825179520655e-16,
+        "maximum_pointwise_relative": 0.02050448092039904
+      }
+    },
+    "failures": [],
+    "native_distribution_status": "failed",
+    "native_distribution_failures": [
+      "native_primary_nodal_contact_force: exceeds 0.5%: {'count': 156, 'maximum_absolute': 0.3367350481121747, 'zero_absolute': 5.4310746146240645e-15, 'relative_l2': 0.003409568414597297, 'relative_peak': 4.650825179520655e-16, 'maximum_pointwise_relative': 0.02050448092039904}"
+    ]
+  }
+}

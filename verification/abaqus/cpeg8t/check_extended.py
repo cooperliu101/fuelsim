@@ -78,8 +78,12 @@ def check(case, directory, source):
             force_key=next(k for k in fields if k.startswith('CNORMF'))
             force=sum(v['data'][1] for v in fields[force_key]['values'] if v['nodeLabel'] in (9,10,13))
             heat=sum(v['data'] for v in fields['RFL11']['values'] if v['nodeLabel'] in (11,12))
-            metric([sum(globals_[f'contact_0_q{q}_force'] for q in range(3))],[force],False,1e-8,'contact_force')
-            metric([sum(globals_[f'contact_0_q{q}_heat_rate'] for q in range(3))],[heat],False,1e-8,'contact_heat_rate')
+            total_force = sum(value for name, value in globals_.items()
+                              if name.startswith('contact_0_q') and name.endswith('_force'))
+            total_heat = sum(value for name, value in globals_.items()
+                             if name.startswith('contact_0_q') and name.endswith('_heat_rate'))
+            metric([total_force],[force],False,1e-8,'contact_force')
+            metric([total_heat],[heat],False,1e-8,'contact_heat_rate')
     result={'status':'failed' if failures else 'passed','metrics':report,'failures':failures}
     (directory/'comparison.json').write_text(json.dumps(result,indent=2)+'\n')
     if failures:

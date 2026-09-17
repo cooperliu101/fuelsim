@@ -1,0 +1,560 @@
+{
+  "small_strain_creep": [
+    {
+      "element": 2,
+      "time": 0.25,
+      "identified_method": "forward_euler",
+      "forward_maximum_residual": 0.0,
+      "backward_maximum_residual": 4.9999999999999996e-05
+    },
+    {
+      "element": 2,
+      "time": 0.5,
+      "identified_method": "forward_euler",
+      "forward_maximum_residual": 6.776263578034403e-21,
+      "backward_maximum_residual": 4.849999999999999e-05
+    },
+    {
+      "element": 2,
+      "time": 0.75,
+      "identified_method": "forward_euler",
+      "forward_maximum_residual": 6.776263578034403e-20,
+      "backward_maximum_residual": 4.7044999999999954e-05
+    },
+    {
+      "element": 2,
+      "time": 1.0,
+      "identified_method": "forward_euler",
+      "forward_maximum_residual": 2.710505431213761e-20,
+      "backward_maximum_residual": 4.5633650000000034e-05
+    },
+    {
+      "element": 2,
+      "time": 1.25,
+      "identified_method": "forward_euler",
+      "forward_maximum_residual": 5.421010862427522e-20,
+      "backward_maximum_residual": 5.735359500000039e-06
+    },
+    {
+      "element": 2,
+      "time": 1.5,
+      "identified_method": "forward_euler",
+      "forward_maximum_residual": 2.710505431213761e-20,
+      "backward_maximum_residual": 5.563298715000043e-06
+    },
+    {
+      "element": 2,
+      "time": 1.75,
+      "identified_method": "forward_euler",
+      "forward_maximum_residual": 5.421010862427522e-20,
+      "backward_maximum_residual": 5.396399753550019e-06
+    },
+    {
+      "element": 2,
+      "time": 2.0,
+      "identified_method": "forward_euler",
+      "forward_maximum_residual": 2.710505431213761e-20,
+      "backward_maximum_residual": 5.234507760943491e-06
+    },
+    {
+      "element": 2,
+      "time": 2.25,
+      "identified_method": "forward_euler",
+      "forward_maximum_residual": 9.486769009248164e-20,
+      "backward_maximum_residual": 4.507747252811527e-05
+    },
+    {
+      "element": 2,
+      "time": 2.5,
+      "identified_method": "forward_euler",
+      "forward_maximum_residual": 2.710505431213761e-20,
+      "backward_maximum_residual": 4.3725148352271716e-05
+    },
+    {
+      "element": 2,
+      "time": 2.75,
+      "identified_method": "forward_euler",
+      "forward_maximum_residual": 4.0657581468206416e-20,
+      "backward_maximum_residual": 4.2413393901703534e-05
+    },
+    {
+      "element": 2,
+      "time": 3.0,
+      "identified_method": "forward_euler",
+      "forward_maximum_residual": 8.131516293641283e-20,
+      "backward_maximum_residual": 4.1140992084652415e-05
+    },
+    {
+      "element": 3,
+      "time": 0.25,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 2.520036354622821e-05,
+      "backward_maximum_residual": 3.3881317890172014e-21
+    },
+    {
+      "element": 3,
+      "time": 0.5,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 4.0687423856575555e-07,
+      "backward_maximum_residual": 1.0164395367051604e-20
+    },
+    {
+      "element": 3,
+      "time": 0.75,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 4.0677338566021007e-07,
+      "backward_maximum_residual": 8.352389719038111e-53
+    },
+    {
+      "element": 3,
+      "time": 1.0,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 4.066725577533411e-07,
+      "backward_maximum_residual": 2.541098841762901e-20
+    },
+    {
+      "element": 3,
+      "time": 1.25,
+      "identified_method": "forward_euler",
+      "forward_maximum_residual": 3.218725199566341e-20,
+      "backward_maximum_residual": 7.926205118462666e-07
+    },
+    {
+      "element": 3,
+      "time": 1.5,
+      "identified_method": "forward_euler",
+      "forward_maximum_residual": 4.0657581468206416e-20,
+      "backward_maximum_residual": 7.688418964908087e-07
+    },
+    {
+      "element": 3,
+      "time": 1.75,
+      "identified_method": "forward_euler",
+      "forward_maximum_residual": 5.759824041329242e-20,
+      "backward_maximum_residual": 7.457766395961674e-07
+    },
+    {
+      "element": 3,
+      "time": 2.0,
+      "identified_method": "forward_euler",
+      "forward_maximum_residual": 3.3881317890172014e-20,
+      "backward_maximum_residual": 7.23403340408266e-07
+    },
+    {
+      "element": 3,
+      "time": 2.25,
+      "identified_method": "forward_euler",
+      "forward_maximum_residual": 2.710505431213761e-20,
+      "backward_maximum_residual": 4.070170124019597e-05
+    },
+    {
+      "element": 3,
+      "time": 2.5,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 9.357708911412918e-06,
+      "backward_maximum_residual": 1.1858461261560205e-20
+    },
+    {
+      "element": 3,
+      "time": 2.75,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 3.2388596988887025e-07,
+      "backward_maximum_residual": 1.6940658945086007e-20
+    },
+    {
+      "element": 3,
+      "time": 3.0,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 3.238056874870026e-07,
+      "backward_maximum_residual": 3.3881317890172014e-21
+    }
+  ],
+  "finite_strain_creep": [
+    {
+      "element": 2,
+      "time": 0.25,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 4.8483085463558956e-05,
+      "backward_maximum_residual": 1.3552527156068805e-20
+    },
+    {
+      "element": 2,
+      "time": 0.5,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 4.6950201877888615e-05,
+      "backward_maximum_residual": 2.710505431213761e-20
+    },
+    {
+      "element": 2,
+      "time": 0.75,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 4.5462565411209165e-05,
+      "backward_maximum_residual": 2.710505431213761e-20
+    },
+    {
+      "element": 2,
+      "time": 1.0,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 4.401885372512152e-05,
+      "backward_maximum_residual": 8.131516293641283e-20
+    },
+    {
+      "element": 2,
+      "time": 1.25,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 5.385865237216703e-06,
+      "backward_maximum_residual": 2.710505431213761e-20
+    },
+    {
+      "element": 2,
+      "time": 1.5,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 5.228995375938843e-06,
+      "backward_maximum_residual": 1.3552527156068805e-20
+    },
+    {
+      "element": 2,
+      "time": 1.75,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 5.0766945397463705e-06,
+      "backward_maximum_residual": 1.0842021724855044e-19
+    },
+    {
+      "element": 2,
+      "time": 2.0,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 4.928829650238989e-06,
+      "backward_maximum_residual": 5.421010862427522e-20
+    },
+    {
+      "element": 2,
+      "time": 2.25,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 4.327382597120341e-05,
+      "backward_maximum_residual": 8.131516293641283e-20
+    },
+    {
+      "element": 2,
+      "time": 2.5,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 4.208986528784139e-05,
+      "backward_maximum_residual": 8.131516293641283e-20
+    },
+    {
+      "element": 2,
+      "time": 2.75,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 4.094069314305296e-05,
+      "backward_maximum_residual": 3.3881317890172014e-20
+    },
+    {
+      "element": 2,
+      "time": 3.0,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 3.9825298098454e-05,
+      "backward_maximum_residual": 2.837560373301906e-20
+    },
+    {
+      "element": 3,
+      "time": 0.25,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 2.519984779003112e-05,
+      "backward_maximum_residual": 1.3552527156068805e-20
+    },
+    {
+      "element": 3,
+      "time": 0.5,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 4.053309515362501e-07,
+      "backward_maximum_residual": 1.8634724839594607e-20
+    },
+    {
+      "element": 3,
+      "time": 0.75,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 4.0420792887335984e-07,
+      "backward_maximum_residual": 1.6940658945086007e-20
+    },
+    {
+      "element": 3,
+      "time": 1.0,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 4.030902529897125e-07,
+      "backward_maximum_residual": 1.3552527156068805e-20
+    },
+    {
+      "element": 3,
+      "time": 1.25,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 7.692954443717793e-07,
+      "backward_maximum_residual": 2.371692252312041e-20
+    },
+    {
+      "element": 3,
+      "time": 1.5,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 7.468887809434608e-07,
+      "backward_maximum_residual": 1.6940658945086007e-20
+    },
+    {
+      "element": 3,
+      "time": 1.75,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 7.251347387800602e-07,
+      "backward_maximum_residual": 1.1858461261560205e-20
+    },
+    {
+      "element": 3,
+      "time": 2.0,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 7.040143094952005e-07,
+      "backward_maximum_residual": 3.3881317890172014e-21
+    },
+    {
+      "element": 3,
+      "time": 2.25,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 3.917206350446156e-05,
+      "backward_maximum_residual": 2.710505431213761e-20
+    },
+    {
+      "element": 3,
+      "time": 2.5,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 1.0940739048473814e-05,
+      "backward_maximum_residual": 6.776263578034403e-21
+    },
+    {
+      "element": 3,
+      "time": 2.75,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 3.2224758537376027e-07,
+      "backward_maximum_residual": 1.0164395367051604e-20
+    },
+    {
+      "element": 3,
+      "time": 3.0,
+      "identified_method": "backward_euler",
+      "forward_maximum_residual": 3.228234464891211e-07,
+      "backward_maximum_residual": 6.776263578034403e-21
+    }
+  ],
+  "contact_operator": {
+    "normalization_N_per_m": 1000000.0,
+    "perturbation_m": 1e-07,
+    "native": [
+      [
+        0.1816540542865042,
+        -0.04252743173172036,
+        0.19420652022891008
+      ],
+      [
+        -0.04252742305911995,
+        0.1816540625926422,
+        0.1942065259909498
+      ],
+      [
+        0.19409820956127535,
+        0.1940982174330941,
+        0.9451367725714023
+      ]
+    ],
+    "pointwise_integral": [
+      [
+        0.26666666666666666,
+        -0.06666666666666667,
+        0.13333333333333333
+      ],
+      [
+        -0.06666666666666667,
+        0.26666666666666666,
+        0.13333333333333333
+      ],
+      [
+        0.13333333333333333,
+        0.13333333333333333,
+        1.0666666666666667
+      ]
+    ],
+    "relative_frobenius_difference": 0.1822753246524886,
+    "maximum_entry_relative_difference": 0.4565489449321236
+  },
+  "shallow_contact_operator": {
+    "normalization_N_per_m": 1000000.0,
+    "perturbation_m": 1e-10,
+    "native": [
+      [
+        0.1817302495417286,
+        -0.0425055204734937,
+        0.19410860424322807
+      ],
+      [
+        -0.0425055204734937,
+        0.18173024954172426,
+        0.19410860424322807
+      ],
+      [
+        0.19410860424212,
+        0.19410860424214602,
+        0.9451161247616118
+      ]
+    ],
+    "pointwise_integral": [
+      [
+        0.26666666666666666,
+        -0.06666666666666667,
+        0.13333333333333333
+      ],
+      [
+        -0.06666666666666667,
+        0.26666666666666666,
+        0.13333333333333333
+      ],
+      [
+        0.13333333333333333,
+        0.13333333333333333,
+        1.0666666666666667
+      ]
+    ],
+    "relative_frobenius_difference": 0.18219450727137845,
+    "maximum_entry_relative_difference": 0.4558145318242105
+  },
+  "wide_primary_contact_operator": {
+    "normalization_N_per_m": 1000000.0,
+    "perturbation_m": 1e-10,
+    "native": [
+      [
+        0.18173024954249836,
+        -0.04250552047327252,
+        0.19410860424223708
+      ],
+      [
+        -0.04250552047327252,
+        0.18173024954249836,
+        0.19410860424223927
+      ],
+      [
+        0.1941086042422241,
+        0.1941086042422588,
+        0.9451161247613776
+      ]
+    ],
+    "pointwise_integral": [
+      [
+        0.26666666666666666,
+        -0.06666666666666667,
+        0.13333333333333333
+      ],
+      [
+        -0.06666666666666667,
+        0.26666666666666666,
+        0.13333333333333333
+      ],
+      [
+        0.13333333333333333,
+        0.13333333333333333,
+        1.0666666666666667
+      ]
+    ],
+    "relative_frobenius_difference": 0.18219450727057482,
+    "maximum_entry_relative_difference": 0.4558145318169409
+  },
+  "averaged_constraint_reconstruction": {
+    "gap_averaging_matrix": [
+      [
+        0.5876121223873426,
+        -0.08509518765997834,
+        0.49748306520706576
+      ],
+      [
+        -0.08509518765998661,
+        0.5876121223873426,
+        0.49748306520706576
+      ],
+      [
+        0.0835805468182568,
+        0.08358054681822372,
+        0.8328389062979412
+      ]
+    ],
+    "constraint_weights": [
+      0.4955101993910163,
+      0.49551019939105984,
+      1.0089796013490768
+    ],
+    "reconstructed_force_matrix": [
+      [
+        0.18173024954250575,
+        -0.04250552047328229,
+        0.19410860424225296
+      ],
+      [
+        -0.042505520473282286,
+        0.18173024954251418,
+        0.19410860424224174
+      ],
+      [
+        0.19410860424225293,
+        0.19410860424224174,
+        0.9451161247614034
+      ]
+    ],
+    "maximum_absolute_matrix_residual": 9.86322135076989e-13,
+    "scope": "Flat single-edge linearization only; these measured coefficients are not production constants."
+  },
+  "contact_normal": {
+    "secondary_tilt_native_Fx_over_Fy": [
+      -0.0049999999999999975,
+      -0.005000000000000004,
+      -0.005000000000000001
+    ],
+    "secondary_tilt_primary_normal_prediction": 0.0,
+    "primary_tilt_native_Fx_over_Fy": [
+      -8.288991970694165e-20,
+      1.897174583443499e-19,
+      1.0168805150199085e-19
+    ],
+    "primary_tilt_primary_normal_prediction": -0.005
+  },
+  "crossing": {
+    "time": 1.0,
+    "primary_nodes": [
+      4,
+      7,
+      3,
+      13,
+      10
+    ],
+    "exact_nodal_force_N": [
+      -4.166666666666667,
+      20.833333333333332,
+      66.66666666666667,
+      20.833333333333332,
+      -4.166666666666667
+    ],
+    "native_RF_N": [
+      -4.110544158647977,
+      20.60884330125858,
+      67.00340171477885,
+      20.60884330125857,
+      -4.110544158647976
+    ],
+    "native_minus_exact_N": [
+      0.056122508018689565,
+      -0.22449003207475116,
+      0.3367350481121747,
+      -0.2244900320747618,
+      0.05612250801869134
+    ],
+    "native_CNORMF_y_N": [
+      0.0,
+      -20.60884330125858,
+      -67.00340171477885,
+      -20.60884330125857,
+      0.0
+    ],
+    "maximum_absolute_difference_N": 0.3367350481121747,
+    "note": "Primary CNORMF is not equal to -RF at the end nodes; retain RF and its negative entries."
+  },
+  "creep_implicit_keyword": "rejected by native input processor"
+}
