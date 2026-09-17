@@ -348,7 +348,7 @@ TransientResult solve_transient(TransientProblem& problem,
                 initial_guess_with_dirichlet_values(problem, initial_guess),
                 step_solver_options);
             if (step_result.converged)
-                problem.commit_time_step(step_result.state);
+                solver_detail::commit_time_step(problem, step_result);
             else
                 problem.rollback_time_step();
             return step_result;

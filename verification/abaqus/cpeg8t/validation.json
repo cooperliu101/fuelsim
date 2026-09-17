@@ -1,0 +1,676 @@
+{
+  "date": "2026-09-17",
+  "reference": "Abaqus 2025 native fields and control-node histories",
+  "relative_limit": 0.005,
+  "metrics": {
+    "prescribed": {
+      "temperature": {
+        "count": 4,
+        "maximum_absolute": 0.0,
+        "relative_l2": 0.0,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 0.0
+      },
+      "displacement_x": {
+        "count": 8,
+        "maximum_absolute": 1.0666666666666804e-36,
+        "zero_absolute": 1.0666666666666804e-36
+      },
+      "displacement_y": {
+        "count": 8,
+        "maximum_absolute": 2.133333333333361e-36,
+        "zero_absolute": 2.133333333333361e-36
+      },
+      "reaction_x": {
+        "count": 8,
+        "maximum_absolute": 2.1538326677728037e-14,
+        "relative_l2": 1.990249985330325e-14,
+        "relative_peak": 2.0192181260369773e-14,
+        "maximum_pointwise_relative": 2.7478019859472517e-14
+      },
+      "reaction_y": {
+        "count": 8,
+        "maximum_absolute": 4.263256414560601e-14,
+        "relative_l2": 2.5903860689805078e-14,
+        "relative_peak": 1.9775847626135352e-14,
+        "maximum_pointwise_relative": 6.07847105982272e-13
+      },
+      "heat_reaction": {
+        "count": 4,
+        "maximum_absolute": 3.8261924861087656e-15,
+        "zero_absolute": 4.339729970761858e-15
+      },
+      "stress_xx": {
+        "count": 9,
+        "maximum_absolute": 3.069544618483633e-11,
+        "relative_l2": 1.1919126374523585e-14,
+        "relative_peak": 1.7805449665034454e-14,
+        "maximum_pointwise_relative": 1.9218438034229504e-14
+      },
+      "stress_yy": {
+        "count": 9,
+        "maximum_absolute": 3.069544618483633e-11,
+        "relative_l2": 1.1919126374523585e-14,
+        "relative_peak": 1.7805449665034454e-14,
+        "maximum_pointwise_relative": 1.9218438034229504e-14
+      },
+      "stress_zz": {
+        "count": 9,
+        "maximum_absolute": 9.231371222995222e-11,
+        "relative_l2": 6.854124808805468e-14,
+        "relative_peak": 7.877897930288523e-14,
+        "maximum_pointwise_relative": 1.4402999630745736e-13
+      },
+      "stress_xy": {
+        "count": 9,
+        "maximum_absolute": 1.6186236447191022e-28,
+        "zero_absolute": 1.6186236447191022e-28
+      },
+      "u3": {
+        "count": 1,
+        "maximum_absolute": 2.526212488436659e-12,
+        "relative_l2": 2.526212552254156e-08,
+        "relative_peak": 2.526212552254156e-08,
+        "maximum_pointwise_relative": 2.526212552254156e-08
+      },
+      "rotation_x": {
+        "count": 1,
+        "maximum_absolute": 9.499490256914545e-11,
+        "relative_l2": 4.749744902856495e-08,
+        "relative_peak": 4.749744902856495e-08,
+        "maximum_pointwise_relative": 4.749744902856495e-08
+      },
+      "rotation_y": {
+        "count": 1,
+        "maximum_absolute": 2.6077032026783353e-11,
+        "relative_l2": 8.69234393337094e-09,
+        "relative_peak": 8.69234393337094e-09,
+        "maximum_pointwise_relative": 8.69234393337094e-09
+      },
+      "axial_force": {
+        "count": 1,
+        "maximum_absolute": 3.5762718342269295e-09,
+        "relative_l2": 2.2351699463517724e-08,
+        "relative_peak": 2.2351699463517724e-08,
+        "maximum_pointwise_relative": 2.2351699463517724e-08
+      },
+      "moment_x": {
+        "count": 1,
+        "maximum_absolute": 1.0104606834961984e-12,
+        "relative_l2": 2.526151772556458e-08,
+        "relative_peak": 2.526151772556458e-08,
+        "maximum_pointwise_relative": 2.526151772556458e-08
+      },
+      "moment_y": {
+        "count": 1,
+        "maximum_absolute": 6.062907229216485e-12,
+        "relative_l2": 2.5262114093243364e-08,
+        "relative_peak": 2.5262114093243364e-08,
+        "maximum_pointwise_relative": 2.5262114093243364e-08
+      }
+    },
+    "free_controls": {
+      "temperature": {
+        "count": 4,
+        "maximum_absolute": 0.0,
+        "relative_l2": 0.0,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 0.0
+      },
+      "displacement_x": {
+        "count": 8,
+        "maximum_absolute": 9.333333333333453e-37,
+        "zero_absolute": 9.333333333333453e-37
+      },
+      "displacement_y": {
+        "count": 8,
+        "maximum_absolute": 1.8666666666666907e-36,
+        "zero_absolute": 1.8666666666666907e-36
+      },
+      "reaction_x": {
+        "count": 8,
+        "maximum_absolute": 1.1379786002407855e-14,
+        "relative_l2": 1.465128048381448e-14,
+        "relative_peak": 2.735906739254815e-15,
+        "maximum_pointwise_relative": 1.280225925270879e-13
+      },
+      "reaction_y": {
+        "count": 8,
+        "maximum_absolute": 1.63202784619898e-14,
+        "relative_l2": 8.708893918399998e-15,
+        "relative_peak": 2.616954272330692e-15,
+        "maximum_pointwise_relative": 1.1740608485410881e-13
+      },
+      "heat_reaction": {
+        "count": 4,
+        "maximum_absolute": 1.580957587066223e-13,
+        "relative_l2": 9.26817479170059e-15,
+        "relative_peak": 7.815970093361024e-15,
+        "maximum_pointwise_relative": 1.2256862191861617e-14
+      },
+      "stress_xx": {
+        "count": 9,
+        "maximum_absolute": 4.274625098332763e-11,
+        "relative_l2": 1.8026035920747708e-14,
+        "relative_peak": 2.749097657531482e-14,
+        "maximum_pointwise_relative": 2.749097657531482e-14
+      },
+      "stress_yy": {
+        "count": 9,
+        "maximum_absolute": 4.274625098332763e-11,
+        "relative_l2": 1.8026035920747708e-14,
+        "relative_peak": 2.749097657531482e-14,
+        "maximum_pointwise_relative": 2.749097657531482e-14
+      },
+      "stress_zz": {
+        "count": 9,
+        "maximum_absolute": 1.240323399542831e-10,
+        "zero_absolute": 1.241460267920047e-10
+      },
+      "stress_xy": {
+        "count": 9,
+        "maximum_absolute": 1.4472795558988737e-28,
+        "zero_absolute": 1.4472795558988737e-28
+      },
+      "u3": {
+        "count": 1,
+        "maximum_absolute": 6.2398613294607774e-12,
+        "relative_l2": 3.565635172543694e-08,
+        "relative_peak": 3.565635172543694e-08,
+        "maximum_pointwise_relative": 3.565635172543694e-08
+      },
+      "rotation_x": {
+        "count": 1,
+        "maximum_absolute": 4.035731080917482e-11,
+        "relative_l2": 2.4214385899168382e-08,
+        "relative_peak": 2.4214385899168382e-08,
+        "maximum_pointwise_relative": 2.4214385899168382e-08
+      },
+      "rotation_y": {
+        "count": 1,
+        "maximum_absolute": 4.035730842393004e-11,
+        "relative_l2": 2.4214384468021548e-08,
+        "relative_peak": 2.4214384468021548e-08,
+        "maximum_pointwise_relative": 2.4214384468021548e-08
+      },
+      "axial_force": {
+        "count": 1,
+        "maximum_absolute": 1.302542381224303e-14,
+        "zero_absolute": 1.302542381224303e-14
+      },
+      "moment_x": {
+        "count": 1,
+        "maximum_absolute": 8.352247625101636e-18,
+        "zero_absolute": 8.352247625101636e-18
+      },
+      "moment_y": {
+        "count": 1,
+        "maximum_absolute": 3.3680785086319385e-17,
+        "zero_absolute": 3.3680785086319385e-17
+      }
+    },
+    "finite_prescribed": {
+      "temperature": {
+        "count": 4,
+        "maximum_absolute": 0.0,
+        "relative_l2": 0.0,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 0.0
+      },
+      "displacement_x": {
+        "count": 8,
+        "maximum_absolute": 2.5333333333333646e-35,
+        "zero_absolute": 2.5333333333333646e-35
+      },
+      "displacement_y": {
+        "count": 8,
+        "maximum_absolute": 5.066666666666729e-35,
+        "zero_absolute": 5.066666666666729e-35
+      },
+      "reaction_x": {
+        "count": 8,
+        "maximum_absolute": 3.446132268436486e-13,
+        "relative_l2": 1.1388142136274294e-14,
+        "relative_peak": 1.2868184518491723e-14,
+        "maximum_pointwise_relative": 1.2868184518491723e-14
+      },
+      "reaction_y": {
+        "count": 8,
+        "maximum_absolute": 6.679101716144942e-13,
+        "relative_l2": 1.1846715844706162e-14,
+        "relative_peak": 1.2564270884910759e-14,
+        "maximum_pointwise_relative": 1.2642673899200005e-14
+      },
+      "heat_reaction": {
+        "count": 4,
+        "maximum_absolute": 4.902744876744691e-13,
+        "relative_l2": 9.6285750730037e-15,
+        "relative_peak": 9.805489753489286e-15,
+        "maximum_pointwise_relative": 9.805489753489286e-15
+      },
+      "stress_xx": {
+        "count": 9,
+        "maximum_absolute": 5.820766091346741e-11,
+        "relative_l2": 1.1638392073347996e-15,
+        "relative_peak": 1.079676720634077e-15,
+        "maximum_pointwise_relative": 2.357961544029985e-15
+      },
+      "stress_yy": {
+        "count": 9,
+        "maximum_absolute": 5.820766091346741e-11,
+        "relative_l2": 1.1638392073347996e-15,
+        "relative_peak": 1.079676720634077e-15,
+        "maximum_pointwise_relative": 2.357961544029985e-15
+      },
+      "stress_zz": {
+        "count": 9,
+        "maximum_absolute": 1.7462298274040222e-10,
+        "relative_l2": 1.084817897071876e-15,
+        "relative_peak": 1.1999986583995494e-15,
+        "maximum_pointwise_relative": 2.0507009988659144e-15
+      },
+      "stress_xy": {
+        "count": 9,
+        "maximum_absolute": 4.4742364471909376e-27,
+        "zero_absolute": 4.4742364471909376e-27
+      },
+      "u3": {
+        "count": 1,
+        "maximum_absolute": 2.2351741811588166e-10,
+        "relative_l2": 2.235174231118854e-08,
+        "relative_peak": 2.235174231118854e-08,
+        "maximum_pointwise_relative": 2.235174231118854e-08
+      },
+      "rotation_x": {
+        "count": 1,
+        "maximum_absolute": 2.980232227667301e-09,
+        "relative_l2": 1.4901160916291903e-08,
+        "relative_peak": 1.4901160916291903e-08,
+        "maximum_pointwise_relative": 1.4901160916291903e-08
+      },
+      "rotation_y": {
+        "count": 1,
+        "maximum_absolute": 1.1920928966180355e-08,
+        "relative_l2": 3.973642830828406e-08,
+        "relative_peak": 3.973642830828406e-08,
+        "maximum_pointwise_relative": 3.973642830828406e-08
+      },
+      "axial_force": {
+        "count": 1,
+        "maximum_absolute": 4.4673247145965433e-07,
+        "relative_l2": 1.9923326447422215e-08,
+        "relative_peak": 1.9923326447422215e-08,
+        "maximum_pointwise_relative": 1.9923326447422215e-08
+      },
+      "moment_x": {
+        "count": 1,
+        "maximum_absolute": 6.4436421042674e-11,
+        "relative_l2": 1.7756421983592303e-08,
+        "relative_peak": 1.7756421983592303e-08,
+        "maximum_pointwise_relative": 1.7756421983592303e-08
+      },
+      "moment_y": {
+        "count": 1,
+        "maximum_absolute": 3.7146083431416344e-10,
+        "relative_l2": 1.7061505898657e-08,
+        "relative_peak": 1.7061505898657e-08,
+        "maximum_pointwise_relative": 1.7061505898657e-08
+      }
+    },
+    "contact": {
+      "temperature": {
+        "count": 8,
+        "maximum_absolute": 1.1368683772161603e-13,
+        "relative_l2": 2.0586887651999493e-16,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 3.4106051316484824e-16
+      },
+      "displacement_x": {
+        "count": 16,
+        "maximum_absolute": 2.5157232679245588e-36,
+        "zero_absolute": 2.5157232679245588e-36
+      },
+      "displacement_y": {
+        "count": 16,
+        "maximum_absolute": 9.434038836589331e-14,
+        "zero_absolute": 1.5094339607547335e-35,
+        "relative_l2": 3.347741658335466e-10,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 1.00000811767848e-09
+      },
+      "reaction_x": {
+        "count": 16,
+        "maximum_absolute": 2.5157151917198917e-09,
+        "zero_absolute": 3.4833247397614286e-15,
+        "relative_l2": 9.999942546137385e-10,
+        "relative_peak": 9.99996789708644e-10,
+        "maximum_pointwise_relative": 1.0000075577617792e-09
+      },
+      "reaction_y": {
+        "count": 16,
+        "maximum_absolute": 1.5094254735004142e-08,
+        "zero_absolute": 8.659739592076221e-14,
+        "relative_l2": 9.999922817793027e-10,
+        "relative_peak": 9.99992611939395e-10,
+        "maximum_pointwise_relative": 1.0000033211507118e-09
+      },
+      "heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 2.4868995751603507e-13,
+        "zero_absolute": 6.039613253960852e-14,
+        "relative_l2": 7.048891929366481e-15,
+        "relative_peak": 7.460698725481e-15,
+        "maximum_pointwise_relative": 7.460698725481e-15
+      },
+      "stress_xx": {
+        "count": 18,
+        "maximum_absolute": 3.7736176636826713e-06,
+        "relative_l2": 1.0000039218137006e-09,
+        "relative_peak": 1.0000021744413153e-09,
+        "maximum_pointwise_relative": 1.0000086818759195e-09
+      },
+      "stress_yy": {
+        "count": 18,
+        "maximum_absolute": 1.1320853445795365e-05,
+        "relative_l2": 1.0000038928024821e-09,
+        "relative_peak": 1.0000022949493634e-09,
+        "maximum_pointwise_relative": 1.000008722045269e-09
+      },
+      "stress_zz": {
+        "count": 18,
+        "maximum_absolute": 3.7736176636826713e-06,
+        "relative_l2": 1.0000039218137006e-09,
+        "relative_peak": 1.0000021744413153e-09,
+        "maximum_pointwise_relative": 1.0000086818759195e-09
+      },
+      "stress_xy": {
+        "count": 18,
+        "maximum_absolute": 2.2898349882893854e-11,
+        "zero_absolute": 2.463307335887066e-11
+      },
+      "u3": {
+        "count": 2,
+        "maximum_absolute": 7.54717021793019e-37,
+        "zero_absolute": 7.54717021793019e-37
+      },
+      "rotation_x": {
+        "count": 2,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "rotation_y": {
+        "count": 2,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "axial_force": {
+        "count": 2,
+        "maximum_absolute": 1.1246158670985551e-08,
+        "relative_l2": 1.4901157810443203e-08,
+        "relative_peak": 1.490115560387481e-08,
+        "maximum_pointwise_relative": 1.4901160017011267e-08
+      },
+      "moment_x": {
+        "count": 2,
+        "maximum_absolute": 1.1175870973556719e-10,
+        "zero_absolute": 1.1175870862425996e-10
+      },
+      "moment_y": {
+        "count": 2,
+        "maximum_absolute": 3.965392703679532e-19,
+        "zero_absolute": 2.0599841277224584e-18
+      },
+      "native_uniform_pressure": {
+        "count": 6,
+        "maximum_absolute": 7.275957614183426e-12,
+        "relative_l2": 3.6522458377232877e-16,
+        "relative_peak": 6.42709578541039e-16,
+        "maximum_pointwise_relative": 6.42709578541039e-16
+      },
+      "contact_pressure": {
+        "count": 3,
+        "maximum_absolute": 0.00018867933795263525,
+        "relative_l2": 1.666667253945789e-08,
+        "relative_peak": 1.666666975438293e-08,
+        "maximum_pointwise_relative": 1.666667457470477e-08
+      },
+      "native_uniform_gap": {
+        "count": 3,
+        "maximum_absolute": 1.6601845766184287e-19,
+        "relative_l2": 1.0370414940627123e-14,
+        "relative_peak": 1.466496351571323e-14,
+        "maximum_pointwise_relative": 1.466496351571323e-14
+      },
+      "contact_gap": {
+        "count": 3,
+        "maximum_absolute": 1.886793943740167e-13,
+        "relative_l2": 1.6666677563360286e-08,
+        "relative_peak": 1.666667477003378e-08,
+        "maximum_pointwise_relative": 1.6666679558593294e-08
+      },
+      "contact_force": {
+        "count": 1,
+        "maximum_absolute": 3.7735870250799053e-07,
+        "relative_l2": 1.6666675749658164e-08,
+        "relative_peak": 1.6666675749658164e-08,
+        "maximum_pointwise_relative": 1.6666675749658164e-08
+      },
+      "contact_heat_rate": {
+        "count": 1,
+        "maximum_absolute": 3.268496584496461e-13,
+        "relative_l2": 4.902744876744662e-15,
+        "relative_peak": 4.902744876744662e-15,
+        "maximum_pointwise_relative": 4.902744876744662e-15
+      }
+    },
+    "finite_contact": {
+      "temperature": {
+        "count": 8,
+        "maximum_absolute": 1.344469637842849e-07,
+        "relative_l2": 2.7009698583423216e-10,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 4.0334041883519314e-10
+      },
+      "displacement_x": {
+        "count": 16,
+        "maximum_absolute": 6.681191961764189e-40,
+        "zero_absolute": 6.681191961764189e-40
+      },
+      "displacement_y": {
+        "count": 16,
+        "maximum_absolute": 3.4283285845621014e-14,
+        "zero_absolute": 4.085619669541931e-39,
+        "relative_l2": 1.2165419344098012e-10,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 3.6350043528103964e-10
+      },
+      "reaction_x": {
+        "count": 16,
+        "maximum_absolute": 9.055605154628665e-10,
+        "zero_absolute": 2.240828734010794e-15,
+        "relative_l2": 3.617702998492492e-10,
+        "relative_peak": 3.617702259213989e-10,
+        "maximum_pointwise_relative": 3.617743064295723e-10
+      },
+      "reaction_y": {
+        "count": 16,
+        "maximum_absolute": 5.537591718507429e-09,
+        "zero_absolute": 2.0539125955565396e-14,
+        "relative_l2": 3.652326575241512e-10,
+        "relative_peak": 3.652331098873497e-10,
+        "maximum_pointwise_relative": 3.652333442075315e-10
+      },
+      "heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 1.3444371660398247e-07,
+        "zero_absolute": 2.4868995751603507e-14,
+        "relative_l2": 4.03337126010536e-09,
+        "relative_peak": 4.033371846311855e-09,
+        "maximum_pointwise_relative": 4.033371846311855e-09
+      },
+      "stress_xx": {
+        "count": 18,
+        "maximum_absolute": 1.3843728083884344e-06,
+        "relative_l2": 3.6522068478103227e-10,
+        "relative_peak": 3.6522371739718747e-10,
+        "maximum_pointwise_relative": 3.6522671669551386e-10
+      },
+      "stress_yy": {
+        "count": 18,
+        "maximum_absolute": 4.153118425165303e-06,
+        "relative_l2": 3.6522064701226003e-10,
+        "relative_peak": 3.652236774065431e-10,
+        "maximum_pointwise_relative": 3.6522671669551386e-10
+      },
+      "stress_zz": {
+        "count": 18,
+        "maximum_absolute": 1.3843728083884344e-06,
+        "relative_l2": 3.6522068478103227e-10,
+        "relative_peak": 3.6522371739718747e-10,
+        "maximum_pointwise_relative": 3.6522671669551386e-10
+      },
+      "stress_xy": {
+        "count": 18,
+        "maximum_absolute": 1.646716750050902e-11,
+        "zero_absolute": 1.3987962169194427e-11
+      },
+      "u3": {
+        "count": 2,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "rotation_x": {
+        "count": 2,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "rotation_y": {
+        "count": 2,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "axial_force": {
+        "count": 2,
+        "maximum_absolute": 2.368420537468552e-08,
+        "relative_l2": 3.153942508086047e-08,
+        "relative_peak": 3.153942508086047e-08,
+        "maximum_pointwise_relative": 3.153942508086047e-08
+      },
+      "moment_x": {
+        "count": 2,
+        "maximum_absolute": 1.282952030202955e-10,
+        "relative_l2": 7.335081190360187e-07,
+        "relative_peak": 6.757016812868546e-07,
+        "maximum_pointwise_relative": 1.697016857097531e-06
+      },
+      "moment_y": {
+        "count": 2,
+        "maximum_absolute": 4.698226179775189e-19,
+        "zero_absolute": 8.673617379884035e-19
+      },
+      "native_uniform_pressure": {
+        "count": 6,
+        "maximum_absolute": 7.275957614183426e-12,
+        "relative_l2": 3.694177508644648e-16,
+        "relative_peak": 6.398503137150745e-16,
+        "maximum_pointwise_relative": 6.398503137150745e-16
+      },
+      "contact_pressure": {
+        "count": 3,
+        "maximum_absolute": 6.856678373878822e-05,
+        "relative_l2": 6.0297871010754994e-09,
+        "relative_peak": 6.029787474321493e-09,
+        "maximum_pointwise_relative": 6.029787474321493e-09
+      },
+      "native_uniform_gap": {
+        "count": 3,
+        "maximum_absolute": 1.1350241493207625e-19,
+        "relative_l2": 7.0240607218539926e-15,
+        "relative_peak": 9.981442945755554e-15,
+        "maximum_pointwise_relative": 9.981442945755554e-15
+      },
+      "contact_gap": {
+        "count": 3,
+        "maximum_absolute": 6.856678683761063e-14,
+        "relative_l2": 6.02978734956171e-09,
+        "relative_peak": 6.029787746833046e-09,
+        "maximum_pointwise_relative": 6.029787746833046e-09
+      },
+      "contact_force": {
+        "count": 1,
+        "maximum_absolute": 1.371334974464844e-07,
+        "relative_l2": 6.029784395041842e-09,
+        "relative_peak": 6.029784395041842e-09,
+        "maximum_pointwise_relative": 6.029784395041842e-09
+      },
+      "contact_heat_rate": {
+        "count": 1,
+        "maximum_absolute": 2.688874758405291e-07,
+        "relative_l2": 4.033372485809886e-09,
+        "relative_peak": 4.033372485809886e-09,
+        "maximum_pointwise_relative": 4.033372485809886e-09
+      }
+    }
+  },
+  "regression_before_authorized_tolerance_change": {
+    "command": "ctest --test-dir build -j8 --output-on-failure",
+    "passed": 334,
+    "total": 335,
+    "elapsed_seconds": 152.15,
+    "failed_test": "fuelsim_cpeg8t_finite_contact_mpi2_abaqus",
+    "reason": "Additional strict MPI output comparison: analytically zero stress_xy differs by at most 2.0915312393688207e-12 Pa, exceeding newly specified 1e-12 Pa absolute gate. No tolerance was changed. Both ranks pass independent Abaqus comparison."
+  },
+  "authorized_tolerance_change": {
+    "case": "finite_contact",
+    "test": "fuelsim_cpeg8t_finite_contact_mpi2_abaqus",
+    "field": "stress_xy_q0 through stress_xy_q8",
+    "reason": "User explicitly authorized using the existing Abaqus analytical-zero stress absolute limit for this MPI check only.",
+    "absolute_limit_pa": 1e-07,
+    "checks": [
+      "serial absolute value",
+      "parallel absolute value",
+      "absolute difference"
+    ],
+    "other_thresholds_changed": false
+  },
+  "targeted_regression_before_section_redesign": {
+    "command": "ctest --test-dir build -j8 -R 'cpeg8t|plane_transaction' --output-on-failure",
+    "passed": 8,
+    "total": 8,
+    "elapsed_seconds": 4.38
+  },
+  "section_redesign": {
+    "syntax": "[GeneralizedPlaneStrain] with named children: blocks, initial_thickness, u3, rotation_x, rotation_y and per-control time functions",
+    "mesh": "Standard QUAD8, no reference nodes or custom element attributes",
+    "origin": "Initial area centroid of all elements in each section",
+    "native_comparison": "Native reference-node displacement and moments transformed to each section origin; original error limits retained",
+    "analytical_case": "sections.fsi: two sections with thickness 0.1/0.2 m, independent time functions, prescribed and free controls; all 18 material points and section reactions checked",
+    "internal_checks": [
+      "shared controls across multiple blocks",
+      "area centroid",
+      "duplicate or missing block assignments",
+      "unknown block",
+      "nonpositive thickness",
+      "connected blocks require the same section",
+      "section constraint values included in checkpoint signature"
+    ]
+  },
+  "regression_after_section_redesign": {
+    "command": "ctest --test-dir build -j8 --output-on-failure",
+    "passed": 336,
+    "total": 336,
+    "elapsed_seconds": 151.74,
+    "scope": "Original working tree, including unrelated uncommitted work"
+  },
+  "isolated_commit_regression": {
+    "command": "ctest --test-dir /tmp/fuelsim-cpeg-closeout/build -j8 --output-on-failure",
+    "base_commit": "e2151dc28060498e1dd55c0eeaa82415914571c2",
+    "scope": "Only CPEG8T, section controls and required parallel commit support; unrelated work excluded",
+    "passed": 335,
+    "total": 335,
+    "elapsed_seconds": 151.9,
+    "cpeg8t_tests_passed": 9,
+    "python": "/home/cooper/miniforge/bin/python3",
+    "formatted_with_repository_hook": true
+  }
+}

@@ -1,0 +1,30 @@
+#pragma once
+#include "contact_types.hpp"
+#include <array>
+
+namespace fuelsim::elements {
+// [Ts0,Ts1,Tp0,Tp1,usx(3),usy(3),upx(3),upy(3),qs(3),qp(3)].
+using Line3PlaneValues = std::array<double, 22>;
+
+struct Line3PlaneContactInput final {
+    std::array<std::array<double, 2>, 3> secondary, primary;
+    std::array<double, 2> secondary_reference, primary_reference;
+    double secondary_thickness, primary_thickness;
+    bool secondary_finite, primary_finite;
+    const Line3PlaneValues& state;
+    double coordinate, weight;
+    GapHeatProperties heat;
+    double penalty;
+    bool thermal, mechanical;
+};
+
+struct Line3PlaneContactResult final {
+    Line3PlaneValues residual{};
+    std::array<double, 484> jacobian{};
+    bool projected = false;
+    double gap = 0.0, pressure = 0.0, area = 0.0, heat_rate = 0.0, force = 0.0;
+    double distance_squared = 0.0, primary_coordinate = 0.0;
+};
+
+Line3PlaneContactResult evaluate_line3_plane_contact(const Line3PlaneContactInput& input, bool jacobian);
+} // namespace fuelsim::elements

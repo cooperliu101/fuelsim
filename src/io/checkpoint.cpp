@@ -204,7 +204,7 @@ TransientConservationSummary read_conservation(BinaryCursor& payload) {
 BinaryBuffer state_payload(const TransientProblem& problem, double next_time_step) {
     BinaryBuffer payload;
     payload.append_u64(transient_problem_signature(problem));
-    const bool cartesian = problem.is_cartesian_3d();
+    const bool cartesian = problem.is_cartesian_3d() || problem.uses_plane_quad8();
     const TransientCommittedState state = BackendAccess::committed_state(problem);
     payload.append_double(state.time);
     payload.append_double(state.load_factor);
@@ -346,7 +346,7 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
     BinaryCursor payload(payload_bytes);
     if (payload.read_u64() != transient_problem_signature(problem))
         throw std::runtime_error("Checkpoint model signature does not match the current problem");
-    const bool cartesian = problem.is_cartesian_3d();
+    const bool cartesian = problem.is_cartesian_3d() || problem.uses_plane_quad8();
     TransientCommittedState state;
     state.time = payload.read_double();
     state.load_factor = payload.read_double();

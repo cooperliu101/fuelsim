@@ -12,6 +12,7 @@ enum class CaseProblem {
     transient,
 };
 enum class CaseGeometry {
+    generalized_plane_strain,
     axisymmetric_rz,
     cartesian_3d,
     axisymmetric_1d,

@@ -1,0 +1,58 @@
+*Heading
+** CPEG8T: prescribed extension and both bounding-plane rotations, SI units.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Node
+1, -0.01, -0.005
+2, 0.01, -0.005
+3, 0.01, 0.005
+4, -0.01, 0.005
+5, 0., -0.005
+6, 0.01, 0.
+7, 0., 0.005
+8, -0.01, 0.
+100, 0., 0.
+*Element, type=CPEG8T, elset=SOLID
+1, 1, 2, 3, 4, 5, 6, 7, 8
+*Nset, nset=FIELD
+1, 2, 3, 4, 5, 6, 7, 8
+*Nset, nset=CORNERS
+1, 2, 3, 4
+*Nset, nset=CONTROL
+100
+*Material, name=SOLID
+*Elastic
+1.e6, 0.25
+*Expansion, zero=300.
+1.e-5
+*Conductivity
+10.
+*Density
+1000.
+*Specific Heat
+100.
+*Solid Section, elset=SOLID, material=SOLID, ref node=100
+0.1, 0., 0.
+*Initial Conditions, type=TEMPERATURE
+FIELD, 300.
+*Step, name=PROBE, nlgeom=YES, inc=1
+*Coupled Temperature-Displacement
+1., 1., 1., 1.
+*Boundary
+FIELD, 1, 2, 0.
+CONTROL, 3, 3, 0.01
+CONTROL, 4, 4, 0.2
+CONTROL, 5, 5, -0.3
+CORNERS, 11, 11, 400.
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output
+S, E, EE, COORD, IVOL, HFL
+*Node Print, nset=CONTROL, frequency=1
+U
+*Node Print, nset=CONTROL, frequency=1
+RF
+*Output, history, frequency=1
+*Node Output, nset=CONTROL
+U3, UR1, UR2, RF3, RM1, RM2
+*End Step

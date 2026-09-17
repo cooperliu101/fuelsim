@@ -7,6 +7,7 @@
 #include "core/steady_problem.hpp"
 #include "core/transient_problem.hpp"
 #include "material_types.hpp"
+#include "plane_assembly.hpp"
 #include "radial_assembly.hpp"
 #include "rz8_assembly.hpp"
 #include "rz_assembly.hpp"
@@ -44,6 +45,8 @@ struct TransientBackendView final {
 
 class BackendAccess final {
   public:
+    static const plane::SpatialAssembly& plane_spatial(const SteadyProblem& problem) noexcept;
+    static const plane::SpatialAssembly& plane_spatial(const TransientProblem& problem) noexcept;
     static bool uses_radial_gps(const SteadyProblem& problem) noexcept;
     static bool uses_radial_gps(const TransientProblem& problem) noexcept;
     static const radial::SpatialAssembly& radial_spatial(const SteadyProblem& problem) noexcept;

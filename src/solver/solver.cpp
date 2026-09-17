@@ -1,4 +1,5 @@
 #include "core/spatial_definition.hpp"
+#include "core/transient_problem.hpp"
 #include "solver/petsc_solver.hpp"
 #include "solver_detail.hpp"
 #include <algorithm>
@@ -1154,6 +1155,25 @@ PetscSolver::PetscSolver() : _impl(std::make_unique<Implementation>()) {
 }
 
 PetscSolver::~PetscSolver() = default;
+
+void solver_detail::commit_time_step(TransientProblem& problem, const SolveResult& result) {
+    if (PetscGlobalSize == 1 || !problem.uses_plane_quad8()) {
+        problem.commit_time_step(result.state);
+        return;
+    }
+    problem.commit_time_step(result.state,
+        result.local_contribution_begin,
+        result.local_contribution_end,
+        [](std::vector<double>& values) {
+            check_mpi(MPIU_Allreduce(MPI_IN_PLACE,
+                          values.data(),
+                          static_cast<MPIU_Count>(values.size()),
+                          MPI_DOUBLE,
+                          MPI_SUM,
+                          PETSC_COMM_WORLD),
+                "MPIU_Allreduce committed state");
+        });
+}
 
 SolveResult PetscSolver::solve(const NonlinearProblem& problem,
     const std::vector<double>& initial_state,

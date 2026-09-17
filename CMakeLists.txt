@@ -73,6 +73,9 @@ include(CTest)
 add_subdirectory(elements)
 
 add_library(fuelsim_core
+    src/core/plane_mesh.cpp
+    src/core/plane_assembly.cpp
+    src/core/plane_contact.cpp
     src/core/cross_section.cpp
     src/core/modal_beam.cpp
     src/core/radial_assembly.cpp
@@ -157,6 +160,24 @@ fuelsim_enable_warnings(fuelsim)
 include(CTest)
 
 if(BUILD_TESTING)
+    find_program(FUELSIM_TEST_PYTHON NAMES python3 REQUIRED)
+    add_test(NAME fuelsim_cpeg8t_tests COMMAND fuelsim_cpeg8t_tests)
+    add_executable(fuelsim_plane_transaction_tests tests/plane_transaction_tests.cpp)
+    target_link_libraries(fuelsim_plane_transaction_tests PRIVATE fuelsim::io)
+    target_include_directories(fuelsim_plane_transaction_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    fuelsim_enable_warnings(fuelsim_plane_transaction_tests)
+    add_test(NAME fuelsim_plane_transaction_tests COMMAND fuelsim_plane_transaction_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/finite_contact.fsi"
+        "${CMAKE_CURRENT_BINARY_DIR}/plane_transaction")
+    foreach(case prescribed free_controls finite_prescribed contact finite_contact)
+        add_test(NAME fuelsim_cpeg8t_${case}_abaqus
+            COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/compare.py"
+                --case "${case}" --executable "$<TARGET_FILE:fuelsim>"
+                --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_${case}")
+    endforeach()
+    add_test(NAME fuelsim_cpeg8t_sections_analytic
+        COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_sections.py"
+            --executable "$<TARGET_FILE:fuelsim>" --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_sections")
     add_executable(fuelsim_modal_beam_tests tests/modal_beam_tests.cpp)
     target_link_libraries(fuelsim_modal_beam_tests PRIVATE fuelsim::solver)
     fuelsim_link_petsc(fuelsim_modal_beam_tests)
@@ -1920,6 +1941,17 @@ if(BUILD_TESTING)
         HINTS "${PETSC_PREFIX}/bin"
         NO_DEFAULT_PATH
     )
+    if(FUELSIM_MPIEXEC_EXECUTABLE)
+        add_test(NAME fuelsim_cpeg8t_finite_contact_mpi2_abaqus
+            COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/compare.py"
+                --case finite_contact --executable "$<TARGET_FILE:fuelsim>"
+                --mpiexec "${FUELSIM_MPIEXEC_EXECUTABLE}"
+                --serial-work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_finite_contact"
+                --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_finite_contact_mpi2")
+        set_tests_properties(fuelsim_cpeg8t_finite_contact_abaqus PROPERTIES FIXTURES_SETUP cpeg8t_serial)
+        set_tests_properties(fuelsim_cpeg8t_finite_contact_mpi2_abaqus PROPERTIES
+            PROCESSORS 2 TIMEOUT 120 FIXTURES_REQUIRED cpeg8t_serial)
+    endif()
     # Result-only postprocessing uses the same Python/numpy/netCDF4 tooling as
     # the verification mesh scripts; it never links or calls a mechanics solver.
     # Prefer the base Conda verification environment when PETSc comes from a

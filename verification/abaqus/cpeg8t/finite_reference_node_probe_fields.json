@@ -1,0 +1,1846 @@
+{
+  "history": {
+    "PROBE": {
+      "Assembly Assembly-1": {
+        "CRPTIME": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            1.0,
+            1.0
+          ]
+        ]
+      },
+      "Node PART-1-1.100": {
+        "RF3": [
+          [
+            0.0,
+            -0.0
+          ],
+          [
+            1.0,
+            22.422584533691406
+          ]
+        ],
+        "RM1": [
+          [
+            0.0,
+            -0.0
+          ],
+          [
+            1.0,
+            0.003628907958045602
+          ]
+        ],
+        "RM2": [
+          [
+            0.0,
+            -0.0
+          ],
+          [
+            1.0,
+            -0.0217718668282032
+          ]
+        ],
+        "U3": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            1.0,
+            0.009999999776482582
+          ]
+        ],
+        "UR1": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            1.0,
+            0.20000000298023224
+          ]
+        ],
+        "UR2": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            1.0,
+            -0.30000001192092896
+          ]
+        ]
+      }
+    }
+  },
+  "steps": {
+    "PROBE": [
+      {
+        "fields": {
+          "COORD": {
+            "components": [
+              "COORD1",
+              "COORD2"
+            ],
+            "values": [
+              {
+                "data": [
+                  -0.007745966692414799,
+                  -0.0038729833462073995
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 1
+              },
+              {
+                "data": [
+                  0.0,
+                  -0.0038729833462073995
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 2
+              },
+              {
+                "data": [
+                  0.007745966692414799,
+                  -0.0038729833462073995
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 3
+              },
+              {
+                "data": [
+                  -0.007745966692414799,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 4
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 5
+              },
+              {
+                "data": [
+                  0.007745966692414799,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 6
+              },
+              {
+                "data": [
+                  -0.007745966692414799,
+                  0.0038729833462073995
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 7
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0038729833462073995
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 8
+              },
+              {
+                "data": [
+                  0.007745966692414799,
+                  0.0038729833462073995
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 9
+              }
+            ]
+          },
+          "EE": {
+            "components": [
+              "EE11",
+              "EE22",
+              "EE33",
+              "EE12"
+            ],
+            "values": [
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 1
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 2
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 3
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 4
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 5
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 6
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 7
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 8
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 9
+              }
+            ]
+          },
+          "HFL": {
+            "components": [
+              "HFL1",
+              "HFL2"
+            ],
+            "values": [
+              {
+                "data": [
+                  9.947598300641403e-12,
+                  -4.547473508864641e-12
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 1
+              },
+              {
+                "data": [
+                  -2.2737367544323206e-12,
+                  3.126388037344441e-12
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 2
+              },
+              {
+                "data": [
+                  -5.329070518200751e-12,
+                  5.329070518200751e-12
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 3
+              },
+              {
+                "data": [
+                  -1.5631940186722204e-12,
+                  -4.547473508864641e-12
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 4
+              },
+              {
+                "data": [
+                  -0.0,
+                  -0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 5
+              },
+              {
+                "data": [
+                  -1.5631940186722204e-12,
+                  -0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 6
+              },
+              {
+                "data": [
+                  -8.526512829121202e-13,
+                  7.958078640513122e-12
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 7
+              },
+              {
+                "data": [
+                  2.2737367544323206e-12,
+                  3.126388037344441e-12
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 8
+              },
+              {
+                "data": [
+                  2.2737367544323206e-12,
+                  7.389644451905042e-12
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 9
+              }
+            ]
+          },
+          "IVOL": {
+            "components": [],
+            "values": [
+              {
+                "data": 1.5432098765432346e-06,
+                "elementLabel": 1,
+                "integrationPoint": 1
+              },
+              {
+                "data": 2.4691358024691583e-06,
+                "elementLabel": 1,
+                "integrationPoint": 2
+              },
+              {
+                "data": 1.5432098765432346e-06,
+                "elementLabel": 1,
+                "integrationPoint": 3
+              },
+              {
+                "data": 2.4691358024691583e-06,
+                "elementLabel": 1,
+                "integrationPoint": 4
+              },
+              {
+                "data": 3.950617283950627e-06,
+                "elementLabel": 1,
+                "integrationPoint": 5
+              },
+              {
+                "data": 2.4691358024691583e-06,
+                "elementLabel": 1,
+                "integrationPoint": 6
+              },
+              {
+                "data": 1.543209876543235e-06,
+                "elementLabel": 1,
+                "integrationPoint": 7
+              },
+              {
+                "data": 2.4691358024691583e-06,
+                "elementLabel": 1,
+                "integrationPoint": 8
+              },
+              {
+                "data": 1.543209876543235e-06,
+                "elementLabel": 1,
+                "integrationPoint": 9
+              }
+            ]
+          },
+          "LE": {
+            "components": [
+              "LE11",
+              "LE22",
+              "LE33",
+              "LE12"
+            ],
+            "values": [
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 1
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 2
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 3
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 4
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 5
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 6
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 7
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 8
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 9
+              }
+            ]
+          },
+          "NT11": {
+            "components": [],
+            "values": [
+              {
+                "data": 300.0,
+                "nodeLabel": 1
+              },
+              {
+                "data": 300.0,
+                "nodeLabel": 2
+              },
+              {
+                "data": 300.0,
+                "nodeLabel": 3
+              },
+              {
+                "data": 300.0,
+                "nodeLabel": 4
+              },
+              {
+                "data": 300.0,
+                "nodeLabel": 5
+              },
+              {
+                "data": 300.0,
+                "nodeLabel": 6
+              },
+              {
+                "data": 300.0,
+                "nodeLabel": 7
+              },
+              {
+                "data": 300.0,
+                "nodeLabel": 8
+              },
+              {
+                "data": 0.0,
+                "nodeLabel": 100
+              }
+            ]
+          },
+          "RF": {
+            "components": [
+              "RF1",
+              "RF2"
+            ],
+            "values": [
+              {
+                "data": [
+                  -0.0,
+                  -0.0
+                ],
+                "nodeLabel": 1
+              },
+              {
+                "data": [
+                  -0.0,
+                  -0.0
+                ],
+                "nodeLabel": 2
+              },
+              {
+                "data": [
+                  -0.0,
+                  -0.0
+                ],
+                "nodeLabel": 3
+              },
+              {
+                "data": [
+                  -0.0,
+                  -0.0
+                ],
+                "nodeLabel": 4
+              },
+              {
+                "data": [
+                  -0.0,
+                  -0.0
+                ],
+                "nodeLabel": 5
+              },
+              {
+                "data": [
+                  -0.0,
+                  -0.0
+                ],
+                "nodeLabel": 6
+              },
+              {
+                "data": [
+                  -0.0,
+                  -0.0
+                ],
+                "nodeLabel": 7
+              },
+              {
+                "data": [
+                  -0.0,
+                  -0.0
+                ],
+                "nodeLabel": 8
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 100
+              }
+            ]
+          },
+          "RFL11": {
+            "components": [],
+            "values": [
+              {
+                "data": -0.0,
+                "nodeLabel": 1
+              },
+              {
+                "data": -0.0,
+                "nodeLabel": 2
+              },
+              {
+                "data": -0.0,
+                "nodeLabel": 3
+              },
+              {
+                "data": -0.0,
+                "nodeLabel": 4
+              },
+              {
+                "data": 0.0,
+                "nodeLabel": 5
+              },
+              {
+                "data": 0.0,
+                "nodeLabel": 6
+              },
+              {
+                "data": 0.0,
+                "nodeLabel": 7
+              },
+              {
+                "data": 0.0,
+                "nodeLabel": 8
+              },
+              {
+                "data": 0.0,
+                "nodeLabel": 100
+              }
+            ]
+          },
+          "RM": {
+            "components": [
+              "RM1",
+              "RM2"
+            ],
+            "values": [
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 1
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 2
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 3
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 4
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 5
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 6
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 7
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 8
+              },
+              {
+                "data": [
+                  -0.0,
+                  -0.0
+                ],
+                "nodeLabel": 100
+              }
+            ]
+          },
+          "S": {
+            "components": [
+              "S11",
+              "S22",
+              "S33",
+              "S12"
+            ],
+            "values": [
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 1
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 2
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 3
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 4
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 5
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 6
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 7
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 8
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 9
+              }
+            ]
+          },
+          "U": {
+            "components": [
+              "U1",
+              "U2"
+            ],
+            "values": [
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 1
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 2
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 3
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 4
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 5
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 6
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 7
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 8
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 100
+              }
+            ]
+          },
+          "UR": {
+            "components": [
+              "UR1",
+              "UR2"
+            ],
+            "values": [
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 1
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 2
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 3
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 4
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 5
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 6
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 7
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 8
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 100
+              }
+            ]
+          }
+        },
+        "time": 0.0
+      },
+      {
+        "fields": {
+          "COORD": {
+            "components": [
+              "COORD1",
+              "COORD2"
+            ],
+            "values": [
+              {
+                "data": [
+                  -0.007745966692414799,
+                  -0.0038729833462073995
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 1
+              },
+              {
+                "data": [
+                  0.0,
+                  -0.0038729833462073995
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 2
+              },
+              {
+                "data": [
+                  0.007745966692414799,
+                  -0.0038729833462073995
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 3
+              },
+              {
+                "data": [
+                  -0.007745966692414799,
+                  4.732257784643966e-36
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 4
+              },
+              {
+                "data": [
+                  0.0,
+                  2.6666666666666775e-36
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 5
+              },
+              {
+                "data": [
+                  0.007745966692414799,
+                  6.010755486893892e-37
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 6
+              },
+              {
+                "data": [
+                  -0.007745966692414799,
+                  0.0038729833462073995
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 7
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0038729833462073995
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 8
+              },
+              {
+                "data": [
+                  0.007745966692414799,
+                  0.0038729833462073995
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 9
+              }
+            ]
+          },
+          "EE": {
+            "components": [
+              "EE11",
+              "EE22",
+              "EE33",
+              "EE12"
+            ],
+            "values": [
+              {
+                "data": [
+                  -0.001,
+                  -0.001,
+                  0.06571396333926725,
+                  1.1185591117977343e-32
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 1
+              },
+              {
+                "data": [
+                  -0.001,
+                  -0.001,
+                  0.08718626403768315,
+                  1.5491933384829657e-33
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 2
+              },
+              {
+                "data": [
+                  -0.001,
+                  -0.001,
+                  0.10818683409966029,
+                  -8.087204441011413e-33
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 3
+              },
+              {
+                "data": [
+                  -0.001,
+                  -0.001,
+                  0.0729247889063564,
+                  5.163977794943229e-34
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 4
+              },
+              {
+                "data": [
+                  -0.001,
+                  -0.001,
+                  0.09423809523809518,
+                  6.347816186468965e-49
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 5
+              },
+              {
+                "data": [
+                  -0.001,
+                  -0.001,
+                  0.11508487214057443,
+                  -5.163977794943224e-34
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 6
+              },
+              {
+                "data": [
+                  -0.001,
+                  -0.001,
+                  0.08008202406949168,
+                  -1.01527955589887e-32
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 7
+              },
+              {
+                "data": [
+                  -0.001,
+                  -0.001,
+                  0.10123809547741221,
+                  -1.5491933384829657e-33
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 8
+              },
+              {
+                "data": [
+                  -0.001,
+                  -0.001,
+                  0.12193276247859776,
+                  7.05440888202277e-33
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 9
+              }
+            ]
+          },
+          "HFL": {
+            "components": [
+              "HFL1",
+              "HFL2"
+            ],
+            "values": [
+              {
+                "data": [
+                  1.1368683772161603e-12,
+                  1.8189894035458565e-11
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 1
+              },
+              {
+                "data": [
+                  9.094947017729282e-12,
+                  -7.958078640513122e-12
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 2
+              },
+              {
+                "data": [
+                  -7.105427357601002e-12,
+                  7.105427357601002e-12
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 3
+              },
+              {
+                "data": [
+                  3.979039320256561e-12,
+                  1.8189894035458565e-11
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 4
+              },
+              {
+                "data": [
+                  -0.0,
+                  -0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 5
+              },
+              {
+                "data": [
+                  3.979039320256561e-12,
+                  -0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 6
+              },
+              {
+                "data": [
+                  -1.1368683772161603e-12,
+                  -1.3642420526593924e-11
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 7
+              },
+              {
+                "data": [
+                  -9.094947017729282e-12,
+                  -7.958078640513122e-12
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 8
+              },
+              {
+                "data": [
+                  -9.094947017729282e-12,
+                  -2.0463630789890885e-11
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 9
+              }
+            ]
+          },
+          "IVOL": {
+            "components": [],
+            "values": [
+              {
+                "data": 1.64971625498512e-06,
+                "elementLabel": 1,
+                "integrationPoint": 1
+              },
+              {
+                "data": 2.696923539031099e-06,
+                "elementLabel": 1,
+                "integrationPoint": 2
+              },
+              {
+                "data": 1.7214381688037766e-06,
+                "elementLabel": 1,
+                "integrationPoint": 3
+              },
+              {
+                "data": 2.658671851661149e-06,
+                "elementLabel": 1,
+                "integrationPoint": 4
+              },
+              {
+                "data": 4.345679012345689e-06,
+                "elementLabel": 1,
+                "integrationPoint": 5
+              },
+              {
+                "data": 2.7734269137709987e-06,
+                "elementLabel": 1,
+                "integrationPoint": 6
+              },
+              {
+                "data": 1.6736235595913395e-06,
+                "elementLabel": 1,
+                "integrationPoint": 7
+              },
+              {
+                "data": 2.735175226401049e-06,
+                "elementLabel": 1,
+                "integrationPoint": 8
+              },
+              {
+                "data": 1.7453454734099963e-06,
+                "elementLabel": 1,
+                "integrationPoint": 9
+              }
+            ]
+          },
+          "LE": {
+            "components": [
+              "LE11",
+              "LE22",
+              "LE33",
+              "LE12"
+            ],
+            "values": [
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.06673872381896194,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 1
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.08824348150231587,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 2
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.10929550347463919,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 3
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.07395848233752057,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 4
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.09531017980432474,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 5
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.11621549666639376,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 6
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.08112648935318327,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 7
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.10232729010000945,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 8
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0,
+                  0.12308793246076619,
+                  0.0
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 9
+              }
+            ]
+          },
+          "NT11": {
+            "components": [],
+            "values": [
+              {
+                "data": 400.0,
+                "nodeLabel": 1
+              },
+              {
+                "data": 400.0,
+                "nodeLabel": 2
+              },
+              {
+                "data": 400.0,
+                "nodeLabel": 3
+              },
+              {
+                "data": 400.0,
+                "nodeLabel": 4
+              },
+              {
+                "data": 400.0,
+                "nodeLabel": 5
+              },
+              {
+                "data": 400.0,
+                "nodeLabel": 6
+              },
+              {
+                "data": 400.0,
+                "nodeLabel": 7
+              },
+              {
+                "data": 400.0,
+                "nodeLabel": 8
+              },
+              {
+                "data": 0.0,
+                "nodeLabel": 100
+              }
+            ]
+          },
+          "RF": {
+            "components": [
+              "RF1",
+              "RF2"
+            ],
+            "values": [
+              {
+                "data": [
+                  -1.6332630664302348,
+                  -6.085869691520155
+                ],
+                "nodeLabel": 1
+              },
+              {
+                "data": [
+                  10.185019389151714,
+                  -14.733836626998224
+                ],
+                "nodeLabel": 2
+              },
+              {
+                "data": [
+                  11.662892885223267,
+                  20.50774000007604
+                ],
+                "nodeLabel": 3
+              },
+              {
+                "data": [
+                  -3.0563250187363593,
+                  11.750146817029774
+                ],
+                "nodeLabel": 4
+              },
+              {
+                "data": [
+                  -8.441148692242514,
+                  -52.82981882944539
+                ],
+                "nodeLabel": 5
+              },
+              {
+                "data": [
+                  26.780252206395982,
+                  -5.6651742449066
+                ],
+                "nodeLabel": 6
+              },
+              {
+                "data": [
+                  -8.469773683369596,
+                  53.15948515696446
+                ],
+                "nodeLabel": 7
+              },
+              {
+                "data": [
+                  -26.28553154260102,
+                  -5.60792426293908
+                ],
+                "nodeLabel": 8
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 100
+              }
+            ]
+          },
+          "RFL11": {
+            "components": [],
+            "values": [
+              {
+                "data": 50.0000000000005,
+                "nodeLabel": 1
+              },
+              {
+                "data": 50.00000000000048,
+                "nodeLabel": 2
+              },
+              {
+                "data": 50.00000000000049,
+                "nodeLabel": 3
+              },
+              {
+                "data": 50.00000000000048,
+                "nodeLabel": 4
+              },
+              {
+                "data": 0.0,
+                "nodeLabel": 5
+              },
+              {
+                "data": 0.0,
+                "nodeLabel": 6
+              },
+              {
+                "data": 0.0,
+                "nodeLabel": 7
+              },
+              {
+                "data": 0.0,
+                "nodeLabel": 8
+              },
+              {
+                "data": 0.0,
+                "nodeLabel": 100
+              }
+            ]
+          },
+          "RM": {
+            "components": [
+              "RM1",
+              "RM2"
+            ],
+            "values": [
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 1
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 2
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 3
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 4
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 5
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 6
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 7
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 8
+              },
+              {
+                "data": [
+                  0.00362890789360921,
+                  -0.021771867199664084
+                ],
+                "nodeLabel": 100
+              }
+            ]
+          },
+          "S": {
+            "components": [
+              "S11",
+              "S22",
+              "S33",
+              "S12"
+            ],
+            "values": [
+              {
+                "data": [
+                  24685.585335706903,
+                  24685.585335706903,
+                  78056.7560071207,
+                  4.4742364471909376e-27
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 1
+              },
+              {
+                "data": [
+                  33274.505615073256,
+                  33274.505615073256,
+                  103823.51684521978,
+                  6.196773353931863e-28
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 2
+              },
+              {
+                "data": [
+                  41674.73363986411,
+                  41674.73363986411,
+                  129024.20091959235,
+                  -3.234881776404565e-27
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 3
+              },
+              {
+                "data": [
+                  27569.91556254256,
+                  27569.91556254256,
+                  86709.74668762767,
+                  2.0655911179772917e-28
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 4
+              },
+              {
+                "data": [
+                  36095.23809523807,
+                  36095.23809523807,
+                  112285.71428571422,
+                  2.539126474587586e-43
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 5
+              },
+              {
+                "data": [
+                  44433.94885622977,
+                  44433.94885622977,
+                  137301.84656868933,
+                  -2.0655911179772895e-28
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 6
+              },
+              {
+                "data": [
+                  30432.809627796672,
+                  30432.809627796672,
+                  95298.42888339,
+                  -4.06111822359548e-27
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 7
+              },
+              {
+                "data": [
+                  38895.23819096488,
+                  38895.23819096488,
+                  120685.71457289465,
+                  -6.196773353931863e-28
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 8
+              },
+              {
+                "data": [
+                  47173.104991439104,
+                  47173.104991439104,
+                  145519.3149743173,
+                  2.821763552809108e-27
+                ],
+                "elementLabel": 1,
+                "integrationPoint": 9
+              }
+            ]
+          },
+          "U": {
+            "components": [
+              "U1",
+              "U2"
+            ],
+            "values": [
+              {
+                "data": [
+                  1.6666666666666736e-36,
+                  6.0000000000000284e-36
+                ],
+                "nodeLabel": 1
+              },
+              {
+                "data": [
+                  -9.666666666666703e-36,
+                  1.4000000000000053e-35
+                ],
+                "nodeLabel": 2
+              },
+              {
+                "data": [
+                  -1.1000000000000045e-35,
+                  -1.9333333333333416e-35
+                ],
+                "nodeLabel": 3
+              },
+              {
+                "data": [
+                  3.0000000000000132e-36,
+                  -1.1333333333333379e-35
+                ],
+                "nodeLabel": 4
+              },
+              {
+                "data": [
+                  8.000000000000028e-36,
+                  5.066666666666729e-35
+                ],
+                "nodeLabel": 5
+              },
+              {
+                "data": [
+                  -2.5333333333333646e-35,
+                  5.3333333333333624e-36
+                ],
+                "nodeLabel": 6
+              },
+              {
+                "data": [
+                  8.00000000000003e-36,
+                  -5.066666666666729e-35
+                ],
+                "nodeLabel": 7
+              },
+              {
+                "data": [
+                  2.5333333333333646e-35,
+                  5.333333333333355e-36
+                ],
+                "nodeLabel": 8
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 100
+              }
+            ]
+          },
+          "UR": {
+            "components": [
+              "UR1",
+              "UR2"
+            ],
+            "values": [
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 1
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 2
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 3
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 4
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 5
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 6
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 7
+              },
+              {
+                "data": [
+                  0.0,
+                  0.0
+                ],
+                "nodeLabel": 8
+              },
+              {
+                "data": [
+                  0.2,
+                  -0.3
+                ],
+                "nodeLabel": 100
+              }
+            ]
+          }
+        },
+        "time": 1.0
+      }
+    ]
+  }
+}

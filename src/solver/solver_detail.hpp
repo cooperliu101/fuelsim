@@ -3,7 +3,13 @@
 #include <algorithm>
 #include <chrono>
 
+namespace fuelsim {
+class TransientProblem;
+}
+
 namespace fuelsim::solver_detail {
+void commit_time_step(TransientProblem& problem, const SolveResult& result);
+
 using Clock = std::chrono::steady_clock;
 
 inline double seconds_since(const Clock::time_point& start) {

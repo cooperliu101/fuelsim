@@ -7,6 +7,7 @@
 namespace fuelsim {
 struct AugmentedContactUpdate;
 struct SpatialDefinition;
+class UnstructuredPlaneQuad8Mesh;
 class UnstructuredQuad4Mesh;
 class UnstructuredBar2Mesh;
 class UnstructuredQuad8Mesh;
@@ -18,6 +19,7 @@ class SteadyWorkflowAccess;
 
 class SteadyProblem final : public NonlinearProblem {
   public:
+    SteadyProblem(SpatialDefinition definition, const UnstructuredPlaneQuad8Mesh& source_mesh);
     SteadyProblem(SpatialDefinition definition, const UnstructuredBar2Mesh& source_mesh);
     SteadyProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh);
     SteadyProblem(SpatialDefinition definition, const UnstructuredQuad8Mesh& source_mesh);

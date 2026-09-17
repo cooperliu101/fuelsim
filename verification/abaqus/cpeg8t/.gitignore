@@ -1,0 +1,8 @@
+*.dat
+*.msg
+*.sta
+*.log
+*.chk
+*_results.e
+*_history.csv
+__pycache__/

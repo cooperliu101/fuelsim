@@ -35,7 +35,12 @@
 对应的两个生产 C++ 类型是 `SteadyProblem` 和 `TransientProblem`。M0、M1、
 M2 只作为路线和回归名称。
 
-`geometry` 必须显式选择 `axisymmetric_1d`、`axisymmetric_rz` 或 `cartesian_3d`。
+`geometry` 必须显式选择 `axisymmetric_1d`、`axisymmetric_rz`、`cartesian_3d`
+或 `generalized_plane_strain`。后者使用二维 CPEG8T，支持共同的厚度伸长、
+两个截面弯曲控制量及二维热机械接触。标准 QUAD8 网格无需参考节点；
+`[GeneralizedPlaneStrain]` 下可定义多个 section，直接写 `blocks`、`initial_thickness`、
+`u3`、`rotation_x`、`rotation_y`，省略的控制量由平衡方程求解。语法、边界和当前验证范围见
+[二维广义平面应变说明](generalized-plane-strain.md)。
 `axisymmetric_rz` 要求二维 Quad4 或 QUAD8 网格，使用 `[T(:), ur(:), uz(:)]`；
 `cartesian_3d` 要求三维 HEX8 或 HEX20 网格，
 使用 `[T(:), ux(:), uy(:), uz(:)]`。HEX20 采用二阶 20 节点位移和一阶八角点

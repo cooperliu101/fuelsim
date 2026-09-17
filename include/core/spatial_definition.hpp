@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -128,11 +129,20 @@ struct BoundaryConditionDefinition final {
     bool configuration_explicit = false;
 };
 
+struct GeneralizedPlaneStrainSection final {
+    std::string name;
+    std::vector<std::string> blocks;
+    double initial_thickness = 1.0;
+    std::array<std::optional<double>, 3> prescribed{};
+    std::array<std::string, 3> functions{};
+};
+
 struct SpatialDefinition final {
     std::vector<RegionDefinition> regions;
     std::vector<ContactDefinition> contacts;
     std::vector<BoundaryConditionDefinition> boundary_conditions;
     std::vector<PiecewiseLinearTimeTable> time_tables{};
+    std::vector<GeneralizedPlaneStrainSection> generalized_plane_strain{};
 };
 
 struct ContactNodeSummary final {

@@ -206,6 +206,7 @@ std::vector<const InputSection*> direct_children(const InputDocument& document, 
 void validate_sections(const InputDocument& document) {
     const std::vector<std::string> fixed = {"Case",
         "SectionModes",
+        "GeneralizedPlaneStrain",
         "Mesh",
         "TimeFunctions",
         "Materials",
@@ -219,7 +220,7 @@ void validate_sections(const InputDocument& document) {
         bool known = section.parent.empty() && std::find(fixed.begin(), fixed.end(), section.name) != fixed.end();
         known = known || section.parent == "Regions" || section.parent == "BoundaryConditions"
                 || section.parent == "TimeFunctions" || section.parent == "Materials" || section.parent == "Contact"
-                || section.parent == "SectionModes";
+                || section.parent == "SectionModes" || section.parent == "GeneralizedPlaneStrain";
         if (section.parent.compare(0, 10, "Materials/") == 0) {
             const std::string material_path = section.parent.substr(10);
             if (material_path.find('/') == std::string::npos)
@@ -518,9 +519,12 @@ RegionDefinition read_region(const InputDocument& document,
         if (values.size() != (cartesian ? 3U : 2U))
             value_error(document,
                 *acceleration,
-                "body_acceleration requires x y z in Cartesian geometry or radial axial in axisymmetry (m/s^2)");
+                "body_acceleration requires x y z in 3D, x y in generalized plane strain, or radial axial in "
+                "axisymmetry (m/s^2)");
         result.body_acceleration = cartesian ? std::array<double, 3>{values[0], values[1], values[2]}
                                              : std::array<double, 3>{values[0], 0.0, values[1]};
+        if (geometry == CaseGeometry::generalized_plane_strain)
+            result.body_acceleration = {values[0], values[1], 0.0};
     }
     result.heat_source_function = read_optional_string(section, "heat_source_function", {});
     const std::string heat_source_time_evaluation =
@@ -546,6 +550,13 @@ RegionDefinition read_region(const InputDocument& document,
     else
         value_error(document, strain, "unknown strain formulation '" + strain.value + "'");
     const std::string element = required_entry(document, section, "element").value;
+    if (geometry == CaseGeometry::generalized_plane_strain) {
+        if (element != "cpeg8t")
+            value_error(document,
+                required_entry(document, section, "element"),
+                "generalized_plane_strain requires element = cpeg8t");
+        return result;
+    }
     if (geometry == CaseGeometry::axisymmetric_1d) {
         if (element != "cax2t_gps")
             value_error(document,
@@ -679,7 +690,9 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
             value_error(document,
                 required_entry(document, *mechanical, "discretization"),
                 "mechanical discretization must be 'automatic', 'node_to_surface', or 'surface_to_surface'");
-        const std::string sliding = read_optional_string(*mechanical, "sliding", "small");
+        const std::string sliding = read_optional_string(*mechanical,
+            "sliding",
+            geometry == CaseGeometry::generalized_plane_strain ? "finite" : "small");
         if (sliding == "small")
             result.mechanical_sliding = MechanicalContactSliding::small;
         else if (sliding == "finite")
@@ -904,6 +917,8 @@ void read_case(const InputDocument& document, FuelSimCaseDefinition& result) {
         result.geometry = CaseGeometry::axisymmetric_rz;
     else if (geometry == "cartesian_3d")
         result.geometry = CaseGeometry::cartesian_3d;
+    else if (geometry == "generalized_plane_strain")
+        result.geometry = CaseGeometry::generalized_plane_strain;
     else if (geometry == "axisymmetric_1d")
         result.geometry = CaseGeometry::axisymmetric_1d;
     else
@@ -949,6 +964,53 @@ void read_regions(const InputDocument& document,
         throw std::invalid_argument(path + ": [Regions] requires a child region");
 }
 
+void read_generalized_plane_strain(const InputDocument& document, FuelSimCaseDefinition& result) {
+    const auto* parent = find_section(document, "GeneralizedPlaneStrain");
+    if (result.geometry != CaseGeometry::generalized_plane_strain) {
+        if (parent)
+            input_error(document.source_path,
+                parent->line,
+                "[GeneralizedPlaneStrain] requires geometry=generalized_plane_strain");
+        return;
+    }
+    if (!parent)
+        throw std::invalid_argument(document.source_path + ": missing [GeneralizedPlaneStrain]");
+    validate_keys(document, *parent, {});
+    const std::array<std::string, 3> controls{"u3", "rotation_x", "rotation_y"};
+    for (const auto* section : direct_children(document, "GeneralizedPlaneStrain")) {
+        validate_keys(document,
+            *section,
+            {"blocks",
+                "initial_thickness",
+                "u3",
+                "rotation_x",
+                "rotation_y",
+                "u3_function",
+                "rotation_x_function",
+                "rotation_y_function"});
+        GeneralizedPlaneStrainSection value;
+        value.name = section->name;
+        std::istringstream blocks(read_string(document, *section, "blocks"));
+        for (std::string block; blocks >> block;)
+            value.blocks.push_back(block);
+        if (value.blocks.empty())
+            input_error(document.source_path, section->line, "section requires at least one block");
+        value.initial_thickness = parse_double(document, required_entry(document, *section, "initial_thickness"));
+        if (!(value.initial_thickness > 0))
+            input_error(document.source_path, section->line, "initial_thickness must be positive");
+        for (std::size_t i = 0; i < controls.size(); ++i) {
+            if (const auto* entry = find_entry(*section, controls[i]))
+                value.prescribed[i] = parse_double(document, *entry);
+            value.functions[i] = read_optional_string(*section, controls[i] + "_function", "");
+            if (!value.functions[i].empty() && !value.prescribed[i])
+                input_error(document.source_path, section->line, controls[i] + "_function requires " + controls[i]);
+        }
+        result.spatial.generalized_plane_strain.push_back(std::move(value));
+    }
+    if (result.spatial.generalized_plane_strain.empty())
+        input_error(document.source_path, parent->line, "[GeneralizedPlaneStrain] requires a child section");
+}
+
 void read_contacts(const InputDocument& document, FuelSimCaseDefinition& result) {
     if (const InputSection* contacts = find_section(document, "Contact"); contacts != nullptr)
         validate_keys(document, *contacts, {});
@@ -974,6 +1036,9 @@ void validate_time_function_references(const std::string& path, const FuelSimCas
         if (found == result.spatial.time_tables.end())
             throw std::invalid_argument(path + ": " + owner + " references unknown time function '" + name + "'");
     };
+    for (const auto& section : result.spatial.generalized_plane_strain)
+        for (const auto& function : section.functions)
+            require_function(function, "generalized plane strain section '" + section.name + "'");
     for (const RegionDefinition& region : result.spatial.regions)
         require_function(region.heat_source_function, "region '" + region.name + "'");
     for (const BoundaryConditionDefinition& boundary : result.spatial.boundary_conditions) {
@@ -1299,6 +1364,7 @@ FuelSimCaseDefinition read_case_input(const std::string& path, const MaterialFun
     read_time_functions(document, result);
     const std::vector<ParsedMaterial> materials = read_materials(document, registry);
     read_regions(document, path, materials, result);
+    read_generalized_plane_strain(document, result);
     read_contacts(document, result);
     read_boundary_conditions(document, result);
     for (const auto& boundary : result.spatial.boundary_conditions)

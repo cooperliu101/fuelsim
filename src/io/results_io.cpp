@@ -522,6 +522,49 @@ UnstructuredQuad4Mesh read_exodus_quad4(const std::string& path) {
         std::move(data.side_sets));
 }
 
+UnstructuredPlaneQuad8Mesh read_exodus_plane_quad8(const std::string& path) {
+    auto data = read_exodus_mesh(path, 2, 8, 4, "QUAD8", "QUAD", "generalized plane strain QUAD8");
+    std::vector<std::array<double, 2>> nodes;
+    for (const auto& node : data.nodes)
+        nodes.push_back({node[0], node[1]});
+    std::vector<PlaneQuad8Element> elements;
+    for (std::size_t e = 0; e < data.elements.size(); ++e) {
+        std::array<std::size_t, 8> connectivity{};
+        std::copy_n(data.elements[e].begin(), 8, connectivity.begin());
+        elements.push_back({connectivity});
+    }
+    return UnstructuredPlaneQuad8Mesh(std::move(nodes),
+        std::move(elements),
+        std::move(data.element_block_ids),
+        std::move(data.element_blocks),
+        std::move(data.node_sets),
+        std::move(data.side_sets));
+}
+
+void write_exodus_plane_quad8(const std::string& path, const UnstructuredPlaneQuad8Mesh& mesh) {
+    ExodusMeshData data{2,
+        8,
+        4,
+        "QUAD8",
+        "QUAD",
+        "generalized plane strain QUAD8",
+        {"x", "y", nullptr},
+        {},
+        {},
+        mesh.element_block_ids(),
+        mesh.element_blocks(),
+        mesh.node_sets(),
+        mesh.side_sets()};
+    for (const auto& node : mesh.nodes())
+        data.nodes.push_back({node[0], node[1], 0.0});
+    for (const auto& element : mesh.elements()) {
+        std::array<std::size_t, 20> connectivity{};
+        std::copy(element.nodes.begin(), element.nodes.end(), connectivity.begin());
+        data.elements.push_back(connectivity);
+    }
+    write_exodus_mesh(path, data);
+}
+
 UnstructuredQuad8Mesh read_exodus_quad8(const std::string& path) {
     auto data = read_exodus_mesh(path, 2, 8, 4, "QUAD8", "QUAD", "fuelsim Quad8 mesh");
     std::vector<RzPoint> nodes;
@@ -1815,9 +1858,10 @@ void EngineeringHistoryWriter::append(const TransientProblem& problem,
         const InterfaceSummary summary =
             BackendAccess::uses_radial_gps(problem)
                 ? BackendAccess::radial_spatial(problem).summarize_interface(contact, state)
-            : problem.is_cartesian_3d() ? BackendAccess::cartesian_spatial(problem).summarize_interface(contact, state)
-            : problem.uses_quad8()      ? BackendAccess::quad8_spatial(problem).summarize_interface(contact, state)
-                                        : BackendAccess::transient(problem).spatial.summarize_interface(contact, state);
+            : problem.uses_plane_quad8() ? BackendAccess::plane_spatial(problem).summarize_interface(contact, state)
+            : problem.is_cartesian_3d()  ? BackendAccess::cartesian_spatial(problem).summarize_interface(contact, state)
+            : problem.uses_quad8() ? BackendAccess::quad8_spatial(problem).summarize_interface(contact, state)
+                                   : BackendAccess::transient(problem).spatial.summarize_interface(contact, state);
         _stream << ',' << summary.minimum_gap << ',' << summary.maximum_contact_pressure << ','
                 << summary.total_heat_rate << ',' << summary.total_contact_force << ','
                 << summary.total_tangential_force;
@@ -1838,6 +1882,143 @@ std::vector<double> steady_raw_residual(const SteadyProblem& problem, const std:
     return result;
 }
 } // namespace
+
+namespace {
+void write_plane_step(const std::string& path,
+    const UnstructuredPlaneQuad8Mesh& mesh,
+    const plane::SpatialAssembly& spatial,
+    const std::vector<double>& state,
+    const std::vector<double>& raw,
+    const std::vector<std::vector<CartesianMaterialHistory>>* histories,
+    std::size_t step,
+    double time,
+    double load_factor) {
+    const std::vector<std::string> names{"temperature",
+        "displacement_x",
+        "displacement_y",
+        "heat_reaction",
+        "reaction_x",
+        "reaction_y"};
+    const double missing = std::numeric_limits<double>::quiet_NaN();
+    std::vector<std::vector<double>> nodal(names.size(), std::vector<double>(mesh.nodes().size(), missing));
+    const std::array<const char*, 4> components{"xx", "yy", "zz", "xy"};
+    std::vector<std::string> element_names;
+    for (std::size_t q = 0; q < 9; ++q)
+        for (const auto* component : components)
+            element_names.push_back("stress_" + std::string(component) + "_q" + std::to_string(q));
+    if (histories)
+        for (std::size_t q = 0; q < 9; ++q) {
+            for (const auto* tensor : {"elastic", "plastic", "creep"})
+                for (const auto* component : {"xx", "yy", "zz", "xy", "yz", "xz"})
+                    element_names.push_back(std::string(tensor) + "_" + component + "_q" + std::to_string(q));
+            element_names.push_back("equivalent_plastic_strain_q" + std::to_string(q));
+            element_names.push_back("equivalent_creep_strain_q" + std::to_string(q));
+        }
+    std::vector<std::vector<double>> element_values(element_names.size(),
+        std::vector<double>(mesh.elements().size(), missing));
+    for (std::size_t r = 0; r < spatial.region_count(); ++r) {
+        for (std::size_t n = 0; n < spatial.source_nodes(r).size(); ++n) {
+            const auto source = spatial.source_nodes(r)[n];
+            if (spatial.thermal_nodes(r)[n]) {
+                const auto t = spatial.dof(Field::temperature, spatial.global_temperature_node(r, n));
+                nodal[0][source] = state[t];
+                nodal[3][source] = raw[t];
+            }
+            const auto x = spatial.dof(Field::displacement_x, spatial.global_node(r, n));
+            const auto y = spatial.dof(Field::displacement_y, spatial.global_node(r, n));
+            nodal[1][source] = state[x];
+            nodal[2][source] = state[y];
+            nodal[4][source] = raw[x];
+            nodal[5][source] = raw[y];
+        }
+        const IsotropicThermoelasticMaterial material(spatial.region(r).material);
+        for (std::size_t e = 0; e < spatial.region_element_count(r); ++e) {
+            std::vector<std::size_t> dofs;
+            spatial.contribution_dofs(spatial.region_element_offset(r) + e, dofs);
+            elements::Cpeg8Values local{}, old{};
+            for (std::size_t i = 0; i < 23; ++i)
+                local[i] = state[dofs[i]];
+            const elements::Cpeg8Input input{material, spatial.geometry(r, e), local, old};
+            const auto result =
+                histories ? elements::Cpeg8Result{} : elements::evaluate_cpeg8t(input, {false, false, false, true});
+            const auto source = spatial.source_elements(r)[e];
+            for (std::size_t q = 0; q < 9; ++q) {
+                const auto& stress = histories ? histories->at(r).at(e).at(q).stress : result.stress[q];
+                element_values[4 * q][source] = stress.xx;
+                element_values[4 * q + 1][source] = stress.yy;
+                element_values[4 * q + 2][source] = stress.zz;
+                element_values[4 * q + 3][source] = stress.xy;
+                if (histories) {
+                    const auto& history = histories->at(r).at(e).at(q);
+                    std::size_t variable = 36 + 20 * q;
+                    for (const auto* tensor : {&history.elastic_strain, &history.plastic_strain, &history.creep_strain})
+                        for (auto value : *tensor)
+                            element_values[variable++][source] = value;
+                    element_values[variable++][source] = history.equivalent_plastic_strain;
+                    element_values[variable][source] = history.equivalent_creep_strain;
+                }
+            }
+        }
+    }
+    if (step == 1)
+        write_exodus_plane_quad8(path, mesh);
+    const ResultsMeshView view{mesh.nodes().size(),
+        mesh.elements().size(),
+        mesh.element_blocks(),
+        mesh.element_block_ids()};
+    std::vector<std::string> global_names{"load_factor"};
+    std::vector<double> globals{load_factor};
+    for (std::size_t c = 0; c < spatial.section_count(); ++c) {
+        const auto& section = spatial.definition().generalized_plane_strain[c];
+        const std::string prefix = "section_" + section.name + "_";
+        for (const auto* field : {"u3",
+                 "rotation_x",
+                 "rotation_y",
+                 "axial_force",
+                 "moment_x",
+                 "moment_y",
+                 "origin_x",
+                 "origin_y",
+                 "initial_thickness"})
+            global_names.push_back(prefix + field);
+        for (std::size_t i = 0; i < 3; ++i)
+            globals.push_back(state[spatial.section_dof(i, c)]);
+        for (std::size_t i = 0; i < 3; ++i)
+            globals.push_back(raw[spatial.section_dof(i, c)]);
+        const auto& origin = spatial.section_origin(c);
+        globals.insert(globals.end(), {origin[0], origin[1], section.initial_thickness});
+    }
+    for (std::size_t contact = 0; contact < spatial.definition().contacts.size(); ++contact) {
+        const auto points = spatial.contact_points(contact, state);
+        for (std::size_t q = 0; q < points.size(); ++q) {
+            const auto& point = points[q];
+            const std::string prefix = "contact_" + std::to_string(contact) + "_q" + std::to_string(q) + "_";
+            for (const auto* field : {"gap", "pressure", "area", "heat_rate", "force"})
+                global_names.push_back(prefix + field);
+            globals.insert(globals.end(), {point.gap, point.pressure, point.area, point.heat_rate, point.force});
+        }
+    }
+    if (step == 1)
+        define_result_variables(path, view, names, element_names, global_names);
+    write_result_step(path, view, step, time, nodal, element_values, globals);
+}
+
+} // namespace
+
+void write_steady_plane_results(const std::string& path,
+    const UnstructuredPlaneQuad8Mesh& mesh,
+    const SteadyProblem& problem,
+    const std::vector<double>& state) {
+    write_plane_step(path,
+        mesh,
+        BackendAccess::plane_spatial(problem),
+        state,
+        steady_raw_residual(problem, state),
+        nullptr,
+        1,
+        1.0,
+        problem.load_factor());
+}
 
 void write_steady_results(const std::string& path,
     const UnstructuredBar2Mesh& mesh,
@@ -1970,6 +2151,13 @@ void write_steady_results(const std::string& path,
 }
 
 ExodusTransientResultsWriter::ExodusTransientResultsWriter(std::string path,
+    UnstructuredPlaneQuad8Mesh mesh,
+    const TransientProblem& problem)
+    : _path(std::move(path)), _plane_mesh(std::make_unique<UnstructuredPlaneQuad8Mesh>(std::move(mesh))),
+      _problem_signature(transient_problem_signature(problem)), _step_count(0) {
+}
+
+ExodusTransientResultsWriter::ExodusTransientResultsWriter(std::string path,
     UnstructuredBar2Mesh mesh,
     const TransientProblem& problem)
     : _path(std::move(path)), _bar2_mesh(std::make_unique<UnstructuredBar2Mesh>(std::move(mesh))),
@@ -2055,6 +2243,18 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
         throw std::invalid_argument("Exodus result problem does not match writer model");
     ++_step_count;
     std::vector<std::vector<double>> nodal_values;
+    if (_plane_mesh) {
+        write_plane_step(_path,
+            *_plane_mesh,
+            BackendAccess::plane_spatial(problem),
+            problem.committed_solution(),
+            BackendAccess::committed_raw_residual(problem),
+            &BackendAccess::cartesian_material_histories(problem),
+            _step_count,
+            problem.committed_time(),
+            problem.committed_load_factor());
+        return;
+    }
     if (_bar2_mesh) {
         const auto& spatial = BackendAccess::radial_spatial(problem);
         const auto& state = problem.committed_solution();

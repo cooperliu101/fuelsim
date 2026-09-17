@@ -14,7 +14,7 @@
 ## 目标与当前范围
 
 `fuelsim` 使用 C++17 开发核燃料性能有限元程序。当前生产入口读取一个
-Exodus 文件，显式选择一维轴对称广义平面应变、二维轴对称 RZ 或三维 Cartesian 几何，使用相应网格
+Exodus 文件，显式选择一维轴对称广义平面应变、二维轴对称 RZ、二维广义平面应变或三维 Cartesian 几何，使用相应网格
 中的任意数量命名区域，并选择稳态或瞬态计算。
 
 三维 HEX8（c3d8t或c3d8rt）接触支持 node-to-surface（NTS，节点到面）和
@@ -26,7 +26,20 @@ field-major 排列：
 1D GPS:  [T(radial nodes), ur(radial nodes), w(axial control nodes)]
 RZ:       [T(:), ur(:), uz(:)]
 Cartesian:[T(:), ux(:), uy(:), uz(:)]
+2D GPS:   [T(corners), ux(:), uy(:), u3(sections), rotation_x(:), rotation_y(:)]
 ```
+
+二维 `generalized_plane_strain` 使用 QUAD8 与 `cpeg8t`。每单元为四个温度、
+十六个位移及三个共享截面控制量，共 23 个局部自由度，使用九个材料点。
+截面由 `[GeneralizedPlaneStrain]` 的多个子节定义，直接写 `blocks`、`initial_thickness`、
+`u3`、`rotation_x`、`rotation_y` 及可选的对应 `_function`。省略约束表示自由。
+每个 block 唯一归属一个 section，共用场节点的 block 必须共用 section。
+伸长基准为所属单元的初始面积形心；Exodus 使用标准 QUAD8，不需要参考节点或元素属性。
+体单元使用宽度 10 的运动学链和宽度 7 的本构链，闭式形成节点切线。
+二维热机械接触首轮支持无摩擦、有限滑移、面到面罚函数及间隙传热；每个二次边
+使用三个积分约束，各约束唯一选择主侧投影，并预留全部候选耦合块。
+对应实现和验证边界见 `docs/generalized-plane-strain.md`，不得把局部切线通过
+表述为非匹配曲边或非弹性生产例题已通过 Abaqus 对比。
 
 ## 依赖与 C++ 约束
 
@@ -286,10 +299,10 @@ Abaqus 2025 原生热容探测仅作为独立比较证据，不改变上述质�
 ## 架构边界
 
 - `fuelsim_elements`：位于 `elements/`，独立配置、构建和测试的局部单元计算库；
-  持有 CAX2T_GPS、CAX4T/CAX4RT、CAX8T/CAX8RT、C3D8T/C3D8RT、C3D20T/C3D20RT
+  持有 CAX2T_GPS、CAX4T/CAX4RT、CAX8T/CAX8RT、C3D8T/C3D8RT、C3D20T/C3D20RT、CPEG8T
   体单元、局部边界积分与接触计算，以及材料积分、材料函数、坐标和局部几何，仅依赖 ADlite。
   局部入口接收坐标、材料、节点状态与已接受历史，返回残量、切线矩阵和试探结果；
-  体单元按九种型号分别建立同名头文件、实现和测试，不建立 `detail` 目录；
+  体单元按十种型号分别建立同名头文件、实现和测试，不建立 `detail` 目录；
   专用算法留在型号文件。CAX8T 和 C3D20T 分别持有对应二次单元的完整算法，
   CAX8RT 和 C3D20RT 通过全积分型号头文件中的显式积分规则入口调用；只有这两组
   减缩积分型号到全积分型号的调用被允许，其他型号之间不得互相调用。
@@ -316,7 +329,7 @@ Abaqus 2025 原生热容探测仅作为独立比较证据，不改变上述质�
   只作为路线与回归名称。旧的专用问题类只能留在 `tests/support` 中支撑
   已有回归，不得重新进入公共头文件或生产库。
 - `SteadyProblem` 和 `TransientProblem` 从与输入几何一致的
-  `UnstructuredBar2Mesh`、`UnstructuredQuad4Mesh`、`UnstructuredQuad8Mesh`、`UnstructuredHex8Mesh` 或 `UnstructuredHex20Mesh`
+  `UnstructuredBar2Mesh`、`UnstructuredQuad4Mesh`、`UnstructuredQuad8Mesh`、`UnstructuredPlaneQuad8Mesh`、`UnstructuredHex8Mesh` 或 `UnstructuredHex20Mesh`
   选择任意数量的命名块；一个输入算例只使用一种体单元拓扑。每个块独立建立
   区域自由度、材料和 `small|finite` 应变形式。
 - Contact 输入只接受 `primary` 和 `secondary` 边集名，不接受主/从 block；
@@ -330,7 +343,7 @@ Abaqus 2025 原生热容探测仅作为独立比较证据，不改变上述质�
   函数必须使用具体 `adlite::Scalar`、严格具名参数和现有统一状态事务。
 - 除非用户明确要求，不增加旧 API 别名、适配器或兼容层。
 - 用户运行入口固定为 `fuelsim -i <case.fsi>`。输入 v3 只接受一个 Exodus
-  文件，并要求显式选择 `axisymmetric_1d`、`axisymmetric_rz` 或 `cartesian_3d` 几何；使用 SI
+  文件，并要求显式选择 `axisymmetric_1d`、`axisymmetric_rz`、`generalized_plane_strain` 或 `cartesian_3d` 几何；使用 SI
   单位和严格字段集合，不提供 include、宏、表达式、单位换算、旧键别名或隐式
   默认问题。材料在 `[Materials]` 中由已注册函数组合，区域只用 `material`
   引用；网格几何与离散规模必须来自 Exodus 文件。

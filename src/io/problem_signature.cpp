@@ -117,6 +117,70 @@ void hash_contacts(std::uint64_t& hash, const SpatialDefinition& definition) {
 std::uint64_t transient_problem_signature(const TransientProblem& problem) {
     std::uint64_t hash = hashing::fnv1a_offset;
     const bool cartesian = problem.is_cartesian_3d();
+    if (problem.uses_plane_quad8()) {
+        hash_string(hash, "generalized_plane_strain_cpeg8t_sections_v2");
+        hash_size(hash, problem.dof_count());
+        const auto& spatial = BackendAccess::plane_spatial(problem);
+        hash_size(hash, spatial.section_count());
+        for (const auto& section : problem.definition().generalized_plane_strain) {
+            hash_string(hash, section.name);
+            hash_size(hash, section.blocks.size());
+            for (const auto& block : section.blocks)
+                hash_string(hash, block);
+            hash_double(hash, section.initial_thickness);
+            for (std::size_t i = 0; i < 3; ++i) {
+                hash_integer(hash, section.prescribed[i] ? 1 : 0);
+                if (section.prescribed[i])
+                    hash_double(hash, *section.prescribed[i]);
+                hash_string(hash, section.functions[i]);
+            }
+        }
+        for (std::size_t r = 0; r < spatial.region_count(); ++r) {
+            hash_region_definition(hash, spatial.region(r));
+            hash_size(hash, spatial.region_element_count(r));
+            for (std::size_t e = 0; e < spatial.region_element_count(r); ++e) {
+                const auto& geometry = spatial.geometry(r, e);
+                for (const auto& point : geometry.coordinates)
+                    for (auto coordinate : point)
+                        hash_double(hash, coordinate);
+                hash_double(hash, geometry.thickness);
+                for (auto coordinate : geometry.reference_point)
+                    hash_double(hash, coordinate);
+                std::vector<std::size_t> dofs;
+                spatial.contribution_dofs(spatial.region_element_offset(r) + e, dofs);
+                for (auto dof : dofs)
+                    hash_size(hash, dof);
+            }
+        }
+        for (const auto& condition : spatial.dirichlet_conditions())
+            hash_size(hash, condition.dof);
+        for (std::size_t index = spatial.volume_contribution_count(); index < spatial.contribution_count(); ++index) {
+            std::vector<std::size_t> dofs;
+            spatial.contribution_dofs(index, dofs);
+            hash_size(hash, dofs.size());
+            for (auto dof : dofs)
+                hash_size(hash, dof);
+            if (index < spatial.contact_offset()) {
+                const auto identity = spatial.boundary_identity(index);
+                hash_size(hash, identity.first);
+                hash_size(hash, identity.second);
+            }
+        }
+        hash_contacts(hash, problem.definition());
+        for (const auto& contact : problem.definition().contacts) {
+            hash_integer(hash, static_cast<std::int64_t>(contact.gap_heat_conductance_law));
+            hash_double(hash, contact.gap_conductance);
+            hash_double(hash, contact.gap_conductance_clearance_derivative);
+            hash_double(hash, contact.gap_conductance_pressure_derivative);
+            hash_double(hash, contact.gap_conductance_temperature_derivative);
+            hash_double(hash, contact.gap_conductance_reference_temperature);
+        }
+        for (const auto& boundary : problem.definition().boundary_conditions)
+            hash_integer(hash, boundary.configuration_explicit ? 1 : 0);
+        hash_boundaries(hash, problem.definition(), true);
+        hash_time_tables(hash, problem.definition());
+        return hash;
+    }
     if (BackendAccess::uses_radial_gps(problem)) {
         hash_string(hash, "axisymmetric_1d_bar2_gps_two_points");
         hash_size(hash, problem.dof_count());

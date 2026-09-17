@@ -3,6 +3,7 @@
 #include "core/nonlinear_problem.hpp"
 #include <array>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -10,6 +11,7 @@ namespace fuelsim {
 struct TransientTimeErrorEstimate;
 struct TransientTimeOptions;
 struct SpatialDefinition;
+class UnstructuredPlaneQuad8Mesh;
 class SpatialProblemStorage;
 class BackendAccess;
 
@@ -72,6 +74,7 @@ inline constexpr std::array<TransientConservationField, 25> transient_conservati
 
 class TransientProblem final : public NonlinearProblem {
   public:
+    TransientProblem(SpatialDefinition definition, const UnstructuredPlaneQuad8Mesh& source_mesh);
     TransientProblem(SpatialDefinition definition, const UnstructuredBar2Mesh& source_mesh);
     TransientProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh);
     TransientProblem(SpatialDefinition definition, const UnstructuredQuad8Mesh& source_mesh);
@@ -80,6 +83,7 @@ class TransientProblem final : public NonlinearProblem {
     ~TransientProblem() override;
     bool is_cartesian_3d() const noexcept;
     bool uses_quad8() const noexcept;
+    bool uses_plane_quad8() const noexcept;
     bool uses_radial_gps() const noexcept;
     const SpatialDefinition& definition() const noexcept;
     std::vector<double> initial_solution() const;
@@ -101,6 +105,13 @@ class TransientProblem final : public NonlinearProblem {
     void combine_last_half_step_conservation(const TransientConservationSummary& first_half);
     void begin_time_step(const TransientStepInput& input);
     void commit_time_step(const std::vector<double>& converged_solution);
+    // Compute only the owned contribution interval, then collectively sum
+    // staged histories and diagnostics before changing committed state.
+    // The callback must sum equal-size buffers over a disjoint full partition.
+    void commit_time_step(const std::vector<double>& converged_solution,
+        std::size_t first_contribution,
+        std::size_t last_contribution,
+        const std::function<void(std::vector<double>&)>& sum_partitions);
     void rollback_time_step() noexcept;
     bool uses_augmented_contact() const noexcept override;
     AugmentedContactUpdate update_augmented_contact_multipliers(const std::vector<double>& state,
@@ -133,7 +144,9 @@ class TransientProblem final : public NonlinearProblem {
     void apply_spatial_controls(double time, double load_factor);
     std::vector<double> accumulate_contribution_conservation(const std::vector<double>& solution,
         TransientConservationSummary& summary,
-        std::vector<double>* external_load_residual = nullptr) const;
+        std::vector<double>* external_load_residual,
+        std::size_t first,
+        std::size_t last) const;
     void clear_active_time_step() noexcept;
     void require_active_time_step() const;
     std::unique_ptr<SpatialProblemStorage> _impl;
