@@ -1,6 +1,7 @@
 #include "plane_assembly.hpp"
 #include <algorithm>
 #include <cmath>
+#include <map>
 #include <stdexcept>
 
 namespace fuelsim::plane {
@@ -82,6 +83,45 @@ void SpatialAssembly::build_contacts(const UnstructuredPlaneQuad8Mesh& mesh) {
                     }
             _constraints.emplace_back(first, _candidates.size());
         }
+        if (contact.mechanical) {
+            std::map<std::size_t, std::vector<std::pair<ContactSide, std::size_t>>> supports;
+            for (const auto& side : secondary) {
+                const auto& dofs = _dofs.at(region_element_offset(side.region) + side.element);
+                for (std::size_t n = 0; n < 3; ++n) {
+                    const auto local = n < 2 ? (side.side + n) % 4 : 4 + side.side;
+                    supports[dofs[4 + local]].push_back({side, n});
+                }
+            }
+            for (const auto& support : supports) {
+                MechanicalConstraint constraint{};
+                constraint.contact = c;
+                constraint.geometry.penalty = penalty;
+                std::map<std::size_t, std::size_t> local_nodes;
+                const auto append_edge = [&](const ContactSide& side) {
+                    std::array<std::size_t, 3> nodes{};
+                    const auto& dofs = _dofs.at(region_element_offset(side.region) + side.element);
+                    const auto& g = geometry(side.region, side.element);
+                    for (std::size_t n = 0; n < 3; ++n) {
+                        const auto local = n < 2 ? (side.side + n) % 4 : 4 + side.side;
+                        const auto inserted = local_nodes.emplace(dofs[4 + local], local_nodes.size());
+                        nodes[n] = inserted.first->second;
+                        if (inserted.second) {
+                            constraint.geometry.coordinates.push_back(g.coordinates[local]);
+                            constraint.dofs.push_back(dofs[4 + local]);
+                            constraint.dofs.push_back(dofs[12 + local]);
+                        }
+                    }
+                    return nodes;
+                };
+                for (const auto& entry : support.second)
+                    constraint.geometry.secondary.push_back({append_edge(entry.first),
+                        entry.second,
+                        geometry(entry.first.region, entry.first.element).thickness});
+                for (const auto& side : primary)
+                    constraint.geometry.primary.push_back(append_edge(side));
+                _mechanical_constraints.push_back(std::move(constraint));
+            }
+        }
     }
 }
 
@@ -113,7 +153,7 @@ SpatialAssembly::evaluate_candidate(std::size_t index, const elements::Line3Plan
             candidate.penalty},
         candidate.penalty,
         contact.thermal,
-        contact.mechanical,
+        false,
         candidate.segment};
     for (std::size_t n = 0; n < 3; ++n) {
         const auto secondary_node = n < 2 ? (candidate.secondary.side + n) % 4 : 4 + candidate.secondary.side;
@@ -155,16 +195,37 @@ void SpatialAssembly::validate_contacts(std::size_t first, std::size_t last, con
             covered = interval.second;
         }
     }
+    for (std::size_t c = 0; c < _mechanical_constraints.size(); ++c) {
+        const auto index = contact_offset() + _candidates.size() + c;
+        if (index < first || index >= last)
+            continue;
+        const auto& constraint = _mechanical_constraints[c];
+        std::vector<double> local;
+        for (auto dof : constraint.dofs)
+            local.push_back(state.at(dof));
+        (void)elements::evaluate_plane_averaged_contact(constraint.geometry, local, false);
+    }
 }
 
-elements::Line3PlaneContactResult
+elements::PlaneSurfaceContactResult
 SpatialAssembly::compute_contact(std::size_t index, const std::vector<double>& local, bool jacobian) const {
+    if (index >= contact_offset() + _candidates.size())
+        return elements::evaluate_plane_averaged_contact(
+            _mechanical_constraints.at(index - contact_offset() - _candidates.size()).geometry,
+            local,
+            jacobian);
     const auto candidate = index - contact_offset();
     if (local.size() != 22)
         throw std::invalid_argument("CPEG8T contact requires 22 interface-local values");
     elements::Line3PlaneValues values{};
     std::copy(local.begin(), local.end(), values.begin());
-    return evaluate_candidate(candidate, values, jacobian);
+    const auto evaluated = evaluate_candidate(candidate, values, jacobian);
+    elements::PlaneSurfaceContactResult result;
+    result.residual.assign(evaluated.residual.begin(), evaluated.residual.end());
+    if (jacobian)
+        result.jacobian.assign(evaluated.jacobian.begin(), evaluated.jacobian.end());
+    result.point = evaluated;
+    return result;
 }
 
 std::vector<elements::Line3PlaneContactResult> SpatialAssembly::contact_points(std::size_t contact,
@@ -173,6 +234,14 @@ std::vector<elements::Line3PlaneContactResult> SpatialAssembly::contact_points(s
         throw std::out_of_range("CPEG8T contact index");
     validate_contacts(contact_offset(), contribution_count(), state);
     std::vector<elements::Line3PlaneContactResult> result;
+    for (const auto& constraint : _mechanical_constraints) {
+        if (constraint.contact != contact)
+            continue;
+        std::vector<double> local;
+        for (auto dof : constraint.dofs)
+            local.push_back(state.at(dof));
+        result.push_back(elements::evaluate_plane_averaged_contact(constraint.geometry, local, false).point);
+    }
     for (std::size_t selected = 0; selected < _candidates.size(); ++selected) {
         const auto& candidate = _candidates.at(selected);
         if (candidate.contact != contact)

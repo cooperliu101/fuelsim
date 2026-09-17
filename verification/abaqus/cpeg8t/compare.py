@@ -130,7 +130,8 @@ def check(case, directory, source):
             compare([sum(globals_["contact_0_q%d_force" % q] for q in range(3))], [force], False,
                     1e-8, "contact_force", report)
             heat = sum(v["data"] for v in fields["RFL11"]["values"] if v["nodeLabel"] in (11,12))
-            compare([sum(globals_["contact_0_q%d_heat_rate" % q] for q in range(3))], [heat], False,
+            compare([sum(value for key,value in globals_.items()
+                         if key.startswith('contact_0_q') and key.endswith('_heat_rate'))], [heat], False,
                     1e-8, "contact_heat_rate", report)
     (directory / "comparison.json").write_text(json.dumps(report, indent=2)+"\n")
     maximum = max((v.get("maximum_pointwise_relative", 0) for v in report.values()), default=0)

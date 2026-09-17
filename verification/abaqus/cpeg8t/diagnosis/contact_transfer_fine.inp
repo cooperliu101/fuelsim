@@ -1,0 +1,89 @@
+*Heading
+** Fully prescribed nonmatching sliding contact with changing section thickness.
+*Preprint,echo=NO,model=NO,history=NO,contact=NO
+*Node
+1,-0.02,-0.01
+2,0,-0.01
+3,0,0
+4,-0.02,0
+5,-0.01,-0.01
+6,0,-0.005
+7,-0.01,0
+8,-0.02,-0.005
+9,0.02,-0.01
+10,0.02,0
+11,0.01,-0.01
+12,0.02,-0.005
+13,0.01,0
+14,-0.01,0.0001
+15,0,0.0001
+16,0,0.0101
+17,-0.01,0.0101
+18,-0.005,0.0001
+19,0,0.0051
+20,-0.005,0.0101
+21,-0.01,0.0051
+101,0,0
+102,0,0
+*Element,type=CPEG8T,elset=lower
+1,1,2,3,4,5,6,7,8
+2,2,9,10,3,11,12,13,6
+*Element,type=CPEG8T,elset=upper
+3,14,15,16,17,18,19,20,21
+*Nset,nset=LOWERNODES,generate
+1,13,1
+*Nset,nset=UPPERNODES,generate
+14,21,1
+*Nset,nset=FIELD,generate
+1,21,1
+*Nset,nset=CONTROLS
+101,102
+*Material,name=SOLID
+*Elastic
+1e6,.25
+*Conductivity
+10
+*Density
+1000
+*Specific Heat
+100
+*Solid Section,elset=lower,material=SOLID,ref node=101
+.1,0,0
+*Solid Section,elset=upper,material=SOLID,ref node=102
+.1,0,0
+*Surface,name=PRIMARY,type=ELEMENT
+lower,S3
+*Surface,name=SECONDARY,type=ELEMENT
+upper,S1
+*Surface Interaction,name=INTERFACE
+.1
+*Surface Behavior,pressure-overclosure=LINEAR
+1e9
+*Gap Conductance
+1000,0
+1000,1
+*Contact Pair,interaction=INTERFACE,type=SURFACE TO SURFACE
+SECONDARY,PRIMARY
+*Initial Conditions,type=TEMPERATURE
+FIELD,300
+*Amplitude,name=CONSTANT
+0,1,1,1
+*Amplitude,name=SLIDE,time=TOTAL TIME
+0,0,1,.01
+*Step,name=SCAN,nlgeom=YES,inc=3000
+*Coupled Temperature-Displacement,steady state
+.0005,1,.0005,.0005
+*Boundary
+LOWERNODES,1,2,0
+FIELD,11,11,300
+CONTROLS,3,5,0
+*Boundary,amplitude=CONSTANT
+UPPERNODES,2,2,-.0002
+*Boundary,amplitude=SLIDE
+UPPERNODES,1,1,1
+*Output,field,frequency=1
+*Node Output
+RF
+*Contact Output
+CDISP,CFORCE
+*End Step

@@ -17,14 +17,15 @@ import numpy as np
 from compare import compare, verify_references
 
 
-def analytical(times, plastic, creep, finite=False):
-    shear, bulk, hardening, initial_yield = 4e5, 2e6/3, 1e4, 1e3
+def analytical(times, plastic, creep, finite=False, initial_plastic=False, initial_yield=1e3):
+    shear, bulk, hardening = 4e5, 2e6/3, 1e4
     signed_stress, ep, ec, previous = 0., 0., 0., 0.
     plastic_tensor, creep_tensor = np.zeros(3), np.zeros(3)
     rows = []
     previous_extension, accumulated_strain = 0., 0.
     for frame, time in enumerate(times):
-        extension = np.interp(time, [0, 1, 2, 3], [0, .01, .01, .002])
+        extension = np.interp(time, [0, 1, 2, 3],
+                              [0, .01, .02, .03] if initial_plastic else [0, .01, .01, .002])
         accumulated_strain += 2*(extension-previous_extension)/(2+extension+previous_extension)
         strain = accumulated_strain if finite else extension
         previous_extension = extension
@@ -53,9 +54,9 @@ def analytical(times, plastic, creep, finite=False):
     return rows
 
 
-def check(directory, source, finite=False):
+def check(directory, source, finite=False, initial_plastic=False):
     report, native_report, failures = {}, {}, []
-    case='inelastic_finite' if finite else 'inelastic_history'
+    case='inelastic_initial_plastic' if initial_plastic else ('inelastic_finite' if finite else 'inelastic_history')
     native = json.loads((source/(case+'_fields.json')).read_text())
     frames = native['steps']['HISTORY']
     with netCDF4.Dataset(directory/(case+'_results.e')) as d:
@@ -67,9 +68,12 @@ def check(directory, source, finite=False):
         globals_ = dict(zip(netCDF4.chartostring(d['name_glo_var'][:]), d['vals_glo_var'][:].T))
         for block, label, plastic, creep in [(1,'plastic',True,False), (2,'creep',False,True),
                                               (3,'coupled',True,True)]:
-            expected = analytical(times, plastic, creep, finite)
+            plastic = plastic or initial_plastic
+            expected = analytical(times, plastic, creep, finite, initial_plastic,
+                                  500. if initial_plastic and block == 2 else 1000.)
             prefix = f'section_{label}_'
-            for name, reference in [('u3',np.interp(times,[0,1,2,3],[0,.001,.001,.0002])),
+            for name, reference in [('u3',np.interp(times,[0,1,2,3],
+                                                   [0,.001,.002,.003] if initial_plastic else [0,.001,.001,.0002])),
                                     ('rotation_x',np.zeros(13)),('rotation_y',np.zeros(13)),
                                     ('axial_force',np.array([r['stress'][2] for r in expected])*.0002),
                                     ('moment_x',np.zeros(13)),('moment_y',np.zeros(13))]:
@@ -120,6 +124,16 @@ def check(directory, source, finite=False):
                                       for r in expected],axis=0)
                 if not np.any(np.all(increments>0,axis=1)):
                     raise AssertionError('No simultaneous mechanism increments')
+            if initial_plastic:
+                native_plastic = np.array([[v['data'] for v in frame['fields']['PEEQ']['values']
+                                            if v['elementLabel']==block] for frame in frames])
+                if native_plastic.shape != (13,9) or not np.all(np.diff(native_plastic,axis=0)>0):
+                    raise AssertionError('Native plasticity must activate at every point from the first increment')
+                if creep:
+                    native_creep = np.array([[v['data'] for v in frame['fields']['CEEQ']['values']
+                                              if v['elementLabel']==block] for frame in frames])
+                    if native_creep.shape != (13,9) or not np.all(np.diff(native_creep,axis=0)>0):
+                        raise AssertionError('Native creep must activate alongside plasticity at every increment')
             history_region=next(name for name in native['history']['HISTORY']
                                 if name.startswith('Node ') and name.endswith('.'+str(100+block)))
             native_history=native['history']['HISTORY'][history_region]
@@ -164,11 +178,14 @@ if __name__=='__main__':
     parser.add_argument('--work',type=Path,required=True)
     parser.add_argument('--require-native',action='store_true')
     parser.add_argument('--finite',action='store_true')
+    parser.add_argument('--initial-plastic',action='store_true')
     args=parser.parse_args()
+    if args.finite and args.initial_plastic:
+        parser.error('--initial-plastic is a small-strain case')
     source=Path(__file__).resolve().parent
     verify_references(source, 'extended_reference.sha256')
     args.work.mkdir(parents=True,exist_ok=True)
-    case='inelastic_finite' if args.finite else 'inelastic_history'
+    case='inelastic_initial_plastic' if args.initial_plastic else ('inelastic_finite' if args.finite else 'inelastic_history')
     for name in [case+'.fsi','inelastic.e']:
         shutil.copyfile(source/name,args.work/name)
         assert (source/name).read_bytes()==(args.work/name).read_bytes()
@@ -177,6 +194,6 @@ if __name__=='__main__':
     (args.work/'production.log').write_text(run.stdout+run.stderr)
     if run.returncode or 'completed=true' not in run.stdout:
         raise RuntimeError(run.stdout+run.stderr)
-    failed=check(args.work,source,args.finite)
+    failed=check(args.work,source,args.finite,args.initial_plastic)
     if args.require_native and failed:
         raise AssertionError('\n'.join(failed))

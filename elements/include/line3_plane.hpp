@@ -1,6 +1,7 @@
 #pragma once
 #include "contact_types.hpp"
 #include <array>
+#include <vector>
 
 namespace fuelsim::elements {
 // [Ts0,Ts1,Tp0,Tp1,usx(3),usy(3),upx(3),upy(3),qs(3),qp(3)].
@@ -31,4 +32,27 @@ struct Line3PlaneContactResult final {
 };
 
 Line3PlaneContactResult evaluate_line3_plane_contact(const Line3PlaneContactInput& input, bool jacobian);
+
+struct PlaneAveragingEdge final {
+    std::array<std::size_t, 3> nodes;
+    std::size_t local_node;
+    double thickness;
+};
+
+struct PlaneAveragedContactGeometry final {
+    std::vector<std::array<double, 2>> coordinates;
+    std::vector<PlaneAveragingEdge> secondary;
+    std::vector<std::array<std::size_t, 3>> primary;
+    double penalty = 0.0;
+};
+
+struct PlaneSurfaceContactResult final {
+    std::vector<double> residual, jacobian;
+    Line3PlaneContactResult point;
+};
+
+// Interface-local displacement values are [ux0,uy0,ux1,uy1,...].
+PlaneSurfaceContactResult evaluate_plane_averaged_contact(const PlaneAveragedContactGeometry& geometry,
+    const std::vector<double>& state,
+    bool jacobian);
 } // namespace fuelsim::elements

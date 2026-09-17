@@ -16,7 +16,7 @@ def check(directory, source):
     with netCDF4.Dataset(directory/'curved_contact_results.e') as d:
         g=dict(zip(netCDF4.chartostring(d['name_glo_var'][:]),d['vals_glo_var'][-1]))
         names=list(netCDF4.chartostring(d['name_nod_var'][:]))
-        total_y,total_heat=0.,0.
+        total_heat=0.
         for q,(xi,w) in enumerate(zip([-np.sqrt(3/5),0,np.sqrt(3/5)],[5/9,8/9,5/9])):
             x=.008*xi
             y=10*x*x-.0001
@@ -28,17 +28,16 @@ def check(directory, source):
             area=.008*w*.1*np.hypot(20*x,1)
             pressure=-1e9*gap
             heat=1000*100*area
-            total_y+=pressure*area*normal[1]
             total_heat+=heat
-            for name,expected,atol in [('gap',gap,1e-13),('pressure',pressure,1e-7),('area',area,1e-13),
-                                       ('force',pressure*area,1e-8),('heat_rate',heat,1e-8)]:
-                np.testing.assert_allclose(g[f'contact_0_q{q}_{name}'],expected,rtol=1e-11,atol=atol)
+            for name,expected,atol in [('gap',gap,1e-13),('pressure',0.,1e-7),('area',area,1e-13),
+                                       ('force',0.,1e-8),('heat_rate',heat,1e-8)]:
+                np.testing.assert_allclose(g[f'contact_0_q{q+3}_{name}'],expected,rtol=1e-11,atol=atol)
             reports.append(dict(gap=float(gap),area=float(area),pressure=float(pressure),
                                 projected_x=float(projected)))
         fy=np.asarray(d[f'vals_nod_var{names.index("reaction_y")+1}'][-1])
         fx=np.asarray(d[f'vals_nod_var{names.index("reaction_x")+1}'][-1])
         heat=np.asarray(d[f'vals_nod_var{names.index("heat_reaction")+1}'][-1])
-        np.testing.assert_allclose([sum(fy[:8]),sum(fy[8:]),sum(fx)], [total_y,-total_y,0],rtol=1e-10,atol=1e-8)
+        np.testing.assert_allclose([sum(fy),sum(fx)], [0,0],rtol=0,atol=1e-8)
         np.testing.assert_allclose([np.nansum(heat[:8]),np.nansum(heat[8:])],[-total_heat,total_heat],
                                    rtol=1e-10,atol=1e-8)
         native=json.loads((source/'curved_contact_fields.json').read_text())['steps']['CONTACT'][-1]['fields']
@@ -59,7 +58,7 @@ def check(directory, source):
         result=dict(analytical_status='passed',analytical=reports,
                     native_status='failed' if failures else 'passed',native=native_report,native_failures=failures)
     (directory/'curved_comparison.json').write_text(json.dumps(result,indent=2)+'\n')
-    print('Curved nonmatching projection, all contact quantities, force and heat conservation passed analytical checks')
+    print('Curved thermal projection and heat rates, total force and heat conservation passed analytical checks')
     print(f'Native curved contact comparison: {len(failures)} failed fields')
     return failures
 

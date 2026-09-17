@@ -1,5 +1,8 @@
 # 未通过例题的独立诊断
 
+本页保留 `e3aa43a` 的历史诊断。后续首步塑性例题和接触修复结果见
+[平均接触与首步塑性验证](../averaged-contact.md)，不得把本页旧失败状态当作当前结果。
+
 2026-09-18，基于 `e3aa43a` 重新运行 `sections_contact`、`inelastic_history` 和
 `contact_cycle`。前两项原生比较仍失败；滑移例题的解析检查通过，但原生节点力
 比较仍失败。结果保存在 `production_comparisons.json`。本轮没有修改材料更新、

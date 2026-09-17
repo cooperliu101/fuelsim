@@ -8,13 +8,15 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
   public:
     SpatialAssembly(SpatialDefinition definition, const UnstructuredPlaneQuad8Mesh& mesh);
 
-    std::size_t contribution_count() const noexcept { return contact_offset() + _candidates.size(); }
+    std::size_t contribution_count() const noexcept {
+        return contact_offset() + _candidates.size() + _mechanical_constraints.size();
+    }
 
     std::size_t contact_offset() const noexcept { return volume_contribution_count() + _boundaries.size(); }
 
     SpatialContributionType contribution_type(std::size_t index) const;
     elements::Cpeg8Result compute_boundary(std::size_t index, const std::vector<double>& local, bool jacobian) const;
-    elements::Line3PlaneContactResult
+    elements::PlaneSurfaceContactResult
     compute_contact(std::size_t index, const std::vector<double>& local, bool jacobian) const;
     InterfaceSummary summarize_interface(std::size_t contact, const std::vector<double>& state) const;
     std::vector<elements::Line3PlaneContactResult> contact_points(std::size_t contact,
@@ -81,6 +83,14 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     };
 
     std::vector<Candidate> _candidates;
+
+    struct MechanicalConstraint final {
+        std::size_t contact;
+        elements::PlaneAveragedContactGeometry geometry;
+        std::vector<std::size_t> dofs;
+    };
+
+    std::vector<MechanicalConstraint> _mechanical_constraints;
     std::vector<std::pair<std::size_t, std::size_t>> _constraints;
     void build_contacts(const UnstructuredPlaneQuad8Mesh& mesh);
     void validate_contacts(std::size_t first, std::size_t last, const std::vector<double>& state) const;

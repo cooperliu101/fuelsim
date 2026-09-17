@@ -12,6 +12,118 @@ void require_close(double actual, double expected, double tolerance, const char*
         throw std::runtime_error(message);
 }
 
+void check_averaged_contact(bool curved, bool crossing, bool shared = false) {
+    using namespace fuelsim::elements;
+    PlaneAveragedContactGeometry geometry;
+    geometry.penalty = 1e9;
+    geometry.coordinates = {{{-.01, -.0001}}, {{.01, -.0001}}, {{0, -.0001}}, {{.015, 0}}, {{-.015, 0}}, {{0, 0}}};
+    geometry.secondary = {{{0, 1, 2}, 0, .1}};
+    geometry.primary = {{{3, 4, 5}}};
+    if (curved) {
+        geometry.coordinates[2][1] += .00002;
+        geometry.coordinates[5][1] += .00001;
+    }
+    if (crossing) {
+        geometry.coordinates = {{{-.005, -.0001}},
+            {{.005, -.0001}},
+            {{0, -.0001}},
+            {{0, 0}},
+            {{-.02, 0}},
+            {{-.01, 0}},
+            {{.02, 0}},
+            {{.01, 0}}};
+        geometry.primary = {{{3, 4, 5}}, {{6, 3, 7}}};
+    }
+    if (shared) {
+        geometry.coordinates = {{{-.01, -.0002}},
+            {{0, -.00025}},
+            {{.01, -.00015}},
+            {{-.005, -.00022}},
+            {{.005, -.00021}},
+            {{.015, 0}},
+            {{-.015, 0}},
+            {{0, .00001}}};
+        geometry.secondary = {{{0, 1, 3}, 1, .1}, {{1, 2, 4}, 0, .1}};
+        geometry.primary = {{{5, 6, 7}}};
+    }
+    const std::size_t size = 2 * geometry.coordinates.size();
+    std::vector<double> state(size), direction(size), plus(size), minus(size), total(size);
+    for (std::size_t i = 0; i < size; ++i) {
+        direction[i] = .0001 * std::sin(static_cast<double>(i + 1));
+        plus[i] = 1e-5 * direction[i];
+        minus[i] = -plus[i];
+    }
+    for (std::size_t node = 0; node < (shared ? 1U : 3U); ++node) {
+        if (!shared)
+            geometry.secondary[0].local_node = node;
+        const auto result = evaluate_plane_averaged_contact(geometry, state, true);
+        const auto passive = evaluate_plane_averaged_contact(geometry, state, false);
+        const auto upper = evaluate_plane_averaged_contact(geometry, plus, false);
+        const auto lower = evaluate_plane_averaged_contact(geometry, minus, false);
+        auto rotated = geometry;
+        const double cosine = std::cos(.37), sine = std::sin(.37);
+        for (auto& point : rotated.coordinates) {
+            const auto original = point;
+            point = {cosine * original[0] - sine * original[1] + .017,
+                sine * original[0] + cosine * original[1] - .004};
+        }
+        const auto rigid = evaluate_plane_averaged_contact(rotated, state, false);
+        require_close(rigid.point.gap, result.point.gap, 1e-14, "Averaged contact rigid-motion gap invariance");
+        for (std::size_t n = 0; n < size / 2; ++n) {
+            require_close(rigid.residual[2 * n],
+                cosine * result.residual[2 * n] - sine * result.residual[2 * n + 1],
+                1e-8,
+                "Averaged contact objective force x");
+            require_close(rigid.residual[2 * n + 1],
+                sine * result.residual[2 * n] + cosine * result.residual[2 * n + 1],
+                1e-8,
+                "Averaged contact objective force y");
+        }
+        for (std::size_t i = 0; i < size; ++i) {
+            total[i] += result.residual[i];
+            require_close(result.residual[i], passive.residual[i], 1e-12, "Averaged contact residual agreement");
+            double derivative = 0.0;
+            for (std::size_t j = 0; j < size; ++j)
+                derivative += result.jacobian[i * size + j] * direction[j];
+            require_close(derivative,
+                (upper.residual[i] - lower.residual[i]) / 2e-5,
+                3e-6 * std::max(1.0, std::abs(derivative)),
+                "Averaged contact full geometric tangent");
+        }
+        double moment = 0.0;
+        for (std::size_t n = 0; n < size / 2; ++n)
+            moment += geometry.coordinates[n][0] * result.residual[2 * n + 1]
+                      - geometry.coordinates[n][1] * result.residual[2 * n];
+        require_close(moment, 0.0, 1e-12, "Averaged contact moment conservation");
+        for (std::size_t column = 0; column <= size; ++column)
+            for (std::size_t c = 0; c < 2; ++c) {
+                double sum = 0.0;
+                for (std::size_t n = 0; n < size / 2; ++n)
+                    sum += column == size ? result.residual[2 * n + c] : result.jacobian[(2 * n + c) * size + column];
+                require_close(sum, 0.0, column == size ? 1e-10 : 1e-7, "Averaged contact force conservation");
+            }
+    }
+    if (crossing) {
+        // Independent native fully prescribed sliding reference at t=1 s.
+        const std::array<std::size_t, 5> nodes{4, 5, 3, 7, 6};
+        const std::array<double, 5> reference{-4.110544158648,
+            20.608843301259,
+            67.003401714779,
+            20.608843301259,
+            -4.110544158648};
+        for (std::size_t n = 0; n < nodes.size(); ++n)
+            require_close(total[2 * nodes[n] + 1], reference[n], 1e-9, "Averaged contact native primary transfer");
+    }
+    for (const auto& edge : geometry.secondary)
+        for (auto node : edge.nodes)
+            state[2 * node + 1] = .002;
+    const auto open = evaluate_plane_averaged_contact(geometry, state, true);
+    for (auto value : open.residual)
+        require_close(value, 0.0, 0.0, "Open averaged contact has zero force");
+    for (auto value : open.jacobian)
+        require_close(value, 0.0, 0.0, "Open averaged contact has zero tangent");
+}
+
 void check_contact(unsigned clipping = 0) {
     using namespace fuelsim;
     using namespace fuelsim::elements;
@@ -131,6 +243,10 @@ int main() {
         check_contact();
         check_contact(1);
         check_contact(2);
+        check_averaged_contact(false, false);
+        check_averaged_contact(true, false);
+        check_averaged_contact(false, true);
+        check_averaged_contact(true, false, true);
         const Cpeg8Coordinates coordinates{{{-0.01, -0.005},
             {0.01, -0.005},
             {0.01, 0.005},

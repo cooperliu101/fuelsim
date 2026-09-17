@@ -80,6 +80,8 @@ Abaqus 参考重算命令为：
 具体通过范围及尚未通过的 Abaqus 比较见 [补充验证记录](coverage.md)。
 `extended_reference.sha256` 固定新增原生证据，原有校验文件和误差门槛保持不变。
 逐字段补充结果，包括未通过项，保存在 `extended_validation.json`。
+该文件保留分段积分版本的历史记录。后续首步塑性和平均接触的修复、采样公式及
+最新验证见[平均接触与首步塑性验证](averaged-contact.md)。
 
 ## 独立原生探测
 

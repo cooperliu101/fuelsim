@@ -26,6 +26,7 @@ add_library(fuelsim_elements
     src/line2_rz.cpp
     src/line3_rz.cpp
     src/line3_plane.cpp
+    src/line3_plane_average.cpp
     src/material.cpp
     src/material_functions.cpp
     src/quad4_face.cpp
