@@ -75,13 +75,13 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     struct Candidate final {
         ContactSide secondary, primary;
         std::array<std::size_t, 22> dofs;
-        std::size_t contact, constraint;
+        std::size_t contact;
         double coordinate, weight, penalty;
+        std::size_t segment;
     };
 
     std::vector<Candidate> _candidates;
     std::vector<std::pair<std::size_t, std::size_t>> _constraints;
-    mutable std::vector<std::size_t> _selected;
     void build_contacts(const UnstructuredPlaneQuad8Mesh& mesh);
     void validate_contacts(std::size_t first, std::size_t last, const std::vector<double>& state) const;
     elements::Line3PlaneContactResult

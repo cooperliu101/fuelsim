@@ -1,0 +1,65 @@
+*Heading
+** Distorted CPEG8T: shear and temperature-dependent properties.
+*Preprint,echo=NO,model=NO,history=NO,contact=NO
+*Node
+1,-0.01,-0.005
+2,0.01,-0.005
+3,0.014,0.005
+4,-0.008,0.005
+5,0,-0.005
+6,0.012,0
+7,0.003,0.005
+8,-0.008999999999999999,0
+100,0,0
+*Element,type=CPEG8T,elset=SOLID
+1,1,2,3,4,5,6,7,8
+*Nset,nset=FIELD,generate
+1,8,1
+*Nset,nset=BOTTOM
+1,2,5
+*Nset,nset=TOP
+3,4,7
+*Nset,nset=MIDDLE
+6,8
+*Nset,nset=CONTROLS
+100
+*Material,name=SOLID
+*Elastic
+1e6,.25,300
+1.1e6,.25,400
+*Expansion,zero=300
+1e-5
+*Conductivity
+10,300
+11,400
+*Density
+1000
+*Specific Heat
+100,300
+110,400
+*Solid Section,elset=SOLID,material=SOLID,ref node=100
+.1,0,0
+*Initial Conditions,type=TEMPERATURE
+FIELD,300
+*Step,name=PROBE,nlgeom=NO,inc=1
+*Coupled Temperature-Displacement,steady state
+1,1,1,1
+*Boundary
+BOTTOM,1,1,-.00005
+TOP,1,1,.00005
+MIDDLE,1,1,0
+FIELD,2,2,0
+100,3,3,0.0009952698412698411
+100,4,4,.002
+100,5,5,-.003
+BOTTOM,11,11,300
+TOP,11,11,400
+*Output,field,frequency=1
+*Node Output
+NT,U,RF,RFL
+*Element Output
+S,EE,COORD,IVOL,HFL
+*Output,history,frequency=1
+*Node Output,nset=CONTROLS
+U3,UR1,UR2,RF3,RM1,RM2
+*End Step

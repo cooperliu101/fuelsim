@@ -23,6 +23,13 @@ CASES = {
 }
 
 
+def verify_references(source, manifest="reference.sha256"):
+    for line in (source / manifest).read_text().splitlines():
+        expected, filename = line.split(maxsplit=1)
+        if hashlib.sha256((source / filename).read_bytes()).hexdigest() != expected:
+            raise AssertionError("Native reference checksum mismatch: " + filename)
+
+
 def compare(actual, reference, zeros, absolute, label, report):
     actual, reference = np.asarray(actual), np.asarray(reference)
     zeros = np.broadcast_to(np.asarray(zeros, dtype=bool), actual.shape)
@@ -30,6 +37,7 @@ def compare(actual, reference, zeros, absolute, label, report):
         raise AssertionError(label + ": missing or nonfinite field values")
     errors = actual - reference
     result = {"count": int(actual.size), "maximum_absolute": float(np.max(np.abs(errors)))}
+    report[label] = result
     if np.any(zeros):
         zero_error = float(max(np.max(np.abs(actual[zeros])), np.max(np.abs(reference[zeros]))))
         result["zero_absolute"] = zero_error
@@ -138,10 +146,7 @@ if __name__ == "__main__":
     parser.add_argument("--serial-work", type=Path)
     args = parser.parse_args()
     source = Path(__file__).resolve().parent
-    for line in (source / "reference.sha256").read_text().splitlines():
-        expected, filename = line.split(maxsplit=1)
-        if hashlib.sha256((source / filename).read_bytes()).hexdigest() != expected:
-            raise AssertionError("Native reference checksum mismatch: "+filename)
+    verify_references(source)
     args.work.mkdir(parents=True, exist_ok=True)
     mesh = "contact.e" if "contact" in args.case else "rectangle.e"
     for filename in (args.case+".fsi", mesh):

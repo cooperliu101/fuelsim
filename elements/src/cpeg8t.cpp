@@ -273,19 +273,43 @@ Cpeg8Result evaluate_cpeg8t(const Cpeg8Input& input, ElementRequest request) {
                 ? input.material.reference_heat_capacity(v[9], input.initial_temperature, context) * (v[9] - old[9])
                       / input.time_step
                 : adlite::Scalar(0.0);
+        // Native body heating uses the four temperature corners and the
+        // initial out-of-plane thickness, independently of the quadratic
+        // mechanical geometry and section extension/rotation.
+        double source_a = 0, source_b = 0, source_c = 0, source_d = 0;
+        if (input.volumetric_heat_source != 0.0)
+            for (std::size_t n = 0; n < 4; ++n) {
+                const double sx = input.geometry.coordinates[n][0] + (finite ? input.state[4 + n] : 0.0);
+                const double sy = input.geometry.coordinates[n][1] + (finite ? input.state[12 + n] : 0.0);
+                source_a += p.temperature_gradient_x[n] * sx;
+                source_b += p.temperature_gradient_y[n] * sx;
+                source_c += p.temperature_gradient_x[n] * sy;
+                source_d += p.temperature_gradient_y[n] * sy;
+            }
+        const double source_measure = p.measure * (source_a * source_d - source_b * source_c);
+        if (input.volumetric_heat_source != 0.0 && !(source_measure > 0.0))
+            throw std::domain_error("CPEG8T body heat source requires positive corner geometry");
         for (std::size_t n = 0; n < 4; ++n) {
             add_row(result,
                 n,
-                measure * conductivity * (gx[n] * tx + gy[n] * ty) + p.measure * p.temperature_shape[n] * storage
-                    - measure * p.temperature_shape[n] * input.volumetric_heat_source,
+                measure * conductivity * (gx[n] * tx + gy[n] * ty) + p.measure * p.temperature_shape[n] * storage,
                 p,
                 request.jacobian);
+            result.residual[n] -= source_measure * p.temperature_shape[n] * input.volumetric_heat_source;
+            if (finite && request.jacobian && input.volumetric_heat_source != 0.0)
+                for (std::size_t j = 0; j < 4; ++j) {
+                    const double scale = -p.measure * p.temperature_shape[n] * input.volumetric_heat_source;
+                    result.jacobian[23 * n + 4 + j] +=
+                        scale * (source_d * p.temperature_gradient_x[j] - source_c * p.temperature_gradient_y[j]);
+                    result.jacobian[23 * n + 12 + j] +=
+                        scale * (source_a * p.temperature_gradient_y[j] - source_b * p.temperature_gradient_x[j]);
+                }
             if (request.jacobian)
                 for (std::size_t j = 0; j < 4; ++j)
                     result.jacobian[23 * n + j] += measure.value() * conductivity.value()
                                                    * (gx[n].value() * gx[j].value() + gy[n].value() * gy[j].value());
         }
-        result.generated_heat_rate += measure.value() * input.volumetric_heat_source;
+        result.generated_heat_rate += source_measure * input.volumetric_heat_source;
         result.stored_heat_rate += p.measure * storage.value();
         if (input.body_acceleration != std::array<double, 2>{}) {
             const double mass = p.measure * input.material.initial_density(input.initial_temperature, context);
@@ -337,12 +361,21 @@ Cpeg8Result evaluate_cpeg8t_boundary(const Cpeg8BoundaryInput& input, bool jacob
         const auto length = adlite::hypot(tx, ty);
         if (!(length.value() > 0.0) || !(thickness.value() > 0.0))
             throw std::domain_error("CPEG8T boundary length and thickness must be positive");
-        const auto area = weights[q] * length * thickness;
+        const bool thermal = input.kind == Cpeg8BoundaryKind::heat_flux || input.kind == Cpeg8BoundaryKind::convection;
+        const auto area = weights[q] * length * (thermal ? adlite::Scalar(input.geometry.thickness) : thickness);
         if (input.kind == Cpeg8BoundaryKind::heat_flux || input.kind == Cpeg8BoundaryKind::convection) {
-            const auto flux = input.kind == Cpeg8BoundaryKind::heat_flux ? adlite::Scalar(-input.value)
-                                                                         : input.value * (active[9] - input.ambient);
-            for (std::size_t i = 0; i < 2; ++i)
-                add_row(result, nodes[i], area * point.temperature_shape[nodes[i]] * flux, point, jacobian);
+            for (std::size_t i = 0; i < 2; ++i) {
+                const auto node = nodes[i];
+                // Native CPEG8T film uses nodal temperature and row-sum edge
+                // weights. The full quadratic edge contributes its geometric
+                // derivatives; the thermal thickness remains the initial one.
+                const double flux = input.kind == Cpeg8BoundaryKind::heat_flux
+                                        ? -input.value
+                                        : input.value * (input.state[node] - input.ambient);
+                add_row(result, node, area * point.temperature_shape[node] * flux, point, jacobian);
+                if (jacobian && input.kind == Cpeg8BoundaryKind::convection)
+                    result.jacobian[23 * node + node] += area.value() * point.temperature_shape[node] * input.value;
+            }
         } else {
             adlite::Scalar fx = 0.0, fy = 0.0;
             if (input.kind == Cpeg8BoundaryKind::pressure) {

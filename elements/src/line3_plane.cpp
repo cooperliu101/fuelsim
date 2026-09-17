@@ -89,6 +89,56 @@ std::pair<bool, double> closest(const std::array<Point, 3>& nodes, const Point& 
     }
     return {std::isfinite(best), coordinate};
 }
+
+// A closest-point projection enters or leaves a primary edge where its
+// endpoint tangent is orthogonal to the endpoint-to-secondary vector.
+// Differentiate those moving boundaries with the implicit function theorem.
+std::vector<adlite::Scalar> interval_cuts(const std::array<Point, 3>& secondary, const std::array<Point, 3>& primary) {
+    std::vector<adlite::Scalar> cuts{-1.0, 1.0};
+    for (double endpoint : {-1.0, 1.0}) {
+        const auto p = curve(primary, endpoint);
+        adlite::Scalar a = 0.0, b = 0.0, c = 0.0;
+        for (std::size_t d = 0; d < 2; ++d) {
+            a += (0.5 * (secondary[0][d] + secondary[1][d]) - secondary[2][d]) * p.tangent[d];
+            b += 0.5 * (secondary[1][d] - secondary[0][d]) * p.tangent[d];
+            c += (secondary[2][d] - p.position[d]) * p.tangent[d];
+        }
+        const double av = a.value(), bv = b.value(), cv = c.value();
+        const double scale = std::abs(av) + std::abs(bv) + std::abs(cv);
+        if (!(scale > 0.0) || !std::isfinite(scale))
+            throw std::domain_error("Plane contact endpoint projection is degenerate");
+        std::vector<double> roots;
+        if (std::abs(av) <= 1e-14 * scale) {
+            if (std::abs(bv) > 1e-14 * scale)
+                roots.push_back(-cv / bv);
+        } else {
+            const double discriminant = bv * bv - 4.0 * av * cv;
+            if (discriminant > 0.0) {
+                const double q = -0.5 * (bv + std::copysign(std::sqrt(discriminant), bv));
+                roots.push_back(q / av);
+                roots.push_back(cv / q);
+            }
+        }
+        for (double root : roots) {
+            if (root <= -1.0 + 1e-12 || root >= 1.0 - 1e-12)
+                continue;
+            const double derivative = 2.0 * av * root + bv;
+            if (std::abs(derivative) <= 1e-12 * scale)
+                throw std::domain_error("Plane contact segment boundary is tangent to the secondary edge");
+            const auto equation = (a * root + b) * root + c;
+            cuts.push_back(root - (equation - equation.value()) / derivative);
+        }
+    }
+    std::sort(cuts.begin(), cuts.end(), [](const adlite::Scalar& a, const adlite::Scalar& b) {
+        return a.value() < b.value();
+    });
+    cuts.erase(
+        std::unique(cuts.begin(),
+            cuts.end(),
+            [](const adlite::Scalar& a, const adlite::Scalar& b) { return std::abs(a.value() - b.value()) < 1e-12; }),
+        cuts.end());
+    return cuts;
+}
 } // namespace
 
 Line3PlaneContactResult evaluate_line3_plane_contact(const Line3PlaneContactInput& input, bool jacobian) {
@@ -104,9 +154,18 @@ Line3PlaneContactResult evaluate_line3_plane_contact(const Line3PlaneContactInpu
             secondary[i][c] = input.secondary[i][c] + v[4 + 3 * c + i];
             primary[i][c] = input.primary[i][c] + v[10 + 3 * c + i];
         }
-    const auto sp = curve(secondary, input.coordinate);
-    const auto projection = closest(primary, sp.position);
     Line3PlaneContactResult result;
+    if (input.segment >= 5)
+        throw std::invalid_argument("Plane contact segment index must be less than five");
+    const auto cuts = interval_cuts(secondary, primary);
+    if (input.segment + 1 >= cuts.size())
+        return result;
+    const auto& left = cuts[input.segment];
+    const auto& right = cuts[input.segment + 1];
+    const auto secondary_coordinate = 0.5 * ((1.0 - input.coordinate) * left + (1.0 + input.coordinate) * right);
+    const auto weight = 0.5 * input.weight * (right - left);
+    const auto sp = curve(secondary, secondary_coordinate);
+    const auto projection = closest(primary, sp.position);
     if (!projection.first)
         return result;
     const auto trial = curve(primary, projection.second);
@@ -140,7 +199,9 @@ Line3PlaneContactResult evaluate_line3_plane_contact(const Line3PlaneContactInpu
                              - v[21] * (pp.position[0] - input.primary_reference[0]);
     if (!(thickness.value() > 0) || !(primary_thickness.value() > 0))
         throw std::domain_error("Plane contact thickness must remain positive");
-    const auto area = input.weight * secondary_length * thickness;
+    // As in the native interaction thickness, section extension and rotation
+    // do not change contact area. The in-plane secondary edge remains current.
+    const auto area = weight * secondary_length * input.secondary_thickness;
     const adlite::Scalar pressure = input.mechanical && gap.value() < 0 ? -input.penalty * gap : adlite::Scalar(0);
     if (input.mechanical)
         for (std::size_t i = 0; i < 3; ++i)
@@ -151,7 +212,8 @@ Line3PlaneContactResult evaluate_line3_plane_contact(const Line3PlaneContactInpu
             }
     if (input.thermal) {
         const std::array<adlite::Scalar, 2> primary_shape{0.5 * (1 - coordinate), 0.5 * (1 + coordinate)};
-        const std::array<double, 2> secondary_shape{0.5 * (1 - input.coordinate), 0.5 * (1 + input.coordinate)};
+        const std::array<adlite::Scalar, 2> secondary_shape{0.5 * (1 - secondary_coordinate),
+            0.5 * (1 + secondary_coordinate)};
         const auto ts = secondary_shape[0] * v[0] + secondary_shape[1] * v[1];
         const auto tp = primary_shape[0] * v[2] + primary_shape[1] * v[3];
         const auto rate = contact_common::gap_conductance(input.heat, gap, ts, tp) * (ts - tp) * area;
@@ -168,6 +230,9 @@ Line3PlaneContactResult evaluate_line3_plane_contact(const Line3PlaneContactInpu
     result.force = pressure.value() * area.value();
     result.distance_squared = dx.value() * dx.value() + dy.value() * dy.value();
     result.primary_coordinate = coordinate.value();
+    result.secondary_coordinate = secondary_coordinate.value();
+    result.interval_begin = left.value();
+    result.interval_end = right.value();
     for (std::size_t i = 0; i < rows.size(); ++i) {
         result.residual[i] = rows[i].value();
         if (jacobian)

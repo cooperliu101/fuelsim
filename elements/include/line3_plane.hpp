@@ -16,6 +16,9 @@ struct Line3PlaneContactInput final {
     GapHeatProperties heat;
     double penalty;
     bool thermal, mechanical;
+    // Two quadratic endpoint projection equations have at most four roots.
+    // Five fixed interval slots keep assembly and output sizes state independent.
+    std::size_t segment = 0;
 };
 
 struct Line3PlaneContactResult final {
@@ -24,6 +27,7 @@ struct Line3PlaneContactResult final {
     bool projected = false;
     double gap = 0.0, pressure = 0.0, area = 0.0, heat_rate = 0.0, force = 0.0;
     double distance_squared = 0.0, primary_coordinate = 0.0;
+    double secondary_coordinate = 0.0, interval_begin = 0.0, interval_end = 0.0;
 };
 
 Line3PlaneContactResult evaluate_line3_plane_contact(const Line3PlaneContactInput& input, bool jacobian);

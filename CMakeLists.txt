@@ -169,6 +169,12 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_plane_transaction_tests COMMAND fuelsim_plane_transaction_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/finite_contact.fsi"
         "${CMAKE_CURRENT_BINARY_DIR}/plane_transaction")
+    add_executable(fuelsim_plane_segment_tests tests/plane_segment_tests.cpp)
+    target_link_libraries(fuelsim_plane_segment_tests PRIVATE fuelsim::io)
+    target_include_directories(fuelsim_plane_segment_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    fuelsim_enable_warnings(fuelsim_plane_segment_tests)
+    add_test(NAME fuelsim_plane_segment_tests COMMAND fuelsim_plane_segment_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/contact_cycle.fsi")
     foreach(case prescribed free_controls finite_prescribed contact finite_contact)
         add_test(NAME fuelsim_cpeg8t_${case}_abaqus
             COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/compare.py"
@@ -178,6 +184,32 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_cpeg8t_sections_analytic
         COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_sections.py"
             --executable "$<TARGET_FILE:fuelsim>" --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_sections")
+    foreach(case shear_distorted thermal_boundary bending_rotation source_nonaffine)
+        add_test(NAME fuelsim_cpeg8t_${case}_abaqus
+            COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_extended.py"
+                --case "${case}" --executable "$<TARGET_FILE:fuelsim>"
+                --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_${case}")
+    endforeach()
+    add_test(NAME fuelsim_cpeg8t_inelastic_history_analytic
+        COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_inelastic.py"
+            --executable "$<TARGET_FILE:fuelsim>" --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_inelastic_history")
+    add_test(NAME fuelsim_cpeg8t_inelastic_finite_abaqus
+        COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_inelastic.py"
+            --finite --require-native --executable "$<TARGET_FILE:fuelsim>"
+            --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_inelastic_finite")
+    add_test(NAME fuelsim_cpeg8t_curved_contact_abaqus
+        COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_curved_contact.py"
+            --require-native --executable "$<TARGET_FILE:fuelsim>"
+            --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_curved_contact")
+    add_test(NAME fuelsim_cpeg8t_thermal_mass_analytic
+        COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_thermal_mass.py"
+            --executable "$<TARGET_FILE:fuelsim>" --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_thermal_mass")
+    add_test(NAME fuelsim_cpeg8t_adaptive_analytic
+        COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_thermal_mass.py"
+            --adaptive --executable "$<TARGET_FILE:fuelsim>" --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_adaptive")
+    add_test(NAME fuelsim_cpeg8t_restart
+        COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_restart.py"
+            --executable "$<TARGET_FILE:fuelsim>" --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_restart")
     add_executable(fuelsim_modal_beam_tests tests/modal_beam_tests.cpp)
     target_link_libraries(fuelsim_modal_beam_tests PRIVATE fuelsim::solver)
     fuelsim_link_petsc(fuelsim_modal_beam_tests)
@@ -1942,6 +1974,16 @@ if(BUILD_TESTING)
         NO_DEFAULT_PATH
     )
     if(FUELSIM_MPIEXEC_EXECUTABLE)
+        add_test(NAME fuelsim_cpeg8t_restart_mpi4
+            COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_restart.py"
+                --executable "$<TARGET_FILE:fuelsim>" --mpiexec "${FUELSIM_MPIEXEC_EXECUTABLE}"
+                --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_restart_mpi4")
+        add_test(NAME fuelsim_cpeg8t_contact_cycle_distribution_mpi4
+            COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_contact_cycle.py"
+                --executable "$<TARGET_FILE:fuelsim>" --mpiexec "${FUELSIM_MPIEXEC_EXECUTABLE}"
+                --require-distribution --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_contact_cycle_mpi4")
+        set_tests_properties(fuelsim_cpeg8t_restart_mpi4 fuelsim_cpeg8t_contact_cycle_distribution_mpi4
+            PROPERTIES PROCESSORS 4 TIMEOUT 120)
         add_test(NAME fuelsim_cpeg8t_finite_contact_mpi2_abaqus
             COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/compare.py"
                 --case finite_contact --executable "$<TARGET_FILE:fuelsim>"

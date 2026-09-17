@@ -118,7 +118,7 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
     std::uint64_t hash = hashing::fnv1a_offset;
     const bool cartesian = problem.is_cartesian_3d();
     if (problem.uses_plane_quad8()) {
-        hash_string(hash, "generalized_plane_strain_cpeg8t_sections_v2");
+        hash_string(hash, "generalized_plane_strain_cpeg8t_segmented_thermal_v3");
         hash_size(hash, problem.dof_count());
         const auto& spatial = BackendAccess::plane_spatial(problem);
         hash_size(hash, spatial.section_count());

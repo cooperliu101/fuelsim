@@ -1,0 +1,54 @@
+*Heading
+** Heat flux, convection and volume heating on CPEG8T.
+*Preprint,echo=NO,model=NO,history=NO,contact=NO
+*Node
+1,-0.01,-0.005
+2,0.01,-0.005
+3,0.01,0.005
+4,-0.01,0.005
+5,0,-0.005
+6,0.01,0
+7,0,0.005
+8,-0.01,0
+100,0,0
+*Element,type=CPEG8T,elset=SOLID
+1,1,2,3,4,5,6,7,8
+*Nset,nset=FIELD,generate
+1,8,1
+*Nset,nset=BOTTOM
+1,2,5
+*Nset,nset=CONTROLS
+100
+*Material,name=SOLID
+*Elastic
+1e6,.25
+*Conductivity
+10
+*Density
+1000
+*Specific Heat
+100
+*Solid Section,elset=SOLID,material=SOLID,ref node=100
+.1,0,0
+*Initial Conditions,type=TEMPERATURE
+FIELD,300
+*Step,name=PROBE,nlgeom=YES,inc=1
+*Coupled Temperature-Displacement,steady state
+1,1,1,1
+*Boundary
+FIELD,1,2,0
+CONTROLS,3,3,.01
+CONTROLS,4,4,.02
+CONTROLS,5,5,-.03
+FIELD,11,11,400
+*Film
+SOLID,F3,300,1000
+*Output,field,frequency=1
+*Node Output
+NT,U,RF,RFL
+*Element Output
+S,EE,COORD,IVOL,HFL
+*Output,history,frequency=1
+*Node Output,nset=CONTROLS
+U3,UR1,UR2,RF3,RM1,RM2
+*End Step

@@ -1,0 +1,117 @@
+*Heading
+** Heat flux, convection and volume heating on CPEG8T.
+*Preprint,echo=NO,model=NO,history=NO,contact=NO
+*Node
+1,-0.01,-0.005
+2,0.01,-0.005
+3,0.01,0.005
+4,-0.01,0.005
+5,0,-0.005
+6,0.01,0
+7,0,0.005
+8,-0.01,0
+100,0,0
+*Element,type=CPEG8T,elset=SOLID
+1,1,2,3,4,5,6,7,8
+*Nset,nset=FIELD,generate
+1,8,1
+*Nset,nset=BOTTOM
+1,2,5
+*Nset,nset=CONTROLS
+100
+*Material,name=SOLID
+*Elastic
+1e6,.25
+*Conductivity
+10
+*Density
+1000
+*Specific Heat
+100
+*Solid Section,elset=SOLID,material=SOLID,ref node=100
+.1,0,0
+*Initial Conditions,type=TEMPERATURE
+FIELD,300
+*Amplitude,name=A1_0,time=TOTAL TIME
+0,0,1,-0.00025,2,0.01495
+*Amplitude,name=A1_1,time=TOTAL TIME
+0,0,1,5e-05,2,-0.00525
+*Amplitude,name=A2_0,time=TOTAL TIME
+0,0,1,0.00025,2,-0.00505
+*Amplitude,name=A2_1,time=TOTAL TIME
+0,0,1,5e-05,2,0.01525
+*Amplitude,name=A3_0,time=TOTAL TIME
+0,0,1,0.00015,2,-0.01505
+*Amplitude,name=A3_1,time=TOTAL TIME
+0,0,1,5e-05,2,0.00515
+*Amplitude,name=A4_0,time=TOTAL TIME
+0,0,1,-0.00015,2,0.00495
+*Amplitude,name=A4_1,time=TOTAL TIME
+0,0,1,5e-05,2,-0.01515
+*Amplitude,name=A5_0,time=TOTAL TIME
+0,0,1,0,2,0.005
+*Amplitude,name=A5_1,time=TOTAL TIME
+0,0,1,0,2,0.005
+*Amplitude,name=A6_0,time=TOTAL TIME
+0,0,1,0.0002,2,-0.01005
+*Amplitude,name=A6_1,time=TOTAL TIME
+0,0,1,5e-05,2,0.0102
+*Amplitude,name=A7_0,time=TOTAL TIME
+0,0,1,0,2,-0.005
+*Amplitude,name=A7_1,time=TOTAL TIME
+0,0,1,0,2,-0.005
+*Amplitude,name=A8_0,time=TOTAL TIME
+0,0,1,-0.0002,2,0.00995
+*Amplitude,name=A8_1,time=TOTAL TIME
+0,0,1,5e-05,2,-0.0102
+*Amplitude,name=EXTENSION,time=TOTAL TIME
+0,0,1,.001,2,.001
+*Step,name=BEND_ROTATE,nlgeom=YES,inc=2
+*Coupled Temperature-Displacement
+1,2,1,1
+*Boundary
+FIELD,11,11,300
+CONTROLS,4,5,0
+*Boundary,amplitude=EXTENSION
+CONTROLS,3,3,1
+*Boundary,amplitude=A1_0
+1,1,1,1
+*Boundary,amplitude=A1_1
+1,2,2,1
+*Boundary,amplitude=A2_0
+2,1,1,1
+*Boundary,amplitude=A2_1
+2,2,2,1
+*Boundary,amplitude=A3_0
+3,1,1,1
+*Boundary,amplitude=A3_1
+3,2,2,1
+*Boundary,amplitude=A4_0
+4,1,1,1
+*Boundary,amplitude=A4_1
+4,2,2,1
+*Boundary,amplitude=A5_0
+5,1,1,1
+*Boundary,amplitude=A5_1
+5,2,2,1
+*Boundary,amplitude=A6_0
+6,1,1,1
+*Boundary,amplitude=A6_1
+6,2,2,1
+*Boundary,amplitude=A7_0
+7,1,1,1
+*Boundary,amplitude=A7_1
+7,2,2,1
+*Boundary,amplitude=A8_0
+8,1,1,1
+*Boundary,amplitude=A8_1
+8,2,2,1
+*Output,field,frequency=1
+*Node Output
+NT,U,RF,RFL
+*Element Output
+S,EE,COORD,IVOL,HFL
+*Output,history,frequency=1
+*Node Output,nset=CONTROLS
+U3,UR1,UR2,RF3,RM1,RM2
+*End Step

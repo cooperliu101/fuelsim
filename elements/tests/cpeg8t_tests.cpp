@@ -12,7 +12,7 @@ void require_close(double actual, double expected, double tolerance, const char*
         throw std::runtime_error(message);
 }
 
-void check_contact() {
+void check_contact(unsigned clipping = 0) {
     using namespace fuelsim;
     using namespace fuelsim::elements;
     Line3PlaneValues state{410, 430, 300, 320};
@@ -34,6 +34,16 @@ void check_contact() {
         1e9,
         true,
         true};
+    if (clipping == 1) {
+        input.primary[0][0] = .004;
+        input.primary[1][0] = -.015;
+        input.primary[2][0] = -.0055;
+    } else if (clipping == 2) {
+        input.primary[0][0] = .015;
+        input.primary[1][0] = -.004;
+        input.primary[2][0] = .0055;
+        input.segment = 1;
+    }
     const auto active = evaluate_line3_plane_contact(input, true);
     if (!active.projected || !(active.pressure > 0))
         throw std::runtime_error("Curved contact must be active");
@@ -62,7 +72,8 @@ void check_contact() {
         upper.heat,
         upper.penalty,
         true,
-        true};
+        true,
+        input.segment};
     const Line3PlaneContactInput lower_input{lower.secondary,
         lower.primary,
         {},
@@ -77,7 +88,8 @@ void check_contact() {
         lower.heat,
         lower.penalty,
         true,
-        true};
+        true,
+        input.segment};
     const auto rp = evaluate_line3_plane_contact(upper_input, false);
     const auto rm = evaluate_line3_plane_contact(lower_input, false);
     for (std::size_t i = 0; i < 22; ++i) {
@@ -117,6 +129,8 @@ int main() {
     using namespace fuelsim::elements;
     try {
         check_contact();
+        check_contact(1);
+        check_contact(2);
         const Cpeg8Coordinates coordinates{{{-0.01, -0.005},
             {0.01, -0.005},
             {0.01, 0.005},
@@ -126,6 +140,23 @@ int main() {
             {0.0, 0.005},
             {-0.01, 0.0}}};
         const auto geometry = make_cpeg8t_geometry(coordinates, 0.1);
+        Cpeg8Values film_state{};
+        film_state[2] = 400;
+        film_state[3] = 350;
+        const auto film =
+            evaluate_cpeg8t_boundary({geometry, film_state, 2, Cpeg8BoundaryKind::convection, 1000, 300, false}, true);
+        require_close(film.residual[2], 100, 1e-12, "Native nodal film heat at first endpoint");
+        require_close(film.residual[3], 50, 1e-12, "Native nodal film heat at second endpoint");
+        require_close(film.jacobian[23 * 2 + 2], 1, 1e-14, "Film diagonal temperature derivative");
+        require_close(film.jacobian[23 * 2 + 3], 0, 1e-14, "Film has no off-diagonal temperature derivative");
+        film_state[20] = .01;
+        film_state[21] = .02;
+        film_state[22] = -.03;
+        const auto stretched_film =
+            evaluate_cpeg8t_boundary({geometry, film_state, 2, Cpeg8BoundaryKind::convection, 1000, 300, true}, true);
+        require_close(stretched_film.residual[2], 100, 1e-12, "Film uses initial section thickness");
+        require_close(stretched_film.residual[3], 50, 1e-12, "Film uses initial section thickness at both endpoints");
+        require_close(stretched_film.jacobian[23 * 2 + 20], 0, 1e-14, "Film is independent of section extension");
         const IsotropicThermoelasticMaterial material(
             test::thermoelastic(0, 10, 1e6, .25, 1e-5, 300, 0, 0, 0, 1000, 100));
         Cpeg8Values state{}, previous{};
