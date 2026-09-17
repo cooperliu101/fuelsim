@@ -510,6 +510,44 @@ CartesianRotation active_rotation(const cartesian_detail::Matrix3& rotation) {
         rotation[2][2]};
 }
 
+CartesianMaterialPointState finite_point_material_values(const IsotropicThermoelasticMaterial& material,
+    const FinitePointResidualCache& point,
+    double average_trace,
+    double temperature,
+    double expansion_temperature,
+    double old_temperature,
+    double old_expansion_temperature,
+    double time_step,
+    const CartesianMaterialPointState& committed,
+    MaterialFunctionContext context) {
+    const SymmetricTensor3 strain{point.strain_increment.xx,
+        point.strain_increment.yy,
+        point.strain_increment.zz,
+        point.strain_increment.xy,
+        point.strain_increment.yz,
+        point.strain_increment.xz};
+    const SymmetricTensor3 adjusted = expansion_adjusted_increment(material,
+        selectively_reduced_strain(strain, average_trace, StrainFormulation::finite),
+        adlite::Scalar(temperature),
+        adlite::Scalar(expansion_temperature),
+        old_temperature,
+        old_expansion_temperature,
+        time_step,
+        context);
+    return material.incremental_response_values({adjusted.xx.value(),
+                                                    adjusted.yy.value(),
+                                                    adjusted.zz.value(),
+                                                    adjusted.xy.value(),
+                                                    adjusted.yz.value(),
+                                                    adjusted.xz.value()},
+        active_rotation(point.rotation),
+        temperature,
+        old_temperature,
+        time_step,
+        committed,
+        context);
+}
+
 double prepare_finite_point_stresses(const IsotropicThermoelasticMaterial& material,
     const Hex8Geometry& geometry,
     const Hex8LocalValues& state,
@@ -529,46 +567,42 @@ double prepare_finite_point_stresses(const IsotropicThermoelasticMaterial& mater
         const std::size_t material_node = hex8_node_gauss_permutation[q];
         FinitePointResidualCache& point_residual = point_residuals[q];
         const adlite::Scalar temperature(state[material_node]);
-        const SymmetricTensor3 strain{point_residual.strain_increment.xx,
-            point_residual.strain_increment.yy,
-            point_residual.strain_increment.zz,
-            point_residual.strain_increment.xy,
-            point_residual.strain_increment.yz,
-            point_residual.strain_increment.xz};
-        const SymmetricTensor3 constitutive_strain =
-            selectively_reduced_strain(strain, average_strain_trace, StrainFormulation::finite);
         const MaterialFunctionContext context = material_context(time, point.position);
-        SymmetricTensor3 stress;
         if (committed_material == nullptr) {
-            stress = material.stress(
-                expansion_adjusted_strain(material, constitutive_strain, temperature, expansion_temperature, context),
-                temperature,
-                context);
-            stress = rotate_cartesian_tensor(stress, active_rotation(point_residual.rotation));
-        } else {
-            stress = evaluate_incremental_cartesian_response(material,
-                expansion_adjusted_increment(material,
-                    constitutive_strain,
+            const SymmetricTensor3 strain{point_residual.strain_increment.xx,
+                point_residual.strain_increment.yy,
+                point_residual.strain_increment.zz,
+                point_residual.strain_increment.xy,
+                point_residual.strain_increment.yz,
+                point_residual.strain_increment.xz};
+            const SymmetricTensor3 stress =
+                material.stress(expansion_adjusted_strain(material,
+                                    selectively_reduced_strain(strain, average_strain_trace, StrainFormulation::finite),
+                                    temperature,
+                                    expansion_temperature,
+                                    context),
                     temperature,
-                    expansion_temperature,
-                    old_state[material_node],
-                    old_expansion_temperature,
-                    time_step,
-                    context),
-                temperature,
+                    context);
+            point_residual.stress = rotate_cartesian_tensor_values({stress.xx.value(),
+                                                                       stress.yy.value(),
+                                                                       stress.zz.value(),
+                                                                       stress.xy.value(),
+                                                                       stress.yz.value(),
+                                                                       stress.xz.value()},
+                point_residual.rotation);
+        } else {
+            point_residual.stress = finite_point_material_values(material,
+                point_residual,
+                average_strain_trace,
+                temperature.value(),
+                expansion_temperature.value(),
                 old_state[material_node],
+                old_expansion_temperature,
                 time_step,
                 (*committed_material)[q],
                 context)
-                         .stress;
-            stress = rotate_cartesian_tensor(stress, active_rotation(point_residual.rotation));
+                                        .stress;
         }
-        point_residual.stress = {stress.xx.value(),
-            stress.yy.value(),
-            stress.zz.value(),
-            stress.xy.value(),
-            stress.yz.value(),
-            stress.xz.value()};
         element_pressure += point.weighted_measure / geometry.reference_volume
                             * (point_residual.stress.xx + point_residual.stress.yy + point_residual.stress.zz) / 3.0;
     }
@@ -1675,55 +1709,51 @@ CartesianMaterialHistory compute_hex8_transient_update(const elements::C3d8Input
 
     if (committed_material.size() != geometry.points.size())
         throw std::invalid_argument("C3D8T material history must contain eight integration points");
+    if (data.strain_formulation == StrainFormulation::finite) {
+        std::array<FinitePointResidualCache, hex8_node_count> points{};
+        const double average_trace = prepare_finite_point_residuals(geometry, state, committed_state, points).value;
+        const double expansion_temperature = average_hex8_temperature(state);
+        const double old_expansion_temperature = average_hex8_temperature(committed_state);
+        CartesianMaterialHistory result(geometry.points.size());
+        for (std::size_t q = 0; q < geometry.points.size(); ++q) {
+            const std::size_t material_node = hex8_node_gauss_permutation[q];
+            result[q] = finite_point_material_values(data.material,
+                points[q],
+                average_trace,
+                state[material_node],
+                expansion_temperature,
+                committed_state[material_node],
+                old_expansion_temperature,
+                time_step,
+                committed_material[q],
+                material_context(data.time, geometry.points[q].position));
+        }
+        return result;
+    }
     Hex8LocalAdValues passive{};
     ad_local_system::make_passive(state.data(), state.size(), passive.data());
     const adlite::Scalar expansion_temperature = average_hex8_temperature(passive);
-    const double old_expansion_temperature = average_hex8_temperature(committed_state);
-    const double average_strain_trace = data.strain_formulation == StrainFormulation::finite
-                                            ? finite_average_hex8_strain_trace(geometry, state, committed_state)
-                                            : average_hex8_strain_trace(geometry, state);
+    const double average_strain_trace = average_hex8_strain_trace(geometry, state);
     CartesianMaterialHistory result(geometry.points.size());
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const Hex8QuadraturePoint& point = geometry.points[q];
-        const std::size_t material_node = hex8_node_gauss_permutation[q];
-        const adlite::Scalar temperature = passive[material_node];
+        const adlite::Scalar temperature = passive[hex8_node_gauss_permutation[q]];
         const C3d8Kinematics kinematics =
-            evaluate_cartesian_incremental_kinematics(point, passive, committed_state, data.strain_formulation);
-        CartesianInelasticStressResponse response;
-        if (data.strain_formulation == StrainFormulation::finite) {
-            const double old_temperature = committed_state[material_node];
-            const MaterialFunctionContext context = material_context(data.time, point.position);
-            response = data.material.incremental_response(expansion_adjusted_increment(data.material,
-                                                              selectively_reduced_strain(kinematics.strain_increment,
-                                                                  average_strain_trace,
-                                                                  data.strain_formulation),
-                                                              temperature,
-                                                              expansion_temperature,
-                                                              old_temperature,
-                                                              old_expansion_temperature,
-                                                              time_step,
-                                                              context),
-                kinematics.rotation,
-                temperature,
-                old_temperature,
-                time_step,
-                committed_material[q],
-                context);
-        } else {
-            const MaterialFunctionContext context = material_context(data.time, point.position);
-            const SymmetricTensor3 constitutive_strain =
-                selectively_reduced_strain(kinematics.strain_increment, average_strain_trace, data.strain_formulation);
-            response = data.material.response(expansion_adjusted_strain(data.material,
-                                                  constitutive_strain,
-                                                  temperature,
-                                                  expansion_temperature,
-                                                  context),
-                temperature,
-                time_step,
-                committed_material[q],
-                context);
-        }
-        result[q] = response.trial_state;
+            evaluate_cartesian_incremental_kinematics(point, passive, committed_state, StrainFormulation::small);
+        const MaterialFunctionContext context = material_context(data.time, point.position);
+        const SymmetricTensor3 constitutive_strain =
+            selectively_reduced_strain(kinematics.strain_increment, average_strain_trace, StrainFormulation::small);
+        result[q] = data.material
+                        .response(expansion_adjusted_strain(data.material,
+                                      constitutive_strain,
+                                      temperature,
+                                      expansion_temperature,
+                                      context),
+                            temperature,
+                            time_step,
+                            committed_material[q],
+                            context)
+                        .trial_state;
     }
     return result;
 }
