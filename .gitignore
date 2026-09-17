@@ -4,3 +4,7 @@
 __pycache__/
 *.csv
 !verification/moose/*.csv
+
+# Local-only ovality studies and private recovery copies.
+/verification/abaqus/oval_open_tube/
+/.local-backups/
