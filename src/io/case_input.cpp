@@ -1092,6 +1092,7 @@ void read_executioner(const InputDocument& document, const std::string& path, Fu
                 "restart",
                 "target_nonlinear_iterations",
                 "iteration_window",
+                "adaptive_algorithm",
                 "time_error_relative_tolerance",
                 "creep_strain_time_tolerance",
                 "temperature_time_absolute_tolerance",
@@ -1124,6 +1125,17 @@ void read_executioner(const InputDocument& document, const std::string& path, Fu
             read_optional_bool(document, executioner, "include_thermal_time_term", true),
             read_optional_bool(document, executioner, "use_linear_time_predictor", false),
             read_optional_double(document, executioner, "creep_strain_time_tolerance", 0.0)};
+        const std::string algorithm = read_optional_string(executioner, "adaptive_algorithm", "convergence");
+        if (algorithm == "convergence")
+            result.transient_execution.adaptive_algorithm = AdaptiveTimeAlgorithm::convergence;
+        else if (algorithm == "step_doubling")
+            result.transient_execution.adaptive_algorithm = AdaptiveTimeAlgorithm::step_doubling;
+        else if (algorithm == "creep_rate")
+            result.transient_execution.adaptive_algorithm = AdaptiveTimeAlgorithm::creep_rate;
+        else
+            value_error(document,
+                required_entry(document, executioner, "adaptive_algorithm"),
+                "adaptive_algorithm must be 'convergence', 'step_doubling' or 'creep_rate'");
         result.restart_file = read_optional_path(path, executioner, "restart");
     }
 }

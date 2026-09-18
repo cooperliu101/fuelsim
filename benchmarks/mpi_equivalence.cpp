@@ -471,24 +471,7 @@ int main(int argc, char** argv) {
                                             "compare_transient mode");
             fuelsim::TransientProblem problem(definition.spatial, source);
             const fuelsim::TransientTimeOptions& execution = definition.transient_execution;
-            const fuelsim::TransientResult result = fuelsim::solve_transient(problem,
-                {execution.end_time,
-                    execution.initial_time_step,
-                    execution.minimum_time_step,
-                    execution.maximum_time_step,
-                    execution.growth_factor,
-                    execution.cutback_factor,
-                    execution.maximum_cutbacks_per_step,
-                    execution.load_ramp_time,
-                    execution.target_nonlinear_iterations,
-                    execution.iteration_window,
-                    execution.time_error_relative_tolerance,
-                    execution.temperature_time_absolute_tolerance,
-                    execution.displacement_time_absolute_tolerance,
-                    execution.time_error_safety_factor,
-                    execution.strain_history_time_absolute_tolerance,
-                    execution.stress_history_time_absolute_tolerance},
-                options);
+            const fuelsim::TransientResult result = fuelsim::solve_transient(problem, execution, options);
             if (!result.completed || result.aggregate_timing.workspace_setups != 1) {
                 std::ostringstream message;
                 message << "Transient MPI equivalence solve failed or rebuilt "

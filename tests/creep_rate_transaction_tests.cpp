@@ -40,6 +40,7 @@ void exercise(const char* path) {
     auto& problem = *storage;
     auto options = input.transient_execution;
     options.time_error_relative_tolerance = 0;
+    options.adaptive_algorithm = fuelsim::AdaptiveTimeAlgorithm::creep_rate;
     options.creep_strain_time_tolerance = 1e-5;
     options.minimum_time_step = 1e-12;
     options.maximum_cutbacks_per_step = 30;

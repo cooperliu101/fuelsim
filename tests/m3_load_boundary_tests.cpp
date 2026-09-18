@@ -278,6 +278,7 @@ bool test_time_error_control(const std::string& input_path) {
     const fuelsim::TransientResult coarse = fuelsim::solve_transient(coarse_problem, coarse_options, solver_options);
     fuelsim::TransientProblem adaptive_problem(input.spatial, mesh);
     fuelsim::TransientTimeOptions adaptive_options = {2.0, 2.0, 0.03125, 2.0, 2.0, 0.5, 20, 20.0};
+    adaptive_options.adaptive_algorithm = fuelsim::AdaptiveTimeAlgorithm::step_doubling;
     adaptive_options.time_error_relative_tolerance = 2.0e-4;
     adaptive_options.temperature_time_absolute_tolerance = 1.0e-3;
     // Isolate thermal error control; inelastic-history control is tested separately.
@@ -385,6 +386,7 @@ bool test_history_time_error_control(const std::string& input_path) {
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     fuelsim::TransientProblem problem(input.spatial, mesh);
     fuelsim::TransientTimeOptions time_options = {20.0, 4.0, 0.125, 4.0, 1.0, 0.5, 12, 20.0};
+    time_options.adaptive_algorithm = fuelsim::AdaptiveTimeAlgorithm::step_doubling;
     time_options.time_error_relative_tolerance = 5.0e-1;
     time_options.temperature_time_absolute_tolerance = 1.0e-3;
     time_options.displacement_time_absolute_tolerance = 1.0e-9;

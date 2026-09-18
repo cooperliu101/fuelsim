@@ -283,14 +283,32 @@ std::vector<double> linear_transient_predictor(const std::vector<double>& commit
 }
 
 void validate_time_options(const TransientProblem& problem, const TransientTimeOptions& options) {
+    if (!std::isfinite(options.time_error_relative_tolerance) || options.time_error_relative_tolerance < 0.0)
+        throw std::invalid_argument("time_error_relative_tolerance must be finite and nonnegative");
     if (!std::isfinite(options.creep_strain_time_tolerance) || options.creep_strain_time_tolerance < 0.0)
         throw std::invalid_argument("creep_strain_time_tolerance must be finite and nonnegative");
-    if (options.creep_strain_time_tolerance > 0.0) {
-        if (options.time_error_relative_tolerance != 0.0)
-            throw std::invalid_argument("Creep-rate and step-doubling time control are mutually exclusive");
+    switch (options.adaptive_algorithm) {
+    case AdaptiveTimeAlgorithm::convergence:
+        if (options.time_error_relative_tolerance != 0.0 || options.creep_strain_time_tolerance != 0.0)
+            throw std::invalid_argument("Error tolerances require adaptive_algorithm = step_doubling or creep_rate");
+        break;
+    case AdaptiveTimeAlgorithm::step_doubling:
+        if (!(options.time_error_relative_tolerance > 0.0) || options.creep_strain_time_tolerance != 0.0)
+            throw std::invalid_argument("adaptive_algorithm = step_doubling requires positive "
+                                        "time_error_relative_tolerance and zero creep_strain_time_tolerance");
+        break;
+    case AdaptiveTimeAlgorithm::creep_rate:
+        if (!(options.creep_strain_time_tolerance > 0.0) || options.time_error_relative_tolerance != 0.0)
+            throw std::invalid_argument("adaptive_algorithm = creep_rate requires positive creep_strain_time_tolerance "
+                                        "and zero time_error_relative_tolerance");
+        break;
+    default:
+        throw std::invalid_argument("Invalid adaptive time algorithm");
+    }
+    if (options.adaptive_algorithm != AdaptiveTimeAlgorithm::convergence) {
         if (!std::isfinite(options.time_error_safety_factor) || options.time_error_safety_factor <= 0.0
             || options.time_error_safety_factor >= 1.0)
-            throw std::invalid_argument("Creep-rate time control requires a safety factor between zero and one");
+            throw std::invalid_argument("Time error control requires a safety factor between zero and one");
     }
     if (problem.time_step_active())
         throw std::logic_error("solve_transient cannot start with an active time step");
@@ -337,10 +355,10 @@ TransientResult solve_transient(TransientProblem& problem,
     const SolverOptions& solver_options,
     TransientStepObserver* observer) {
     validate_time_options(problem, options);
-    const bool creep_control = options.creep_strain_time_tolerance > 0.0;
+    const bool creep_control = options.adaptive_algorithm == AdaptiveTimeAlgorithm::creep_rate;
     std::vector<double> committed_rates = creep_control ? problem.committed_creep_rates() : std::vector<double>{};
     const bool recent_predictor_tracking =
-        options.use_linear_time_predictor && !(options.time_error_relative_tolerance > 0.0);
+        options.use_linear_time_predictor && options.adaptive_algorithm != AdaptiveTimeAlgorithm::step_doubling;
     problem.track_previous_committed_solution(recent_predictor_tracking);
     const SteadyClock::time_point start = SteadyClock::now();
     TransientResult result;
@@ -419,7 +437,7 @@ TransientResult solve_transient(TransientProblem& problem,
             TransientTimeErrorEstimate time_error_components;
             TransientConservationSummary first_half_conservation;
             int controller_nonlinear_iterations = 0;
-            const bool error_control = options.time_error_relative_tolerance > 0.0;
+            const bool error_control = options.adaptive_algorithm == AdaptiveTimeAlgorithm::step_doubling;
             std::vector<double> candidate_rates;
             ProblemStateSnapshot base_state;
             bool base_state_available = false;

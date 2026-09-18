@@ -704,6 +704,7 @@ secondary 侧切向合力；轴对称为有符号标量，三维为合力向量�
   load_ramp_time = 20
   target_nonlinear_iterations = 6
   iteration_window = 2
+  adaptive_algorithm = step_doubling
   time_error_relative_tolerance = 2e-4
   temperature_time_absolute_tolerance = 1e-3
   displacement_time_absolute_tolerance = 1e-10
@@ -747,9 +748,37 @@ secondary 侧切向合力；轴对称为有符号标量，三维为合力向量�
 下一步最多保持接受后的实际步长，不在同一步成功后立即放大回刚失败的尺度；
 后续无拒步的成功步才重新允许增长。
 
-`time_error_relative_tolerance` 省略或为零时关闭整步／半步误差控制，仍可启用
-下述蠕变应变率控制。设为正值后，每个候选步从同一 committed 状态计算一个 Backward Euler 全步和两个
-半步；温度、两个位移场、弹性/塑性/蠕变张量、两个等效应变及应力的归一化
+`adaptive_algorithm` 显式选择自适应算法，取值如下：
+
+| 取值 | 步长控制方式 | 必须提供的误差容差 |
+| --- | --- | --- |
+| `convergence`（默认） | 根据非线性收敛、迭代次数及增长／缩小系数调整步长 | 不使用时间误差容差 |
+| `step_doubling` | 比较一个整步与两个半步，接受两个半步 | `time_error_relative_tolerance > 0` |
+| `creep_rate` | 检查所有材料点的步初／步末蠕变速率差，接受整步 | `creep_strain_time_tolerance > 0` |
+
+容差数值不再隐式选择算法。所选算法必须有对应的正容差，另一个算法的容差
+必须省略或为零；`convergence` 下两者都必须省略或为零，否则求解前报错。
+三种算法都遵守最小／最大步长、事件时刻、非线性求解失败后的恢复与重试规则。
+`convergence` 不估计时间离散误差；若需要固定名义步长，可同时令初始步长与
+最大步长相等、`growth_factor = 1` 且 `target_nonlinear_iterations = 0`。
+
+例如，在现有 `[Executioner]` 中选择蠕变应变率控制，并限制最大步长为 25 h：
+
+```text
+  adaptive_algorithm = creep_rate
+  creep_strain_time_tolerance = 1e-6
+  maximum_time_step = 90000
+```
+
+改用原整步／两个半步算法时，将前两行替换为：
+
+```text
+  adaptive_algorithm = step_doubling
+  time_error_relative_tolerance = 2e-4
+```
+
+`adaptive_algorithm = step_doubling` 时，每个候选步从同一已接受状态计算
+一个 Backward Euler（后向欧拉）整步和两个半步；温度、两个位移场、弹性/塑性/蠕变张量、两个等效应变及应力的归一化
 L2 差最大值大于 1 时完整回滚并缩步，成功时采用两个半步的结果。温度、位移、
 应变历史和应力分别使用上述绝对容差，安全系数必须位于 `(0,1)`。该估计器
 增加到约三倍的非线性求解工作量，但可识别节点场不敏感而材料历史不准确的
@@ -757,8 +786,8 @@ L2 差最大值大于 1 时完整回滚并缩步，成功时采用两个半步�
 半步的时间平均，功、能量变化和耗散取两个半步之和，因此对应完整控制步，
 不只对应第二个半步。
 
-`creep_strain_time_tolerance` 默认为零。设为正值时启用蠕变应变率控制，
-与 `time_error_relative_tolerance > 0` 互斥。支持全部十种体单元：CAX2T_GPS、
+`adaptive_algorithm = creep_rate` 时，按 `creep_strain_time_tolerance` 控制
+蠕变应变率误差。支持全部十种体单元：CAX2T_GPS、
 CAX4T、CAX4RT、CAX8T、CAX8RT、C3D8T、C3D8RT、C3D20T、C3D20RT 和 CPEG8T；
 至少一个区域必须包含蠕变材料。
 减缩积分单元只统计活跃材料点，不读取预留历史位置；有限应变减缩积分单元
@@ -774,7 +803,8 @@ CAX4T、CAX4RT、CAX8T、CAX8RT、C3D8T、C3D8RT、C3D20T、C3D20RT 和 CPEG8T�
 该规则采用 Abaqus `CETOL` 文档中的步初/步末速率差思想，但不声称复现其内部步长选择、
 显隐式切换或迭代控制；两种程序相同的容差数值也不保证相同误差和步长序列。
 
-生产默认保持 `time_error_relative_tolerance = 0`。原因不是误差估计器不可靠，
+生产默认使用 `adaptive_algorithm = convergence`。整步／两个半步误差控制
+默认关闭，原因不是误差估计器不可靠，
 而是它约需三倍非线性求解工作量，且位移、应变和应力绝对容差必须根据工况的
 物理尺度确定，不能由程序给出通用值。固定步长 MOOSE 验证输入也因此保持原样。
 对长时蠕变、塑性累积或接触状态变化工况，建议先用固定步长做至少三档全局

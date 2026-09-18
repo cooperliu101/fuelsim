@@ -33,24 +33,7 @@ fuelsim::FuelSimCaseDefinition augmented_pcmi_input(const std::string& input_pat
 }
 
 fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition& input) {
-    const fuelsim::TransientTimeOptions& execution = input.transient_execution;
-    return {execution.end_time,
-        execution.initial_time_step,
-        execution.minimum_time_step,
-        execution.maximum_time_step,
-        execution.growth_factor,
-        execution.cutback_factor,
-        execution.maximum_cutbacks_per_step,
-        execution.load_ramp_time,
-        execution.target_nonlinear_iterations,
-        execution.iteration_window,
-        execution.time_error_relative_tolerance,
-        execution.temperature_time_absolute_tolerance,
-        execution.displacement_time_absolute_tolerance,
-        execution.time_error_safety_factor,
-        execution.strain_history_time_absolute_tolerance,
-        execution.stress_history_time_absolute_tolerance,
-        execution.include_thermal_time_term};
+    return input.transient_execution;
 }
 
 fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& input) {
@@ -176,6 +159,7 @@ bool test_transient_augmented_time_error(const std::string& input_path) {
     fuelsim::TransientProblem problem(input.spatial, mesh);
     fuelsim::TransientTimeOptions options =
         {input.transient_execution.end_time, 4.0, 0.125, 4.0, 1.0, 0.5, 12, input.transient_execution.load_ramp_time};
+    options.adaptive_algorithm = fuelsim::AdaptiveTimeAlgorithm::step_doubling;
     options.time_error_relative_tolerance = 5.0e-1;
     options.temperature_time_absolute_tolerance = 1.0e-3;
     options.displacement_time_absolute_tolerance = 1.0e-9;

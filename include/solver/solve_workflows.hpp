@@ -40,6 +40,8 @@ SteadyResult solve_steady(SteadyProblem& problem,
     const SteadyLoadOptions& load_options,
     const SolverOptions& options = SolverOptions{});
 
+enum class AdaptiveTimeAlgorithm { convergence, step_doubling, creep_rate };
+
 struct TransientTimeOptions final {
     double end_time, initial_time_step, minimum_time_step, maximum_time_step, growth_factor, cutback_factor;
     std::size_t maximum_cutbacks_per_step;
@@ -50,6 +52,7 @@ struct TransientTimeOptions final {
            strain_history_time_absolute_tolerance = 1.0e-10, stress_history_time_absolute_tolerance = 1.0;
     bool include_thermal_time_term = true, use_linear_time_predictor = false;
     double creep_strain_time_tolerance = 0.0;
+    AdaptiveTimeAlgorithm adaptive_algorithm = AdaptiveTimeAlgorithm::convergence;
 };
 
 struct TransientFieldTimeError final {

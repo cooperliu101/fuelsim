@@ -105,47 +105,48 @@ bool verify_m3_output_input(const std::string& path, const std::string& contents
     }
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(path);
     const int remove_status = std::remove(path.c_str());
-    return check(remove_status == 0 && definition.restart_file.find("restart.bin") != std::string::npos
-                     && definition.outputs.exodus_file.find("results.e") != std::string::npos
-                     && definition.outputs.exodus_interval == 3
-                     && definition.outputs.history_file.find("history.csv") != std::string::npos
-                     && definition.outputs.history_interval == 2 && definition.outputs.progress_interval == 4
-                     && definition.outputs.checkpoint_file.find("checkpoint.bin") != std::string::npos
-                     && definition.outputs.checkpoint_interval == 5 && definition.spatial.time_tables.size() == 1
-                     && definition.spatial.time_tables[0].value(1.0) == 0.5
-                     && definition.spatial.regions[0].heat_source_function == "power"
-                     && definition.spatial.regions[0].heat_source_time_evaluation
-                            == fuelsim::HeatSourceTimeEvaluation::interval_average
-                     && definition.spatial.boundary_conditions.back().type == fuelsim::BoundaryConditionType::convection
-                     && definition.spatial.boundary_conditions.back().coefficient_function == "power"
-                     && definition.spatial.boundary_conditions.back().ambient_temperature_function == "power"
-                     && !definition.spatial.boundary_conditions.back().configuration_explicit
-                     && definition.transient_execution.target_nonlinear_iterations == 6
-                     && definition.transient_execution.iteration_window == 2
-                     && definition.transient_execution.time_error_relative_tolerance == 2.0e-4
-                     && definition.transient_execution.temperature_time_absolute_tolerance == 1.0e-3
-                     && definition.transient_execution.displacement_time_absolute_tolerance == 1.0e-10
-                     && definition.transient_execution.strain_history_time_absolute_tolerance == 2.0e-9
-                     && definition.transient_execution.stress_history_time_absolute_tolerance == 5.0
-                     && definition.transient_execution.time_error_safety_factor == 0.85
-                     && definition.transient_execution.use_linear_time_predictor
-                     && definition.solver.linear_solver == fuelsim::SolverOptions::LinearSolver::gmres
-                     && definition.solver.preconditioner == fuelsim::SolverOptions::Preconditioner::field_split
-                     && definition.solver.linear_relative_tolerance == 1.0e-7
-                     && definition.solver.maximum_linear_iterations == 700 && definition.solver.jacobian_lag == 2
-                     && definition.solver.predictor_jacobian_lag == 3
-                     && definition.solver.line_search == fuelsim::SolverOptions::LineSearch::backtracking
-                     && definition.solver.backtracking_fallback && definition.solver.field_residual_scaling
-                     && definition.solver.field_residual_convergence
-                     && definition.solver.residual_reduction_tolerance == 2.0e-6
-                     && definition.solver.temperature_residual_absolute_tolerance == 3.0e-8
-                     && definition.solver.mechanical_residual_absolute_tolerance == 4.0e-6
-                     && definition.spatial.regions[1].material.functions->creep.parameters.value(
-                            "coefficient_temperature_coefficient")
-                            == 1.0e-8
-                     && definition.spatial.regions[1].material.functions->plasticity.parameters.value(
-                            "yield_stress_temperature_coefficient")
-                            == -100.0,
+    return check(
+        remove_status == 0 && definition.restart_file.find("restart.bin") != std::string::npos
+            && definition.outputs.exodus_file.find("results.e") != std::string::npos
+            && definition.outputs.exodus_interval == 3
+            && definition.outputs.history_file.find("history.csv") != std::string::npos
+            && definition.outputs.history_interval == 2 && definition.outputs.progress_interval == 4
+            && definition.outputs.checkpoint_file.find("checkpoint.bin") != std::string::npos
+            && definition.outputs.checkpoint_interval == 5 && definition.spatial.time_tables.size() == 1
+            && definition.spatial.time_tables[0].value(1.0) == 0.5
+            && definition.spatial.regions[0].heat_source_function == "power"
+            && definition.spatial.regions[0].heat_source_time_evaluation
+                   == fuelsim::HeatSourceTimeEvaluation::interval_average
+            && definition.spatial.boundary_conditions.back().type == fuelsim::BoundaryConditionType::convection
+            && definition.spatial.boundary_conditions.back().coefficient_function == "power"
+            && definition.spatial.boundary_conditions.back().ambient_temperature_function == "power"
+            && !definition.spatial.boundary_conditions.back().configuration_explicit
+            && definition.transient_execution.target_nonlinear_iterations == 6
+            && definition.transient_execution.iteration_window == 2
+            && definition.transient_execution.adaptive_algorithm == fuelsim::AdaptiveTimeAlgorithm::step_doubling
+            && definition.transient_execution.time_error_relative_tolerance == 2.0e-4
+            && definition.transient_execution.temperature_time_absolute_tolerance == 1.0e-3
+            && definition.transient_execution.displacement_time_absolute_tolerance == 1.0e-10
+            && definition.transient_execution.strain_history_time_absolute_tolerance == 2.0e-9
+            && definition.transient_execution.stress_history_time_absolute_tolerance == 5.0
+            && definition.transient_execution.time_error_safety_factor == 0.85
+            && definition.transient_execution.use_linear_time_predictor
+            && definition.solver.linear_solver == fuelsim::SolverOptions::LinearSolver::gmres
+            && definition.solver.preconditioner == fuelsim::SolverOptions::Preconditioner::field_split
+            && definition.solver.linear_relative_tolerance == 1.0e-7
+            && definition.solver.maximum_linear_iterations == 700 && definition.solver.jacobian_lag == 2
+            && definition.solver.predictor_jacobian_lag == 3
+            && definition.solver.line_search == fuelsim::SolverOptions::LineSearch::backtracking
+            && definition.solver.backtracking_fallback && definition.solver.field_residual_scaling
+            && definition.solver.field_residual_convergence && definition.solver.residual_reduction_tolerance == 2.0e-6
+            && definition.solver.temperature_residual_absolute_tolerance == 3.0e-8
+            && definition.solver.mechanical_residual_absolute_tolerance == 4.0e-6
+            && definition.spatial.regions[1].material.functions->creep.parameters.value(
+                   "coefficient_temperature_coefficient")
+                   == 1.0e-8
+            && definition.spatial.regions[1].material.functions->plasticity.parameters.value(
+                   "yield_stress_temperature_coefficient")
+                   == -100.0,
         "restart, time functions, convection, solver and outputs are parsed");
 }
 
@@ -258,6 +259,7 @@ bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, co
                      && transient.spatial.regions[1].material.functions->has_plasticity(),
             "transient material behaviors are parsed")
         && check(transient.transient_execution.end_time == 20.0 && transient.transient_execution.load_ramp_time == 20.0
+                     && transient.transient_execution.adaptive_algorithm == fuelsim::AdaptiveTimeAlgorithm::convergence
                      && transient.transient_execution.time_error_relative_tolerance == 0.0
                      && transient.transient_execution.include_thermal_time_term
                      && transient.solver.maximum_iterations == 80,
@@ -799,6 +801,7 @@ bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, co
         "\n  restart = restart.bin"
         "\n  target_nonlinear_iterations = 6"
         "\n  iteration_window = 2"
+        "\n  adaptive_algorithm = step_doubling"
         "\n  time_error_relative_tolerance = 2e-4"
         "\n  temperature_time_absolute_tolerance = 1e-3"
         "\n  displacement_time_absolute_tolerance = 1e-10"
@@ -864,16 +867,21 @@ bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, co
         "\n  checkpoint_interval = 5");
     passed = verify_m3_output_input(malformed_path, m3_case) && passed;
     std::string creep_control_case = m3_case;
+    replace_all(creep_control_case, "adaptive_algorithm = step_doubling", "adaptive_algorithm = creep_rate");
     replace_all(creep_control_case, "time_error_relative_tolerance = 2e-4", "creep_strain_time_tolerance = 1e-6");
     {
         std::ofstream output(malformed_path);
         output << creep_control_case;
     }
     const auto creep_control = fuelsim::read_case_input(malformed_path);
-    passed = check(creep_control.transient_execution.creep_strain_time_tolerance == 1e-6
+    passed = check(creep_control.transient_execution.adaptive_algorithm == fuelsim::AdaptiveTimeAlgorithm::creep_rate
+                       && creep_control.transient_execution.creep_strain_time_tolerance == 1e-6
                        && creep_control.transient_execution.time_error_relative_tolerance == 0.0,
-                 "Creep strain tolerance selects the independent rate-based controller")
+                 "Explicit algorithm selects the independent creep-rate controller")
              && passed;
+    std::string invalid_algorithm = m3_case;
+    replace_all(invalid_algorithm, "adaptive_algorithm = step_doubling", "adaptive_algorithm = magic");
+    passed = expect_case_failure(malformed_path, invalid_algorithm, "adaptive_algorithm must be") && passed;
     std::string invalid_preconditioner = m3_case;
     const std::string valid_preconditioner = "preconditioner = field_split";
     const std::size_t preconditioner_position = invalid_preconditioner.find(valid_preconditioner);

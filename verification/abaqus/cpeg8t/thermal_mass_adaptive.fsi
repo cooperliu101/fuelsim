@@ -98,6 +98,7 @@
   maximum_cutbacks = 20
   load_ramp_time = 0
   include_thermal_time_term = true
+  adaptive_algorithm = step_doubling
   time_error_relative_tolerance = 1e-5
   temperature_time_absolute_tolerance = 0.001
   displacement_time_absolute_tolerance = 1e-10

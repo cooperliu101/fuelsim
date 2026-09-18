@@ -1111,6 +1111,7 @@ bool test_creep_rate_time_control(const fuelsim::UnstructuredHex8Mesh& mesh) {
     solver.absolute_tolerance = 1e-8;
     solver.maximum_iterations = 30;
     fuelsim::TransientTimeOptions time{1.0, 1.0, 1e-6, 1.0, 2.0, 0.5, 20, 1.0};
+    time.adaptive_algorithm = fuelsim::AdaptiveTimeAlgorithm::creep_rate;
     time.creep_strain_time_tolerance = 1e-5;
     time.use_linear_time_predictor = true;
     const auto result = fuelsim::solve_transient(problem, time, solver);
@@ -1171,11 +1172,44 @@ bool test_creep_rate_time_control(const fuelsim::UnstructuredHex8Mesh& mesh) {
         invalid = true;
     }
     passed = check(invalid, "Negative creep strain tolerance is rejected before solving") && passed;
+
+    struct InvalidAlgorithmOptions final {
+        fuelsim::AdaptiveTimeAlgorithm algorithm;
+        double relative, creep;
+    };
+
+    const std::array<InvalidAlgorithmOptions, 9> invalid_algorithms{
+        {{fuelsim::AdaptiveTimeAlgorithm::convergence, 1e-3, 0.0},
+            {fuelsim::AdaptiveTimeAlgorithm::convergence, 0.0, 1e-6},
+            {fuelsim::AdaptiveTimeAlgorithm::step_doubling, 0.0, 0.0},
+            {fuelsim::AdaptiveTimeAlgorithm::step_doubling, 1e-3, 1e-6},
+            {fuelsim::AdaptiveTimeAlgorithm::creep_rate, 0.0, 0.0},
+            {fuelsim::AdaptiveTimeAlgorithm::creep_rate, 1e-3, 1e-6},
+            {static_cast<fuelsim::AdaptiveTimeAlgorithm>(99), 0.0, 0.0},
+            {fuelsim::AdaptiveTimeAlgorithm::step_doubling, std::numeric_limits<double>::quiet_NaN(), 0.0},
+            {fuelsim::AdaptiveTimeAlgorithm::creep_rate, 0.0, std::numeric_limits<double>::infinity()}}};
+    for (const auto& selection : invalid_algorithms) {
+        auto invalid_options = time;
+        invalid_options.adaptive_algorithm = selection.algorithm;
+        invalid_options.time_error_relative_tolerance = selection.relative;
+        invalid_options.creep_strain_time_tolerance = selection.creep;
+        invalid = false;
+        try {
+            (void)fuelsim::solve_transient(problem, invalid_options, solver);
+        } catch (const std::invalid_argument&) {
+            invalid = true;
+        }
+        passed = check(invalid && problem.committed_solution() == solution && problem.committed_creep_rates() == rates
+                           && !problem.time_step_active(),
+                     "Explicit algorithm rejects missing, mismatched or nonfinite tolerances without changing state")
+                 && passed;
+    }
     time.creep_strain_time_tolerance = 1e-6;
     auto reduced_definition = definition;
     reduced_definition.regions[0].hex8_element_formulation = fuelsim::Hex8ElementFormulation::c3d8rt;
     fuelsim::TransientProblem reduced(reduced_definition, mesh);
     time = {1.0, 1.0, 1e-6, 1.0, 2.0, 0.5, 20, 1.0};
+    time.adaptive_algorithm = fuelsim::AdaptiveTimeAlgorithm::creep_rate;
     time.creep_strain_time_tolerance = 1e-5;
     const auto reduced_result = fuelsim::solve_transient(reduced, time, solver);
     return check(reduced_result.completed && reduced_result.time_error_rejections > 0,

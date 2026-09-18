@@ -280,24 +280,7 @@ int main(int argc, char** argv) {
             fuelsim::TransientProblem problem(definition.spatial, mesh);
             const auto problem_end = Clock::now();
             const auto& execution = definition.transient_execution;
-            const fuelsim::TransientTimeOptions time_options = {execution.end_time,
-                execution.initial_time_step,
-                execution.minimum_time_step,
-                execution.maximum_time_step,
-                execution.growth_factor,
-                execution.cutback_factor,
-                execution.maximum_cutbacks_per_step,
-                execution.load_ramp_time,
-                execution.target_nonlinear_iterations,
-                execution.iteration_window,
-                execution.time_error_relative_tolerance,
-                execution.temperature_time_absolute_tolerance,
-                execution.displacement_time_absolute_tolerance,
-                execution.time_error_safety_factor,
-                execution.strain_history_time_absolute_tolerance,
-                execution.stress_history_time_absolute_tolerance,
-                execution.include_thermal_time_term,
-                execution.use_linear_time_predictor};
+            const fuelsim::TransientTimeOptions time_options = execution;
             const auto solve_start = Clock::now();
             const fuelsim::TransientResult result = fuelsim::solve_transient(problem, time_options, options);
             const auto solve_end = Clock::now();
@@ -351,24 +334,7 @@ int main(int argc, char** argv) {
         fuelsim::TransientProblem problem(definition.spatial, mesh);
         const auto problem_end = Clock::now();
         const auto& execution = definition.transient_execution;
-        const fuelsim::TransientTimeOptions time_options = {execution.end_time,
-            execution.initial_time_step,
-            execution.minimum_time_step,
-            execution.maximum_time_step,
-            execution.growth_factor,
-            execution.cutback_factor,
-            execution.maximum_cutbacks_per_step,
-            execution.load_ramp_time,
-            execution.target_nonlinear_iterations,
-            execution.iteration_window,
-            execution.time_error_relative_tolerance,
-            execution.temperature_time_absolute_tolerance,
-            execution.displacement_time_absolute_tolerance,
-            execution.time_error_safety_factor,
-            execution.strain_history_time_absolute_tolerance,
-            execution.stress_history_time_absolute_tolerance,
-            execution.include_thermal_time_term,
-            execution.use_linear_time_predictor};
+        const fuelsim::TransientTimeOptions time_options = execution;
         const auto solve_start = Clock::now();
         const fuelsim::TransientResult result = fuelsim::solve_transient(problem, time_options, options);
         const auto solve_end = Clock::now();

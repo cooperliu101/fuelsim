@@ -60,25 +60,7 @@ fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& defi
 }
 
 fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition& definition) {
-    const auto& input = definition.transient_execution;
-    return {input.end_time,
-        input.initial_time_step,
-        input.minimum_time_step,
-        input.maximum_time_step,
-        input.growth_factor,
-        input.cutback_factor,
-        input.maximum_cutbacks_per_step,
-        input.load_ramp_time,
-        input.target_nonlinear_iterations,
-        input.iteration_window,
-        input.time_error_relative_tolerance,
-        input.temperature_time_absolute_tolerance,
-        input.displacement_time_absolute_tolerance,
-        input.time_error_safety_factor,
-        input.strain_history_time_absolute_tolerance,
-        input.stress_history_time_absolute_tolerance,
-        input.include_thermal_time_term,
-        input.use_linear_time_predictor};
+    return definition.transient_execution;
 }
 } // namespace
 
