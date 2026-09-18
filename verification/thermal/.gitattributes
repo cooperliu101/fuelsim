@@ -1,0 +1,6 @@
+# Preserve the exact native reference bytes used by SHA256SUMS.
+*.dat -text whitespace=-blank-at-eol,-blank-at-eof
+*.sta -text whitespace=-blank-at-eol,-blank-at-eof
+*.nodes.csv -text whitespace=-blank-at-eol,-blank-at-eof
+*.points.csv -text whitespace=-blank-at-eol,-blank-at-eof
+*.e -text

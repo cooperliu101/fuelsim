@@ -447,7 +447,7 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
             for (std::size_t e = 0; e < state.quad8_material_histories[r].size(); ++e)
                 for (std::size_t q = 0; q < spatial.region_element_geometry(r, e).point_count; ++q)
                     read_material_point(payload, state.quad8_material_histories[r][e][q]);
-    } else {
+    } else if (!BackendAccess::uses_thermal(problem)) {
         const rz::TransientBackendView backend = BackendAccess::transient(problem);
         state.material_histories.resize(backend.spatial.region_count());
         for (std::size_t region = 0; region < backend.spatial.region_count(); ++region) {

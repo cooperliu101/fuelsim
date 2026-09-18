@@ -11,6 +11,7 @@
 #include "radial_assembly.hpp"
 #include "rz8_assembly.hpp"
 #include "rz_assembly.hpp"
+#include "thermal_assembly.hpp"
 #include <array>
 #include <vector>
 
@@ -45,6 +46,10 @@ struct TransientBackendView final {
 
 class BackendAccess final {
   public:
+    static bool uses_thermal(const SteadyProblem& problem) noexcept;
+    static bool uses_thermal(const TransientProblem& problem) noexcept;
+    static const thermal::SpatialAssembly& thermal_spatial(const SteadyProblem& problem) noexcept;
+    static const thermal::SpatialAssembly& thermal_spatial(const TransientProblem& problem) noexcept;
     static const plane::SpatialAssembly& plane_spatial(const SteadyProblem& problem) noexcept;
     static const plane::SpatialAssembly& plane_spatial(const TransientProblem& problem) noexcept;
     static bool uses_radial_gps(const SteadyProblem& problem) noexcept;

@@ -14,53 +14,6 @@ constexpr std::array<double, 2> gauss2_weights = {1.0, 1.0};
 constexpr std::array<double, 3> gauss3_points = {-gauss3, 0.0, gauss3};
 constexpr std::array<double, 3> gauss3_weights = {5.0 / 9.0, 8.0 / 9.0, 5.0 / 9.0};
 
-void evaluate_hex20_shapes(double xi,
-    double eta,
-    double zeta,
-    std::array<double, 20>& shape,
-    std::array<std::array<double, 3>, 20>& derivative) {
-    for (std::size_t node = 0; node < 8; ++node) {
-        const double sx = c3d8_detail::hex8_signs[node][0], sy = c3d8_detail::hex8_signs[node][1],
-                     sz = c3d8_detail::hex8_signs[node][2];
-        const double ax = 1.0 + sx * xi, ay = 1.0 + sy * eta, az = 1.0 + sz * zeta;
-        const double sum = sx * xi + sy * eta + sz * zeta - 2.0;
-        shape[node] = 0.125 * ax * ay * az * sum;
-        derivative[node][0] = 0.125 * sx * ay * az * (sum + ax);
-        derivative[node][1] = 0.125 * sy * ax * az * (sum + ay);
-        derivative[node][2] = 0.125 * sz * ax * ay * (sum + az);
-    }
-    const auto xi_edge = [&](std::size_t node, double sy, double sz) {
-        shape[node] = 0.25 * (1.0 - xi * xi) * (1.0 + sy * eta) * (1.0 + sz * zeta);
-        derivative[node] = {{-0.5 * xi * (1.0 + sy * eta) * (1.0 + sz * zeta),
-            0.25 * sy * (1.0 - xi * xi) * (1.0 + sz * zeta),
-            0.25 * sz * (1.0 - xi * xi) * (1.0 + sy * eta)}};
-    };
-    const auto eta_edge = [&](std::size_t node, double sx, double sz) {
-        shape[node] = 0.25 * (1.0 - eta * eta) * (1.0 + sx * xi) * (1.0 + sz * zeta);
-        derivative[node] = {{0.25 * sx * (1.0 - eta * eta) * (1.0 + sz * zeta),
-            -0.5 * eta * (1.0 + sx * xi) * (1.0 + sz * zeta),
-            0.25 * sz * (1.0 - eta * eta) * (1.0 + sx * xi)}};
-    };
-    const auto zeta_edge = [&](std::size_t node, double sx, double sy) {
-        shape[node] = 0.25 * (1.0 - zeta * zeta) * (1.0 + sx * xi) * (1.0 + sy * eta);
-        derivative[node] = {{0.25 * sx * (1.0 - zeta * zeta) * (1.0 + sy * eta),
-            0.25 * sy * (1.0 - zeta * zeta) * (1.0 + sx * xi),
-            -0.5 * zeta * (1.0 + sx * xi) * (1.0 + sy * eta)}};
-    };
-    xi_edge(8, -1.0, -1.0);
-    eta_edge(9, 1.0, -1.0);
-    xi_edge(10, 1.0, -1.0);
-    eta_edge(11, -1.0, -1.0);
-    zeta_edge(12, -1.0, -1.0);
-    zeta_edge(13, 1.0, -1.0);
-    zeta_edge(14, 1.0, 1.0);
-    zeta_edge(15, -1.0, 1.0);
-    xi_edge(16, -1.0, 1.0);
-    eta_edge(17, 1.0, 1.0);
-    xi_edge(18, 1.0, 1.0);
-    eta_edge(19, -1.0, 1.0);
-}
-
 struct Hex20ReferenceMapping final {
     std::array<double, 20> displacement_shape;
     std::array<std::array<double, 3>, 20> displacement_derivative;

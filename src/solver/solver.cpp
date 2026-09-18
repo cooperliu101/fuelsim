@@ -1157,7 +1157,7 @@ PetscSolver::PetscSolver() : _impl(std::make_unique<Implementation>()) {
 PetscSolver::~PetscSolver() = default;
 
 void solver_detail::commit_time_step(TransientProblem& problem, const SolveResult& result) {
-    if (PetscGlobalSize == 1 || !problem.uses_plane_quad8()) {
+    if (PetscGlobalSize == 1 || (problem.definition().physics != Physics::thermal && !problem.uses_plane_quad8())) {
         problem.commit_time_step(result.state);
         return;
     }
@@ -1203,7 +1203,11 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem,
         throw std::invalid_argument("PetscSolver initial state size mismatch");
     const bool fixed_temperature_scale = options.temperature_residual_scale > 0.0,
                fixed_mechanical_scale = options.mechanical_residual_scale > 0.0;
-    if (fixed_temperature_scale != fixed_mechanical_scale)
+    const bool has_mechanics = std::any_of(problem.field_layout().begin(),
+        problem.field_layout().end(),
+        [](const FieldDescriptor& field) { return field.category == FieldCategory::mechanical; });
+    if ((has_mechanics && fixed_temperature_scale != fixed_mechanical_scale)
+        || (!has_mechanics && fixed_mechanical_scale))
         throw std::invalid_argument("fixed residual scaling requires paired temperature and mechanical scales");
     if (options.field_residual_scaling && fixed_temperature_scale)
         throw std::invalid_argument("automatic and fixed residual scaling are mutually exclusive");

@@ -162,3 +162,11 @@ std::array<adlite::Scalar, 4> reduced_hex8_thermal_hourglass_coefficients(
 namespace fuelsim::elements {
 void add_hex8_body_acceleration(const C3d8Input& input, Hex8LocalResidual& residual);
 }
+
+namespace fuelsim::cartesian_detail {
+void evaluate_hex20_shapes(double xi,
+    double eta,
+    double zeta,
+    std::array<double, 20>& shape,
+    std::array<std::array<double, 3>, 20>& derivative);
+}

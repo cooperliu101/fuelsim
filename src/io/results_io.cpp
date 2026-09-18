@@ -1821,16 +1821,21 @@ EngineeringHistoryWriter::EngineeringHistoryWriter(std::string path, const Trans
     _stream.exceptions(std::ios::badbit | std::ios::failbit);
     _stream << "time,time_step,next_time_step,load_factor,nonlinear_iterations";
     for (const TransientConservationField& field : transient_conservation_fields)
-        _stream << ',' << field.name;
+        if (!BackendAccess::uses_thermal(problem) || field.category == FieldCategory::thermal)
+            _stream << ',' << field.name;
     for (const RegionDefinition& region : problem.definition().regions) {
         const std::string prefix = ",region_" + region.name;
-        _stream << prefix << "_maximum_temperature" << prefix << "_maximum_equivalent_plastic_strain" << prefix
-                << "_maximum_equivalent_creep_strain";
+        _stream << prefix << "_maximum_temperature";
+        if (!BackendAccess::uses_thermal(problem))
+            _stream << prefix << "_maximum_equivalent_plastic_strain" << prefix << "_maximum_equivalent_creep_strain";
     }
     for (const ContactDefinition& contact : problem.definition().contacts) {
         const std::string prefix = ",contact_" + contact.name;
-        _stream << prefix << "_minimum_gap" << prefix << "_maximum_pressure" << prefix << "_total_heat_rate" << prefix
-                << "_total_force" << prefix << "_total_tangential_force";
+        if (BackendAccess::uses_thermal(problem))
+            _stream << prefix << "_minimum_gap" << prefix << "_total_heat_rate";
+        else
+            _stream << prefix << "_minimum_gap" << prefix << "_maximum_pressure" << prefix << "_total_heat_rate"
+                    << prefix << "_total_force" << prefix << "_total_tangential_force";
     }
     _stream << '\n' << std::scientific << std::setprecision(12);
 }
@@ -1847,30 +1852,86 @@ void EngineeringHistoryWriter::append(const TransientProblem& problem,
             << problem.committed_load_factor() << ',' << nonlinear_iterations;
     const TransientConservationSummary& conservation = problem.last_conservation_summary();
     for (const TransientConservationField& field : transient_conservation_fields)
-        _stream << ',' << conservation.*field.member;
+        if (!BackendAccess::uses_thermal(problem) || field.category == FieldCategory::thermal)
+            _stream << ',' << conservation.*field.member;
     const std::vector<double>& state = problem.committed_solution();
     for (std::size_t region = 0; region < problem.definition().regions.size(); ++region) {
         const RegionStateSummary summary = problem.summarize_region(region);
-        _stream << ',' << summary.maximum_temperature << ',' << summary.maximum_equivalent_plastic_strain << ','
-                << summary.maximum_equivalent_creep_strain;
+        _stream << ',' << summary.maximum_temperature;
+        if (!BackendAccess::uses_thermal(problem))
+            _stream << ',' << summary.maximum_equivalent_plastic_strain << ','
+                    << summary.maximum_equivalent_creep_strain;
     }
     for (std::size_t contact = 0; contact < problem.definition().contacts.size(); ++contact) {
         const InterfaceSummary summary =
-            BackendAccess::uses_radial_gps(problem)
+            BackendAccess::uses_thermal(problem)
+                ? BackendAccess::thermal_spatial(problem).summarize_interface(contact, state)
+            : BackendAccess::uses_radial_gps(problem)
                 ? BackendAccess::radial_spatial(problem).summarize_interface(contact, state)
             : problem.uses_plane_quad8() ? BackendAccess::plane_spatial(problem).summarize_interface(contact, state)
             : problem.is_cartesian_3d()  ? BackendAccess::cartesian_spatial(problem).summarize_interface(contact, state)
             : problem.uses_quad8() ? BackendAccess::quad8_spatial(problem).summarize_interface(contact, state)
                                    : BackendAccess::transient(problem).spatial.summarize_interface(contact, state);
-        _stream << ',' << summary.minimum_gap << ',' << summary.maximum_contact_pressure << ','
-                << summary.total_heat_rate << ',' << summary.total_contact_force << ','
-                << summary.total_tangential_force;
+        if (BackendAccess::uses_thermal(problem))
+            _stream << ',' << summary.minimum_gap << ',' << summary.total_heat_rate;
+        else
+            _stream << ',' << summary.minimum_gap << ',' << summary.maximum_contact_pressure << ','
+                    << summary.total_heat_rate << ',' << summary.total_contact_force << ','
+                    << summary.total_tangential_force;
     }
     _stream << '\n';
     _stream.flush();
 }
 
 namespace {
+std::vector<std::string> thermal_element_names(const thermal::SpatialAssembly& spatial) {
+    std::vector<std::string> names;
+    for (std::size_t q = 0; q < spatial.geometry(0).points.size(); ++q)
+        for (const auto* field : {"heat_flux_x", "heat_flux_y", "heat_flux_z", "point_x", "point_y", "point_z"})
+            names.push_back(std::string(field) + "_q" + std::to_string(q));
+    return names;
+}
+
+std::vector<std::vector<double>> thermal_elements(const thermal::SpatialAssembly& spatial,
+    const std::vector<double>& state) {
+    std::vector<std::vector<double>> values(thermal_element_names(spatial).size(),
+        std::vector<double>(spatial.connectivity().size(), std::numeric_limits<double>::quiet_NaN()));
+    for (std::size_t e = 0; e < spatial.volume_contribution_count(); ++e) {
+        std::vector<std::size_t> dofs;
+        spatial.contribution_dofs(e, dofs);
+        std::vector<double> local;
+        for (auto n : dofs)
+            local.push_back(state[n]);
+        const auto result = spatial.evaluate(e, local, {}, 0.0, 0.0, false);
+        for (std::size_t q = 0; q < result.heat_flux.size(); ++q) {
+            const auto& position = spatial.geometry(e).points[q].position;
+            const std::array<double, 3> coordinates{position.x, position.y, position.z};
+            for (std::size_t d = 0; d < 3; ++d) {
+                values[6 * q + d][spatial.source_element(e)] = result.heat_flux[q][d];
+                values[6 * q + 3 + d][spatial.source_element(e)] = coordinates[d];
+            }
+        }
+    }
+    return values;
+}
+
+std::vector<std::vector<double>> thermal_nodal(const thermal::SpatialAssembly& spatial,
+    const std::vector<double>& state,
+    const std::vector<double>& raw) {
+    std::vector<std::vector<double>> values(2,
+        std::vector<double>(spatial.coordinates().size(), std::numeric_limits<double>::quiet_NaN()));
+    std::vector<bool> constrained(state.size(), false);
+    for (const auto& condition : spatial.dirichlet_conditions())
+        constrained[condition.dof] = true;
+    for (std::size_t r = 0; r < spatial.region_count(); ++r)
+        for (std::size_t n = 0; n < spatial.source_nodes(r).size(); ++n) {
+            const auto source = spatial.source_nodes(r)[n], dof = spatial.global_temperature_node(r, n);
+            values[0][source] = state[dof];
+            values[1][source] = constrained[dof] ? raw[dof] : 0.0;
+        }
+    return values;
+}
+
 std::vector<double> steady_raw_residual(const SteadyProblem& problem, const std::vector<double>& state) {
     std::vector<double> result(problem.dof_count(), 0.0);
     ContributionWorkspace workspace;
@@ -2045,6 +2106,22 @@ void write_steady_results(const std::string& path,
     const UnstructuredQuad4Mesh& mesh,
     const SteadyProblem& problem,
     const std::vector<double>& state) {
+    if (BackendAccess::uses_thermal(problem)) {
+        write_exodus_quad4(path, mesh);
+        define_result_variables(path,
+            results_mesh_view(mesh),
+            {"temperature", "heat_reaction"},
+            thermal_element_names(BackendAccess::thermal_spatial(problem)),
+            {"load_factor"});
+        write_result_step(path,
+            results_mesh_view(mesh),
+            1,
+            1.0,
+            thermal_nodal(BackendAccess::thermal_spatial(problem), state, steady_raw_residual(problem, state)),
+            thermal_elements(BackendAccess::thermal_spatial(problem), state),
+            {problem.load_factor()});
+        return;
+    }
     const auto raw_residual = steady_raw_residual(problem, state);
     if (path.empty())
         throw std::invalid_argument("Exodus result path must not be empty");
@@ -2075,6 +2152,22 @@ void write_steady_results(const std::string& path,
     const UnstructuredQuad8Mesh& mesh,
     const SteadyProblem& problem,
     const std::vector<double>& state) {
+    if (BackendAccess::uses_thermal(problem)) {
+        write_exodus_quad8(path, mesh);
+        define_result_variables(path,
+            results_mesh_view(mesh),
+            {"temperature", "heat_reaction"},
+            thermal_element_names(BackendAccess::thermal_spatial(problem)),
+            {"load_factor"});
+        write_result_step(path,
+            results_mesh_view(mesh),
+            1,
+            1.0,
+            thermal_nodal(BackendAccess::thermal_spatial(problem), state, steady_raw_residual(problem, state)),
+            thermal_elements(BackendAccess::thermal_spatial(problem), state),
+            {problem.load_factor()});
+        return;
+    }
     const auto raw_residual = steady_raw_residual(problem, state);
     const auto& spatial = BackendAccess::quad8_spatial(problem);
     write_exodus_quad8(path, mesh);
@@ -2096,6 +2189,22 @@ void write_steady_results(const std::string& path,
     const UnstructuredHex8Mesh& mesh,
     const SteadyProblem& problem,
     const std::vector<double>& state) {
+    if (BackendAccess::uses_thermal(problem)) {
+        write_exodus_hex8(path, mesh);
+        define_result_variables(path,
+            results_mesh_view(mesh),
+            {"temperature", "heat_reaction"},
+            thermal_element_names(BackendAccess::thermal_spatial(problem)),
+            {"load_factor"});
+        write_result_step(path,
+            results_mesh_view(mesh),
+            1,
+            1.0,
+            thermal_nodal(BackendAccess::thermal_spatial(problem), state, steady_raw_residual(problem, state)),
+            thermal_elements(BackendAccess::thermal_spatial(problem), state),
+            {problem.load_factor()});
+        return;
+    }
     const auto raw_residual = steady_raw_residual(problem, state);
     if (path.empty())
         throw std::invalid_argument("Exodus result path must not be empty");
@@ -2122,6 +2231,22 @@ void write_steady_results(const std::string& path,
     const UnstructuredHex20Mesh& mesh,
     const SteadyProblem& problem,
     const std::vector<double>& state) {
+    if (BackendAccess::uses_thermal(problem)) {
+        write_exodus_hex20(path, mesh);
+        define_result_variables(path,
+            results_mesh_view(mesh),
+            {"temperature", "heat_reaction"},
+            thermal_element_names(BackendAccess::thermal_spatial(problem)),
+            {"load_factor"});
+        write_result_step(path,
+            results_mesh_view(mesh),
+            1,
+            1.0,
+            thermal_nodal(BackendAccess::thermal_spatial(problem), state, steady_raw_residual(problem, state)),
+            thermal_elements(BackendAccess::thermal_spatial(problem), state),
+            {problem.load_factor()});
+        return;
+    }
     const auto raw_residual = steady_raw_residual(problem, state);
     if (path.empty())
         throw std::invalid_argument("Exodus result path must not be empty");
@@ -2179,6 +2304,14 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(std::string path,
         throw std::invalid_argument("Exodus result path must not be empty");
     const std::vector<ContactDefinition>& contacts = problem.definition().contacts;
     write_exodus_quad4(_path, *_rz_mesh);
+    if (BackendAccess::uses_thermal(problem)) {
+        define_result_variables(_path,
+            results_mesh_view(*_rz_mesh),
+            {"temperature", "heat_reaction"},
+            thermal_element_names(BackendAccess::thermal_spatial(problem)),
+            {"load_factor"});
+        return;
+    }
     define_result_variables(_path,
         results_mesh_view(*_rz_mesh),
         nodal_variable_names(contacts, true),
@@ -2195,6 +2328,14 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(std::string path,
         throw std::invalid_argument("Exodus result path must not be empty");
     const std::vector<ContactDefinition>& contacts = problem.definition().contacts;
     write_exodus_hex8(_path, *_hex_mesh);
+    if (BackendAccess::uses_thermal(problem)) {
+        define_result_variables(_path,
+            results_mesh_view(*_hex_mesh),
+            {"temperature", "heat_reaction"},
+            thermal_element_names(BackendAccess::thermal_spatial(problem)),
+            {"load_factor"});
+        return;
+    }
     define_result_variables(_path,
         results_mesh_view(*_hex_mesh),
         cartesian_nodal_variable_names(contacts, true),
@@ -2211,6 +2352,14 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(std::string path,
         throw std::invalid_argument("Exodus result path must not be empty");
     const std::vector<ContactDefinition>& contacts = problem.definition().contacts;
     write_exodus_hex20(_path, *_hex20_mesh);
+    if (BackendAccess::uses_thermal(problem)) {
+        define_result_variables(_path,
+            results_mesh_view(*_hex20_mesh),
+            {"temperature", "heat_reaction"},
+            thermal_element_names(BackendAccess::thermal_spatial(problem)),
+            {"load_factor"});
+        return;
+    }
     define_result_variables(
         _path,
         results_mesh_view(*_hex20_mesh),
@@ -2229,6 +2378,14 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(std::string path,
     : _path(std::move(path)), _quad8_mesh(std::make_unique<UnstructuredQuad8Mesh>(std::move(mesh))),
       _problem_signature(transient_problem_signature(problem)), _step_count(0) {
     write_exodus_quad8(_path, *_quad8_mesh);
+    if (BackendAccess::uses_thermal(problem)) {
+        define_result_variables(_path,
+            results_mesh_view(*_quad8_mesh),
+            {"temperature", "heat_reaction"},
+            thermal_element_names(BackendAccess::thermal_spatial(problem)),
+            {"load_factor"});
+        return;
+    }
     define_result_variables(_path,
         results_mesh_view(*_quad8_mesh),
         quad8_nodal_names(problem.definition().contacts, true),
@@ -2242,6 +2399,23 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
     if (transient_problem_signature(problem) != _problem_signature)
         throw std::invalid_argument("Exodus result problem does not match writer model");
     ++_step_count;
+    if (BackendAccess::uses_thermal(problem)) {
+        const auto values = thermal_nodal(BackendAccess::thermal_spatial(problem),
+            problem.committed_solution(),
+            BackendAccess::committed_raw_residual(problem));
+        const auto view = _rz_mesh      ? results_mesh_view(*_rz_mesh)
+                          : _quad8_mesh ? results_mesh_view(*_quad8_mesh)
+                          : _hex_mesh   ? results_mesh_view(*_hex_mesh)
+                                        : results_mesh_view(*_hex20_mesh);
+        write_result_step(_path,
+            view,
+            _step_count,
+            problem.committed_time(),
+            values,
+            thermal_elements(BackendAccess::thermal_spatial(problem), problem.committed_solution()),
+            {problem.committed_load_factor()});
+        return;
+    }
     std::vector<std::vector<double>> nodal_values;
     if (_plane_mesh) {
         write_plane_step(_path,

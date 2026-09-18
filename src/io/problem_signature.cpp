@@ -116,6 +116,39 @@ void hash_contacts(std::uint64_t& hash, const SpatialDefinition& definition) {
 
 std::uint64_t transient_problem_signature(const TransientProblem& problem) {
     std::uint64_t hash = hashing::fnv1a_offset;
+    if (BackendAccess::uses_thermal(problem)) {
+        hash_string(hash, "thermal_fixed_order_dependent_capacity_v1");
+        const auto& spatial = BackendAccess::thermal_spatial(problem);
+        hash_integer(hash, spatial.axisymmetric() ? 1 : 0);
+        for (const auto& r : problem.definition().regions) {
+            hash_region_definition(hash, r);
+            hash_integer(hash, static_cast<std::int64_t>(r.thermal_element));
+        }
+        for (const auto& point : spatial.coordinates()) {
+            hash_double(hash, point.x);
+            hash_double(hash, point.y);
+            hash_double(hash, point.z);
+        }
+        for (std::size_t i = 0; i < spatial.contribution_count(); ++i) {
+            std::vector<std::size_t> dofs;
+            spatial.contribution_dofs(i, dofs);
+            hash_size(hash, dofs.size());
+            for (auto n : dofs)
+                hash_size(hash, n);
+        }
+        hash_boundaries(hash, problem.definition(), true);
+        hash_contacts(hash, problem.definition());
+        for (const auto& contact : problem.definition().contacts) {
+            hash_integer(hash, static_cast<std::int64_t>(contact.gap_heat_conductance_law));
+            hash_double(hash, contact.gap_conductance);
+            hash_double(hash, contact.gap_conductance_clearance_derivative);
+            hash_double(hash, contact.gap_conductance_pressure_derivative);
+            hash_double(hash, contact.gap_conductance_temperature_derivative);
+            hash_double(hash, contact.gap_conductance_reference_temperature);
+        }
+        hash_time_tables(hash, problem.definition());
+        return hash;
+    }
     const bool cartesian = problem.is_cartesian_3d();
     if (problem.uses_plane_quad8()) {
         hash_string(hash, "generalized_plane_strain_cpeg8t_segmented_thermal_v3");

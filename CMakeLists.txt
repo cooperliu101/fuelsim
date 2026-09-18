@@ -73,6 +73,7 @@ include(CTest)
 add_subdirectory(elements)
 
 add_library(fuelsim_core
+    src/core/thermal_assembly.cpp
     src/core/plane_mesh.cpp
     src/core/plane_assembly.cpp
     src/core/plane_contact.cpp
@@ -2734,6 +2735,37 @@ if(BUILD_TESTING)
         LABELS "audit;architecture"
     )
 
+
+    add_executable(fuelsim_thermal_state_tests tests/thermal_state_tests.cpp)
+    target_link_libraries(fuelsim_thermal_state_tests PRIVATE fuelsim::io fuelsim::core)
+    target_include_directories(fuelsim_thermal_state_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    fuelsim_enable_warnings(fuelsim_thermal_state_tests)
+    add_test(NAME fuelsim_thermal_state_tests COMMAND fuelsim_thermal_state_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/thermal/dcax8_transient.fsi"
+        "${CMAKE_CURRENT_BINARY_DIR}/thermal_state.checkpoint")
+    add_test(NAME fuelsim_thermal_reference_hashes
+        COMMAND ${CMAKE_COMMAND}
+            -DROOT=${CMAKE_CURRENT_SOURCE_DIR}/verification/thermal
+            -DMANIFEST=${CMAKE_CURRENT_SOURCE_DIR}/verification/thermal/SHA256SUMS
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifySha256.cmake)
+    foreach(thermal_test dcax4 dcax8 dc3d8 dc3d20 thermal_interface)
+        add_test(NAME fuelsim_${thermal_test}_tests COMMAND fuelsim_${thermal_test}_tests)
+    endforeach()
+    foreach(thermal_case dcax4_steady dcax8_steady dc3d8_steady dc3d20_steady dcax4_transient dcax8_transient dc3d8_transient dc3d20_transient dcax8_contact dcax4_capacity dc3d8_capacity)
+        add_test(NAME fuelsim_${thermal_case}_abaqus
+            COMMAND "${FUELSIM_SECTION_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/thermal/compare.py"
+                --fuelsim $<TARGET_FILE:fuelsim>
+                --source "${CMAKE_CURRENT_SOURCE_DIR}/verification/thermal"
+                --work "${CMAKE_CURRENT_BINARY_DIR}/thermal/${thermal_case}"
+                --case ${thermal_case})
+    endforeach()
+
+    add_test(NAME fuelsim_thermal_mpi_equivalence
+        COMMAND "${FUELSIM_SECTION_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/thermal/mpi_compare.py"
+            --fuelsim $<TARGET_FILE:fuelsim> --mpiexec "${FUELSIM_MPIEXEC_EXECUTABLE}"
+            --source "${CMAKE_CURRENT_SOURCE_DIR}/verification/thermal"
+            --work "${CMAKE_CURRENT_BINARY_DIR}/thermal/mpi")
+    set_tests_properties(fuelsim_thermal_mpi_equivalence PROPERTIES PROCESSORS 2)
     get_property(FUELSIM_REGISTERED_TESTS DIRECTORY PROPERTY TESTS)
     list(JOIN FUELSIM_REGISTERED_TESTS "\n" FUELSIM_REGISTERED_TEST_TEXT)
     file(GENERATE

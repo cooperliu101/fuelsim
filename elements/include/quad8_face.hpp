@@ -50,6 +50,12 @@ struct Quad8FaceGeometry final {
     std::array<Quad8FaceMechanicalQuadraturePoint, quad8_face_mechanical_quadrature_point_count> mechanical_points;
 };
 
+void quad8_shape_values(double xi,
+    double eta,
+    std::array<double, 8>& shape,
+    std::array<double, 8>& derivative_xi,
+    std::array<double, 8>& derivative_eta);
+
 Quad8FaceGeometry make_quad8_face_geometry(const Quad8FaceCoordinates& coordinates);
 
 Quad8FaceMechanicalQuadraturePoint make_quad8_face_mechanical_point(const Quad8FaceCoordinates& coordinates,

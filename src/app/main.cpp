@@ -67,9 +67,11 @@ class CaseOutput final {
 
 void write_conservation_summary(const std::string& prefix,
     const TransientConservationSummary& summary,
-    CaseOutput& output) {
+    CaseOutput& output,
+    bool thermal_only) {
     for (const TransientConservationField& field : transient_conservation_fields)
-        output.value(prefix + field.name, summary.*field.member);
+        if (!thermal_only || field.category == FieldCategory::thermal)
+            output.value(prefix + field.name, summary.*field.member);
 }
 
 void write_time_error_components(const std::string& prefix,
@@ -140,7 +142,10 @@ void TransientOutputObserver::accepted_step(const TransientProblem& problem, con
             _progress_output.value("progress.cutbacks", step.cutbacks);
             _progress_output.value("progress.time_error_estimate", step.time_error_estimate);
             write_time_error_components("progress.time_error.", step.time_error_components, _progress_output);
-            write_conservation_summary("progress.conservation.", step.conservation, _progress_output);
+            write_conservation_summary("progress.conservation.",
+                step.conservation,
+                _progress_output,
+                BackendAccess::uses_thermal(problem));
         }
         if (!_options.checkpoint_file.empty() && _accepted_steps % _options.checkpoint_interval == 0) {
             write_transient_checkpoint(_options.checkpoint_file, problem, step.next_time_step);
@@ -351,7 +356,9 @@ bool run_steady(const FuelSimCaseDefinition& definition,
     else
         problem_storage = std::make_unique<SteadyProblem>(definition.spatial, *rz_source);
     SteadyProblem& problem = *problem_storage;
-    if (plane_source)
+    if (BackendAccess::uses_thermal(problem))
+        write_configuration_warnings(BackendAccess::thermal_spatial(problem), session);
+    else if (plane_source)
         write_configuration_warnings(BackendAccess::plane_spatial(problem), session);
     else if (bar2_source)
         write_configuration_warnings(BackendAccess::radial_spatial(problem), session);
@@ -397,7 +404,9 @@ bool run_steady(const FuelSimCaseDefinition& definition,
     if (result.completed && result.solve.converged) {
         for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact) {
             InterfaceSummary summary;
-            if (plane_source)
+            if (BackendAccess::uses_thermal(problem))
+                summary = BackendAccess::thermal_spatial(problem).summarize_interface(contact, result.solve.state);
+            else if (plane_source)
                 summary = BackendAccess::plane_spatial(problem).summarize_interface(contact, result.solve.state);
             else if (bar2_source)
                 summary = BackendAccess::radial_spatial(problem).summarize_interface(contact, result.solve.state);
@@ -452,7 +461,9 @@ bool run_transient(const FuelSimCaseDefinition& definition,
     else
         problem_storage = std::make_unique<TransientProblem>(definition.spatial, *rz_source);
     TransientProblem& problem = *problem_storage;
-    if (plane_source)
+    if (BackendAccess::uses_thermal(problem))
+        write_configuration_warnings(BackendAccess::thermal_spatial(problem), session);
+    else if (plane_source)
         write_configuration_warnings(BackendAccess::plane_spatial(problem), session);
     else if (bar2_source)
         write_configuration_warnings(BackendAccess::radial_spatial(problem), session);
@@ -572,12 +583,17 @@ bool run_transient(const FuelSimCaseDefinition& definition,
     write_solver_diagnostics(result.last_attempt, problem.uses_augmented_contact(), output);
     write_memory_diagnostics("aggregate_memory.", result.aggregate_timing, output);
     output.value("total_seconds", result.total_seconds);
-    write_conservation_summary("conservation.", problem.last_conservation_summary(), output);
+    write_conservation_summary("conservation.",
+        problem.last_conservation_summary(),
+        output,
+        BackendAccess::uses_thermal(problem));
     for (std::size_t region = 0; region < definition.spatial.regions.size(); ++region) {
         const RegionStateSummary summary = problem.summarize_region(region);
         const std::string prefix = "region." + definition.spatial.regions[region].name + ".";
-        output.value(prefix + "maximum_equivalent_plastic_strain", summary.maximum_equivalent_plastic_strain);
-        output.value(prefix + "maximum_equivalent_creep_strain", summary.maximum_equivalent_creep_strain);
+        if (!BackendAccess::uses_thermal(problem)) {
+            output.value(prefix + "maximum_equivalent_plastic_strain", summary.maximum_equivalent_plastic_strain);
+            output.value(prefix + "maximum_equivalent_creep_strain", summary.maximum_equivalent_creep_strain);
+        }
     }
     for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact) {
         InterfaceSummary summary;

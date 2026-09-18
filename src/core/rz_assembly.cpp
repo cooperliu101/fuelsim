@@ -151,6 +151,8 @@ void SpatialLayout::initialize_field_layout() {
     if (_node_count > (std::numeric_limits<std::size_t>::max() - _temperature_node_count) / mechanical_fields)
         throw std::length_error("Spatial layout DOF count overflows");
     _field_layout = {{"temperature", 0, _temperature_node_count, FieldCategory::thermal}};
+    if (_definition.physics == Physics::thermal)
+        return;
     if (_layout == DofLayout::axisymmetric_1d) {
         const auto radial_end = _temperature_node_count + _node_count;
         if (_axial_node_count > std::numeric_limits<std::size_t>::max() - radial_end)

@@ -10,6 +10,13 @@ include(CTest)
 option(FUELSIM_ELEMENTS_WARNINGS_AS_ERRORS "Treat element library warnings as errors" ON)
 
 add_library(fuelsim_elements
+    src/dcax4.cpp
+    src/dcax8.cpp
+    src/dc3d8.cpp
+    src/dc3d20.cpp
+    src/thermal_common.cpp
+    src/thermal_interface.cpp
+    src/thermal_boundary.cpp
     src/cpeg8t.cpp
     src/cax2t_gps.cpp
     src/c3d20rt.cpp
@@ -103,4 +110,23 @@ if(BUILD_TESTING)
     fuelsim_add_element_test(fuelsim_line3_rz_tests line3_rz_tests.cpp)
     fuelsim_add_element_test(fuelsim_quad4_face_tests quad4_face_tests.cpp)
     fuelsim_add_element_test(fuelsim_quad8_face_tests quad8_face_tests.cpp)
+endif()
+
+if(BUILD_TESTING)
+    foreach(thermal_element dcax4 dcax8 dc3d8 dc3d20)
+        add_executable(fuelsim_${thermal_element}_tests tests/${thermal_element}_tests.cpp)
+        target_link_libraries(fuelsim_${thermal_element}_tests PRIVATE fuelsim::elements)
+        fuelsim_element_warnings(fuelsim_${thermal_element}_tests)
+        if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+            add_test(NAME fuelsim_${thermal_element}_tests COMMAND fuelsim_${thermal_element}_tests)
+        endif()
+    endforeach()
+endif()
+if(BUILD_TESTING)
+    add_executable(fuelsim_thermal_interface_tests tests/thermal_interface_tests.cpp)
+    target_link_libraries(fuelsim_thermal_interface_tests PRIVATE fuelsim::elements)
+    fuelsim_element_warnings(fuelsim_thermal_interface_tests)
+    if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+        add_test(NAME fuelsim_thermal_interface_tests COMMAND fuelsim_thermal_interface_tests)
+    endif()
 endif()

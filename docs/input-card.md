@@ -978,3 +978,12 @@ committed 初值上装配解析方向导数，并与中心差分比较。输出�
 
 原轴对称 MOOSE 对比例题及其专用检查实现已删除。上述轴对称生产例题使用
 Abaqus 参考结果，具体验收指标与适用边界见验证矩阵。
+
+## 独立温度求解
+
+`[Case]` 新增 `physics = thermal|thermomechanical`；省略时保持热力耦合。
+纯热区域显式选择 `dcax4|dcax8`（axisymmetric_rz）或 `dc3d8|dc3d20`
+（cartesian_3d），不填写 strain，材料只定义 thermal。二次纯热单元在全部
+节点求温度。一阶型号采用节点集总热容，二阶型号采用一致热容，均使用固定
+初始质量。完整规则和原生比较边界见
+[独立温度求解](thermal.md)，完整输入卡见 `verification/thermal/`。

@@ -176,6 +176,14 @@ Quad8FaceGeometry make_quad8_face_geometry(const Quad8FaceCoordinates& coordinat
     return geometry;
 }
 
+void quad8_shape_values(double xi,
+    double eta,
+    std::array<double, 8>& shape,
+    std::array<double, 8>& derivative_xi,
+    std::array<double, 8>& derivative_eta) {
+    evaluate_quad8_shapes(xi, eta, shape, derivative_xi, derivative_eta);
+}
+
 Quad8FaceMechanicalQuadraturePoint make_quad8_face_mechanical_point(const Quad8FaceCoordinates& coordinates,
     double xi,
     double eta,

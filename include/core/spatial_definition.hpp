@@ -3,6 +3,7 @@
 
 #include "element_types.hpp"
 #include "material.hpp"
+#include "thermal_types.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -44,6 +45,8 @@ enum class HeatSourceTimeEvaluation {
     interval_average,
 };
 
+enum class Physics { thermomechanical, thermal };
+
 struct RegionDefinition final {
     std::string name, block;
     ThermoelasticProperties material;
@@ -59,6 +62,7 @@ struct RegionDefinition final {
     std::size_t requested_cartesian_node_count = 0;
     bool radial_gps = false;
     std::array<double, 3> body_acceleration{};
+    ThermalElement thermal_element = ThermalElement::dcax4;
 };
 enum class MechanicalContactFormulation {
     penalty,
@@ -143,6 +147,7 @@ struct SpatialDefinition final {
     std::vector<BoundaryConditionDefinition> boundary_conditions;
     std::vector<PiecewiseLinearTimeTable> time_tables{};
     std::vector<GeneralizedPlaneStrainSection> generalized_plane_strain{};
+    Physics physics = Physics::thermomechanical;
 };
 
 struct ContactNodeSummary final {

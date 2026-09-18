@@ -380,7 +380,8 @@ std::vector<MaterialParameterValue> read_material_parameters(const InputDocument
     return values;
 }
 
-std::vector<ParsedMaterial> read_materials(const InputDocument& document, const MaterialFunctionRegistry& registry) {
+std::vector<ParsedMaterial>
+read_materials(const InputDocument& document, const MaterialFunctionRegistry& registry, Physics physics) {
     const InputSection& materials = required_section(document, "Materials");
     validate_keys(document, materials, {});
     std::vector<ParsedMaterial> result;
@@ -390,7 +391,7 @@ std::vector<ParsedMaterial> read_materials(const InputDocument& document, const 
         const std::string base = material_section->path;
         const InputSection* thermal = find_section(document, base + "/thermal");
         const InputSection* elasticity = find_section(document, base + "/elasticity");
-        if (thermal == nullptr || elasticity == nullptr)
+        if (thermal == nullptr || (physics != Physics::thermal && elasticity == nullptr))
             input_error(document.source_path,
                 material_section->line,
                 "material [" + base + "] requires [thermal] and [elasticity]");
@@ -399,9 +400,13 @@ std::vector<ParsedMaterial> read_materials(const InputDocument& document, const 
         try {
             const std::string thermal_name = read_string(document, *thermal, "function");
             functions->thermal = registry.bind_thermal(thermal_name, read_material_parameters(document, *thermal));
-            const std::string elasticity_name = read_string(document, *elasticity, "function");
-            functions->elasticity =
-                registry.bind_elasticity(elasticity_name, read_material_parameters(document, *elasticity));
+            if (elasticity) {
+                if (physics == Physics::thermal)
+                    throw std::invalid_argument("Thermal materials do not accept elasticity");
+                const std::string elasticity_name = read_string(document, *elasticity, "function");
+                functions->elasticity =
+                    registry.bind_elasticity(elasticity_name, read_material_parameters(document, *elasticity));
+            }
             const InputSection* eigenstrains = find_section(document, base + "/eigenstrains");
             if (eigenstrains != nullptr) {
                 validate_keys(document, *eigenstrains, {});
@@ -464,7 +469,8 @@ std::string read_optional_path(const std::string& input_path, const InputSection
 RegionDefinition read_region(const InputDocument& document,
     const InputSection& section,
     const std::vector<ParsedMaterial>& materials,
-    CaseGeometry geometry) {
+    CaseGeometry geometry,
+    Physics physics) {
     validate_keys(document,
         section,
         {"block",
@@ -501,8 +507,11 @@ RegionDefinition read_region(const InputDocument& document,
     const double initial_temperature = read_double(document, section, "initial_temperature");
     ElasticPropertyOutput initial_elasticity{};
     const ElasticFunctionInstance& elasticity = material->functions->elasticity;
-    elasticity.function({initial_temperature, {}}, initial_elasticity);
-    if (!std::isfinite(initial_elasticity.young_modulus.value()) || !(initial_elasticity.young_modulus.value() > 0.0))
+    if (physics != Physics::thermal)
+        elasticity.function({initial_temperature, {}}, initial_elasticity);
+    if (physics != Physics::thermal
+        && (!std::isfinite(initial_elasticity.young_modulus.value())
+            || !(initial_elasticity.young_modulus.value() > 0.0)))
         value_error(document,
             required_entry(document, section, "material"),
             "material elasticity must produce positive young_modulus at initial_temperature");
@@ -542,6 +551,27 @@ RegionDefinition read_region(const InputDocument& document,
         value_error(document,
             required_entry(document, section, "heat_source_time_evaluation"),
             "heat_source_time_evaluation=interval_average requires heat_source_function");
+    if (physics == Physics::thermal) {
+        if (find_entry(section, "strain") || find_entry(section, "body_acceleration"))
+            throw std::invalid_argument("Thermal regions do not accept strain or body_acceleration");
+        if (material->functions->has_creep() || material->functions->has_plasticity()
+            || !material->functions->eigenstrains.empty())
+            throw std::invalid_argument("Thermal materials do not accept mechanical models");
+        const auto element = read_string(document, section, "element");
+        if (geometry == CaseGeometry::axisymmetric_rz && element == "dcax4")
+            result.thermal_element = ThermalElement::dcax4;
+        else if (geometry == CaseGeometry::axisymmetric_rz && element == "dcax8")
+            result.thermal_element = ThermalElement::dcax8;
+        else if (geometry == CaseGeometry::cartesian_3d && element == "dc3d8")
+            result.thermal_element = ThermalElement::dc3d8;
+        else if (geometry == CaseGeometry::cartesian_3d && element == "dc3d20")
+            result.thermal_element = ThermalElement::dc3d20;
+        else
+            throw std::invalid_argument(
+                "Thermal physics requires dcax4/dcax8 in axisymmetric_rz or dc3d8/dc3d20 in cartesian_3d");
+        result.requested_cartesian_node_count = element == "dc3d20" ? 20U : (element == "dc3d8" ? 8U : 0U);
+        return result;
+    }
     const InputEntry strain = required_entry(document, section, "strain");
     if (strain.value == "small")
         result.strain_formulation = StrainFormulation::small;
@@ -898,13 +928,18 @@ BoundaryConditionDefinition read_boundary_condition(const InputDocument& documen
 
 void read_case(const InputDocument& document, FuelSimCaseDefinition& result) {
     const InputSection& case_section = required_section(document, "Case");
-    validate_keys(document, case_section, {"version", "problem", "geometry"});
+    validate_keys(document, case_section, {"version", "problem", "geometry", "physics"});
     const std::size_t version = read_size(document, case_section, "version");
     if (version != 3)
         value_error(document,
             required_entry(document, case_section, "version"),
             "unsupported fuelsim input version '" + std::to_string(version) + "'");
     result.version = 3;
+    const auto physics = read_optional_string(case_section, "physics", "thermomechanical");
+    if (physics == "thermal")
+        result.spatial.physics = Physics::thermal;
+    else if (physics != "thermomechanical")
+        throw std::invalid_argument("physics must be thermal or thermomechanical");
     const std::string problem = read_string(document, case_section, "problem");
     if (problem == "steady")
         result.problem = CaseProblem::steady;
@@ -959,7 +994,8 @@ void read_regions(const InputDocument& document,
     const InputSection& regions = required_section(document, "Regions");
     validate_keys(document, regions, {});
     for (const InputSection* section : direct_children(document, "Regions"))
-        result.spatial.regions.push_back(read_region(document, *section, materials, result.geometry));
+        result.spatial.regions.push_back(
+            read_region(document, *section, materials, result.geometry, result.spatial.physics));
     if (result.spatial.regions.empty())
         throw std::invalid_argument(path + ": [Regions] requires a child region");
 }
@@ -1376,7 +1412,7 @@ FuelSimCaseDefinition read_case_input(const std::string& path, const MaterialFun
     }
     read_mesh(document, path, result);
     read_time_functions(document, result);
-    const std::vector<ParsedMaterial> materials = read_materials(document, registry);
+    const std::vector<ParsedMaterial> materials = read_materials(document, registry, result.spatial.physics);
     read_regions(document, path, materials, result);
     read_generalized_plane_strain(document, result);
     read_contacts(document, result);
