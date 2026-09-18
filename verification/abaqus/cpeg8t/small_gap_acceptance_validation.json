@@ -1,0 +1,1655 @@
+{
+  "source_baseline": "5c287c7e41b042f3e6f478fc4589e9a7936c08a1",
+  "source_scope": "Committed baseline plus the small-gap checker, input, reference and CTest registration.",
+  "executable_sha256": "569b6e3f418d33cf75b31c6606466dcc9efef6e3c1accfb593d9bd767b542ea4",
+  "production_algorithms_changed": false,
+  "tolerances_changed": false,
+  "thermal_pressure_small_gap": {
+    "status": "passed",
+    "failures": [],
+    "metrics": {
+      "0.125/analytic/temperature": {
+        "count": 8,
+        "maximum_absolute": 5.684341886080802e-14,
+        "relative_l2": 6.561587789838114e-17,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 1.8436732939273632e-16
+      },
+      "0.125/native/temperature": {
+        "count": 8,
+        "maximum_absolute": 5.684341886080802e-14,
+        "relative_l2": 6.561587789838114e-17,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 1.8436732939273632e-16
+      },
+      "0.125/analytic/heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 4.907185768843192e-14,
+        "zero_absolute": 4.907185768843192e-14,
+        "relative_l2": 3.782617397668294e-15,
+        "relative_peak": 3.3965697195840837e-15,
+        "maximum_pointwise_relative": 5.519425794324136e-15
+      },
+      "0.125/native/heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 4.907185768843192e-14,
+        "zero_absolute": 4.907185768843192e-14,
+        "relative_l2": 7.258181205740839e-15,
+        "relative_peak": 2.759712897162051e-15,
+        "maximum_pointwise_relative": 1.0401994766226205e-14
+      },
+      "0.125/contact_heat": {
+        "count": 1,
+        "maximum_absolute": 4.973799150320701e-14,
+        "relative_l2": 5.9439970092721465e-15,
+        "relative_peak": 5.9439970092721465e-15,
+        "maximum_pointwise_relative": 5.9439970092721465e-15
+      },
+      "0.125/contact_force": {
+        "count": 1,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.125/native/displacement_x": {
+        "count": 16,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.125/native/displacement_y": {
+        "count": 16,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.125/native/reaction_x": {
+        "count": 16,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.125/native/reaction_y": {
+        "count": 16,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.125/native/stress_xx": {
+        "count": 18,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.125/native/stress_yy": {
+        "count": 18,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.125/native/stress_zz": {
+        "count": 18,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.125/native/stress_xy": {
+        "count": 18,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.25/analytic/temperature": {
+        "count": 8,
+        "maximum_absolute": 0.0,
+        "relative_l2": 0.0,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 0.0
+      },
+      "0.25/native/temperature": {
+        "count": 8,
+        "maximum_absolute": 5.684341886080802e-14,
+        "relative_l2": 1.1134058428671154e-16,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 1.8431620202042734e-16
+      },
+      "0.25/analytic/heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 9.14823772291129e-14,
+        "zero_absolute": 9.14823772291129e-14,
+        "relative_l2": 3.887089388444827e-15,
+        "relative_peak": 5.0743149519648136e-15,
+        "maximum_pointwise_relative": 5.0743149519648136e-15
+      },
+      "0.25/native/heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 9.14823772291129e-14,
+        "zero_absolute": 9.14823772291129e-14,
+        "relative_l2": 4.194097730075202e-15,
+        "relative_peak": 4.651455372634367e-15,
+        "maximum_pointwise_relative": 6.342893689955955e-15
+      },
+      "0.25/contact_heat": {
+        "count": 1,
+        "maximum_absolute": 1.0658141036401503e-13,
+        "relative_l2": 6.3428936899560164e-15,
+        "relative_peak": 6.3428936899560164e-15,
+        "maximum_pointwise_relative": 6.3428936899560164e-15
+      },
+      "0.25/contact_force": {
+        "count": 1,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.25/native/displacement_x": {
+        "count": 16,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.25/native/displacement_y": {
+        "count": 16,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.25/native/reaction_x": {
+        "count": 16,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.25/native/reaction_y": {
+        "count": 16,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.25/native/stress_xx": {
+        "count": 18,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.25/native/stress_yy": {
+        "count": 18,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.25/native/stress_zz": {
+        "count": 18,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.25/native/stress_xy": {
+        "count": 18,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.375/analytic/temperature": {
+        "count": 8,
+        "maximum_absolute": 0.0,
+        "relative_l2": 0.0,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 0.0
+      },
+      "0.375/native/temperature": {
+        "count": 8,
+        "maximum_absolute": 0.00020771895145799135,
+        "relative_l2": 4.603587171478716e-07,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 6.643007206148516e-07
+      },
+      "0.375/analytic/heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 8.260059303211165e-14,
+        "zero_absolute": 8.260059303211165e-14,
+        "relative_l2": 1.8119534563114915e-15,
+        "relative_peak": 1.1200299062683814e-15,
+        "maximum_pointwise_relative": 2.3800635508203104e-15
+      },
+      "0.375/native/heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 0.00020771895156457276,
+        "zero_absolute": 8.260059303211165e-14,
+        "relative_l2": 1.6371121493228458e-05,
+        "relative_peak": 1.6371121493858444e-05,
+        "maximum_pointwise_relative": 1.6371121494698453e-05
+      },
+      "0.375/contact_heat": {
+        "count": 1,
+        "maximum_absolute": 1.0302869668521453e-13,
+        "relative_l2": 4.060108410222883e-15,
+        "relative_peak": 4.060108410222883e-15,
+        "maximum_pointwise_relative": 4.060108410222883e-15
+      },
+      "0.375/contact_force": {
+        "count": 1,
+        "maximum_absolute": 1.199040866595169e-12,
+        "relative_l2": 1.3322676295501878e-13,
+        "relative_peak": 1.3322676295501878e-13,
+        "maximum_pointwise_relative": 1.3322676295501878e-13
+      },
+      "0.375/native/displacement_x": {
+        "count": 16,
+        "maximum_absolute": 4.777851954327506e-56,
+        "zero_absolute": 4.777851954327506e-56
+      },
+      "0.375/native/displacement_y": {
+        "count": 16,
+        "maximum_absolute": 6.000000286236074e-36,
+        "zero_absolute": 6.000000286236074e-36,
+        "relative_l2": 0.0,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 0.0
+      },
+      "0.375/native/reaction_x": {
+        "count": 16,
+        "maximum_absolute": 6.278078745720645e-17,
+        "zero_absolute": 4.839198877018398e-17
+      },
+      "0.375/native/reaction_y": {
+        "count": 16,
+        "maximum_absolute": 2.9223527420185746e-07,
+        "zero_absolute": 5.071221757281665e-16,
+        "relative_l2": 4.861652002113916e-08,
+        "relative_peak": 4.870587666137388e-08,
+        "maximum_pointwise_relative": 6.731164446452356e-08
+      },
+      "0.375/native/stress_xx": {
+        "count": 18,
+        "maximum_absolute": 2.8189256484623115e-13,
+        "zero_absolute": 2.6020852139652106e-13
+      },
+      "0.375/native/stress_yy": {
+        "count": 18,
+        "maximum_absolute": 8.456776945386935e-13,
+        "zero_absolute": 7.806255641895632e-13
+      },
+      "0.375/native/stress_zz": {
+        "count": 18,
+        "maximum_absolute": 2.8189256484623115e-13,
+        "zero_absolute": 2.6020852139652106e-13
+      },
+      "0.375/native/stress_xy": {
+        "count": 18,
+        "maximum_absolute": 9.215718466126788e-14,
+        "zero_absolute": 1.192622389734055e-13
+      },
+      "0.5/analytic/temperature": {
+        "count": 8,
+        "maximum_absolute": 0.0,
+        "relative_l2": 0.0,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 0.0
+      },
+      "0.5/native/temperature": {
+        "count": 8,
+        "maximum_absolute": 8.111195944593419e-05,
+        "relative_l2": 1.7618952250467505e-07,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 2.5584277982998515e-07
+      },
+      "0.5/analytic/heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 3.375077994860476e-14,
+        "zero_absolute": 3.375077994860476e-14,
+        "relative_l2": 1.0733936237943129e-15,
+        "relative_peak": 1.459600872150187e-15,
+        "maximum_pointwise_relative": 1.459600872150187e-15
+      },
+      "0.5/native/heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 8.111195957383188e-05,
+        "zero_absolute": 3.375077994860476e-14,
+        "relative_l2": 4.760567113019744e-06,
+        "relative_peak": 4.760567113541022e-06,
+        "maximum_pointwise_relative": 4.760567113749536e-06
+      },
+      "0.5/contact_heat": {
+        "count": 1,
+        "maximum_absolute": 1.4210854715202004e-14,
+        "relative_l2": 4.170288206143392e-16,
+        "relative_peak": 4.170288206143392e-16,
+        "maximum_pointwise_relative": 4.170288206143392e-16
+      },
+      "0.5/contact_force": {
+        "count": 1,
+        "maximum_absolute": 1.1937117960769683e-12,
+        "relative_l2": 5.968558980384842e-14,
+        "relative_peak": 5.968558980384842e-14,
+        "maximum_pointwise_relative": 5.968558980384842e-14
+      },
+      "0.5/native/displacement_x": {
+        "count": 16,
+        "maximum_absolute": 1.7074978214007087e-55,
+        "zero_absolute": 1.7074978214007087e-55
+      },
+      "0.5/native/displacement_y": {
+        "count": 16,
+        "maximum_absolute": 1.3333333355379622e-35,
+        "zero_absolute": 1.3333333355379622e-35,
+        "relative_l2": 0.0,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 0.0
+      },
+      "0.5/native/reaction_x": {
+        "count": 16,
+        "maximum_absolute": 1.255615749144129e-16,
+        "zero_absolute": 9.678397754036796e-17
+      },
+      "0.5/native/reaction_y": {
+        "count": 16,
+        "maximum_absolute": 2.337882776259903e-08,
+        "zero_absolute": 1.014244351456333e-15,
+        "relative_l2": 1.7501952288269442e-09,
+        "relative_peak": 1.7534120791203683e-09,
+        "maximum_pointwise_relative": 2.4232200187666554e-09
+      },
+      "0.5/native/stress_xx": {
+        "count": 18,
+        "maximum_absolute": 5.637851296924623e-13,
+        "zero_absolute": 5.204170427930421e-13
+      },
+      "0.5/native/stress_yy": {
+        "count": 18,
+        "maximum_absolute": 1.691355389077387e-12,
+        "zero_absolute": 1.5612511283791264e-12
+      },
+      "0.5/native/stress_zz": {
+        "count": 18,
+        "maximum_absolute": 5.637851296924623e-13,
+        "zero_absolute": 5.204170427930421e-13
+      },
+      "0.5/native/stress_xy": {
+        "count": 18,
+        "maximum_absolute": 1.8431436932253575e-13,
+        "zero_absolute": 2.38524477946811e-13
+      },
+      "0.625/analytic/temperature": {
+        "count": 8,
+        "maximum_absolute": 5.684341886080802e-14,
+        "relative_l2": 6.052262954722065e-17,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 1.6660208112136763e-16
+      },
+      "0.625/native/temperature": {
+        "count": 8,
+        "maximum_absolute": 0.0011209599387029812,
+        "relative_l2": 2.3870290665592607e-06,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 3.488735338857056e-06
+      },
+      "0.625/analytic/heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 1.4477308241112041e-13,
+        "zero_absolute": 1.4477308241112041e-13,
+        "relative_l2": 1.3597003804798616e-15,
+        "relative_peak": 3.3347431727395165e-16,
+        "maximum_pointwise_relative": 2.5010573795546377e-15
+      },
+      "0.625/native/heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 0.0011209599389054858,
+        "zero_absolute": 1.4477308241112041e-13,
+        "relative_l2": 5.26065029705891e-05,
+        "relative_peak": 5.2606502969880484e-05,
+        "maximum_pointwise_relative": 5.2606502972714867e-05
+      },
+      "0.625/contact_heat": {
+        "count": 1,
+        "maximum_absolute": 1.4210854715202004e-13,
+        "relative_l2": 3.3347431727395168e-15,
+        "relative_peak": 3.3347431727395168e-15,
+        "maximum_pointwise_relative": 3.3347431727395168e-15
+      },
+      "0.625/contact_force": {
+        "count": 1,
+        "maximum_absolute": 1.199040866595169e-12,
+        "relative_l2": 1.3322676295501878e-13,
+        "relative_peak": 1.3322676295501878e-13,
+        "maximum_pointwise_relative": 1.3322676295501878e-13
+      },
+      "0.625/native/displacement_x": {
+        "count": 16,
+        "maximum_absolute": 2.029681491254194e-52,
+        "zero_absolute": 2.029681491254194e-52
+      },
+      "0.625/native/displacement_y": {
+        "count": 16,
+        "maximum_absolute": 5.999999998247387e-36,
+        "zero_absolute": 5.999999998247387e-36,
+        "relative_l2": 0.0,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 0.0
+      },
+      "0.625/native/reaction_x": {
+        "count": 16,
+        "maximum_absolute": 6.278078745720645e-17,
+        "zero_absolute": 4.839198877018398e-17
+      },
+      "0.625/native/reaction_y": {
+        "count": 16,
+        "maximum_absolute": 1.753409861748878e-09,
+        "zero_absolute": 5.071221757281665e-16,
+        "relative_l2": 2.916988253874253e-10,
+        "relative_peak": 2.922349770435086e-10,
+        "maximum_pointwise_relative": 4.0386953057436547e-10
+      },
+      "0.625/native/stress_xx": {
+        "count": 18,
+        "maximum_absolute": 2.8189256484623115e-13,
+        "zero_absolute": 2.6020852139652106e-13
+      },
+      "0.625/native/stress_yy": {
+        "count": 18,
+        "maximum_absolute": 8.456776945386935e-13,
+        "zero_absolute": 7.806255641895632e-13
+      },
+      "0.625/native/stress_zz": {
+        "count": 18,
+        "maximum_absolute": 2.8189256484623115e-13,
+        "zero_absolute": 2.6020852139652106e-13
+      },
+      "0.625/native/stress_xy": {
+        "count": 18,
+        "maximum_absolute": 9.215718466126788e-14,
+        "zero_absolute": 1.192622389734055e-13
+      },
+      "0.75/analytic/temperature": {
+        "count": 8,
+        "maximum_absolute": 5.684341886080802e-14,
+        "relative_l2": 5.934592549267313e-17,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 1.7458307803685096e-16
+      },
+      "0.75/native/temperature": {
+        "count": 8,
+        "maximum_absolute": 5.684341886080802e-14,
+        "relative_l2": 5.934592549267313e-17,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 1.7458307803685096e-16
+      },
+      "0.75/analytic/heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 3.552713678800501e-14,
+        "zero_absolute": 3.552713678800501e-14,
+        "relative_l2": 2.687922038591536e-16,
+        "relative_peak": 4.164110916547564e-16,
+        "maximum_pointwise_relative": 4.164110916547564e-16
+      },
+      "0.75/native/heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 2.3447910280083306e-13,
+        "zero_absolute": 3.552713678800501e-14,
+        "relative_l2": 8.920500136730173e-15,
+        "relative_peak": 8.883436621968054e-15,
+        "maximum_pointwise_relative": 9.161044016404555e-15
+      },
+      "0.75/contact_heat": {
+        "count": 1,
+        "maximum_absolute": 3.552713678800501e-14,
+        "relative_l2": 6.940184860912606e-16,
+        "relative_peak": 6.940184860912606e-16,
+        "maximum_pointwise_relative": 6.940184860912606e-16
+      },
+      "0.75/contact_force": {
+        "count": 1,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.75/native/displacement_x": {
+        "count": 16,
+        "maximum_absolute": 2.0400633828780818e-67,
+        "zero_absolute": 2.0400633828780818e-67
+      },
+      "0.75/native/displacement_y": {
+        "count": 16,
+        "maximum_absolute": 1.168940327870597e-46,
+        "zero_absolute": 1.168940327870597e-46
+      },
+      "0.75/native/reaction_x": {
+        "count": 16,
+        "maximum_absolute": 1.992322816062422e-31,
+        "zero_absolute": 1.992322816062422e-31
+      },
+      "0.75/native/reaction_y": {
+        "count": 16,
+        "maximum_absolute": 1.168941097425522e-10,
+        "zero_absolute": 1.168941097425522e-10
+      },
+      "0.75/native/stress_xx": {
+        "count": 18,
+        "maximum_absolute": 6.067599929751029e-39,
+        "zero_absolute": 6.067599929751029e-39
+      },
+      "0.75/native/stress_yy": {
+        "count": 18,
+        "maximum_absolute": 1.8202799789253086e-38,
+        "zero_absolute": 1.8202799789253086e-38
+      },
+      "0.75/native/stress_zz": {
+        "count": 18,
+        "maximum_absolute": 6.067599929751029e-39,
+        "zero_absolute": 6.067599929751029e-39
+      },
+      "0.75/native/stress_xy": {
+        "count": 18,
+        "maximum_absolute": 5.685056659378068e-39,
+        "zero_absolute": 5.685056659378068e-39
+      },
+      "0.875/analytic/temperature": {
+        "count": 8,
+        "maximum_absolute": 5.684341886080802e-14,
+        "relative_l2": 5.82060150142629e-17,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 1.5898943857558416e-16
+      },
+      "0.875/native/temperature": {
+        "count": 8,
+        "maximum_absolute": 1.1368683772161603e-13,
+        "relative_l2": 2.0163155062164054e-16,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 3.445363970922056e-16
+      },
+      "0.875/analytic/heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 7.815970093361102e-14,
+        "zero_absolute": 7.815970093361102e-14,
+        "relative_l2": 3.1362858533661433e-16,
+        "relative_peak": 1.1854046297738286e-16,
+        "maximum_pointwise_relative": 5.927023148869143e-16
+      },
+      "0.875/native/heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 2.3447910280083306e-13,
+        "zero_absolute": 7.815970093361102e-14,
+        "relative_l2": 6.883262025764486e-15,
+        "relative_peak": 7.230968241620302e-15,
+        "maximum_pointwise_relative": 7.823670556507213e-15
+      },
+      "0.875/contact_heat": {
+        "count": 1,
+        "maximum_absolute": 9.237055564881302e-14,
+        "relative_l2": 1.5410260187059775e-15,
+        "relative_peak": 1.5410260187059775e-15,
+        "maximum_pointwise_relative": 1.5410260187059775e-15
+      },
+      "0.875/contact_force": {
+        "count": 1,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "0.875/native/displacement_x": {
+        "count": 16,
+        "maximum_absolute": 9.564248071217638e-53,
+        "zero_absolute": 9.564248071217638e-53
+      },
+      "0.875/native/displacement_y": {
+        "count": 16,
+        "maximum_absolute": 6.681911775230489e-52,
+        "zero_absolute": 6.681911775230489e-52
+      },
+      "0.875/native/reaction_x": {
+        "count": 16,
+        "maximum_absolute": 1.9500464681473412e-47,
+        "zero_absolute": 1.9500464681473412e-47
+      },
+      "0.875/native/reaction_y": {
+        "count": 16,
+        "maximum_absolute": 7.534914736635941e-47,
+        "zero_absolute": 7.534914736635941e-47
+      },
+      "0.875/native/stress_xx": {
+        "count": 18,
+        "maximum_absolute": 4.934007418728082e-44,
+        "zero_absolute": 4.934007418728082e-44
+      },
+      "0.875/native/stress_yy": {
+        "count": 18,
+        "maximum_absolute": 1.4802022256184246e-43,
+        "zero_absolute": 1.4802022256184246e-43
+      },
+      "0.875/native/stress_zz": {
+        "count": 18,
+        "maximum_absolute": 4.934007418728082e-44,
+        "zero_absolute": 4.934007418728082e-44
+      },
+      "0.875/native/stress_xy": {
+        "count": 18,
+        "maximum_absolute": 2.427109474784111e-44,
+        "zero_absolute": 2.427109474784111e-44
+      },
+      "1.0/analytic/temperature": {
+        "count": 8,
+        "maximum_absolute": 0.0,
+        "relative_l2": 0.0,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 0.0
+      },
+      "1.0/native/temperature": {
+        "count": 8,
+        "maximum_absolute": 1.1368683772161603e-13,
+        "relative_l2": 2.28406516631292e-16,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 3.3999801935436583e-16
+      },
+      "1.0/analytic/heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 4.973799150320701e-14,
+        "zero_absolute": 4.973799150320701e-14,
+        "relative_l2": 0.0,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 0.0
+      },
+      "1.0/native/heat_reaction": {
+        "count": 8,
+        "maximum_absolute": 2.3447910280083306e-13,
+        "zero_absolute": 4.973799150320701e-14,
+        "relative_l2": 6.465057997309368e-15,
+        "relative_peak": 6.821210263296915e-15,
+        "maximum_pointwise_relative": 6.821210263296915e-15
+      },
+      "1.0/contact_heat": {
+        "count": 1,
+        "maximum_absolute": 5.684341886080802e-14,
+        "relative_l2": 8.268133652481166e-16,
+        "relative_peak": 8.268133652481166e-16,
+        "maximum_pointwise_relative": 8.268133652481166e-16
+      },
+      "1.0/contact_force": {
+        "count": 1,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "1.0/native/displacement_x": {
+        "count": 16,
+        "maximum_absolute": 1.8546030753437107e-68,
+        "zero_absolute": 1.8546030753437107e-68
+      },
+      "1.0/native/displacement_y": {
+        "count": 16,
+        "maximum_absolute": 1.400214730819878e-77,
+        "zero_absolute": 1.400214730819878e-77
+      },
+      "1.0/native/reaction_x": {
+        "count": 16,
+        "maximum_absolute": 3.1990309928826373e-47,
+        "zero_absolute": 3.1990309928826373e-47
+      },
+      "1.0/native/reaction_y": {
+        "count": 16,
+        "maximum_absolute": 1.1589622585458495e-46,
+        "zero_absolute": 1.1589622585458495e-46
+      },
+      "1.0/native/stress_xx": {
+        "count": 18,
+        "maximum_absolute": 5.666261185395458e-44,
+        "zero_absolute": 5.666261185395458e-44
+      },
+      "1.0/native/stress_yy": {
+        "count": 18,
+        "maximum_absolute": 1.6998783556186374e-43,
+        "zero_absolute": 1.6998783556186374e-43
+      },
+      "1.0/native/stress_zz": {
+        "count": 18,
+        "maximum_absolute": 5.666261185395458e-44,
+        "zero_absolute": 5.666261185395458e-44
+      },
+      "1.0/native/stress_xy": {
+        "count": 18,
+        "maximum_absolute": 6.101082942960397e-44,
+        "zero_absolute": 6.101082942960397e-44
+      }
+    },
+    "history": [
+      {
+        "time": 0.125,
+        "gap_m": 1e-06,
+        "pressure_Pa": 0.0,
+        "conductance_W_per_m2_K": 1012.5,
+        "analytic_heat_W": 8.367768595041323
+      },
+      {
+        "time": 0.25,
+        "gap_m": 1e-06,
+        "pressure_Pa": 0.0,
+        "conductance_W_per_m2_K": 1025.0,
+        "analytic_heat_W": 16.80327868852459
+      },
+      {
+        "time": 0.375,
+        "gap_m": -4.5e-06,
+        "pressure_Pa": 4500.0,
+        "conductance_W_per_m2_K": 1046.5,
+        "analytic_heat_W": 25.37584869059166
+      },
+      {
+        "time": 0.5,
+        "gap_m": -9.999999999999999e-06,
+        "pressure_Pa": 10000.0,
+        "conductance_W_per_m2_K": 1070.0,
+        "analytic_heat_W": 34.07643312101911
+      },
+      {
+        "time": 0.625,
+        "gap_m": -4.5e-06,
+        "pressure_Pa": 4500.0,
+        "conductance_W_per_m2_K": 1071.5,
+        "analytic_heat_W": 42.614540248170535
+      },
+      {
+        "time": 0.75,
+        "gap_m": 1e-06,
+        "pressure_Pa": 0.0,
+        "conductance_W_per_m2_K": 1075.0,
+        "analytic_heat_W": 51.19047619047619
+      },
+      {
+        "time": 0.875,
+        "gap_m": 1e-06,
+        "pressure_Pa": 0.0,
+        "conductance_W_per_m2_K": 1087.5,
+        "analytic_heat_W": 59.94094488188977
+      },
+      {
+        "time": 1.0,
+        "gap_m": 1e-06,
+        "pressure_Pa": 0.0,
+        "conductance_W_per_m2_K": 1100.0,
+        "analytic_heat_W": 68.75
+      }
+    ],
+    "analytical_status": "passed",
+    "native_closed_status": "passed",
+    "native_open_status": "passed"
+  },
+  "inelastic_initial_plastic": {
+    "analytical_status": "passed",
+    "analytical": {
+      "plastic stress_xx": {
+        "count": 117,
+        "maximum_absolute": 2.9103830456733704e-11
+      },
+      "plastic stress_yy": {
+        "count": 117,
+        "maximum_absolute": 2.9103830456733704e-11
+      },
+      "plastic stress_zz": {
+        "count": 117,
+        "maximum_absolute": 2.9103830456733704e-11
+      },
+      "plastic stress_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic elastic_xx": {
+        "count": 117,
+        "maximum_absolute": 1.3877787807814457e-17
+      },
+      "plastic elastic_yy": {
+        "count": 117,
+        "maximum_absolute": 1.3877787807814457e-17
+      },
+      "plastic elastic_zz": {
+        "count": 117,
+        "maximum_absolute": 1.3877787807814457e-17
+      },
+      "plastic elastic_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic elastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic elastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic plastic_xx": {
+        "count": 117,
+        "maximum_absolute": 1.3877787807814457e-17
+      },
+      "plastic plastic_yy": {
+        "count": 117,
+        "maximum_absolute": 1.3877787807814457e-17
+      },
+      "plastic plastic_zz": {
+        "count": 117,
+        "maximum_absolute": 1.734723475976807e-17
+      },
+      "plastic plastic_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic plastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic plastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic creep_xx": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic creep_yy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic creep_zz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic creep_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic creep_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic creep_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "plastic equivalent_plastic_strain": {
+        "count": 117,
+        "maximum_absolute": 1.734723475976807e-17
+      },
+      "plastic equivalent_creep_strain": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep stress_xx": {
+        "count": 117,
+        "maximum_absolute": 3.2741809263825417e-11
+      },
+      "creep stress_yy": {
+        "count": 117,
+        "maximum_absolute": 3.2741809263825417e-11
+      },
+      "creep stress_zz": {
+        "count": 117,
+        "maximum_absolute": 3.2741809263825417e-11
+      },
+      "creep stress_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep elastic_xx": {
+        "count": 117,
+        "maximum_absolute": 1.5612511283791264e-17
+      },
+      "creep elastic_yy": {
+        "count": 117,
+        "maximum_absolute": 1.5612511283791264e-17
+      },
+      "creep elastic_zz": {
+        "count": 117,
+        "maximum_absolute": 1.3877787807814457e-17
+      },
+      "creep elastic_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep elastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep elastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep plastic_xx": {
+        "count": 117,
+        "maximum_absolute": 1.5612511283791264e-17
+      },
+      "creep plastic_yy": {
+        "count": 117,
+        "maximum_absolute": 1.5612511283791264e-17
+      },
+      "creep plastic_zz": {
+        "count": 117,
+        "maximum_absolute": 1.3877787807814457e-17
+      },
+      "creep plastic_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep plastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep plastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep creep_xx": {
+        "count": 117,
+        "maximum_absolute": 1.4907779871675686e-19
+      },
+      "creep creep_yy": {
+        "count": 117,
+        "maximum_absolute": 1.4907779871675686e-19
+      },
+      "creep creep_zz": {
+        "count": 117,
+        "maximum_absolute": 1.3552527156068805e-19
+      },
+      "creep creep_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep creep_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep creep_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "creep equivalent_plastic_strain": {
+        "count": 117,
+        "maximum_absolute": 1.734723475976807e-17
+      },
+      "creep equivalent_creep_strain": {
+        "count": 117,
+        "maximum_absolute": 1.8973538018496328e-19
+      },
+      "coupled stress_xx": {
+        "count": 117,
+        "maximum_absolute": 2.546585164964199e-11
+      },
+      "coupled stress_yy": {
+        "count": 117,
+        "maximum_absolute": 2.546585164964199e-11
+      },
+      "coupled stress_zz": {
+        "count": 117,
+        "maximum_absolute": 2.546585164964199e-11
+      },
+      "coupled stress_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled elastic_xx": {
+        "count": 117,
+        "maximum_absolute": 1.214306433183765e-17
+      },
+      "coupled elastic_yy": {
+        "count": 117,
+        "maximum_absolute": 1.214306433183765e-17
+      },
+      "coupled elastic_zz": {
+        "count": 117,
+        "maximum_absolute": 1.0408340855860843e-17
+      },
+      "coupled elastic_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled elastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled elastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled plastic_xx": {
+        "count": 117,
+        "maximum_absolute": 1.0408340855860843e-17
+      },
+      "coupled plastic_yy": {
+        "count": 117,
+        "maximum_absolute": 1.0408340855860843e-17
+      },
+      "coupled plastic_zz": {
+        "count": 117,
+        "maximum_absolute": 1.734723475976807e-17
+      },
+      "coupled plastic_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled plastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled plastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled creep_xx": {
+        "count": 117,
+        "maximum_absolute": 2.439454888092385e-19
+      },
+      "coupled creep_yy": {
+        "count": 117,
+        "maximum_absolute": 2.439454888092385e-19
+      },
+      "coupled creep_zz": {
+        "count": 117,
+        "maximum_absolute": 3.7947076036992655e-19
+      },
+      "coupled creep_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled creep_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled creep_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0
+      },
+      "coupled equivalent_plastic_strain": {
+        "count": 117,
+        "maximum_absolute": 1.734723475976807e-17
+      },
+      "coupled equivalent_creep_strain": {
+        "count": 117,
+        "maximum_absolute": 3.7947076036992655e-19
+      }
+    },
+    "native_status": "passed",
+    "native": {
+      "plastic stress_xx": {
+        "count": 117,
+        "maximum_absolute": 3.2741809263825417e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.455937247446799e-15,
+        "relative_peak": 1.6702187693604034e-15,
+        "maximum_pointwise_relative": 1.708833212958453e-15
+      },
+      "plastic stress_yy": {
+        "count": 117,
+        "maximum_absolute": 3.2741809263825417e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.455937247446799e-15,
+        "relative_peak": 1.6702187693604034e-15,
+        "maximum_pointwise_relative": 1.708833212958453e-15
+      },
+      "plastic stress_zz": {
+        "count": 117,
+        "maximum_absolute": 2.9103830456733704e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.2752286940966774e-15,
+        "relative_peak": 1.3996675219653333e-15,
+        "maximum_pointwise_relative": 1.4603640045529294e-15
+      },
+      "plastic stress_xy": {
+        "count": 117,
+        "maximum_absolute": 2.4198347107438233e-29,
+        "zero_absolute": 2.4198347107438233e-29
+      },
+      "plastic elastic_xx": {
+        "count": 117,
+        "maximum_absolute": 1.5612511283791264e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.5726636665752698e-15,
+        "relative_peak": 1.6427077089902117e-15,
+        "maximum_pointwise_relative": 3.673276960380897e-15
+      },
+      "plastic elastic_yy": {
+        "count": 117,
+        "maximum_absolute": 1.5612511283791264e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.5726636665752698e-15,
+        "relative_peak": 1.6427077089902117e-15,
+        "maximum_pointwise_relative": 3.673276960380897e-15
+      },
+      "plastic elastic_zz": {
+        "count": 117,
+        "maximum_absolute": 1.5612511283791264e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.0908630611889855e-15,
+        "relative_peak": 9.469242432775652e-16,
+        "maximum_pointwise_relative": 1.6792123247455495e-15
+      },
+      "plastic elastic_xy": {
+        "count": 117,
+        "maximum_absolute": 6.049586776859559e-35,
+        "zero_absolute": 6.049586776859559e-35
+      },
+      "plastic elastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic elastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic plastic_xx": {
+        "count": 117,
+        "maximum_absolute": 1.5612511283791264e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.5726636665752698e-15,
+        "relative_peak": 1.6427077089902117e-15,
+        "maximum_pointwise_relative": 3.673276960380897e-15
+      },
+      "plastic plastic_yy": {
+        "count": 117,
+        "maximum_absolute": 1.5612511283791264e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.5726636665752698e-15,
+        "relative_peak": 1.6427077089902117e-15,
+        "maximum_pointwise_relative": 3.673276960380897e-15
+      },
+      "plastic plastic_zz": {
+        "count": 117,
+        "maximum_absolute": 1.734723475976807e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 7.399328650648829e-16,
+        "relative_peak": 9.126153938834507e-16,
+        "maximum_pointwise_relative": 3.673276960380896e-15
+      },
+      "plastic plastic_xy": {
+        "count": 117,
+        "maximum_absolute": 5.950413223140524e-35,
+        "zero_absolute": 5.950413223140524e-35
+      },
+      "plastic plastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic plastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic creep_xx": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic creep_yy": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic creep_zz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic creep_xy": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic creep_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic creep_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic equivalent_plastic_strain": {
+        "count": 117,
+        "maximum_absolute": 2.255140518769849e-16,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.9417153476409783e-14,
+        "relative_peak": 1.1681477041708022e-14,
+        "maximum_pointwise_relative": 2.6552544885031904e-13
+      },
+      "plastic equivalent_creep_strain": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic u3": {
+        "count": 13,
+        "maximum_absolute": 9.685754802368773e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 2.685661940526573e-08,
+        "relative_peak": 8.69234393337094e-09,
+        "maximum_pointwise_relative": 4.749744902856495e-08
+      },
+      "plastic rotation_x": {
+        "count": 13,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic rotation_y": {
+        "count": 13,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "plastic axial_force": {
+        "count": 13,
+        "maximum_absolute": 1.1822409362594044e-07,
+        "zero_absolute": 0.0,
+        "relative_l2": 3.309982481902208e-08,
+        "relative_peak": 2.5964505532259264e-08,
+        "maximum_pointwise_relative": 4.6471414743347035e-08
+      },
+      "plastic moment_x": {
+        "count": 13,
+        "maximum_absolute": 1.0842021724855044e-18,
+        "zero_absolute": 8.673617379884035e-19
+      },
+      "plastic moment_y": {
+        "count": 13,
+        "maximum_absolute": 8.673617379884035e-19,
+        "zero_absolute": 8.673617379884035e-19
+      },
+      "creep stress_xx": {
+        "count": 117,
+        "maximum_absolute": 2.9103830456733704e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.1738056351125796e-15,
+        "relative_peak": 1.472181048150289e-15,
+        "maximum_pointwise_relative": 1.472181048150289e-15
+      },
+      "creep stress_yy": {
+        "count": 117,
+        "maximum_absolute": 2.9103830456733704e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.1738056351125796e-15,
+        "relative_peak": 1.472181048150289e-15,
+        "maximum_pointwise_relative": 1.472181048150289e-15
+      },
+      "creep stress_zz": {
+        "count": 117,
+        "maximum_absolute": 2.9103830456733704e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.12207582231753e-15,
+        "relative_peak": 1.4223623259492593e-15,
+        "maximum_pointwise_relative": 1.4223623259492593e-15
+      },
+      "creep stress_xy": {
+        "count": 117,
+        "maximum_absolute": 1.2294472444848468e-29,
+        "zero_absolute": 1.2294472444848468e-29
+      },
+      "creep elastic_xx": {
+        "count": 117,
+        "maximum_absolute": 1.3877787807814457e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.2498322149108497e-15,
+        "relative_peak": 1.2503811087920497e-15,
+        "maximum_pointwise_relative": 1.5619392658900473e-15
+      },
+      "creep elastic_yy": {
+        "count": 117,
+        "maximum_absolute": 1.3877787807814457e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.2498322149108497e-15,
+        "relative_peak": 1.2503811087920497e-15,
+        "maximum_pointwise_relative": 1.5619392658900473e-15
+      },
+      "creep elastic_zz": {
+        "count": 117,
+        "maximum_absolute": 1.5612511283791264e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.12774655213221e-15,
+        "relative_peak": 1.4760786053977221e-15,
+        "maximum_pointwise_relative": 1.5622708854218326e-15
+      },
+      "creep elastic_xy": {
+        "count": 117,
+        "maximum_absolute": 3.0736181112121156e-35,
+        "zero_absolute": 3.0736181112121156e-35
+      },
+      "creep elastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep elastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep plastic_xx": {
+        "count": 117,
+        "maximum_absolute": 1.3877787807814457e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.3466239761367924e-15,
+        "relative_peak": 1.4424275952284587e-15,
+        "maximum_pointwise_relative": 1.5764354594867851e-15
+      },
+      "creep plastic_yy": {
+        "count": 117,
+        "maximum_absolute": 1.3877787807814457e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.3466239761367924e-15,
+        "relative_peak": 1.4424275952284587e-15,
+        "maximum_pointwise_relative": 1.5764354594867851e-15
+      },
+      "creep plastic_zz": {
+        "count": 117,
+        "maximum_absolute": 1.3877787807814457e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 8.029813096530056e-16,
+        "relative_peak": 5.409103482106721e-16,
+        "maximum_pointwise_relative": 1.1291742623893877e-15
+      },
+      "creep plastic_xy": {
+        "count": 117,
+        "maximum_absolute": 8.83417334545161e-35,
+        "zero_absolute": 8.83417334545161e-35
+      },
+      "creep plastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep plastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep creep_xx": {
+        "count": 117,
+        "maximum_absolute": 1.6263032587282567e-19,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.6168470882025402e-15,
+        "relative_peak": 1.799854030149562e-15,
+        "maximum_pointwise_relative": 1.8246479607829888e-15
+      },
+      "creep creep_yy": {
+        "count": 117,
+        "maximum_absolute": 1.6263032587282567e-19,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.6168470882025402e-15,
+        "relative_peak": 1.799854030149562e-15,
+        "maximum_pointwise_relative": 1.8246479607829888e-15
+      },
+      "creep creep_zz": {
+        "count": 117,
+        "maximum_absolute": 1.3552527156068805e-19,
+        "zero_absolute": 0.0,
+        "relative_l2": 8.819939289919898e-16,
+        "relative_peak": 7.499391792289841e-16,
+        "maximum_pointwise_relative": 1.0424201975432874e-15
+      },
+      "creep creep_xy": {
+        "count": 117,
+        "maximum_absolute": 9.220854333636357e-37,
+        "zero_absolute": 9.220854333636357e-37
+      },
+      "creep creep_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep creep_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep equivalent_plastic_strain": {
+        "count": 117,
+        "maximum_absolute": 1.734723475976807e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 8.991592529403675e-16,
+        "relative_peak": 7.212137976142294e-16,
+        "maximum_pointwise_relative": 1.1047047487347504e-15
+      },
+      "creep equivalent_creep_strain": {
+        "count": 117,
+        "maximum_absolute": 1.8973538018496328e-19,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.121376509562194e-15,
+        "relative_peak": 1.0499148509205777e-15,
+        "maximum_pointwise_relative": 1.2509042370519449e-15
+      },
+      "creep u3": {
+        "count": 13,
+        "maximum_absolute": 9.685754802368773e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 2.685661940526573e-08,
+        "relative_peak": 8.69234393337094e-09,
+        "maximum_pointwise_relative": 4.749744902856495e-08
+      },
+      "creep rotation_x": {
+        "count": 13,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep rotation_y": {
+        "count": 13,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "creep axial_force": {
+        "count": 13,
+        "maximum_absolute": 1.9507956761088963e-07,
+        "zero_absolute": 0.0,
+        "relative_l2": 2.8203783316544467e-08,
+        "relative_peak": 4.766964286226452e-08,
+        "maximum_pointwise_relative": 4.766964286226452e-08
+      },
+      "creep moment_x": {
+        "count": 13,
+        "maximum_absolute": 8.673617379884035e-19,
+        "zero_absolute": 8.673617379884035e-19
+      },
+      "creep moment_y": {
+        "count": 13,
+        "maximum_absolute": 7.806255641895632e-18,
+        "zero_absolute": 1.214306433183765e-17
+      },
+      "coupled stress_xx": {
+        "count": 117,
+        "maximum_absolute": 2.546585164964199e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.07921366414604e-15,
+        "relative_peak": 1.2989869225809454e-15,
+        "maximum_pointwise_relative": 1.3669809842356725e-15
+      },
+      "coupled stress_yy": {
+        "count": 117,
+        "maximum_absolute": 2.546585164964199e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.07921366414604e-15,
+        "relative_peak": 1.2989869225809454e-15,
+        "maximum_pointwise_relative": 1.3669809842356725e-15
+      },
+      "coupled stress_zz": {
+        "count": 117,
+        "maximum_absolute": 2.546585164964199e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.0087120592123967e-15,
+        "relative_peak": 1.2248373044212213e-15,
+        "maximum_pointwise_relative": 1.2248373044212213e-15
+      },
+      "coupled stress_xy": {
+        "count": 117,
+        "maximum_absolute": 2.4192349004379274e-29,
+        "zero_absolute": 2.4192349004379274e-29
+      },
+      "coupled elastic_xx": {
+        "count": 117,
+        "maximum_absolute": 1.214306433183765e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.124915112883683e-15,
+        "relative_peak": 1.2774786854245885e-15,
+        "maximum_pointwise_relative": 1.4427095235333597e-15
+      },
+      "coupled elastic_yy": {
+        "count": 117,
+        "maximum_absolute": 1.214306433183765e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.124915112883683e-15,
+        "relative_peak": 1.2774786854245885e-15,
+        "maximum_pointwise_relative": 1.4427095235333597e-15
+      },
+      "coupled elastic_zz": {
+        "count": 117,
+        "maximum_absolute": 1.0408340855860843e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 9.66643350840771e-16,
+        "relative_peak": 9.471587084185615e-16,
+        "maximum_pointwise_relative": 1.2319869900264531e-15
+      },
+      "coupled elastic_xy": {
+        "count": 117,
+        "maximum_absolute": 6.048087251094816e-35,
+        "zero_absolute": 6.048087251094816e-35
+      },
+      "coupled elastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "coupled elastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "coupled plastic_xx": {
+        "count": 117,
+        "maximum_absolute": 1.0408340855860843e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.0657719275615897e-15,
+        "relative_peak": 1.114279028008964e-15,
+        "maximum_pointwise_relative": 1.4880730704073468e-15
+      },
+      "coupled plastic_yy": {
+        "count": 117,
+        "maximum_absolute": 1.0408340855860843e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.0657719275615897e-15,
+        "relative_peak": 1.114279028008964e-15,
+        "maximum_pointwise_relative": 1.4880730704073468e-15
+      },
+      "coupled plastic_zz": {
+        "count": 117,
+        "maximum_absolute": 1.734723475976807e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 9.233977634675046e-16,
+        "relative_peak": 9.285658566741368e-16,
+        "maximum_pointwise_relative": 1.4880730704073465e-15
+      },
+      "coupled plastic_xy": {
+        "count": 117,
+        "maximum_absolute": 5.770470131372435e-35,
+        "zero_absolute": 5.770470131372435e-35
+      },
+      "coupled plastic_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "coupled plastic_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "coupled creep_xx": {
+        "count": 117,
+        "maximum_absolute": 2.710505431213761e-19,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.6841773348538923e-15,
+        "relative_peak": 1.6465431248473877e-15,
+        "maximum_pointwise_relative": 1.8954188424871772e-15
+      },
+      "coupled creep_yy": {
+        "count": 117,
+        "maximum_absolute": 2.710505431213761e-19,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.6841773348538923e-15,
+        "relative_peak": 1.6465431248473877e-15,
+        "maximum_pointwise_relative": 1.8954188424871772e-15
+      },
+      "coupled creep_zz": {
+        "count": 117,
+        "maximum_absolute": 3.7947076036992655e-19,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.2963632161618896e-15,
+        "relative_peak": 1.1525801873931711e-15,
+        "maximum_pointwise_relative": 1.8671948213890036e-15
+      },
+      "coupled creep_xy": {
+        "count": 117,
+        "maximum_absolute": 1.8144261753284453e-36,
+        "zero_absolute": 1.8144261753284453e-36
+      },
+      "coupled creep_yz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "coupled creep_xz": {
+        "count": 117,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "coupled equivalent_plastic_strain": {
+        "count": 117,
+        "maximum_absolute": 1.734723475976807e-17,
+        "zero_absolute": 0.0,
+        "relative_l2": 8.505612238537344e-16,
+        "relative_peak": 9.285658566741368e-16,
+        "maximum_pointwise_relative": 1.2175143303332834e-15
+      },
+      "coupled equivalent_creep_strain": {
+        "count": 117,
+        "maximum_absolute": 3.7947076036992655e-19,
+        "zero_absolute": 0.0,
+        "relative_l2": 1.2620701887309429e-15,
+        "relative_peak": 1.1525801873931711e-15,
+        "maximum_pointwise_relative": 1.6004527040477172e-15
+      },
+      "coupled u3": {
+        "count": 13,
+        "maximum_absolute": 9.685754802368773e-11,
+        "zero_absolute": 0.0,
+        "relative_l2": 2.685661940526573e-08,
+        "relative_peak": 8.69234393337094e-09,
+        "maximum_pointwise_relative": 4.749744902856495e-08
+      },
+      "coupled rotation_x": {
+        "count": 13,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "coupled rotation_y": {
+        "count": 13,
+        "maximum_absolute": 0.0,
+        "zero_absolute": 0.0
+      },
+      "coupled axial_force": {
+        "count": 13,
+        "maximum_absolute": 1.070643946832206e-07,
+        "zero_absolute": 0.0,
+        "relative_l2": 2.232635502209654e-08,
+        "relative_peak": 2.5747512740569763e-08,
+        "maximum_pointwise_relative": 3.582484363367072e-08
+      },
+      "coupled moment_x": {
+        "count": 13,
+        "maximum_absolute": 1.3010426069826053e-18,
+        "zero_absolute": 1.951563910473908e-18
+      },
+      "coupled moment_y": {
+        "count": 13,
+        "maximum_absolute": 1.214306433183765e-17,
+        "zero_absolute": 9.107298248878237e-18
+      },
+      "reaction_x": {
+        "count": 312,
+        "maximum_absolute": 1.509903313490213e-13,
+        "zero_absolute": 2.6645352591003757e-15,
+        "relative_l2": 1.1089022551257331e-14,
+        "relative_peak": 1.1456487038522914e-14,
+        "maximum_pointwise_relative": 1.2392650801555383e-14
+      },
+      "reaction_y": {
+        "count": 312,
+        "maximum_absolute": 3.126388037344441e-13,
+        "zero_absolute": 9.103828801926284e-15,
+        "relative_l2": 1.1074629017606809e-14,
+        "relative_peak": 1.1321704838069702e-14,
+        "maximum_pointwise_relative": 1.274761318203991e-14
+      }
+    },
+    "native_failures": []
+  },
+  "regression": {
+    "command": "ctest --test-dir /tmp/cpeg8t-acceptance-build -j8 --output-on-failure",
+    "passed": 379,
+    "failed": 0,
+    "elapsed_seconds": 295.13
+  }
+}

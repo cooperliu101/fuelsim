@@ -218,6 +218,10 @@ if(BUILD_TESTING)
         COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_contact_laws.py"
             --case thermal_clearance --executable "$<TARGET_FILE:fuelsim>"
             --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_thermal_clearance")
+    add_test(NAME fuelsim_cpeg8t_thermal_pressure_small_gap_abaqus
+        COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_contact_laws.py"
+            --case thermal_pressure_small_gap --executable "$<TARGET_FILE:fuelsim>"
+            --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_thermal_pressure_small_gap")
     add_test(NAME fuelsim_cpeg8t_contact_restart
         COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_contact_restart.py"
             --executable "$<TARGET_FILE:fuelsim>" --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_contact_restart")
