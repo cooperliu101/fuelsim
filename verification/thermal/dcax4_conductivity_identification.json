@@ -1,0 +1,14 @@
+{
+  "gauss_temperature": {
+    "points": 160,
+    "maximum_relative_flux_error": 0.028629196566280025
+  },
+  "paired_corner_temperature": {
+    "points": 160,
+    "maximum_relative_flux_error": 5.968657793897303e-06
+  },
+  "element_mean_temperature": {
+    "points": 160,
+    "maximum_relative_flux_error": 0.0677369963352148
+  }
+}

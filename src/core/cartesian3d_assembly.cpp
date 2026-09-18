@@ -132,12 +132,6 @@ using Matrix4 = std::array<double, 16>;
 using Vector4 = std::array<double, 4>;
 using Matrix8 = std::array<double, 64>;
 
-struct AbaqusQuad8TransferSample final {
-    double first;
-    double second;
-    double weight;
-};
-
 const std::array<std::array<double, 2>, 4>& abaqus_quad4_constraint_locations() {
     // B3.8 identifies these effective centers for Abaqus/Standard C3D8
     // small-sliding surface-to-surface constraints in face-node order.
@@ -349,114 +343,6 @@ const Matrix8& abaqus_quad8_pressure_recovery() {
         3.0 / 24.0,
         7.0 / 24.0}};
     return value;
-}
-
-const std::array<AbaqusQuad8TransferSample, 12>& abaqus_quad8_corner_transfer_rule() {
-    // H20.28 identifies this mesh-independent parent-face sampling rule from
-    // Abaqus/Standard R2018x primary meshes with 8, 16, and 32 subdivisions.
-    // The first two coordinates use [0, 1] on the complete secondary face.
-    static const std::array<AbaqusQuad8TransferSample, 12> value = {
-        {{0.028276366456420152, 0.12450141132135768, 0.086805555555562158},
-            {0.03199788301796376, 0.21899929433932117, 0.13765653331648353},
-            {0.033360052620092687, 0.033360052620092881, 0.12916616234614192},
-            {0.047248941508981852, 0.38603095325083253, 0.056145392295365942},
-            {0.10552883626879452, 0.1055288362687966, 0.058333837653884016},
-            {0.11941772515768481, 0.16952460230472302, 0.086215718815705361},
-            {0.12450141132135777, 0.028276366456420156, 0.086805555555567654},
-            {0.16952460230472319, 0.11941772515768576, 0.086215718815703918},
-            {0.17633545031537054, 0.26711181677179063, 0.03942680001684136},
-            {0.21899929433932119, 0.031997883017963316, 0.13765653331647812},
-            {0.26711181677178519, 0.1763354503153691, 0.039426800016858818},
-            {0.38603095325083064, 0.047248941508978792, 0.056145392295423285}}};
-    return value;
-}
-
-const std::array<AbaqusQuad8TransferSample, 40>& abaqus_quad8_edge_transfer_rule() {
-    static const std::array<AbaqusQuad8TransferSample, 40> value = {
-        {{0.028276366456418445, 0.12450141132135609, 0.0014138183228190539},
-            {0.031997883017964308, 0.21899929433932022, 0.0035378857178991023},
-            {0.033360052620099695, 0.033360052620091216, 0.0019890098870065402},
-            {0.047248941508978626, 0.38603095325083892, 0.0079520568710641521},
-            {0.10552883626880082, 0.10552883626879425, 0.0042609901129871917},
-            {0.10566243270259684, 0.5, 0.014174682452723866},
-            {0.11941772515768409, 0.16952460230472471, 0.0097562764622762116},
-            {0.12450141132135764, 0.028276366456420281, 0.0062250705660643595},
-            {0.16952460230472319, 0.11941772515768448, 0.013849944679972161},
-            {0.17633545031536924, 0.26711181677179047, 0.024587114282105537},
-            {0.21899929433932128, 0.031997883017963434, 0.024213929253937019},
-            {0.25, 0.35566243270259301, 0.052900635094618217},
-            {0.25, 0.64433756729741143, 0.0095993649054004881},
-            {0.26711181677179036, 0.17633545031537012, 0.037244404079395804},
-            {0.35566243270259157, 0.75000000000000011, 0.006250000000009805},
-            {0.35566243270259346, 0.25, 0.081249999999999295},
-            {0.38603095325083253, 0.047248941508981623, 0.064969499764469363},
-            {0.39433756729740682, 0.5, 0.03582531754730961},
-            {0.5, 0.10566243270259353, 0.11997595264190444},
-            {0.5, 0.39433756729740604, 0.055024047358088829},
-            {0.5, 0.60566243270259357, 0.023325317547314144},
-            {0.5, 0.89433756729742642, 0.0016746824527028559},
-            {0.60566243270259401, 0.5, 0.03582531754730503},
-            {0.61396904674916786, 0.047248941508981374, 0.064969499764467697},
-            {0.64433756729740654, 0.25, 0.081249999999991149},
-            {0.64433756729740688, 0.75, 0.0062499999999983133},
-            {0.73288818322821081, 0.17633545031536949, 0.037244404079388477},
-            {0.74999999999999989, 0.35566243270259401, 0.052900635094603674},
-            {0.75, 0.64433756729740743, 0.0095993649053841227},
-            {0.78100070566067914, 0.03199788301796349, 0.024213929253929546},
-            {0.82366454968462943, 0.26711181677178969, 0.024587114282093269},
-            {0.83047539769527723, 0.11941772515768355, 0.013849944679969167},
-            {0.8754985886786425, 0.028276366456420572, 0.0062250705660644168},
-            {0.88058227484231988, 0.16952460230472366, 0.0097562764622718401},
-            {0.89433756729740699, 0.5, 0.0141746824526763},
-            {0.89447116373120827, 0.10552883626879543, 0.0042609901129861093},
-            {0.95275105849101915, 0.38603095325082687, 0.0079520568710483106},
-            {0.96663994737990877, 0.03336005262008996, 0.0019890098870046931},
-            {0.96800211698203353, 0.21899929433932186, 0.0035378857178827283},
-            {0.97172363354357416, 0.12450141132135775, 0.0014138183228165758}}};
-    return value;
-}
-
-std::vector<AbaqusQuad8TransferSample> abaqus_quad8_primary_transfer_rule(std::size_t local_constraint) {
-    std::vector<AbaqusQuad8TransferSample> result;
-    if (local_constraint < 4) {
-        result.reserve(abaqus_quad8_corner_transfer_rule().size());
-        for (const AbaqusQuad8TransferSample& sample : abaqus_quad8_corner_transfer_rule())
-            result.push_back(sample);
-    } else if (local_constraint < 8) {
-        result.reserve(abaqus_quad8_edge_transfer_rule().size());
-        for (const AbaqusQuad8TransferSample& sample : abaqus_quad8_edge_transfer_rule())
-            result.push_back(sample);
-    } else {
-        throw std::out_of_range("Abaqus HEX20 contact constraint index exceeds the Quad8 face");
-    }
-    for (AbaqusQuad8TransferSample& sample : result) {
-        const double first = sample.first, second = sample.second;
-        if (local_constraint == 1)
-            sample.first = 1.0 - first;
-        else if (local_constraint == 2) {
-            sample.first = 1.0 - first;
-            sample.second = 1.0 - second;
-        } else if (local_constraint == 3)
-            sample.second = 1.0 - second;
-        else if (local_constraint == 5) {
-            sample.first = 1.0 - second;
-            sample.second = first;
-        } else if (local_constraint == 6)
-            sample.second = 1.0 - second;
-        else if (local_constraint == 7) {
-            sample.first = second;
-            sample.second = first;
-        }
-    }
-    const double sum =
-        std::accumulate(result.begin(), result.end(), 0.0, [](double value, const AbaqusQuad8TransferSample& sample) {
-            return value + sample.weight;
-        });
-    if (!std::isfinite(sum) || !(sum > 0.0))
-        throw std::logic_error("Abaqus HEX20 primary transfer rule has an invalid weight sum");
-    for (AbaqusQuad8TransferSample& sample : result)
-        sample.weight /= sum;
-    return result;
 }
 
 double reference_measure(const Quad8FaceMechanicalQuadraturePoint& point) {

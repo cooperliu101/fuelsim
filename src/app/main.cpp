@@ -597,7 +597,9 @@ bool run_transient(const FuelSimCaseDefinition& definition,
     }
     for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact) {
         InterfaceSummary summary;
-        if (plane_source)
+        if (BackendAccess::uses_thermal(problem))
+            summary = BackendAccess::thermal_spatial(problem).summarize_interface(contact, result.committed_state);
+        else if (plane_source)
             summary = BackendAccess::plane_spatial(problem).summarize_interface(contact, result.committed_state);
         else if (bar2_source)
             summary = BackendAccess::radial_spatial(problem).summarize_interface(contact, result.committed_state);

@@ -204,12 +204,30 @@ void SpatialAssembly::initialize(const UnstructuredMeshMetadata& mesh, ThermalEl
                 entry.boundary = c;
                 for (auto n : nodes)
                     entry.dofs.push_back(source_to_global[n]);
-                for (auto n : primary_nodes[point.primary])
-                    entry.dofs.push_back(source_to_global[n]);
-                auto unique = entry.dofs;
-                std::sort(unique.begin(), unique.end());
-                if (std::adjacent_find(unique.begin(), unique.end()) != unique.end())
-                    throw std::invalid_argument("Thermal interface sides must use independent source nodes");
+                // Neighboring primary faces may share nodes. Merge their moments
+                // before assembly, while keeping the two interface sides independent.
+                std::vector<double> primary_shape;
+                for (std::size_t i = 0; i < point.primary_nodes.size(); ++i) {
+                    const auto& location = point.primary_nodes[i];
+                    const auto dof = source_to_global[primary_nodes[location[0]][location[1]]];
+                    if (std::find(entry.dofs.begin(),
+                            entry.dofs.begin() + static_cast<std::ptrdiff_t>(nodes.size()),
+                            dof)
+                        != entry.dofs.begin() + static_cast<std::ptrdiff_t>(nodes.size()))
+                        throw std::invalid_argument("Thermal interface sides must use independent source nodes");
+                    const auto found = std::find(entry.dofs.begin() + static_cast<std::ptrdiff_t>(nodes.size()),
+                        entry.dofs.end(),
+                        dof);
+                    if (found == entry.dofs.end()) {
+                        entry.dofs.push_back(dof);
+                        primary_shape.push_back(point.primary_shape[i]);
+                    } else {
+                        const auto index = static_cast<std::size_t>(found - entry.dofs.begin()) - nodes.size();
+                        primary_shape[index] += point.primary_shape[i];
+                    }
+                }
+                point.primary_shape = std::move(primary_shape);
+                point.primary_nodes.clear();
                 entry.interface = std::move(point);
                 _contributions.push_back(std::move(entry));
             }

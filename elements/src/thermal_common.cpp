@@ -134,7 +134,8 @@ ThermalResult integrate(const ThermalInput& input, bool jacobian) {
             }
         }
     }
-    for (const auto& point : input.geometry.points) {
+    for (std::size_t q = 0; q < input.geometry.points.size(); ++q) {
+        const auto& point = input.geometry.points[q];
         if (point.shape.size() != count || point.gradient.size() != count || !std::isfinite(point.measure)
             || point.measure <= 0.0)
             throw std::invalid_argument("Invalid thermal quadrature layout or measure");
@@ -151,6 +152,13 @@ ThermalResult integrate(const ThermalInput& input, bool jacobian) {
             for (std::size_t a = 0; a < 3; ++a)
                 gradient[a] += point.gradient[n][a] * input.temperature[n];
         }
+        // DCAX4 samples conductivity at the corner paired with each Gauss point.
+        // The temperature gradient remains the full isoparametric gradient.
+        const bool corner_conductivity = input.geometry.element == ThermalElement::dcax4;
+        constexpr std::array<std::size_t, 4> paired_corner{0, 1, 3, 2};
+        const std::size_t material_node = corner_conductivity ? paired_corner.at(q) : 0;
+        if (corner_conductivity)
+            temperature = input.temperature[material_node];
         const MaterialFunctionContext context{input.time,
             point.position.x,
             input.geometry.axisymmetric ? 0.0 : point.position.y,
@@ -188,7 +196,9 @@ ThermalResult integrate(const ThermalInput& input, bool jacobian) {
                         stiffness += point.gradient[i][a] * point.gradient[j][a];
                     result.jacobian[i * count + j] +=
                         point.measure
-                        * (conductivity * stiffness + dk * point.shape[j] * conduction
+                        * (conductivity * stiffness
+                            + dk * (corner_conductivity ? (j == material_node ? 1.0 : 0.0) : point.shape[j])
+                                  * conduction
                             + point.shape[i] * point.shape[j]
                                   * (dc * rate
                                       + (!lumped && input.time_step > 0.0 ? capacity / input.time_step : 0.0)));

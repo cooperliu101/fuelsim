@@ -70,6 +70,57 @@ int main() {
         }
         if (std::abs(face_heat - 11000) > 1e-8)
             throw std::runtime_error("Quadratic face heat rate is incorrect");
+        // A single secondary neighborhood can span multiple primary faces.
+        // Check the full temperature chain and zero flux for a continuous trace.
+        std::vector<std::vector<CartesianPoint3>> split_primary(2, other);
+        for (std::size_t side = 0; side < split_primary.size(); ++side)
+            for (auto& node : split_primary[side])
+                node.x = 0.5 * (node.x + static_cast<double>(side));
+        const auto split_points = make_thermal_interface_points(face, split_primary, false);
+        if (split_points.size() != 8)
+            throw std::runtime_error("Quadratic thermal face must have eight averaged neighborhoods");
+        bool spans_faces = false;
+        double measure = 0.0;
+        for (const auto& point : split_points) {
+            measure += point.measure;
+            bool first = false, second = false;
+            std::vector<double> values;
+            for (const auto& node : face)
+                values.push_back(315.0 + 7.0 * node.x + 11.0 * node.y);
+            for (const auto& location : point.primary_nodes) {
+                first = first || location[0] == 0;
+                second = second || location[0] == 1;
+                const auto& node = split_primary[location[0]][location[1]];
+                values.push_back(315.0 + 7.0 * node.x + 11.0 * node.y);
+            }
+            spans_faces = spans_faces || (first && second);
+            const auto equilibrium = evaluate_thermal_interface(point, temperature_law, values, false);
+            for (double residual : equilibrium.residual)
+                if (std::abs(residual) > 1e-9)
+                    throw std::runtime_error("Nonmatching quadratic interface loses a continuous temperature trace");
+            for (std::size_t node = 0; node < face.size(); ++node)
+                values[node] += 20.0 + static_cast<double>(node);
+            const auto evaluated = evaluate_thermal_interface(point, temperature_law, values, true);
+            const auto repeated = evaluate_thermal_interface(point, temperature_law, values, false);
+            if (evaluated.residual != repeated.residual)
+                throw std::runtime_error("Averaged interface residual depends on tangent evaluation");
+            if (std::abs(std::accumulate(evaluated.residual.begin(), evaluated.residual.end(), 0.0)) > 1e-9)
+                throw std::runtime_error("Averaged interface does not conserve heat across primary candidates");
+            for (std::size_t column = 0; column < values.size(); ++column) {
+                auto plus = values, minus = values;
+                plus[column] += 1e-4;
+                minus[column] -= 1e-4;
+                const auto rp = evaluate_thermal_interface(point, temperature_law, plus, false);
+                const auto rm = evaluate_thermal_interface(point, temperature_law, minus, false);
+                for (std::size_t row = 0; row < values.size(); ++row)
+                    if (std::abs((rp.residual[row] - rm.residual[row]) / 2e-4
+                                 - evaluated.jacobian[values.size() * row + column])
+                        > 1e-6)
+                        throw std::runtime_error("Averaged nonmatching interface temperature derivative mismatch");
+            }
+        }
+        if (!spans_faces || std::abs(measure - 1.0) > 1e-12)
+            throw std::runtime_error("Quadratic neighborhoods failed primary partition or area conservation");
         bool rejected = false;
         try {
             (void)make_thermal_interface_points(secondary, {}, true);

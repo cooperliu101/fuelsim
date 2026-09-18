@@ -46,7 +46,7 @@ def project(position, face):
     return p, float(normal@(position-p)), natural
 
 def rules():
-    source = (ROOT/'src/core/cartesian3d_assembly.cpp').read_text()
+    source = (ROOT/'elements/src/quad8_face.cpp').read_text()
     result = []
     for name in ['corner','edge']:
         body = source.split('abaqus_quad8_'+name+'_transfer_rule() {',1)[1].split('return value;',1)[0]

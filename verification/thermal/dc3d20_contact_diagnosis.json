@@ -1,0 +1,12 @@
+{
+  "case": "dc3d20_contact",
+  "matching_coordinate_maximum_m": 0.0,
+  "noninterface_native_balance_maximum_W": 1.432852110180155e-06,
+  "interface_native_balance_maximum_W": {
+    "pointwise_gauss_2": 0.00016472173130943624,
+    "pointwise_gauss_3": 0.000165198453144777,
+    "pointwise_gauss_5": 0.000165198453144777,
+    "pointwise_gauss_10": 0.00016519845314366677,
+    "neighborhood_average": 9.052717491186968e-07
+  }
+}

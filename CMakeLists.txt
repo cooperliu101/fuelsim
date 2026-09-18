@@ -2102,7 +2102,7 @@ if(BUILD_TESTING)
                 "${CMAKE_CURRENT_BINARY_DIR}/blackbox/section_modal_accuracy_mpi" nonuniform --accuracy
                 --mpiexec "${FUELSIM_MPIEXEC_EXECUTABLE}")
         set_tests_properties(fuelsim_section_modal_accuracy_mpi PROPERTIES
-            PROCESSORS 8 TIMEOUT 180
+            PROCESSORS 4 TIMEOUT 180
             ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
     endif()
     set(h20_production_reference "${CMAKE_CURRENT_BINARY_DIR}/blackbox/h20_inelastic_coupled/verification/fuelsim/transient_hex20_inelastic_coupled_moose_results.e")
@@ -2751,7 +2751,11 @@ if(BUILD_TESTING)
     foreach(thermal_test dcax4 dcax8 dc3d8 dc3d20 thermal_interface)
         add_test(NAME fuelsim_${thermal_test}_tests COMMAND fuelsim_${thermal_test}_tests)
     endforeach()
-    foreach(thermal_case dcax4_steady dcax8_steady dc3d8_steady dc3d20_steady dcax4_transient dcax8_transient dc3d8_transient dc3d20_transient dcax8_contact dcax4_capacity dc3d8_capacity)
+    foreach(thermal_case dcax4_steady dcax8_steady dc3d8_steady dc3d20_steady dcax4_transient dcax8_transient dc3d8_transient dc3d20_transient dcax8_contact dcax4_capacity dc3d8_capacity
+        dcax4_nonlinear dcax8_nonlinear dc3d8_nonlinear dc3d20_nonlinear
+        dcax8_distorted_steady dcax8_distorted_transient dc3d20_distorted_steady dc3d20_distorted_transient
+        dcax4_contact dcax4_contact_nonmatching dcax8_contact_gap dcax8_contact_transient
+        dc3d8_contact dc3d20_contact)
         add_test(NAME fuelsim_${thermal_case}_abaqus
             COMMAND "${FUELSIM_SECTION_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/thermal/compare.py"
                 --fuelsim $<TARGET_FILE:fuelsim>
@@ -2759,6 +2763,10 @@ if(BUILD_TESTING)
                 --work "${CMAKE_CURRENT_BINARY_DIR}/thermal/${thermal_case}"
                 --case ${thermal_case})
     endforeach()
+
+    add_test(NAME fuelsim_dcax4_conductivity_identification
+        COMMAND "${FUELSIM_SECTION_PYTHON}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/thermal/identify_dcax4_conductivity.py")
 
     add_test(NAME fuelsim_thermal_mpi_equivalence
         COMMAND "${FUELSIM_SECTION_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/thermal/mpi_compare.py"

@@ -5,8 +5,8 @@ New-Item -ItemType Directory -Path $work | Out-Null
 Copy-Item (Join-Path $SourceDirectory "*.inp") $work
 Copy-Item (Join-Path $SourceDirectory "extract.py") $work
 Set-Location $work
-$cases = @("dcax4_transient", "dcax8_transient", "dc3d8_transient", "dc3d20_transient", "dcax4_steady", "dcax8_steady", "dc3d8_steady", "dc3d20_steady", "dcax8_contact", "dcax4_capacity", "dc3d8_capacity")
-if ($CaseName -ne "") { $cases = @($CaseName) }
+$cases = @("dcax4_transient", "dcax8_transient", "dc3d8_transient", "dc3d20_transient", "dcax4_steady", "dcax8_steady", "dc3d8_steady", "dc3d20_steady", "dcax8_contact", "dcax4_capacity", "dc3d8_capacity", "dcax4_nonlinear", "dcax8_nonlinear", "dc3d8_nonlinear", "dc3d20_nonlinear", "dcax8_distorted_steady", "dcax8_distorted_transient", "dc3d20_distorted_steady", "dc3d20_distorted_transient", "dcax4_contact", "dcax4_contact_nonmatching", "dcax8_contact_gap", "dcax8_contact_transient", "dc3d8_contact", "dc3d20_contact")
+if ($CaseName -ne "") { $cases = $CaseName.Split(",") }
 foreach ($name in $cases) {
     & "C:\SIMULIA\Commands\abaqus.bat" job=$name input="$name.inp" cpus=1 interactive
     if ($LASTEXITCODE -ne 0) { throw "Abaqus failed: $name" }

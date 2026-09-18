@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 import numpy as np
 
-source = Path('src/core/cartesian3d_assembly.cpp').read_text()
+source = Path('src/core/cartesian3d_assembly.cpp').read_text() + Path('elements/src/quad8_face.cpp').read_text()
 rules = []
 for name in ('corner', 'edge'):
     begin = source.index('static const std::array<AbaqusQuad8TransferSample',

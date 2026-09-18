@@ -8,7 +8,7 @@ from pathlib import Path
 import re
 import numpy as np
 
-source = Path('src/core/cartesian3d_assembly.cpp').read_text()
+source = Path('src/core/cartesian3d_assembly.cpp').read_text() + Path('elements/src/quad8_face.cpp').read_text()
 begin = source.index('static const Matrix8 value', source.index('const Matrix8& abaqus_quad8_averaging'))
 end = source.index('}};', begin)
 averaging = np.array([

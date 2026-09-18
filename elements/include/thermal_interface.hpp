@@ -4,7 +4,8 @@
 
 namespace fuelsim::elements {
 struct ThermalInterfacePoint final {
-    std::size_t primary = 0;
+    // Each primary temperature entry identifies its candidate face and local node.
+    std::vector<std::array<std::size_t, 2>> primary_nodes;
     std::vector<double> secondary_shape, primary_shape;
     double gap = 0.0, measure = 0.0;
 };

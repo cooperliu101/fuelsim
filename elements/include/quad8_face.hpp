@@ -8,6 +8,14 @@
 #include <vector>
 
 namespace fuelsim {
+struct AbaqusQuad8TransferSample final {
+    double first;
+    double second;
+    double weight;
+};
+
+std::vector<AbaqusQuad8TransferSample> abaqus_quad8_primary_transfer_rule(std::size_t local_constraint);
+
 inline constexpr std::size_t quad8_face_temperature_node_count = 4;
 
 inline constexpr std::size_t quad8_face_displacement_node_count = 8;

@@ -20,13 +20,15 @@ def metric(value, reference, zero=False):
     peak = float(abs(np.max(np.abs(value))-np.max(np.abs(reference)))/np.max(np.abs(reference)))
     pointwise = float(np.max(np.abs(difference[nonzero]/reference[nonzero])))
     zeros_pass = bool(np.all(np.abs(difference[~nonzero]) < 1e-7))
-    return {'relative_l2':l2, 'relative_peak':peak, 'maximum_pointwise_relative':pointwise,
+    return {'absolute_maximum':float(np.max(np.abs(difference))), 'relative_l2':l2, 'relative_peak':peak, 'maximum_pointwise_relative':pointwise,
             'passed':bool(max(l2,peak,pointwise) < 0.005 and zeros_pass)}
 
 
 def compare(directory, name, references):
-    nodes = list(csv.DictReader((references/(name+'.nodes.csv')).open()))
-    points = list(csv.DictReader((references/(name+'.points.csv')).open()))
+    with (references/(name+'.nodes.csv')).open() as stream:
+        nodes = list(csv.DictReader(stream))
+    with (references/(name+'.points.csv')).open() as stream:
+        points = list(csv.DictReader(stream))
     with netCDF4.Dataset(directory/(name+'_results.e')) as data:
         times = np.asarray(data['time_whole'][:])
         nodal_names = netCDF4.chartostring(data['name_nod_var'][:]).tolist()
@@ -38,13 +40,21 @@ def compare(directory, name, references):
             if len(matches) != 1:
                 raise AssertionError('Missing or duplicate output time '+str(time))
             return matches[0]
+        native_times = {float(row['time']) for row in nodes}
+        if native_times != {float(row['time']) for row in points}:
+            raise AssertionError('Native nodal and integration point times differ')
+        if len(native_times) != len(times[times > 0]):
+            raise AssertionError('Production and native saved time coverage differs')
+        node_keys = {(float(row['time']), int(row['node'])) for row in nodes}
+        expected_keys = {(time, node) for time in native_times
+                         for node in range(1, len(data.dimensions['num_nodes']) + 1)}
+        if len(node_keys) != len(nodes) or node_keys != expected_keys:
+            raise AssertionError('Native node coverage is incomplete or duplicated')
         t, tr, r, rr = [],[],[],[]
         for row in nodes:
             index, node = frame(float(row['time'])),int(row['node'])-1
             t.append(node_variables['temperature'][index,node]);tr.append(float(row['temperature']))
             r.append(node_variables['heat_reaction'][index,node]);rr.append(float(row['reaction']))
-        if len(nodes) != len(set(float(row['time']) for row in nodes))*len(data.dimensions['num_nodes']):
-            raise AssertionError('Native node coverage is incomplete')
         q, qr = [[],[],[]], [[],[],[]]
         count = len(element_names)//6
         used = set()
@@ -64,8 +74,9 @@ def compare(directory, name, references):
             raise AssertionError('Native integration point coverage is incomplete')
     fields = {'temperature':metric(t,tr), 'temperature_rise':metric(np.array(t)-300,np.array(tr)-300),
               'heat_reaction':metric(r,rr,zero=not np.any(rr)),
-              'heat_flux_x':metric(q[0],qr[0],zero=name.endswith('_capacity')), 'heat_flux_y':metric(q[1],qr[1],zero=True),
-              'heat_flux_z':metric(q[2],qr[2],zero=True)}
+              'heat_flux_x':metric(q[0],qr[0],zero=name.endswith('_capacity')),
+              'heat_flux_y':metric(q[1],qr[1],zero=not ('_distorted_' in name or name == 'dc3d20_contact')),
+              'heat_flux_z':metric(q[2],qr[2],zero=name.startswith('dcax') or not ('_distorted_' in name or name == 'dc3d20_contact'))}
     return {'case':name,'nodes_compared':len(nodes),'points_compared':len(points),
             'passed':all(v['passed'] for v in fields.values()),'fields':fields}
 
@@ -80,6 +91,10 @@ def main():
     args=parser.parse_args()
     args.work.mkdir(parents=True,exist_ok=True)
     kind=args.case if args.case == 'dcax8_contact' or args.case.endswith('_capacity') else args.case.split('_')[0]
+    if '_contact' in args.case:
+        kind = 'dcax8_contact' if args.case == 'dcax8_contact_transient' else args.case
+    if '_distorted_' in args.case:
+        kind = args.case.split('_')[0]+'_distorted'
     for filename in [args.case+'.fsi',kind+'.e']:
         shutil.copyfile(args.source/filename,args.work/filename)
     card=args.work/(args.case+'.fsi')
