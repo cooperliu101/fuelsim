@@ -538,3 +538,18 @@ Quad4RzGeometry make_cax4t_geometry(const Quad4Coordinates& coordinates) {
     return cax4_detail::make_quad4_rz_geometry(coordinates);
 }
 } // namespace fuelsim::elements
+
+namespace fuelsim::elements {
+std::vector<double> cax4t_creep_rates(const IsotropicThermoelasticMaterial& material,
+    const Quad4RzGeometry& geometry,
+    const Cax4LocalValues& state,
+    const Quad4MaterialHistory& history,
+    double time) {
+    std::vector<double> rates(4);
+    for (std::size_t q = 0; q < 4; ++q) {
+        const auto& p = geometry.points[q];
+        rates[q] = material.equivalent_creep_rate(history[q], state[q], {time, p.radius, 0.0, p.axial_coordinate});
+    }
+    return rates;
+}
+} // namespace fuelsim::elements

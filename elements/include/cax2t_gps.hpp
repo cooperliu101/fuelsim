@@ -3,6 +3,7 @@
 #include "material.hpp"
 #include <array>
 #include <cstddef>
+#include <vector>
 
 namespace fuelsim {
 constexpr std::size_t cax2t_gps_local_dof_count = 6;
@@ -59,4 +60,9 @@ struct Cax2tGpsResult final {
 // capacity uses fixed initial mass and current specific heat; source measures
 // retain the actual pointwise current geometry.
 Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest request = {});
+std::vector<double> cax2t_gps_creep_rates(const IsotropicThermoelasticMaterial& material,
+    const Cax2tGpsGeometry& geometry,
+    const Cax2tGpsLocalValues& state,
+    const Cax2tGpsMaterialHistory& history,
+    double time);
 } // namespace fuelsim::elements

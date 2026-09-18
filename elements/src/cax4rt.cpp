@@ -509,3 +509,20 @@ Quad4RzGeometry make_cax4rt_geometry(const Quad4Coordinates& coordinates) {
     return cax4_detail::make_quad4_rz_geometry(coordinates);
 }
 } // namespace fuelsim::elements
+
+namespace fuelsim::elements {
+std::vector<double> cax4rt_creep_rates(const IsotropicThermoelasticMaterial& material,
+    const Quad4RzGeometry& geometry,
+    const Cax4LocalValues& state,
+    const Quad4MaterialHistory& history,
+    double time,
+    StrainFormulation formulation) {
+    const auto reference = reduce_geometry(geometry, {}, 0.0);
+    const auto current = formulation == StrainFormulation::finite ? reduce_geometry(geometry, state, 0.0) : reference;
+    const auto position = reference_material_position(geometry, reference.volume);
+    double temperature = 0.0;
+    for (std::size_t n = 0; n < 4; ++n)
+        temperature += current.measures[n] * state[n] / current.volume;
+    return {material.equivalent_creep_rate(history[0], temperature, {time, position.r, 0.0, position.z})};
+}
+} // namespace fuelsim::elements

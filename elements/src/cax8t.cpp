@@ -369,3 +369,25 @@ Quad8RzGeometry make_cax8t_geometry(const Quad8RzCoordinates& coordinates) {
     return make_cax8t_geometry(coordinates, Cax8Quadrature::full);
 }
 } // namespace fuelsim::elements
+
+namespace fuelsim::elements {
+std::vector<double> cax8t_creep_rates(const IsotropicThermoelasticMaterial& material,
+    const Quad8RzGeometry& geometry,
+    const Quad8RzValues& state,
+    const Quad8MaterialHistory& history,
+    double time,
+    Cax8Quadrature quadrature) {
+    const std::size_t count = quadrature == Cax8Quadrature::full ? 9 : 4;
+    if (geometry.point_count != count)
+        throw std::invalid_argument("CAX8 creep rate quadrature mismatch");
+    std::vector<double> rates(count);
+    for (std::size_t q = 0; q < count; ++q) {
+        const auto& p = geometry.points[q];
+        double temperature = 0.0;
+        for (std::size_t n = 0; n < 4; ++n)
+            temperature += p.temperature_shape[n] * state[n];
+        rates[q] = material.equivalent_creep_rate(history[q], temperature, {time, p.radius, 0.0, p.axial_coordinate});
+    }
+    return rates;
+}
+} // namespace fuelsim::elements

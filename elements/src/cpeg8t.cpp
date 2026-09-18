@@ -394,3 +394,23 @@ Cpeg8Result evaluate_cpeg8t_boundary(const Cpeg8BoundaryInput& input, bool jacob
     return result;
 }
 } // namespace fuelsim::elements
+
+namespace fuelsim::elements {
+std::vector<double> cpeg8t_creep_rates(const IsotropicThermoelasticMaterial& material,
+    const Cpeg8Geometry& geometry,
+    const Cpeg8Values& state,
+    const CartesianMaterialHistory& history,
+    double time) {
+    if (history.size() != 9)
+        throw std::invalid_argument("CPEG8T creep rates require nine material points");
+    std::vector<double> rates(9);
+    for (std::size_t q = 0; q < 9; ++q) {
+        const auto& p = geometry.points[q];
+        double temperature = 0.0;
+        for (std::size_t n = 0; n < 4; ++n)
+            temperature += p.temperature_shape[n] * state[n];
+        rates[q] = material.equivalent_creep_rate(history[q], temperature, {time, p.x, p.y, 0.0});
+    }
+    return rates;
+}
+} // namespace fuelsim::elements

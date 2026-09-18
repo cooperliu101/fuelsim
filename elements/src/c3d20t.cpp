@@ -1081,3 +1081,24 @@ Hex20Geometry make_c3d20t_geometry(const Hex20Coordinates& coordinates) {
     return make_c3d20t_geometry(coordinates, C3d20Quadrature::full);
 }
 } // namespace fuelsim::elements
+
+namespace fuelsim::elements {
+std::vector<double> c3d20t_creep_rates(const IsotropicThermoelasticMaterial& material,
+    const Hex20Geometry& geometry,
+    const Hex20LocalValues& state,
+    const CartesianMaterialHistory& history,
+    double time,
+    C3d20Quadrature quadrature) {
+    const std::size_t count = quadrature == C3d20Quadrature::full ? 27 : 8;
+    if (geometry.mechanical_points.size() != count || history.size() != count)
+        throw std::invalid_argument("C3D20 creep rate quadrature mismatch");
+    std::vector<double> rates(count);
+    for (std::size_t q = 0; q < count; ++q) {
+        const auto& p = geometry.mechanical_points[q];
+        rates[q] = material.equivalent_creep_rate(history[q],
+            interpolate_temperature_values(p, state),
+            material_context(time, p.position));
+    }
+    return rates;
+}
+} // namespace fuelsim::elements

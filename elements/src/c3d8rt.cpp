@@ -1655,3 +1655,25 @@ void validate_c3d8rt_deformation(const Hex8QuadraturePoint& point, const Hex8Loc
     c3d8_detail::validate_cartesian_deformation(point, state);
 }
 } // namespace fuelsim::elements
+
+namespace fuelsim::elements {
+std::vector<double> c3d8rt_creep_rates(const IsotropicThermoelasticMaterial& material,
+    const Hex8Geometry& geometry,
+    const Hex8LocalValues& state,
+    const CartesianMaterialHistory& history,
+    double time,
+    StrainFormulation formulation) {
+    if (history.size() != 1)
+        throw std::invalid_argument("C3D8RT creep rates require one material point");
+    double temperature = 0.0;
+    if (formulation == StrainFormulation::finite) {
+        const auto current = reduced_hex8_geometry_values(geometry, reduced_hex8_displacement_values(state), "current");
+        temperature = reduced_hex8_temperature_value(current, state);
+    } else {
+        temperature = reduced_hex8_temperature(geometry, state);
+    }
+    return {material.equivalent_creep_rate(history[0],
+        temperature,
+        material_context(time, geometry.reduced_point.position))};
+}
+} // namespace fuelsim::elements

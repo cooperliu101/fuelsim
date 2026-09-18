@@ -260,6 +260,27 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_c3d20t_tests COMMAND fuelsim_c3d20t_tests)
     add_test(NAME fuelsim_c3d20rt_tests COMMAND fuelsim_c3d20rt_tests)
     add_test(NAME fuelsim_body_acceleration_tests COMMAND fuelsim_body_acceleration_tests)
+    add_test(NAME fuelsim_creep_rate_tests COMMAND fuelsim_creep_rate_tests)
+    add_executable(fuelsim_creep_rate_transaction_tests tests/creep_rate_transaction_tests.cpp)
+    target_link_libraries(fuelsim_creep_rate_transaction_tests PRIVATE fuelsim::io fuelsim::solver)
+    target_include_directories(fuelsim_creep_rate_transaction_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    fuelsim_enable_warnings(fuelsim_creep_rate_transaction_tests)
+    set(creep_transaction_cards
+        transient_gps_inelastic_finite
+        transient_b73_rz_finite_creep
+        transient_b96_cax4rt_finite_creep
+        transient_b107_cax8t_finite_creep
+        transient_b127_cax8rt_finite_creep
+        transient_hex8_finite_creep_moose
+        transient_b537_finite_c3d8rt_coupled
+        transient_hex20_inelastic_creep_moose
+        transient_c3d20rt_finite_creep)
+    foreach(card IN LISTS creep_transaction_cards)
+        add_test(NAME fuelsim_creep_rate_${card}_transactions COMMAND fuelsim_creep_rate_transaction_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/${card}.fsi")
+    endforeach()
+    add_test(NAME fuelsim_creep_rate_cpeg8t_transactions COMMAND fuelsim_creep_rate_transaction_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/coupled_contact.fsi")
     add_test(NAME fuelsim_line2_rz_tests COMMAND fuelsim_line2_rz_tests)
     add_test(NAME fuelsim_line3_rz_tests COMMAND fuelsim_line3_rz_tests)
     add_test(NAME fuelsim_quad4_face_tests COMMAND fuelsim_quad4_face_tests)
@@ -2137,6 +2158,19 @@ if(BUILD_TESTING)
             FIXTURES_REQUIRED c3d8rt_contact_reference
             PROCESSORS 2
             LABELS "integration;mpi;three-dimensional;hex8;c3d8rt;finite-strain;contact;equivalence")
+
+        foreach(card IN LISTS creep_transaction_cards)
+            add_test(NAME fuelsim_mpi_creep_rate_${card}_transactions
+                COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                    "$<TARGET_FILE:fuelsim_creep_rate_transaction_tests>"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/${card}.fsi")
+            set_tests_properties(fuelsim_mpi_creep_rate_${card}_transactions PROPERTIES PROCESSORS 2)
+        endforeach()
+        add_test(NAME fuelsim_mpi_creep_rate_cpeg8t_transactions
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                "$<TARGET_FILE:fuelsim_creep_rate_transaction_tests>"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/coupled_contact.fsi")
+        set_tests_properties(fuelsim_mpi_creep_rate_cpeg8t_transactions PROPERTIES PROCESSORS 2)
 
         add_test(NAME fuelsim_mpi_hex8_solver_tests
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2

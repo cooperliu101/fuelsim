@@ -1190,6 +1190,15 @@ InelasticTensorUpdate evaluate_inelastic_tensor(const MaterialFunctionSet& funct
 }
 } // namespace
 
+double IsotropicThermoelasticMaterial::equivalent_creep_rate(const MaterialPointState& state,
+    double temperature,
+    MaterialFunctionContext context) const {
+    CartesianMaterialPointState point;
+    point.stress = {state.stress.rr, state.stress.zz, state.stress.hoop, state.stress.rz, 0.0, 0.0};
+    point.equivalent_creep_strain = state.equivalent_creep_strain;
+    return equivalent_creep_rate(point, temperature, context);
+}
+
 double IsotropicThermoelasticMaterial::equivalent_creep_rate(const CartesianMaterialPointState& state,
     double temperature,
     MaterialFunctionContext context) const {

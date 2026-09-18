@@ -329,3 +329,21 @@ Cax2tGpsResult evaluate_cax2t_gps(const Cax2tGpsInput& input, ElementRequest req
     return result;
 }
 } // namespace fuelsim::elements
+
+namespace fuelsim::elements {
+std::vector<double> cax2t_gps_creep_rates(const IsotropicThermoelasticMaterial& material,
+    const Cax2tGpsGeometry& geometry,
+    const Cax2tGpsLocalValues& state,
+    const Cax2tGpsMaterialHistory& history,
+    double time) {
+    std::vector<double> rates(2);
+    for (std::size_t q = 0; q < 2; ++q) {
+        const double xi = q == 0 ? -gauss : gauss;
+        const double radius = 0.5 * (1.0 - xi) * geometry.radii[0] + 0.5 * (1.0 + xi) * geometry.radii[1];
+        rates[q] = material.equivalent_creep_rate(history[q],
+            state[q],
+            {time, radius, 0.0, 0.5 * (geometry.z_lower + geometry.z_upper)});
+    }
+    return rates;
+}
+} // namespace fuelsim::elements

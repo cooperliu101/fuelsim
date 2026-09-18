@@ -2,6 +2,7 @@
 #include "element_types.hpp"
 #include "material.hpp"
 #include <array>
+#include <vector>
 
 namespace fuelsim::elements {
 // Four corner temperatures, eight x and eight y displacements, extension,
@@ -61,4 +62,9 @@ struct Cpeg8BoundaryInput final {
 };
 
 Cpeg8Result evaluate_cpeg8t_boundary(const Cpeg8BoundaryInput& input, bool jacobian);
+std::vector<double> cpeg8t_creep_rates(const IsotropicThermoelasticMaterial& material,
+    const Cpeg8Geometry& geometry,
+    const Cpeg8Values& state,
+    const CartesianMaterialHistory& history,
+    double time);
 } // namespace fuelsim::elements

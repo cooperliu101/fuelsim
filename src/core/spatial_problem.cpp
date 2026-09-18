@@ -1,9 +1,14 @@
+#include "c3d20rt.hpp"
+#include "c3d20t.hpp"
 #include "c3d8_types.hpp"
 #include "c3d8rt.hpp"
 #include "c3d8t.hpp"
 #include "cartesian3d_assembly.hpp"
+#include "cax2t_gps.hpp"
 #include "cax4rt.hpp"
 #include "cax4t.hpp"
+#include "cax8rt.hpp"
+#include "cax8t.hpp"
 #include "contact_types.hpp"
 #include "core/cax_evaluation.hpp"
 #include "core/element_evaluation.hpp"
@@ -13,6 +18,7 @@
 #include "core/spatial_definition.hpp"
 #include "core/steady_problem.hpp"
 #include "core/transient_problem.hpp"
+#include "cpeg8t.hpp"
 #include "plane_assembly.hpp"
 #include "rz_assembly.hpp"
 #include "solver/solve_workflows.hpp"
@@ -1798,25 +1804,83 @@ TransientTimeErrorEstimate compare_rz_step_doubling_states(const TransientCommit
 std::vector<double> TransientProblem::committed_creep_rates() const {
     if (time_step_active())
         throw std::logic_error("Creep rates require an accepted state");
-    if (!_impl->is_cartesian() || _impl->cartesian->uses_hex20())
-        throw std::invalid_argument("Creep-rate time control currently requires C3D8T regions");
     std::vector<double> rates;
     bool has_creep = false;
     for (std::size_t r = 0; r < definition().regions.size(); ++r) {
         const auto& region = definition().regions[r];
-        if (region.hex8_element_formulation != Hex8ElementFormulation::c3d8t)
-            throw std::invalid_argument("Creep-rate time control currently requires C3D8T regions");
         const IsotropicThermoelasticMaterial material(region.material);
         has_creep = has_creep || material.functions().has_creep();
-        const auto& histories = _impl->cartesian_material_histories[r];
-        for (std::size_t e = 0; e < histories.size(); ++e) {
-            const auto local = _impl->cartesian->volume_state(_impl->cartesian->region_element_offset(r) + e,
-                _impl->committed_solution);
-            const auto values = elements::c3d8t_creep_rates(material,
-                _impl->cartesian->region_element_geometry(r, e),
-                local,
-                histories[e],
-                _impl->committed_time);
+        for (std::size_t e = 0; e < _impl->layout().region_element_count(r); ++e) {
+            const auto index = _impl->layout().region_element_offset(r) + e;
+            std::vector<std::size_t> dofs;
+            _impl->contribution_dofs(index, dofs);
+            std::vector<double> local(dofs.size());
+            for (std::size_t i = 0; i < dofs.size(); ++i)
+                local[i] = _impl->committed_solution[dofs[i]];
+            std::vector<double> values;
+            const double time = _impl->committed_time;
+            if (_impl->_radial) {
+                Cax2tGpsLocalValues state{};
+                std::copy(local.begin(), local.end(), state.begin());
+                values = elements::cax2t_gps_creep_rates(material,
+                    _impl->_radial->region_element_geometry(r, e),
+                    state,
+                    _impl->_radial_material_histories[r][e],
+                    time);
+            } else if (_impl->_plane) {
+                elements::Cpeg8Values state{};
+                std::copy(local.begin(), local.end(), state.begin());
+                values = elements::cpeg8t_creep_rates(material,
+                    _impl->_plane->geometry(r, e),
+                    state,
+                    _impl->cartesian_material_histories[r][e],
+                    time);
+            } else if (_impl->rz8) {
+                Quad8RzValues state{};
+                std::copy(local.begin(), local.end(), state.begin());
+                const auto& geometry = _impl->rz8->region_element_geometry(r, e);
+                const auto& history = _impl->quad8_material_histories[r][e];
+                values = region.rz_element_formulation == RzElementFormulation::cax8t
+                             ? elements::cax8t_creep_rates(material, geometry, state, history, time)
+                             : elements::cax8rt_creep_rates(material, geometry, state, history, time);
+            } else if (_impl->is_cartesian()) {
+                const auto& history = _impl->cartesian_material_histories[r][e];
+                if (_impl->cartesian->uses_hex20()) {
+                    Hex20LocalValues state{};
+                    std::copy(local.begin(), local.end(), state.begin());
+                    const auto& geometry = _impl->cartesian->hex20_region_element_geometry(r, e);
+                    values = region.hex20_element_formulation == Hex20ElementFormulation::c3d20t
+                                 ? elements::c3d20t_creep_rates(material, geometry, state, history, time)
+                                 : elements::c3d20rt_creep_rates(material, geometry, state, history, time);
+                } else {
+                    Hex8LocalValues state{};
+                    std::copy(local.begin(), local.end(), state.begin());
+                    const auto& geometry = _impl->cartesian->region_element_geometry(r, e);
+                    if (region.hex8_element_formulation == Hex8ElementFormulation::c3d8t) {
+                        const auto full = elements::c3d8t_creep_rates(material, geometry, state, history, time);
+                        values.assign(full.begin(), full.end());
+                    } else {
+                        values = elements::c3d8rt_creep_rates(material,
+                            geometry,
+                            state,
+                            history,
+                            time,
+                            region.strain_formulation);
+                    }
+                }
+            } else {
+                const auto state = rz_local_values(local);
+                const auto& geometry = _impl->rz->region_element_geometry(r, e);
+                const auto& history = _impl->material_histories[r][e];
+                values = region.rz_element_formulation == RzElementFormulation::cax4t
+                             ? elements::cax4t_creep_rates(material, geometry, state, history, time)
+                             : elements::cax4rt_creep_rates(material,
+                                   geometry,
+                                   state,
+                                   history,
+                                   time,
+                                   region.strain_formulation);
+            }
             rates.insert(rates.end(), values.begin(), values.end());
         }
     }

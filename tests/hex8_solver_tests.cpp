@@ -1175,13 +1175,12 @@ bool test_creep_rate_time_control(const fuelsim::UnstructuredHex8Mesh& mesh) {
     auto reduced_definition = definition;
     reduced_definition.regions[0].hex8_element_formulation = fuelsim::Hex8ElementFormulation::c3d8rt;
     fuelsim::TransientProblem reduced(reduced_definition, mesh);
-    invalid = false;
-    try {
-        (void)fuelsim::solve_transient(reduced, time, solver);
-    } catch (const std::invalid_argument&) {
-        invalid = true;
-    }
-    return check(invalid, "Unsupported element rate sampling cannot silently disable error control") && passed;
+    time = {1.0, 1.0, 1e-6, 1.0, 2.0, 0.5, 20, 1.0};
+    time.creep_strain_time_tolerance = 1e-5;
+    const auto reduced_result = fuelsim::solve_transient(reduced, time, solver);
+    return check(reduced_result.completed && reduced_result.time_error_rejections > 0,
+               "C3D8RT creep-rate control accepts adaptive steps after error-driven retries")
+           && passed;
 }
 
 bool test_inelastic_branches(const fuelsim::PetscSession& session,

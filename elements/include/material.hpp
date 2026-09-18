@@ -27,6 +27,10 @@ class IsotropicThermoelasticMaterial final {
 
     const MaterialFunctionSet& functions() const noexcept { return *_properties.functions; }
 
+    double equivalent_creep_rate(const MaterialPointState& state,
+        double temperature,
+        MaterialFunctionContext context = {}) const;
+
     double equivalent_creep_rate(const CartesianMaterialPointState& state,
         double temperature,
         MaterialFunctionContext context = {}) const;
