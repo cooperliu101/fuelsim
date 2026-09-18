@@ -8,7 +8,7 @@ import subprocess
 import netCDF4
 import numpy as np
 
-from compare import compare
+from compare import compare, verify_references
 
 
 def run(case, source, work, executable):
@@ -35,7 +35,8 @@ def check(case, source, work):
             compare(a, r, z, absolute, label, report)
         except AssertionError as error:
             failures.append(str(error))
-        report.setdefault(label, {}).update(actual=np.asarray(a).tolist(), reference=np.asarray(r).tolist())
+        report.setdefault(label, {}).update(actual=np.asarray(a).tolist(), reference=np.asarray(r).tolist(),
+                                             analytical_zero_mask=np.asarray(z,dtype=bool).tolist())
     with netCDF4.Dataset(source/'deforming_contact.e') as mesh:
         x = np.asarray(mesh['coordx'][:])
         sets = dict(zip(netCDF4.chartostring(mesh['ns_names'][:]),
@@ -50,6 +51,7 @@ def check(case, source, work):
     with netCDF4.Dataset(work/(case+'_results.e')) as d:
         nn = list(netCDF4.chartostring(d['name_nod_var'][:]))
         en = list(netCDF4.chartostring(d['name_elem_var'][:]))
+        gn = list(netCDF4.chartostring(d['name_glo_var'][:]))
         times = np.asarray(d['time_whole'][:])
         for frame in frames:
             time = frame['time']
@@ -63,19 +65,37 @@ def check(case, source, work):
             fixed_primary = case == 'deforming_fixed_primary'
             fixed = sets['lower'] if fixed_primary else sets['bottom']
             constrained = fixed | sets['top']
+            # Before the outer secondary constraints engage, only the shared
+            # center constraint loads the mirror-symmetric upper body. Its
+            # centerline horizontal displacement/reaction is analytically zero.
+            # With a fixed primary the upper symmetry persists during sliding;
+            # at t=.625 its center coincides with primary node 3 (x=0).
+            upper_center = lambda n: n in sets['upper'] and abs(x[n-1]+.006)<1e-14
+            center_symmetric = fixed_primary or time <= .125
+            unloaded_right = fixed_primary and time == .0625
+            if not fixed_primary and time <= .125:
+                for q in (0,2,3,4):
+                    if d['vals_glo_var'][at,gn.index(f'contact_0_q{q}_pressure')] != 0:
+                        raise AssertionError('Centerline zero mask requires only the center constraint to be active')
+            if unloaded_right:
+                contact_forces = next(v['values'] for k,v in fields.items() if k.startswith('CNORMF'))
+                if any(any(value != 0 for value in row['data']) for row in contact_forces
+                       if row['nodeLabel'] in (10,13)):
+                    raise AssertionError('Unloaded primary nodes must have exactly zero native contact force')
             for name, key, component, nodes, zeros, absolute in [
                 ('temperature', 'NT11', None, sorted(corners), lambda n: False, 1e-9),
                 ('displacement_x', 'U', 0, range(1, count+1),
                  lambda n: n in fixed or (time <= .25 and (n in sets['top'] or
-                           (fixed_primary and n in sets['upper'] and abs(x[n-1]+.006)<1e-14))), 1e-12),
+                           (center_symmetric and upper_center(n)))), 1e-12),
                 ('displacement_y', 'U', 1, range(1, count+1), lambda n: n in fixed, 1e-12),
                 ('reaction_x', 'RF', 0, range(1, count+1),
-                 lambda n: n not in constrained or (fixed_primary and
-                 ((n in sets['lower'] and n not in {3,4,7,10,13}) or
-                  (n in sets['top'] and abs(x[n-1]+.006)<1e-14))), 1e-8),
+                 lambda n: n not in constrained or (center_symmetric and n in sets['top'] and upper_center(n))
+                 or (fixed_primary and n in sets['lower'] and n not in {3,4,7,10,13})
+                 or (unloaded_right and n in {10,13}) or (fixed_primary and time == .625 and n == 3), 1e-8),
                 ('reaction_y', 'RF', 1, range(1, count+1),
                  lambda n: n not in constrained or (fixed_primary and n in sets['lower'] and
-                                                   n not in {3,4,7,10,13}), 1e-8),
+                                                   n not in {3,4,7,10,13})
+                 or (unloaded_right and n in {10,13}), 1e-8),
                 ('heat_reaction', 'RFL11', None, sorted(corners),
                  lambda n: n not in sets['bottom'] | sets['top'], 1e-8),
             ]:
@@ -105,6 +125,7 @@ if __name__ == '__main__':
     parser.add_argument('--executable', type=Path, required=True)
     args = parser.parse_args()
     source = Path(__file__).resolve().parent
+    verify_references(source, 'supplement_reference.sha256')
     if not run(args.case, source, args.work, args.executable):
         raise SystemExit('Production did not complete; inspect '+str(args.work/(args.case+'.log')))
     if not check(args.case, source, args.work):

@@ -202,12 +202,7 @@ void SpatialAssembly::refresh_constraints() {
 
 void SpatialAssembly::contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
     if (index >= contact_offset()) {
-        if (index >= contact_offset() + _candidates.size()) {
-            dofs = _mechanical_constraints.at(index - contact_offset() - _candidates.size()).dofs;
-            return;
-        }
-        const auto& candidate = _candidates.at(index - contact_offset());
-        dofs.assign(candidate.dofs.begin(), candidate.dofs.end());
+        dofs = _contact_constraints.at(index - contact_offset()).dofs;
         return;
     }
     if (index >= volume_contribution_count()) {
@@ -226,12 +221,6 @@ std::vector<std::size_t> SpatialAssembly::required_state_dofs(std::size_t first,
         std::vector<std::size_t> dofs;
         contribution_dofs(index, dofs);
         selected.insert(dofs.begin(), dofs.end());
-    }
-    for (const auto& range : _constraints) {
-        if (last <= contact_offset() + range.first || first >= contact_offset() + range.second)
-            continue;
-        for (auto c = range.first; c < range.second; ++c)
-            selected.insert(_candidates[c].dofs.begin(), _candidates[c].dofs.end());
     }
     return {selected.begin(), selected.end()};
 }
@@ -258,10 +247,10 @@ void SpatialAssembly::validate_local_state(std::size_t first,
 }
 
 SpatialContributionType SpatialAssembly::contribution_type(std::size_t index) const {
-    if (index >= contact_offset() + _candidates.size())
-        return SpatialContributionType::mechanical_contact;
     if (index >= contact_offset())
-        return SpatialContributionType::thermal_contact;
+        return _contact_constraints.at(index - contact_offset()).geometry.temperature_nodes.empty()
+                   ? SpatialContributionType::mechanical_contact
+                   : SpatialContributionType::thermal_contact;
     if (index < volume_contribution_count())
         return SpatialContributionType::volume;
     const auto& boundary =

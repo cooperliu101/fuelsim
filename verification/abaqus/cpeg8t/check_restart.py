@@ -10,7 +10,8 @@ import numpy as np
 from check_thermal_mass import check
 
 
-def equivalent(actual_path, reference_path, restart=False):
+def equivalent(actual_path, reference_path, restart=False, stress_absolute_tolerance=1e-12):
+    report = {}
     with netCDF4.Dataset(actual_path) as actual, netCDF4.Dataset(reference_path) as reference:
         times=np.asarray(actual['time_whole'][:])
         ref_times=np.asarray(reference['time_whole'][:])
@@ -24,7 +25,18 @@ def equivalent(actual_path, reference_path, restart=False):
             a,r=np.asarray(actual[name][:]),np.asarray(reference[name][indices])
             np.testing.assert_array_equal(np.isnan(a),np.isnan(r))
             valid=np.isfinite(r)
-            np.testing.assert_allclose(a[valid],r[valid],rtol=1e-12,atol=1e-12,err_msg=name)
+            absolute = 1e-12
+            field = name
+            if name.startswith('vals_elem_var'):
+                index = int(name.split('vals_elem_var')[1].split('eb')[0])-1
+                field = str(netCDF4.chartostring(reference['name_elem_var'][:])[index])
+                if field.startswith('stress_'):
+                    absolute = stress_absolute_tolerance
+            np.testing.assert_allclose(a[valid],r[valid],rtol=1e-12,atol=absolute,err_msg=name)
+            report[name] = dict(field=field, maximum_absolute=float(np.max(abs(a[valid]-r[valid])))
+                                if np.any(valid) else 0.0, absolute_tolerance=absolute,
+                                relative_tolerance=1e-12)
+    return report
 
 
 if __name__=='__main__':

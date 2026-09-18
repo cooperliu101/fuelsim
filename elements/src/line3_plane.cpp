@@ -4,239 +4,239 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
-#include <vector>
 
 namespace fuelsim::elements {
 namespace {
-using Point = std::array<adlite::Scalar, 2>;
+using Active = adlite::Scalar;
+using Point = std::array<Active, 2>;
 
-struct Curve final {
-    Point position{}, tangent{}, second{};
-    std::array<adlite::Scalar, 3> shape;
+struct Sample final {
+    double coordinate, weight;
 };
 
-Curve curve(const std::array<Point, 3>& nodes, const adlite::Scalar& xi) {
-    Curve result;
-    result.shape = {0.5 * xi * (xi - 1), 0.5 * xi * (xi + 1), 1 - xi * xi};
-    const std::array<adlite::Scalar, 3> derivative{xi - 0.5, xi + 0.5, -2 * xi};
-    constexpr std::array<double, 3> second{1, 1, -2};
+std::array<Sample, 11> sampling_rule() {
+    std::array<Sample, 11> result{};
+    std::size_t index = 0;
+    // Equal-weight degree-three rules in the consistent nodal-area intervals.
+    // These formulas reproduce the independent native gap and transfer probes;
+    // no measured contact matrix coefficients enter the implementation.
+    for (std::size_t patch = 0; patch < 3; ++patch) {
+        const double left = patch == 0 ? -1.0 : (patch == 1 ? -2.0 / 3.0 : 2.0 / 3.0);
+        const double right = patch == 0 ? -2.0 / 3.0 : (patch == 1 ? 2.0 / 3.0 : 1.0);
+        const std::size_t count = patch == 1 ? 5 : 3;
+        const double n = static_cast<double>(count);
+        for (std::size_t q = 0; q < count; ++q)
+            result[index++] = {0.5 * (left + right)
+                                   + (right - left) * (static_cast<double>(q) - 0.5 * (n - 1.0))
+                                         / std::sqrt(n * n - 1.0),
+                (right - left) / n};
+    }
+    return result;
+}
+
+double test_shape(std::size_t node, double coordinate) {
+    if (node == 0)
+        return std::max(0.0, -coordinate);
+    if (node == 1)
+        return std::max(0.0, coordinate);
+    if (node == 2)
+        return 1.0 - std::abs(coordinate);
+    throw std::invalid_argument("Plane contact local constraint node must be less than three");
+}
+
+struct EdgePoint final {
+    Point position{}, tangent{};
+    std::array<Active, 3> shape;
+};
+
+EdgePoint interpolate(const std::vector<Point>& nodes, const std::array<std::size_t, 3>& edge, const Active& x) {
+    EdgePoint result;
+    result.shape = {0.5 * x * (x - 1.0), 0.5 * x * (x + 1.0), 1.0 - x * x};
+    const std::array<Active, 3> derivative{x - 0.5, x + 0.5, -2.0 * x};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t c = 0; c < 2; ++c) {
-            result.position[c] += result.shape[i] * nodes[i][c];
-            result.tangent[c] += derivative[i] * nodes[i][c];
-            result.second[c] += second[i] * nodes[i][c];
+            result.position[c] += result.shape[i] * nodes.at(edge[i])[c];
+            result.tangent[c] += derivative[i] * nodes.at(edge[i])[c];
         }
     return result;
 }
 
-std::pair<bool, double> closest(const std::array<Point, 3>& nodes, const Point& point) {
-    std::array<double, 4> polynomial{};
-    for (std::size_t i = 0; i < 2; ++i) {
-        const double a = 0.5 * (nodes[0][i].value() + nodes[1][i].value()) - nodes[2][i].value();
-        const double b = 0.5 * (nodes[1][i].value() - nodes[0][i].value());
-        const double c = nodes[2][i].value() - point[i].value();
-        polynomial[0] += b * c;
-        polynomial[1] += b * b + 2 * a * c;
-        polynomial[2] += 3 * a * b;
-        polynomial[3] += 2 * a * a;
+Active project(const std::vector<Point>& nodes,
+    const std::array<std::size_t, 3>& edge,
+    const Point& point,
+    const Point& tangent) {
+    Active a = 0.0, b = 0.0, c = 0.0;
+    for (std::size_t d = 0; d < 2; ++d) {
+        a += (0.5 * (nodes[edge[0]][d] + nodes[edge[1]][d]) - nodes[edge[2]][d]) * tangent[d];
+        b += 0.5 * (nodes[edge[1]][d] - nodes[edge[0]][d]) * tangent[d];
+        c += (nodes[edge[2]][d] - point[d]) * tangent[d];
     }
-    const auto value = [&](double x) {
-        return ((polynomial[3] * x + polynomial[2]) * x + polynomial[1]) * x + polynomial[0];
-    };
-    std::vector<double> cuts{-1.0, 1.0}, roots;
-    const double discriminant = 4 * polynomial[2] * polynomial[2] - 12 * polynomial[3] * polynomial[1];
-    if (polynomial[3] > 0 && discriminant >= 0)
-        for (double sign : {-1.0, 1.0}) {
-            const double x = (-2 * polynomial[2] + sign * std::sqrt(discriminant)) / (6 * polynomial[3]);
-            if (x > -1 && x < 1)
-                cuts.push_back(x);
-        }
-    std::sort(cuts.begin(), cuts.end());
-    double scale = 0.0;
-    for (auto coefficient : polynomial)
-        scale += std::abs(coefficient);
-    if (!(scale > 0) || !std::isfinite(scale))
-        throw std::domain_error("Plane contact curve projection is degenerate");
-    for (auto x : cuts)
-        if (std::abs(value(x)) <= 1e-13 * scale)
-            roots.push_back(x);
-    for (std::size_t i = 1; i < cuts.size(); ++i) {
-        double left = cuts[i - 1], right = cuts[i], fl = value(left);
-        if ((fl > 0) == (value(right) > 0))
-            continue;
-        for (int iteration = 0; iteration < 60; ++iteration) {
-            const double mid = 0.5 * (left + right), fm = value(mid);
-            if ((fm > 0) == (fl > 0)) {
-                left = mid;
-                fl = fm;
-            } else
-                right = mid;
-        }
-        roots.push_back(0.5 * (left + right));
+    const double av = a.value(), bv = b.value(), cv = c.value();
+    const double scale = std::abs(av) + std::abs(bv) + std::abs(cv);
+    double root = 0.0;
+    if (!(scale > 0.0) || !std::isfinite(scale))
+        throw std::domain_error("Averaged plane contact projection is degenerate");
+    if (std::abs(av) < 1e-14 * scale) {
+        if (!(bv < 0.0))
+            throw std::domain_error("Averaged plane contact surfaces have inconsistent orientation");
+        root = -cv / bv;
+    } else {
+        const double discriminant = bv * bv - 4.0 * av * cv;
+        if (!(discriminant > 0.0))
+            throw std::domain_error("Averaged plane contact normal does not intersect the primary curve");
+        // Select the root whose tangent opposes the secondary tangent.
+        root = bv < 0.0 ? -2.0 * cv / (bv - std::sqrt(discriminant)) : (-bv - std::sqrt(discriminant)) / (2.0 * av);
     }
-    double best = std::numeric_limits<double>::infinity(), coordinate = 0.0;
-    for (auto root : roots) {
-        if ((3 * polynomial[3] * root + 2 * polynomial[2]) * root + polynomial[1] <= 0)
-            continue;
-        const auto projected = curve(nodes, root);
-        const double dx = projected.position[0].value() - point[0].value();
-        const double dy = projected.position[1].value() - point[1].value();
-        const double distance = dx * dx + dy * dy;
-        if (distance < best) {
-            best = distance;
-            coordinate = root;
-        }
-    }
-    return {std::isfinite(best), coordinate};
-}
-
-// A closest-point projection enters or leaves a primary edge where its
-// endpoint tangent is orthogonal to the endpoint-to-secondary vector.
-// Differentiate those moving boundaries with the implicit function theorem.
-std::vector<adlite::Scalar> interval_cuts(const std::array<Point, 3>& secondary, const std::array<Point, 3>& primary) {
-    std::vector<adlite::Scalar> cuts{-1.0, 1.0};
-    for (double endpoint : {-1.0, 1.0}) {
-        const auto p = curve(primary, endpoint);
-        adlite::Scalar a = 0.0, b = 0.0, c = 0.0;
-        for (std::size_t d = 0; d < 2; ++d) {
-            a += (0.5 * (secondary[0][d] + secondary[1][d]) - secondary[2][d]) * p.tangent[d];
-            b += 0.5 * (secondary[1][d] - secondary[0][d]) * p.tangent[d];
-            c += (secondary[2][d] - p.position[d]) * p.tangent[d];
-        }
-        const double av = a.value(), bv = b.value(), cv = c.value();
-        const double scale = std::abs(av) + std::abs(bv) + std::abs(cv);
-        if (!(scale > 0.0) || !std::isfinite(scale))
-            throw std::domain_error("Plane contact endpoint projection is degenerate");
-        std::vector<double> roots;
-        if (std::abs(av) <= 1e-14 * scale) {
-            if (std::abs(bv) > 1e-14 * scale)
-                roots.push_back(-cv / bv);
-        } else {
-            const double discriminant = bv * bv - 4.0 * av * cv;
-            if (discriminant > 0.0) {
-                const double q = -0.5 * (bv + std::copysign(std::sqrt(discriminant), bv));
-                roots.push_back(q / av);
-                roots.push_back(cv / q);
-            }
-        }
-        for (double root : roots) {
-            if (root <= -1.0 + 1e-12 || root >= 1.0 - 1e-12)
-                continue;
-            const double derivative = 2.0 * av * root + bv;
-            if (std::abs(derivative) <= 1e-12 * scale)
-                throw std::domain_error("Plane contact segment boundary is tangent to the secondary edge");
-            const auto equation = (a * root + b) * root + c;
-            cuts.push_back(root - (equation - equation.value()) / derivative);
-        }
-    }
-    std::sort(cuts.begin(), cuts.end(), [](const adlite::Scalar& a, const adlite::Scalar& b) {
-        return a.value() < b.value();
-    });
-    cuts.erase(
-        std::unique(cuts.begin(),
-            cuts.end(),
-            [](const adlite::Scalar& a, const adlite::Scalar& b) { return std::abs(a.value() - b.value()) < 1e-12; }),
-        cuts.end());
-    return cuts;
+    const double derivative = 2.0 * av * root + bv;
+    if (!(derivative < -1e-12 * scale))
+        throw std::domain_error("Averaged plane contact projection is singular");
+    const Active equation = (a * root + b) * root + c;
+    return root - (equation - equation.value()) / derivative;
 }
 } // namespace
 
-Line3PlaneContactResult evaluate_line3_plane_contact(const Line3PlaneContactInput& input, bool jacobian) {
-    std::array<adlite::Scalar, 22> v, rows{};
-    for (std::size_t i = 0; i < v.size(); ++i) {
-        if (!std::isfinite(input.state[i]))
-            throw std::domain_error("Plane contact state must be finite");
-        v[i] = jacobian ? adlite::Scalar::independent(input.state[i], i, v.size()) : adlite::Scalar(input.state[i]);
+PlaneSurfaceContactResult evaluate_plane_averaged_contact(const PlaneAveragedContactGeometry& geometry,
+    const std::vector<double>& state,
+    bool jacobian) {
+    const std::size_t count = geometry.coordinates.size(), size = 2 * count + geometry.temperature_nodes.size();
+    const bool thermal = !geometry.temperature_nodes.empty();
+    if (state.size() != size || geometry.secondary.empty() || geometry.primary.empty()
+        || (!thermal && (!(geometry.penalty > 0.0) || !std::isfinite(geometry.penalty))))
+        throw std::invalid_argument("Invalid averaged plane contact input");
+    std::vector<std::size_t> temperature_index(count, size);
+    std::vector<Active> temperatures;
+    for (std::size_t i = 0; i < geometry.temperature_nodes.size(); ++i) {
+        const auto node = geometry.temperature_nodes[i];
+        if (node >= count || temperature_index[node] != size)
+            throw std::invalid_argument("Invalid averaged plane contact temperature node");
+        if (!std::isfinite(state[2 * count + i]))
+            throw std::domain_error("Averaged plane contact temperature must be finite");
+        temperature_index[node] = i;
+        temperatures.push_back(
+            jacobian ? Active::independent(state[2 * count + i], 2 * count + i, size) : Active(state[2 * count + i]));
     }
-    std::array<Point, 3> secondary, primary;
-    for (std::size_t i = 0; i < 3; ++i)
+    std::vector<Point> nodes(count);
+    for (std::size_t n = 0; n < count; ++n)
         for (std::size_t c = 0; c < 2; ++c) {
-            secondary[i][c] = input.secondary[i][c] + v[4 + 3 * c + i];
-            primary[i][c] = input.primary[i][c] + v[10 + 3 * c + i];
+            const auto i = 2 * n + c;
+            if (!std::isfinite(state[i]))
+                throw std::domain_error("Averaged plane contact state must be finite");
+            nodes[n][c] =
+                geometry.coordinates[n][c] + (jacobian ? Active::independent(state[i], i, size) : Active(state[i]));
         }
-    Line3PlaneContactResult result;
-    if (input.segment >= 5)
-        throw std::invalid_argument("Plane contact segment index must be less than five");
-    const auto cuts = interval_cuts(secondary, primary);
-    if (input.segment + 1 >= cuts.size())
-        return result;
-    const auto& left = cuts[input.segment];
-    const auto& right = cuts[input.segment + 1];
-    const auto secondary_coordinate = 0.5 * ((1.0 - input.coordinate) * left + (1.0 + input.coordinate) * right);
-    const auto weight = 0.5 * input.weight * (right - left);
-    const auto sp = curve(secondary, secondary_coordinate);
-    const auto projection = closest(primary, sp.position);
-    if (!projection.first)
-        return result;
-    const auto trial = curve(primary, projection.second);
-    adlite::Scalar equation = 0.0;
-    double derivative = 0.0;
-    for (std::size_t c = 0; c < 2; ++c) {
-        const auto distance = trial.position[c] - sp.position[c];
-        equation += distance * trial.tangent[c];
-        derivative += trial.tangent[c].value() * trial.tangent[c].value() + distance.value() * trial.second[c].value();
-    }
-    if (!(derivative > 0) || !std::isfinite(derivative))
-        throw std::domain_error("Plane contact projection derivative must be positive");
-    const auto coordinate = projection.second - (equation - equation.value()) / derivative;
-    const auto pp = curve(primary, coordinate);
-    if ((pp.tangent[0] * sp.tangent[0] + pp.tangent[1] * sp.tangent[1]).value() >= 0.0)
-        return result;
-    const auto length = adlite::hypot(pp.tangent[0], pp.tangent[1]);
-    const auto secondary_length = adlite::hypot(sp.tangent[0], sp.tangent[1]);
-    if (!(length.value() > 0) || !(secondary_length.value() > 0))
-        throw std::domain_error("Plane contact edge has zero length");
-    const Point normal{pp.tangent[1] / length, -pp.tangent[0] / length};
-    const auto dx = sp.position[0] - pp.position[0], dy = sp.position[1] - pp.position[1];
-    const auto gap = dx * normal[0] + dy * normal[1];
-    adlite::Scalar thickness = input.secondary_thickness;
-    if (input.secondary_finite)
-        thickness += v[16] + v[17] * (sp.position[1] - input.secondary_reference[1])
-                     - v[18] * (sp.position[0] - input.secondary_reference[0]);
-    adlite::Scalar primary_thickness = input.primary_thickness;
-    if (input.primary_finite)
-        primary_thickness += v[19] + v[20] * (pp.position[1] - input.primary_reference[1])
-                             - v[21] * (pp.position[0] - input.primary_reference[0]);
-    if (!(thickness.value() > 0) || !(primary_thickness.value() > 0))
-        throw std::domain_error("Plane contact thickness must remain positive");
-    // As in the native interaction thickness, section extension and rotation
-    // do not change contact area. The in-plane secondary edge remains current.
-    const auto area = weight * secondary_length * input.secondary_thickness;
-    const adlite::Scalar pressure = input.mechanical && gap.value() < 0 ? -input.penalty * gap : adlite::Scalar(0);
-    if (input.mechanical)
-        for (std::size_t i = 0; i < 3; ++i)
-            for (std::size_t c = 0; c < 2; ++c) {
-                const auto force = pressure * area * normal[c];
-                rows[4 + 3 * c + i] -= sp.shape[i] * force;
-                rows[10 + 3 * c + i] += pp.shape[i] * force;
+    const auto samples = sampling_rule();
+    Active area = 0.0, gap_integral = 0.0;
+    std::vector<Point> secondary_vectors(count), primary_vectors(count);
+    std::vector<Active> secondary_thermal(temperatures.size()), primary_thermal(temperatures.size());
+    for (const auto& edge : geometry.secondary) {
+        if (!(edge.thickness > 0.0))
+            throw std::invalid_argument("Averaged plane contact requires positive initial thickness");
+        // The first equal-weight sample is the physical smoothing half-width.
+        const Active radius = (1.0 - 1.0 / std::sqrt(2.0)) / 12.0
+                              * adlite::hypot(nodes[edge.nodes[1]][0] - nodes[edge.nodes[0]][0],
+                                  nodes[edge.nodes[1]][1] - nodes[edge.nodes[0]][1]);
+        if (!(radius.value() > 0.0))
+            throw std::domain_error("Averaged plane contact secondary edge is degenerate");
+        for (const auto& sample : samples) {
+            if (thermal && edge.local_node > 1)
+                throw std::invalid_argument("Thermal plane contact constraints require a temperature corner");
+            const double test =
+                thermal ? (sample.coordinate == 0.0 ? 0.5
+                                                    : ((sample.coordinate < 0.0) == (edge.local_node == 0) ? 1.0 : 0.0))
+                        : test_shape(edge.local_node, sample.coordinate);
+            if (test == 0.0)
+                continue;
+            const auto s = interpolate(nodes, edge.nodes, sample.coordinate);
+            const Active length = adlite::hypot(s.tangent[0], s.tangent[1]);
+            if (!(length.value() > 0.0))
+                throw std::domain_error("Averaged plane contact has an undefined secondary normal");
+            const Point tangent{s.tangent[0] / length, s.tangent[1] / length};
+            const Point normal{-tangent[1], tangent[0]};
+            const Active weight = sample.weight * test * edge.thickness * length;
+            Active fraction_sum = 0.0;
+            for (const auto& primary : geometry.primary) {
+                Active left = 0.0, right = 0.0;
+                for (std::size_t c = 0; c < 2; ++c) {
+                    left += (nodes[primary[1]][c] - s.position[c]) * tangent[c];
+                    right += (nodes[primary[0]][c] - s.position[c]) * tangent[c];
+                }
+                if (!(right.value() > left.value()))
+                    throw std::domain_error("Averaged plane contact primary edge is reversed or folded");
+                if (left.value() >= radius.value() || right.value() <= -radius.value())
+                    continue;
+                const Active a = left.value() > -radius.value() ? left : -radius;
+                const Active b = right.value() < radius.value() ? right : radius;
+                const Active fraction = (b - a) / (2.0 * radius);
+                fraction_sum += fraction;
+                const Active primary_coordinate = project(nodes, primary, s.position, tangent);
+                const auto p = interpolate(nodes, primary, primary_coordinate);
+                Active gap = 0.0;
+                for (std::size_t c = 0; c < 2; ++c)
+                    gap += (s.position[c] - p.position[c]) * normal[c];
+                const Active measure = weight * fraction;
+                area += measure;
+                gap_integral += measure * gap;
+                if (thermal)
+                    for (std::size_t n = 0; n < 2; ++n) {
+                        const double sign = n == 0 ? -1.0 : 1.0;
+                        secondary_thermal.at(temperature_index.at(edge.nodes[n])) +=
+                            measure * 0.5 * (1.0 + sign * sample.coordinate);
+                        primary_thermal.at(temperature_index.at(primary[n])) +=
+                            measure * 0.5 * (1.0 + sign * primary_coordinate);
+                    }
+                // Average shape times normal, retaining the normal field inside
+                // the integral. Factoring out one mean normal loses curvature.
+                if (!thermal)
+                    for (std::size_t n = 0; n < 3; ++n)
+                        for (std::size_t c = 0; c < 2; ++c) {
+                            secondary_vectors[edge.nodes[n]][c] += measure * s.shape[n] * normal[c];
+                            primary_vectors[primary[n]][c] += measure * p.shape[n] * normal[c];
+                        }
             }
-    if (input.thermal) {
-        const std::array<adlite::Scalar, 2> primary_shape{0.5 * (1 - coordinate), 0.5 * (1 + coordinate)};
-        const std::array<adlite::Scalar, 2> secondary_shape{0.5 * (1 - secondary_coordinate),
-            0.5 * (1 + secondary_coordinate)};
-        const auto ts = secondary_shape[0] * v[0] + secondary_shape[1] * v[1];
-        const auto tp = primary_shape[0] * v[2] + primary_shape[1] * v[3];
-        const auto rate = contact_common::gap_conductance(input.heat, gap, ts, tp) * (ts - tp) * area;
-        for (std::size_t i = 0; i < 2; ++i) {
-            rows[i] += secondary_shape[i] * rate;
-            rows[2 + i] -= primary_shape[i] * rate;
+            if (fraction_sum.value() > 1.0 + 1e-10)
+                throw std::domain_error("Averaged plane contact primary intervals overlap");
         }
-        result.heat_rate = rate.value();
     }
-    result.projected = true;
-    result.gap = gap.value();
-    result.pressure = pressure.value();
-    result.area = area.value();
-    result.force = pressure.value() * area.value();
-    result.distance_squared = dx.value() * dx.value() + dy.value() * dy.value();
-    result.primary_coordinate = coordinate.value();
-    result.secondary_coordinate = secondary_coordinate.value();
-    result.interval_begin = left.value();
-    result.interval_end = right.value();
-    for (std::size_t i = 0; i < rows.size(); ++i) {
-        result.residual[i] = rows[i].value();
-        if (jacobian)
-            rows[i].copy_derivatives(result.jacobian.data() + 22 * i, 22);
+    if (!(area.value() > 0.0))
+        throw std::domain_error("Averaged plane contact constraint has no primary projection");
+    const Active gap = gap_integral / area;
+    const Active pressure = gap.value() < 0.0 ? -geometry.penalty * gap : Active(0.0);
+    PlaneSurfaceContactResult result;
+    result.residual.resize(size);
+    if (jacobian)
+        result.jacobian.resize(size * size);
+    if (!thermal)
+        for (std::size_t n = 0; n < count; ++n)
+            for (std::size_t c = 0; c < 2; ++c) {
+                const Active row = pressure * (primary_vectors[n][c] - secondary_vectors[n][c]);
+                const auto i = 2 * n + c;
+                result.residual[i] = row.value();
+                if (jacobian)
+                    row.copy_derivatives(result.jacobian.data() + i * size, size);
+            }
+    result.point.projected = true;
+    result.point.gap = gap.value();
+    result.point.pressure = pressure.value();
+    result.point.area = area.value();
+    result.point.force = pressure.value() * area.value();
+    if (thermal) {
+        Active secondary_temperature = 0.0, primary_temperature = 0.0;
+        for (std::size_t i = 0; i < temperatures.size(); ++i) {
+            secondary_temperature += secondary_thermal[i] * temperatures[i] / area;
+            primary_temperature += primary_thermal[i] * temperatures[i] / area;
+        }
+        const Active flux =
+            contact_common::gap_conductance(geometry.heat, gap, secondary_temperature, primary_temperature)
+            * (secondary_temperature - primary_temperature);
+        for (std::size_t i = 0; i < temperatures.size(); ++i) {
+            const Active row = flux * (secondary_thermal[i] - primary_thermal[i]);
+            result.residual[2 * count + i] = row.value();
+            if (jacobian)
+                row.copy_derivatives(result.jacobian.data() + (2 * count + i) * size, size);
+        }
+        result.point.heat_rate = (flux * area).value();
+        result.point.force = 0.0;
+        result.point.pressure = 0.0;
     }
     return result;
 }

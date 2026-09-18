@@ -17,23 +17,34 @@ def check(directory, source):
         g=dict(zip(netCDF4.chartostring(d['name_glo_var'][:]),d['vals_glo_var'][-1]))
         names=list(netCDF4.chartostring(d['name_nod_var'][:]))
         total_heat=0.
-        for q,(xi,w) in enumerate(zip([-np.sqrt(3/5),0,np.sqrt(3/5)],[5/9,8/9,5/9])):
-            x=.008*xi
-            y=10*x*x-.0001
-            roots=np.roots([200,0,1-20*y,-x])
-            real=[r.real for r in roots if abs(r.imag)<1e-14 and -.01<=r.real<=.01]
-            projected=min(real,key=lambda r:(r-x)**2+(10*r*r-y)**2)
-            normal=np.array([-20*projected,1.])/np.hypot(20*projected,1)
-            gap=np.dot([x-projected,y-10*projected**2],normal)
-            area=.008*w*.1*np.hypot(20*x,1)
-            pressure=-1e9*gap
+        # Integrate the secondary parabola over each corner neighborhood.
+        # Solve normal-to-secondary intersection analytically, independently of
+        # the production isoparametric projection and its implicit derivative.
+        samples=[]
+        for left,right,count in [(-1,-2/3,3),(-2/3,2/3,5),(2/3,1,3)]:
+            for j in range(count):
+                samples.append(((left+right)/2+(right-left)*(j-(count-1)/2)/np.sqrt(count**2-1),
+                                (right-left)/count))
+        for q in range(2):
+            area=gap_integral=0.
+            for xi,w in samples:
+                ownership=.5 if xi==0 else float((xi<0)==(q==0))
+                x=.008*xi
+                y=10*x*x-.0001
+                # (xp-x) + 20*x*(10*xp*xp-y) = 0.
+                roots=np.roots([200*x,1,-x-20*x*y]) if x else [0.]
+                projected=min(roots,key=lambda r:abs(r-x))
+                normal=np.array([-20*x,1.])/np.hypot(20*x,1)
+                gap=np.dot([x-projected,y-10*projected**2],normal)
+                measure=.008*w*.1*np.hypot(20*x,1)*ownership
+                area+=measure;gap_integral+=measure*gap
+            gap=gap_integral/area
             heat=1000*100*area
             total_heat+=heat
             for name,expected,atol in [('gap',gap,1e-13),('pressure',0.,1e-7),('area',area,1e-13),
                                        ('force',0.,1e-8),('heat_rate',heat,1e-8)]:
                 np.testing.assert_allclose(g[f'contact_0_q{q+3}_{name}'],expected,rtol=1e-11,atol=atol)
-            reports.append(dict(gap=float(gap),area=float(area),pressure=float(pressure),
-                                projected_x=float(projected)))
+            reports.append(dict(gap=float(gap),area=float(area),heat_rate=float(heat)))
         fy=np.asarray(d[f'vals_nod_var{names.index("reaction_y")+1}'][-1])
         fx=np.asarray(d[f'vals_nod_var{names.index("reaction_x")+1}'][-1])
         heat=np.asarray(d[f'vals_nod_var{names.index("heat_reaction")+1}'][-1])

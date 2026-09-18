@@ -8,9 +8,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
   public:
     SpatialAssembly(SpatialDefinition definition, const UnstructuredPlaneQuad8Mesh& mesh);
 
-    std::size_t contribution_count() const noexcept {
-        return contact_offset() + _candidates.size() + _mechanical_constraints.size();
-    }
+    std::size_t contribution_count() const noexcept { return contact_offset() + _contact_constraints.size(); }
 
     std::size_t contact_offset() const noexcept { return volume_contribution_count() + _boundaries.size(); }
 
@@ -74,27 +72,14 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         std::size_t region, element, side;
     };
 
-    struct Candidate final {
-        ContactSide secondary, primary;
-        std::array<std::size_t, 22> dofs;
-        std::size_t contact;
-        double coordinate, weight, penalty;
-        std::size_t segment;
-    };
-
-    std::vector<Candidate> _candidates;
-
-    struct MechanicalConstraint final {
+    struct ContactConstraint final {
         std::size_t contact;
         elements::PlaneAveragedContactGeometry geometry;
         std::vector<std::size_t> dofs;
     };
 
-    std::vector<MechanicalConstraint> _mechanical_constraints;
-    std::vector<std::pair<std::size_t, std::size_t>> _constraints;
+    std::vector<ContactConstraint> _contact_constraints;
     void build_contacts(const UnstructuredPlaneQuad8Mesh& mesh);
     void validate_contacts(std::size_t first, std::size_t last, const std::vector<double>& state) const;
-    elements::Line3PlaneContactResult
-    evaluate_candidate(std::size_t candidate, const elements::Line3PlaneValues& state, bool jacobian) const;
 };
 } // namespace fuelsim::plane
