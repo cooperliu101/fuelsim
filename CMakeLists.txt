@@ -224,6 +224,12 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_cpeg8t_coupled_contact_abaqus
         COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_coupled_contact.py"
             --executable "$<TARGET_FILE:fuelsim>" --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_coupled_contact")
+    foreach(case deforming_contact deforming_fixed_primary)
+        add_test(NAME fuelsim_cpeg8t_${case}_abaqus
+            COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_contact_supplement.py"
+                --case "${case}" --executable "$<TARGET_FILE:fuelsim>"
+                --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_${case}")
+    endforeach()
     add_executable(fuelsim_modal_beam_tests tests/modal_beam_tests.cpp)
     target_link_libraries(fuelsim_modal_beam_tests PRIVATE fuelsim::solver)
     fuelsim_link_petsc(fuelsim_modal_beam_tests)
@@ -1992,6 +1998,11 @@ if(BUILD_TESTING)
             COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_restart.py"
                 --executable "$<TARGET_FILE:fuelsim>" --mpiexec "${FUELSIM_MPIEXEC_EXECUTABLE}"
                 --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_restart_mpi4")
+        add_test(NAME fuelsim_cpeg8t_contact_restart_mpi4
+            COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_contact_restart.py"
+                --executable "$<TARGET_FILE:fuelsim>" --mpiexec "${FUELSIM_MPIEXEC_EXECUTABLE}"
+                --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_contact_restart_mpi4")
+        set_tests_properties(fuelsim_cpeg8t_contact_restart_mpi4 PROPERTIES PROCESSORS 4)
         add_test(NAME fuelsim_cpeg8t_contact_cycle_distribution_mpi4
             COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_contact_cycle.py"
                 --executable "$<TARGET_FILE:fuelsim>" --mpiexec "${FUELSIM_MPIEXEC_EXECUTABLE}"
