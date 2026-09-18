@@ -1,0 +1,14 @@
+{
+  "pressure_opening_fields.json": {
+    "raw_sha256": "c935e582934f6c243b52b441ebcc782825f04457414159d0fa029b744144ac0d",
+    "stored_sha256": "e4937c183e92581a3615cdef213f72f184743435aa674bfafe1c6236f2866bcf"
+  },
+  "thermal_matrix_off_fields.json": {
+    "raw_sha256": "41ed2947e8bfa9655568c685f9c29dc4da941828cda0fc3576d418bb2f43967a",
+    "stored_sha256": "7022722e7a3081eb56502e1da3446ba5277d2524125eea1273a2ba9c1c6793ac"
+  },
+  "thermal_matrix_on_fields.json": {
+    "raw_sha256": "cf78d8b03414becf24362f638047571965e432bad1e2ada9bcf27a23d5efa616",
+    "stored_sha256": "b7280cd099d0872f3866c0c7ce7e8d53a5031928bca3e24576ef8382f2f897d1"
+  }
+}

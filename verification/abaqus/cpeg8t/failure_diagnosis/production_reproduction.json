@@ -1,0 +1,8 @@
+{
+  "completed": "false",
+  "termination_reason": "maximum_cutbacks",
+  "last_rejected.convergence_reason": "DIVERGED_FUNCTION_DOMAIN",
+  "last_rejected.failure_message": "CPEG8T primary projection intervals overlap ambiguously",
+  "executable_sha256": "88285483e5072f625f9ddcba0ec981d8f6b083b7eae5b56cff9773f777836ddd",
+  "input_sha256": "eecef25aedaed1eead03fc16f5a707d0b5d8f1fa696300a6fc695abb6413b5c1"
+}

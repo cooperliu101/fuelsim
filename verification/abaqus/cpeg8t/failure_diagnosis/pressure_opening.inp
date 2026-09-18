@@ -1,0 +1,212 @@
+*Heading
+** Two CPEG8T blocks, frictionless penalty contact and constant gap conductance.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Node
+1,-.01,-.01
+2,.01,-.01
+3,.01,0
+4,-.01,0
+5,0,-.01
+6,.01,-.005
+7,0,0
+8,-.01,-.005
+9,-.01,.0001
+10,.01,.0001
+11,.01,.0101
+12,-.01,.0101
+13,0,.0001
+14,.01,.0051
+15,0,.0101
+16,-.01,.0051
+17,0,0
+18,0,0
+*Element,type=CPEG8T,elset=LOWER
+1,1,2,3,4,5,6,7,8
+*Element,type=CPEG8T,elset=UPPER
+2,9,10,11,12,13,14,15,16
+*Nset,nset=FIELD,generate
+1,16,1
+*Nset,nset=BOTTOM
+1,2,5
+*Nset,nset=TOP
+11,12,15
+*Nset,nset=CONTROLS
+17,18
+*Material,name=SOLID
+*Elastic
+1e6,.25
+*Conductivity
+10
+*Density
+1000
+*Specific Heat
+100
+*Solid Section,elset=LOWER,material=SOLID,ref node=17
+.1,0,0
+*Solid Section,elset=UPPER,material=SOLID,ref node=18
+.1,0,0
+*Surface,name=PRIMARY,type=ELEMENT
+LOWER,S3
+*Surface,name=SECONDARY,type=ELEMENT
+UPPER,S1
+*Surface Interaction,name=INTERFACE
+.1
+*Surface Behavior,pressure-overclosure=LINEAR
+1e9
+*Gap Conductance,pressure
+1000,0,300
+3000,1e6,300
+1200,0,400
+3200,1e6,400
+*Contact Pair,interaction=INTERFACE,type=SURFACE TO SURFACE
+SECONDARY,PRIMARY
+*Initial Conditions,type=TEMPERATURE
+FIELD,300
+*Nset,nset=LOWER_NODES,generate
+1,8,1
+*Nset,nset=UPPER_NODES,generate
+9,16,1
+*Step,name=GAP_0,nlgeom=NO,inc=10
+*Coupled Temperature-Displacement,steady state
+1,1,1,1
+*Boundary,op=NEW
+FIELD,1,1,0
+LOWER_NODES,2,2,0
+UPPER_NODES,2,2,0
+CONTROLS,3,5,0
+LOWER_NODES,11,11,300
+UPPER_NODES,11,11,400
+*Output,field,frequency=1
+*Node Output
+NT,U,RF,RFL
+*Contact Output
+CSTRESS,CDISP,CFORCE
+*End Step
+*Step,name=GAP_1,nlgeom=NO,inc=10
+*Coupled Temperature-Displacement,steady state
+1,1,1,1
+*Boundary,op=NEW
+FIELD,1,1,0
+LOWER_NODES,2,2,0
+UPPER_NODES,2,2,-9.0000000000000006e-05
+CONTROLS,3,5,0
+LOWER_NODES,11,11,300
+UPPER_NODES,11,11,400
+*Output,field,frequency=1
+*Node Output
+NT,U,RF,RFL
+*Contact Output
+CSTRESS,CDISP,CFORCE
+*End Step
+*Step,name=GAP_2,nlgeom=NO,inc=10
+*Coupled Temperature-Displacement,steady state
+1,1,1,1
+*Boundary,op=NEW
+FIELD,1,1,0
+LOWER_NODES,2,2,0
+UPPER_NODES,2,2,-9.9000000000000008e-05
+CONTROLS,3,5,0
+LOWER_NODES,11,11,300
+UPPER_NODES,11,11,400
+*Output,field,frequency=1
+*Node Output
+NT,U,RF,RFL
+*Contact Output
+CSTRESS,CDISP,CFORCE
+*End Step
+*Step,name=GAP_3,nlgeom=NO,inc=10
+*Coupled Temperature-Displacement,steady state
+1,1,1,1
+*Boundary,op=NEW
+FIELD,1,1,0
+LOWER_NODES,2,2,0
+UPPER_NODES,2,2,-9.9900000000000002e-05
+CONTROLS,3,5,0
+LOWER_NODES,11,11,300
+UPPER_NODES,11,11,400
+*Output,field,frequency=1
+*Node Output
+NT,U,RF,RFL
+*Contact Output
+CSTRESS,CDISP,CFORCE
+*End Step
+*Step,name=GAP_4,nlgeom=NO,inc=10
+*Coupled Temperature-Displacement,steady state
+1,1,1,1
+*Boundary,op=NEW
+FIELD,1,1,0
+LOWER_NODES,2,2,0
+UPPER_NODES,2,2,-9.999000000000001e-05
+CONTROLS,3,5,0
+LOWER_NODES,11,11,300
+UPPER_NODES,11,11,400
+*Output,field,frequency=1
+*Node Output
+NT,U,RF,RFL
+*Contact Output
+CSTRESS,CDISP,CFORCE
+*End Step
+*Step,name=GAP_5,nlgeom=NO,inc=10
+*Coupled Temperature-Displacement,steady state
+1,1,1,1
+*Boundary,op=NEW
+FIELD,1,1,0
+LOWER_NODES,2,2,0
+UPPER_NODES,2,2,-0.0001
+CONTROLS,3,5,0
+LOWER_NODES,11,11,300
+UPPER_NODES,11,11,400
+*Output,field,frequency=1
+*Node Output
+NT,U,RF,RFL
+*Contact Output
+CSTRESS,CDISP,CFORCE
+*End Step
+*Step,name=GAP_6,nlgeom=NO,inc=10
+*Coupled Temperature-Displacement,steady state
+1,1,1,1
+*Boundary,op=NEW
+FIELD,1,1,0
+LOWER_NODES,2,2,0
+UPPER_NODES,2,2,-0.00010001
+CONTROLS,3,5,0
+LOWER_NODES,11,11,300
+UPPER_NODES,11,11,400
+*Output,field,frequency=1
+*Node Output
+NT,U,RF,RFL
+*Contact Output
+CSTRESS,CDISP,CFORCE
+*End Step
+*Step,name=GAP_7,nlgeom=NO,inc=10
+*Coupled Temperature-Displacement,steady state
+1,1,1,1
+*Boundary,op=NEW
+FIELD,1,1,0
+LOWER_NODES,2,2,0
+UPPER_NODES,2,2,-0.00020000000000000001
+CONTROLS,3,5,0
+LOWER_NODES,11,11,300
+UPPER_NODES,11,11,400
+*Output,field,frequency=1
+*Node Output
+NT,U,RF,RFL
+*Contact Output
+CSTRESS,CDISP,CFORCE
+*End Step
+*Step,name=GAP_8,nlgeom=NO,inc=10
+*Coupled Temperature-Displacement,steady state
+1,1,1,1
+*Boundary,op=NEW
+FIELD,1,1,0
+LOWER_NODES,2,2,0
+UPPER_NODES,2,2,0
+CONTROLS,3,5,0
+LOWER_NODES,11,11,300
+UPPER_NODES,11,11,400
+*Output,field,frequency=1
+*Node Output
+NT,U,RF,RFL
+*Contact Output
+CSTRESS,CDISP,CFORCE
+*End Step

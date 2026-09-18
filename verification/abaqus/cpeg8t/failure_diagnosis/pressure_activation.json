@@ -1,0 +1,74 @@
+[
+  {
+    "gap_m": 0.0001,
+    "native_upper_heat_W": 0.0,
+    "native_lower_heat_W": 1.9721522630525295e-31,
+    "balance_W": 1.9721522630525295e-31,
+    "native_maximum_pressure_Pa": 0.0,
+    "affine_law_heat_W": 220.0
+  },
+  {
+    "gap_m": 1e-05,
+    "native_upper_heat_W": 220.0,
+    "native_lower_heat_W": -220.0,
+    "balance_W": 0.0,
+    "native_maximum_pressure_Pa": 0.0,
+    "affine_law_heat_W": 220.0
+  },
+  {
+    "gap_m": 1e-06,
+    "native_upper_heat_W": 220.0,
+    "native_lower_heat_W": -220.0,
+    "balance_W": 0.0,
+    "native_maximum_pressure_Pa": 0.0,
+    "affine_law_heat_W": 220.0
+  },
+  {
+    "gap_m": 1e-07,
+    "native_upper_heat_W": 220.0,
+    "native_lower_heat_W": -220.0,
+    "balance_W": 0.0,
+    "native_maximum_pressure_Pa": 0.0,
+    "affine_law_heat_W": 220.0
+  },
+  {
+    "gap_m": 1e-08,
+    "native_upper_heat_W": 220.0,
+    "native_lower_heat_W": -220.0,
+    "balance_W": 0.0,
+    "native_maximum_pressure_Pa": 0.0,
+    "affine_law_heat_W": 220.0
+  },
+  {
+    "gap_m": 0.0,
+    "native_upper_heat_W": 220.0,
+    "native_lower_heat_W": -220.0,
+    "balance_W": 0.0,
+    "native_maximum_pressure_Pa": 0.0,
+    "affine_law_heat_W": 220.0
+  },
+  {
+    "gap_m": -1e-08,
+    "native_upper_heat_W": 220.00399999999996,
+    "native_lower_heat_W": -220.00399999999996,
+    "balance_W": 0.0,
+    "native_maximum_pressure_Pa": 9.999999999994824,
+    "affine_law_heat_W": 220.00400000000002
+  },
+  {
+    "gap_m": -0.0001,
+    "native_upper_heat_W": 260.0,
+    "native_lower_heat_W": -260.0,
+    "balance_W": 0.0,
+    "native_maximum_pressure_Pa": 100000.00000000003,
+    "affine_law_heat_W": 260.0
+  },
+  {
+    "gap_m": 0.0001,
+    "native_upper_heat_W": 0.0,
+    "native_lower_heat_W": 1.9721522630525295e-31,
+    "balance_W": 1.9721522630525295e-31,
+    "native_maximum_pressure_Pa": 0.0,
+    "affine_law_heat_W": 220.0
+  }
+]

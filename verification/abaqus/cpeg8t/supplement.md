@@ -6,6 +6,10 @@
 [`supplement_validation.json`](supplement_validation.json)，原生输入和参考字段由
 [`supplement_reference.sha256`](supplement_reference.sha256) 固定。
 
+四项未通过比较的后续独立研究见[逐项研究记录](failure_diagnosis/README.md)。
+该记录进一步区分了热接触平均方式、投影区间限制、进程数相关舍入以及
+压力表在较小正间隙下仍传热的行为；尚未修改生产算法或改变这里的通过状态。
+
 ## 已通过的比较
 
 ### 间隙与温度相关传热

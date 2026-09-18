@@ -1,0 +1,593 @@
+{
+  "rows": [
+    {
+      "time": 0.0625,
+      "secondary_edge": 0,
+      "intervals": [
+        [
+          -1.0,
+          1.0,
+          0
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.00039412201239730096,
+      "shared_endpoint_secondary_normal_coordinate": null
+    },
+    {
+      "time": 0.0625,
+      "secondary_edge": 1,
+      "intervals": [
+        [
+          -1.0,
+          2.4269047571578994e-05,
+          0
+        ],
+        [
+          2.0659859728766605e-05,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 3.609187842812389e-06,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 2.1658370244848237e-08,
+      "primary_tangent_jump_radians": 0.00039412201239730096,
+      "shared_endpoint_secondary_normal_coordinate": -0.0001864529814369722
+    },
+    {
+      "time": 0.125,
+      "secondary_edge": 0,
+      "intervals": [
+        [
+          -1.0,
+          1.0,
+          0
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.003997780814299941,
+      "shared_endpoint_secondary_normal_coordinate": null
+    },
+    {
+      "time": 0.125,
+      "secondary_edge": 1,
+      "intervals": [
+        [
+          -1.0,
+          0.00022169490762280475,
+          0
+        ],
+        [
+          0.0002201177353526873,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 1.577172270117444e-06,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 9.45277348821988e-09,
+      "primary_tangent_jump_radians": 0.003997780814299941,
+      "shared_endpoint_secondary_normal_coordinate": 0.0002161159810063815
+    },
+    {
+      "time": 0.1875,
+      "secondary_edge": 0,
+      "intervals": [
+        [
+          -1.0,
+          1.0,
+          0
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.009664289967359579,
+      "shared_endpoint_secondary_normal_coordinate": null
+    },
+    {
+      "time": 0.1875,
+      "secondary_edge": 1,
+      "intervals": [
+        [
+          -1.0,
+          -0.00043634266239678254,
+          0
+        ],
+        [
+          -0.0004188439334029681,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 1.749872899381444e-05,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.009664289967359579,
+      "shared_endpoint_secondary_normal_coordinate": -0.0004175119430670817
+    },
+    {
+      "time": 0.25,
+      "secondary_edge": 0,
+      "intervals": [
+        [
+          -1.0,
+          1.0,
+          0
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.015564763495987165,
+      "shared_endpoint_secondary_normal_coordinate": null
+    },
+    {
+      "time": 0.25,
+      "secondary_edge": 1,
+      "intervals": [
+        [
+          -1.0,
+          -0.0020175754525553202,
+          0
+        ],
+        [
+          -0.0019813667468042695,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 3.620870575105073e-05,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.015564763495987165,
+      "shared_endpoint_secondary_normal_coordinate": -0.001996407554812667
+    },
+    {
+      "time": 0.3125,
+      "secondary_edge": 0,
+      "intervals": [
+        [
+          -1.0,
+          1.0,
+          0
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.021096246202303333,
+      "shared_endpoint_secondary_normal_coordinate": null
+    },
+    {
+      "time": 0.3125,
+      "secondary_edge": 1,
+      "intervals": [
+        [
+          -1.0,
+          -0.16942452102239258,
+          0
+        ],
+        [
+          -0.1693818569619907,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 4.266406040187576e-05,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.021096246202303333,
+      "shared_endpoint_secondary_normal_coordinate": -0.16940401957916473
+    },
+    {
+      "time": 0.375,
+      "secondary_edge": 0,
+      "intervals": [
+        [
+          -1.0,
+          1.0,
+          0
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.0265342025559696,
+      "shared_endpoint_secondary_normal_coordinate": null
+    },
+    {
+      "time": 0.375,
+      "secondary_edge": 1,
+      "intervals": [
+        [
+          -1.0,
+          -0.3362205182056641,
+          0
+        ],
+        [
+          -0.33618201901026623,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 3.849919539788971e-05,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.0265342025559696,
+      "shared_endpoint_secondary_normal_coordinate": -0.33620373833649797
+    },
+    {
+      "time": 0.4375,
+      "secondary_edge": 0,
+      "intervals": [
+        [
+          -1.0,
+          1.0,
+          0
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.03138324839411854,
+      "shared_endpoint_secondary_normal_coordinate": null
+    },
+    {
+      "time": 0.4375,
+      "secondary_edge": 1,
+      "intervals": [
+        [
+          -1.0,
+          -0.5025388906142325,
+          0
+        ],
+        [
+          -0.5025143209077214,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 2.4569706511101685e-05,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.03138324839411854,
+      "shared_endpoint_secondary_normal_coordinate": -0.5025281444118519
+    },
+    {
+      "time": 0.5,
+      "secondary_edge": 0,
+      "intervals": [
+        [
+          -1.0,
+          1.0,
+          0
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.03492045055001264,
+      "shared_endpoint_secondary_normal_coordinate": null
+    },
+    {
+      "time": 0.5,
+      "secondary_edge": 1,
+      "intervals": [
+        [
+          -1.0,
+          -0.6685254630519921,
+          0
+        ],
+        [
+          -0.6685134629833556,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 1.2000068636552896e-05,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.03492045055001264,
+      "shared_endpoint_secondary_normal_coordinate": -0.6685198402417319
+    },
+    {
+      "time": 0.5625,
+      "secondary_edge": 0,
+      "intervals": [
+        [
+          -1.0,
+          1.0,
+          0
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.03762717393885801,
+      "shared_endpoint_secondary_normal_coordinate": null
+    },
+    {
+      "time": 0.5625,
+      "secondary_edge": 1,
+      "intervals": [
+        [
+          -1.0,
+          -0.8343202082860444,
+          0
+        ],
+        [
+          -0.8343014104707436,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 1.879781530078617e-05,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.03762717393885801,
+      "shared_endpoint_secondary_normal_coordinate": -0.834310327056543
+    },
+    {
+      "time": 0.625,
+      "secondary_edge": 0,
+      "intervals": [
+        [
+          -1.0,
+          0.9999814186069216,
+          0
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.039611060047641866,
+      "shared_endpoint_secondary_normal_coordinate": 0.9999993987936897
+    },
+    {
+      "time": 0.625,
+      "secondary_edge": 1,
+      "intervals": [
+        [
+          -0.99997487521523,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.039611060047641866,
+      "shared_endpoint_secondary_normal_coordinate": -0.9999928570051839
+    },
+    {
+      "time": 0.6875,
+      "secondary_edge": 0,
+      "intervals": [
+        [
+          -1.0,
+          0.8345345214439703,
+          0
+        ],
+        [
+          0.8345626452171473,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 2.812377317695791e-05,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.04129305230242415,
+      "shared_endpoint_secondary_normal_coordinate": 0.8345476295014419
+    },
+    {
+      "time": 0.6875,
+      "secondary_edge": 1,
+      "intervals": [
+        [
+          -1.0,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.04129305230242415,
+      "shared_endpoint_secondary_normal_coordinate": null
+    },
+    {
+      "time": 0.75,
+      "secondary_edge": 0,
+      "intervals": [
+        [
+          -1.0,
+          0.6694976263806893,
+          0
+        ],
+        [
+          0.6695214486594523,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 2.3822278762963833e-05,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.04225291908004967,
+      "shared_endpoint_secondary_normal_coordinate": 0.6695100845954387
+    },
+    {
+      "time": 0.75,
+      "secondary_edge": 1,
+      "intervals": [
+        [
+          -1.0,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.04225291908004967,
+      "shared_endpoint_secondary_normal_coordinate": null
+    },
+    {
+      "time": 0.8125,
+      "secondary_edge": 0,
+      "intervals": [
+        [
+          -1.0,
+          0.5048501692981517,
+          0
+        ],
+        [
+          0.5048975653270418,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 4.739602889003436e-05,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.04231572999922997,
+      "shared_endpoint_secondary_normal_coordinate": 0.5048768748130095
+    },
+    {
+      "time": 0.8125,
+      "secondary_edge": 1,
+      "intervals": [
+        [
+          -1.0,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.04231572999922997,
+      "shared_endpoint_secondary_normal_coordinate": null
+    },
+    {
+      "time": 0.875,
+      "secondary_edge": 0,
+      "intervals": [
+        [
+          -1.0,
+          0.3405395058631484,
+          0
+        ],
+        [
+          0.34062542094534365,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 8.591508219524258e-05,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.04041397798593969,
+      "shared_endpoint_secondary_normal_coordinate": 0.3405900665227031
+    },
+    {
+      "time": 0.875,
+      "secondary_edge": 1,
+      "intervals": [
+        [
+          -1.0,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.04041397798593969,
+      "shared_endpoint_secondary_normal_coordinate": null
+    },
+    {
+      "time": 0.9375,
+      "secondary_edge": 0,
+      "intervals": [
+        [
+          -1.0,
+          0.1764463266212033,
+          0
+        ],
+        [
+          0.17657139379321052,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0001250671720072205,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.03733815869982385,
+      "shared_endpoint_secondary_normal_coordinate": 0.17652028129335687
+    },
+    {
+      "time": 0.9375,
+      "secondary_edge": 1,
+      "intervals": [
+        [
+          -1.0,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.03733815869982385,
+      "shared_endpoint_secondary_normal_coordinate": null
+    },
+    {
+      "time": 1.0,
+      "secondary_edge": 0,
+      "intervals": [
+        [
+          -1.0,
+          0.012537912100924586,
+          0
+        ],
+        [
+          0.012694478282355703,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.000156566181431117,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.03384725553176835,
+      "shared_endpoint_secondary_normal_coordinate": 0.012628676771581415
+    },
+    {
+      "time": 1.0,
+      "secondary_edge": 1,
+      "intervals": [
+        [
+          -1.0,
+          1.0,
+          1
+        ]
+      ],
+      "natural_overlap": 0.0,
+      "natural_uncovered": 0.0,
+      "physical_overlap_m": 0.0,
+      "primary_tangent_jump_radians": 0.03384725553176835,
+      "shared_endpoint_secondary_normal_coordinate": null
+    }
+  ],
+  "max_overlap_m": 2.1658370244848237e-08,
+  "affected_rows": 15
+}
