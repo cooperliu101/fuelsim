@@ -569,9 +569,9 @@ bool test_multiple_regions() {
     return passed;
 }
 
-bool test_shared_nodes(const fuelsim::PetscSession& session) {
+bool test_shared_nodes(const fuelsim::PetscSession& session, const std::string& output_prefix) {
     const fuelsim::UnstructuredHex8Mesh mesh = shared_two_region_mesh();
-    const std::filesystem::path input = std::filesystem::temp_directory_path() / "fuelsim_shared_hex8_input.e";
+    const std::filesystem::path input = output_prefix + ".shared_input.e";
     try {
         session.collective_root_action([&]() { fuelsim::write_exodus_hex8(input.string(), mesh); });
     } catch (const std::exception& error) {
@@ -610,7 +610,7 @@ bool test_shared_nodes(const fuelsim::PetscSession& session) {
     for (std::size_t node = 0; passed && node < exodus_mesh.nodes().size(); ++node)
         passed = check(std::abs(result.solve.state[dofs.dof(fuelsim::Field::temperature, node)] - 325.0) < 2.0e-9,
             "shared-node solve preserves the continuous uniform temperature");
-    const std::filesystem::path output = std::filesystem::temp_directory_path() / "fuelsim_shared_hex8.e";
+    const std::filesystem::path output = output_prefix + ".shared.e";
     try {
         session.collective_root_action(
             [&]() { fuelsim::write_steady_results(output.string(), exodus_mesh, problem, result.solve.state); });
@@ -1266,7 +1266,7 @@ int main(int argc, char** argv) {
     bool passed = test_steady(session, mesh, argv[1]);
     passed = test_creep_rate_time_control(mesh) && passed;
     passed = test_transient(session, mesh, argv[3], argv[2]) && passed;
-    passed = test_shared_nodes(session) && passed;
+    passed = test_shared_nodes(session, argv[1]) && passed;
     passed = test_finite_sliding_end_to_end() && passed;
     if (!mpi_only) {
         passed = test_small_strain_steady_predictor(mesh) && passed;
