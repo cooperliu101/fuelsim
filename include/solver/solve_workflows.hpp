@@ -49,6 +49,7 @@ struct TransientTimeOptions final {
            displacement_time_absolute_tolerance = 1.0e-10, time_error_safety_factor = 0.9,
            strain_history_time_absolute_tolerance = 1.0e-10, stress_history_time_absolute_tolerance = 1.0;
     bool include_thermal_time_term = true, use_linear_time_predictor = false;
+    double creep_strain_time_tolerance = 0.0;
 };
 
 struct TransientFieldTimeError final {

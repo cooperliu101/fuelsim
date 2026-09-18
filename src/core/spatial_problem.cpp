@@ -1795,6 +1795,36 @@ TransientTimeErrorEstimate compare_rz_step_doubling_states(const TransientCommit
 }
 } // namespace
 
+std::vector<double> TransientProblem::committed_creep_rates() const {
+    if (time_step_active())
+        throw std::logic_error("Creep rates require an accepted state");
+    if (!_impl->is_cartesian() || _impl->cartesian->uses_hex20())
+        throw std::invalid_argument("Creep-rate time control currently requires C3D8T regions");
+    std::vector<double> rates;
+    bool has_creep = false;
+    for (std::size_t r = 0; r < definition().regions.size(); ++r) {
+        const auto& region = definition().regions[r];
+        if (region.hex8_element_formulation != Hex8ElementFormulation::c3d8t)
+            throw std::invalid_argument("Creep-rate time control currently requires C3D8T regions");
+        const IsotropicThermoelasticMaterial material(region.material);
+        has_creep = has_creep || material.functions().has_creep();
+        const auto& histories = _impl->cartesian_material_histories[r];
+        for (std::size_t e = 0; e < histories.size(); ++e) {
+            const auto local = _impl->cartesian->volume_state(_impl->cartesian->region_element_offset(r) + e,
+                _impl->committed_solution);
+            const auto values = elements::c3d8t_creep_rates(material,
+                _impl->cartesian->region_element_geometry(r, e),
+                local,
+                histories[e],
+                _impl->committed_time);
+            rates.insert(rates.end(), values.begin(), values.end());
+        }
+    }
+    if (!has_creep)
+        throw std::invalid_argument("Creep-rate time control requires a creep material");
+    return rates;
+}
+
 TransientTimeErrorEstimate TransientProblem::step_doubling_error(const ProblemStateSnapshot& full_snapshot,
     const ProblemStateSnapshot& half_snapshot,
     const TransientTimeOptions& options) const {

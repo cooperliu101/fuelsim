@@ -1783,6 +1783,21 @@ namespace fuelsim::elements {
 Hex8Geometry make_c3d8t_geometry(const Hex8Coordinates& coordinates) {
     return c3d8_detail::make_hex8_geometry(coordinates);
 }
+
+std::array<double, 8> c3d8t_creep_rates(const IsotropicThermoelasticMaterial& material,
+    const Hex8Geometry& geometry,
+    const Hex8LocalValues& state,
+    const CartesianMaterialHistory& history,
+    double time) {
+    if (history.size() != 8)
+        throw std::invalid_argument("C3D8T creep rates require eight material points");
+    std::array<double, 8> rates{};
+    for (std::size_t q = 0; q < rates.size(); ++q)
+        rates[q] = material.equivalent_creep_rate(history[q],
+            state[c3d8_detail::hex8_node_gauss_permutation[q]],
+            material_context(time, geometry.points[q].position));
+    return rates;
+}
 } // namespace fuelsim::elements
 
 namespace fuelsim::elements {
