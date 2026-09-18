@@ -214,6 +214,16 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_cpeg8t_restart
         COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_restart.py"
             --executable "$<TARGET_FILE:fuelsim>" --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_restart")
+    add_test(NAME fuelsim_cpeg8t_thermal_clearance_abaqus
+        COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_contact_laws.py"
+            --case thermal_clearance --executable "$<TARGET_FILE:fuelsim>"
+            --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_thermal_clearance")
+    add_test(NAME fuelsim_cpeg8t_contact_restart
+        COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_contact_restart.py"
+            --executable "$<TARGET_FILE:fuelsim>" --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_contact_restart")
+    add_test(NAME fuelsim_cpeg8t_coupled_contact_abaqus
+        COMMAND "${FUELSIM_TEST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/cpeg8t/check_coupled_contact.py"
+            --executable "$<TARGET_FILE:fuelsim>" --work "${CMAKE_CURRENT_BINARY_DIR}/cpeg8t_coupled_contact")
     add_executable(fuelsim_modal_beam_tests tests/modal_beam_tests.cpp)
     target_link_libraries(fuelsim_modal_beam_tests PRIVATE fuelsim::solver)
     fuelsim_link_petsc(fuelsim_modal_beam_tests)
