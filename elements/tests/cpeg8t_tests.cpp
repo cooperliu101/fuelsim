@@ -124,129 +124,94 @@ void check_averaged_contact(bool curved, bool crossing, bool shared = false) {
         require_close(value, 0.0, 0.0, "Open averaged contact has zero tangent");
 }
 
-void check_contact(unsigned clipping = 0) {
+void check_thermal_averaged_contact(double slide = 0.0) {
     using namespace fuelsim;
     using namespace fuelsim::elements;
-    Line3PlaneValues state{410, 430, 300, 320};
-    state[16] = .01;
-    state[17] = .03;
-    state[18] = -.02;
-    Line3PlaneContactInput input{{{{-.01, -.0001}, {.01, -.0001}, {0, -.00008}}},
-        {{{.012, 0}, {-.012, 0}, {0, .00001}}},
-        {},
-        {},
-        .1,
-        .1,
-        true,
-        true,
-        state,
-        .2,
-        8.0 / 9.0,
-        {0, 1e-6, GapHeatConductanceLaw::affine, 1000, 10, .001, .2, 300, 1e9},
-        1e9,
-        true,
-        true};
-    if (clipping == 1) {
-        input.primary[0][0] = .004;
-        input.primary[1][0] = -.015;
-        input.primary[2][0] = -.0055;
-    } else if (clipping == 2) {
-        input.primary[0][0] = .015;
-        input.primary[1][0] = -.004;
-        input.primary[2][0] = .0055;
-        input.segment = 1;
-    }
-    const auto active = evaluate_line3_plane_contact(input, true);
-    if (!active.projected || !(active.pressure > 0))
-        throw std::runtime_error("Curved contact must be active");
-    const auto passive = evaluate_line3_plane_contact(input, false);
-    Line3PlaneValues direction{}, plus = state, minus = state;
-    constexpr double epsilon = 1e-5;
-    for (std::size_t i = 0; i < 22; ++i) {
-        direction[i] = std::sin(static_cast<double>(i + 1)) * (i < 4 ? 10 : .0001);
-        plus[i] += epsilon * direction[i];
-        minus[i] -= epsilon * direction[i];
-        require_close(active.residual[i], passive.residual[i], 1e-12, "Contact residual agreement");
-    }
-    auto upper = input, lower = input;
-    // Reference members intentionally bind separate perturbed local states.
-    const Line3PlaneContactInput upper_input{upper.secondary,
-        upper.primary,
-        {},
-        {},
-        .1,
-        .1,
-        true,
-        true,
-        plus,
-        upper.coordinate,
-        upper.weight,
-        upper.heat,
-        upper.penalty,
-        true,
-        true,
-        input.segment};
-    const Line3PlaneContactInput lower_input{lower.secondary,
-        lower.primary,
-        {},
-        {},
-        .1,
-        .1,
-        true,
-        true,
-        minus,
-        lower.coordinate,
-        lower.weight,
-        lower.heat,
-        lower.penalty,
-        true,
-        true,
-        input.segment};
-    const auto rp = evaluate_line3_plane_contact(upper_input, false);
-    const auto rm = evaluate_line3_plane_contact(lower_input, false);
-    for (std::size_t i = 0; i < 22; ++i) {
-        double exact = 0;
-        for (std::size_t j = 0; j < 22; ++j)
-            exact += active.jacobian[i * 22 + j] * direction[j];
-        require_close(exact,
-            (rp.residual[i] - rm.residual[i]) / (2 * epsilon),
-            2e-6 * std::max(1.0, std::abs(exact)),
-            "Curved contact directional tangent");
-    }
-    for (std::size_t column = 0; column <= 22; ++column) {
-        const auto entry = [&](std::size_t row) {
-            return column == 22 ? active.residual[row] : active.jacobian[row * 22 + column];
-        };
-        require_close(entry(0) + entry(1) + entry(2) + entry(3), 0, 1e-9, "Contact heat conservation");
-        for (std::size_t c = 0; c < 2; ++c) {
-            double force = 0;
-            for (std::size_t n = 0; n < 3; ++n)
-                force += entry(4 + 3 * c + n) + entry(10 + 3 * c + n);
-            require_close(force, 0, 1e-9, "Contact force conservation");
+    PlaneAveragedContactGeometry geometry;
+    // Both sides are curved; the primary tangent jumps at its shared endpoint.
+    geometry.coordinates = {{{-.006, -.00012}},
+        {{0, -.00008}},
+        {{.006, -.0001}},
+        {{-.003, -.00007}},
+        {{.003, -.00006}},
+        {{-.02, 0}},
+        {{0, .00002}},
+        {{.02, 0}},
+        {{-.01, .00006}},
+        {{.01, -.00001}}};
+    geometry.secondary = {{{0, 1, 3}, 1, .1}, {{1, 2, 4}, 0, .1}};
+    geometry.primary = {{{6, 5, 8}}, {{7, 6, 9}}};
+    geometry.temperature_nodes = {0, 1, 2, 5, 6, 7};
+    geometry.penalty = 1e9;
+    geometry.heat = {0.02, 1e-5, GapHeatConductanceLaw::affine, 1000, 1e4, .001, .2, 300, 1e9};
+    const auto offset = 2 * geometry.coordinates.size();
+    std::vector<double> state(offset + geometry.temperature_nodes.size()), direction(state.size());
+    for (std::size_t node = 0; node < 5; ++node)
+        state[2 * node] = slide;
+    for (std::size_t i = 0; i < direction.size(); ++i)
+        direction[i] = (i < offset ? .0001 : 10.0) * std::sin(static_cast<double>(i + 1));
+    for (std::size_t i = offset; i < state.size(); ++i)
+        state[i] = i < offset + 3 ? 400.0 + 7.0 * static_cast<double>(i - offset)
+                                  : 300.0 + 11.0 * static_cast<double>(i - offset - 3);
+    for (auto law : {GapHeatConductanceLaw::affine, GapHeatConductanceLaw::gas_gap})
+        for (bool open : {false, true}) {
+            geometry.heat.law = law;
+            for (std::size_t node = 0; node < 5; ++node)
+                state[2 * node + 1] = open ? .0004 : 0.0;
+            const auto exact = evaluate_plane_averaged_contact(geometry, state, true);
+            const auto passive = evaluate_plane_averaged_contact(geometry, state, false);
+            auto plus = state, minus = state;
+            constexpr double epsilon = 1e-5;
+            for (std::size_t i = 0; i < state.size(); ++i) {
+                plus[i] += epsilon * direction[i];
+                minus[i] -= epsilon * direction[i];
+            }
+            const auto upper = evaluate_plane_averaged_contact(geometry, plus, false);
+            const auto lower = evaluate_plane_averaged_contact(geometry, minus, false);
+            for (std::size_t i = 0; i < state.size(); ++i) {
+                require_close(exact.residual[i], passive.residual[i], 0.0, "Thermal averaged residual agreement");
+                double derivative = 0.0;
+                for (std::size_t j = 0; j < state.size(); ++j)
+                    derivative += exact.jacobian[i * state.size() + j] * direction[j];
+                require_close(derivative,
+                    (upper.residual[i] - lower.residual[i]) / (2 * epsilon),
+                    2e-6 * std::max(1.0, std::abs(derivative)),
+                    "Thermal averaged geometric and material tangent");
+                if (i < offset)
+                    require_close(exact.residual[i], 0.0, 0.0, "Thermal contact must not apply mechanical force");
+            }
+            for (std::size_t column = 0; column <= state.size(); ++column) {
+                double balance = 0.0;
+                for (std::size_t i = offset; i < state.size(); ++i)
+                    balance += column == state.size() ? exact.residual[i] : exact.jacobian[i * state.size() + column];
+                require_close(balance, 0.0, 1e-8, "Thermal averaged heat and tangent conservation");
+            }
         }
+    for (std::size_t node = 0; node < 5; ++node)
+        state[2 * node] = 1.0;
+    bool rejected = false;
+    try {
+        (void)evaluate_plane_averaged_contact(geometry, state, false);
+    } catch (const std::domain_error&) {
+        rejected = true;
     }
-    for (std::size_t n = 0; n < 3; ++n)
-        state[7 + n] = .002;
-    const auto open = evaluate_line3_plane_contact(input, true);
-    require_close(open.pressure, 0, 0, "Open contact pressure");
-    for (std::size_t n = 0; n < 3; ++n)
-        state[4 + n] = .1;
-    if (evaluate_line3_plane_contact(input, false).projected)
-        throw std::runtime_error("Projection outside the primary edge must be invalid");
+    if (!rejected)
+        throw std::runtime_error("A thermal neighborhood with no primary projection must reject the state");
 }
+
 } // namespace
 
 int main() {
     using namespace fuelsim;
     using namespace fuelsim::elements;
     try {
-        check_contact();
-        check_contact(1);
-        check_contact(2);
         check_averaged_contact(false, false);
         check_averaged_contact(true, false);
         check_averaged_contact(false, true);
         check_averaged_contact(true, false, true);
+        check_thermal_averaged_contact();
+        check_thermal_averaged_contact(.0179);
+        check_thermal_averaged_contact(-.0179);
         const Cpeg8Coordinates coordinates{{{-0.01, -0.005},
             {0.01, -0.005},
             {0.01, 0.005},

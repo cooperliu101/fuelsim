@@ -52,12 +52,18 @@ def check(source, work, executable, mpiexec=None):
         if r.returncode or 'completed=true' not in r.stdout:
             raise AssertionError('Four-process continuation failed')
         try:
-            equivalent(output_path(parallel,'coupled_contact_restart'),output_path(work,'coupled_contact'),True)
+            # User-authorized on 2026-09-18 for this cross-rank continuation only.
+            differences = equivalent(output_path(parallel,'coupled_contact_restart'),
+                                     output_path(work,'coupled_contact'),True,stress_absolute_tolerance=1e-7)
         except AssertionError as error:
             (work/'restart_mpi_comparison.json').write_text(json.dumps(
                 dict(status='failed',mpi_ranks=4,reason=str(error)),indent=2)+'\n')
             raise
         report['mpi_ranks'] = 4
+        report['status'] = 'qualified'
+        report['stress_absolute_tolerance_Pa'] = 1e-7
+        report['other_absolute_tolerance'] = report['relative_tolerance'] = 1e-12
+        report['field_differences'] = differences
         (work/'restart_mpi_comparison.json').write_text(json.dumps(report,indent=2)+'\n')
 
 

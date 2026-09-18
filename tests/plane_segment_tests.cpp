@@ -28,9 +28,12 @@ int main(int argc, char** argv) {
                 const auto& geometry = spatial.geometry(r, e);
                 for (std::size_t n = 0; n < 8; ++n) {
                     const auto& x = geometry.coordinates[n];
-                    // Affine motion keeps the shared primary edge tangents continuous.
+                    // Midside perturbations give adjacent primary edges different
+                    // tangents: contact must still have a unique shared boundary.
                     direction[dofs[4 + n]] = .0001 * (r == 0 ? 1.0 : -2.0) + .003 * x[0];
                     direction[dofs[12 + n]] = .0001 * (r == 0 ? -1.0 : 1.0) + .002 * x[0];
+                    if (n >= 4)
+                        direction[dofs[12 + n]] += .00003 * static_cast<double>(e + 1);
                     if (n < 4)
                         direction[dofs[n]] = 5.0 * (r == 0 ? 1.0 : -1.0) + 20.0 * x[0];
                 }
