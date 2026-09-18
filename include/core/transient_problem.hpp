@@ -98,6 +98,8 @@ class TransientProblem final : public NonlinearProblem {
     std::vector<double> time_events() const;
     RegionStateSummary summarize_region(std::size_t region) const;
     ProblemStateSnapshot capture_state() const;
+    // Pointwise rates in stable region/element/material-point order; C3D8T only.
+    std::vector<double> committed_creep_rates() const;
     void restore_state(const ProblemStateSnapshot& snapshot);
     TransientTimeErrorEstimate step_doubling_error(const ProblemStateSnapshot& full_step,
         const ProblemStateSnapshot& two_half_steps,

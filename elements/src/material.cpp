@@ -1190,6 +1190,40 @@ InelasticTensorUpdate evaluate_inelastic_tensor(const MaterialFunctionSet& funct
 }
 } // namespace
 
+double IsotropicThermoelasticMaterial::equivalent_creep_rate(const CartesianMaterialPointState& state,
+    double temperature,
+    MaterialFunctionContext context) const {
+    if (!functions().has_creep())
+        return 0.0;
+    const auto& s = state.stress;
+    const double mean = s.xx / 3.0 + s.yy / 3.0 + s.zz / 3.0;
+    const adlite::Scalar normal = adlite::hypot(adlite::hypot(adlite::Scalar(s.xx - mean), adlite::Scalar(s.yy - mean)),
+        adlite::Scalar(s.zz - mean));
+    const adlite::Scalar shear =
+        adlite::hypot(adlite::hypot(adlite::Scalar(s.xy), adlite::Scalar(s.yz)), adlite::Scalar(s.xz));
+    const double equivalent = (std::sqrt(1.5) * adlite::hypot(normal, std::sqrt(2.0) * shear)).value();
+    if (!std::isfinite(equivalent) || !std::isfinite(temperature) || !std::isfinite(state.equivalent_creep_strain)
+        || state.equivalent_creep_strain < 0.0)
+        throw std::domain_error("Creep rate requires finite stress, temperature and nonnegative creep history");
+    double rate;
+    if (functions().creep.builtin.kind != CreepBuiltinParameters::Kind::custom) {
+        const auto active = active_creep_properties(functions().creep, adlite::Scalar(temperature));
+        rate = evaluate_creep_increment(equivalent,
+            1.0,
+            {active.coefficient.value(), active.reference_stress.value(), active.stress_exponent.value()});
+    } else {
+        rate = function_creep_rate(functions().creep,
+            adlite::Scalar(equivalent),
+            adlite::Scalar(temperature),
+            adlite::Scalar(state.equivalent_creep_strain),
+            context)
+                   .value();
+    }
+    if (!std::isfinite(rate) || rate < 0.0)
+        throw std::domain_error("Creep rate must be finite and nonnegative");
+    return rate;
+}
+
 InelasticStressResponse IsotropicThermoelasticMaterial::response(const adlite::Scalar& strain_rr,
     const adlite::Scalar& strain_zz,
     const adlite::Scalar& strain_hoop,

@@ -283,6 +283,15 @@ std::vector<double> linear_transient_predictor(const std::vector<double>& commit
 }
 
 void validate_time_options(const TransientProblem& problem, const TransientTimeOptions& options) {
+    if (!std::isfinite(options.creep_strain_time_tolerance) || options.creep_strain_time_tolerance < 0.0)
+        throw std::invalid_argument("creep_strain_time_tolerance must be finite and nonnegative");
+    if (options.creep_strain_time_tolerance > 0.0) {
+        if (options.time_error_relative_tolerance != 0.0)
+            throw std::invalid_argument("Creep-rate and step-doubling time control are mutually exclusive");
+        if (!std::isfinite(options.time_error_safety_factor) || options.time_error_safety_factor <= 0.0
+            || options.time_error_safety_factor >= 1.0)
+            throw std::invalid_argument("Creep-rate time control requires a safety factor between zero and one");
+    }
     if (problem.time_step_active())
         throw std::logic_error("solve_transient cannot start with an active time step");
     const double time_scale = std::max({1.0, std::abs(problem.committed_time()), std::abs(options.end_time)}),
@@ -328,6 +337,8 @@ TransientResult solve_transient(TransientProblem& problem,
     const SolverOptions& solver_options,
     TransientStepObserver* observer) {
     validate_time_options(problem, options);
+    const bool creep_control = options.creep_strain_time_tolerance > 0.0;
+    std::vector<double> committed_rates = creep_control ? problem.committed_creep_rates() : std::vector<double>{};
     const bool recent_predictor_tracking =
         options.use_linear_time_predictor && !(options.time_error_relative_tolerance > 0.0);
     problem.track_previous_committed_solution(recent_predictor_tracking);
@@ -409,6 +420,7 @@ TransientResult solve_transient(TransientProblem& problem,
             TransientConservationSummary first_half_conservation;
             int controller_nonlinear_iterations = 0;
             const bool error_control = options.time_error_relative_tolerance > 0.0;
+            std::vector<double> candidate_rates;
             ProblemStateSnapshot base_state;
             bool base_state_available = false;
             const double base_time = problem.committed_time();
@@ -425,7 +437,7 @@ TransientResult solve_transient(TransientProblem& problem,
                 base_time,
                 predictor_reference_time,
                 end_time);
-            if (error_control) {
+            if (error_control || creep_control) {
                 base_state = problem.capture_state();
                 base_state_available = true;
             }
@@ -433,6 +445,26 @@ TransientResult solve_transient(TransientProblem& problem,
                 if (!error_control) {
                     attempt = run_predicted_step(end_time, predicted_solution, base_solution, predictor_used);
                     controller_nonlinear_iterations = attempt.nonlinear_iterations;
+                    if (attempt.converged && creep_control) {
+                        candidate_rates = problem.committed_creep_rates();
+                        if (candidate_rates.size() != committed_rates.size())
+                            throw std::logic_error("Creep-rate material point layout changed during a time step");
+                        for (std::size_t q = 0; q < candidate_rates.size(); ++q) {
+                            const double error = (std::abs(candidate_rates[q] - committed_rates[q]) * time_step)
+                                                 / options.creep_strain_time_tolerance;
+                            time_error_estimate = std::max(time_error_estimate, error);
+                        }
+                        time_error_components.equivalent_creep_strain = time_error_estimate;
+                        time_error_components.maximum = time_error_estimate;
+                        if (!(time_error_estimate <= 1.0)) {
+                            problem.restore_state(base_state);
+                            base_state_available = false;
+                            attempt.converged = false;
+                            attempt.failure_category = SolveFailureCategory::time_discretization;
+                            attempt.failure_message = "Creep strain-rate increment error exceeded one";
+                            ++result.time_error_rejections;
+                        }
+                    }
                 } else {
                     const SolveResult full_step =
                         run_predicted_step(end_time, predicted_solution, base_solution, predictor_used);
@@ -513,13 +545,15 @@ TransientResult solve_transient(TransientProblem& problem,
             result.total_linear_iterations += attempt.linear_iterations;
             result.last_attempt = std::move(attempt);
             if (result.last_attempt.converged) {
+                if (creep_control)
+                    committed_rates = std::move(candidate_rates);
                 next_time_step = accepted_next_time_step(options,
                     time_step,
                     controller_time_step,
                     event_aligned,
                     cutbacks,
                     controller_nonlinear_iterations);
-                if (error_control) {
+                if (error_control || creep_control) {
                     const double error_limited_step = time_step * step_factor(options, time_error_estimate);
                     next_time_step = std::clamp(std::min(next_time_step, error_limited_step),
                         options.minimum_time_step,

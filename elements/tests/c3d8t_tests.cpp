@@ -941,8 +941,61 @@ bool test_finite_strain_kinematics_and_coupled_jacobian() {
     return passed;
 }
 
+bool test_creep_rate_sampling() {
+    const auto geometry = fuelsim::elements::make_c3d8t_geometry(unit_cube());
+    const auto base = inelastic_properties(true, false);
+    auto functions = std::make_shared<fuelsim::MaterialFunctionSet>(*base.functions);
+    functions->creep.builtin.kind = fuelsim::CreepBuiltinParameters::Kind::custom;
+    functions->creep.function = [](const fuelsim::CreepRateInput& input) {
+        return 1e-6 * input.temperature + 1e-5 * input.equivalent_stress + 1e-3 * input.equivalent_creep_strain
+               + 1e-4 * (input.context.time + input.context.x + 2.0 * input.context.y + 3.0 * input.context.z);
+    };
+    const fuelsim::IsotropicThermoelasticMaterial material({functions, 200.0});
+    fuelsim::Hex8LocalValues state{};
+    fuelsim::CartesianMaterialHistory history(8);
+    for (std::size_t i = 0; i < 8; ++i) {
+        state[i] = 300.0 + 10.0 * static_cast<double>(i);
+        history[i].stress.xx = 10.0;
+        history[i].equivalent_creep_strain = 0.01 * static_cast<double>(i);
+    }
+    const auto rates = fuelsim::elements::c3d8t_creep_rates(material, geometry, state, history, 2.0);
+    bool passed = true;
+    const auto corners = unit_cube();
+    for (std::size_t q = 0; q < 8; ++q) {
+        const auto p = geometry.points[q].position;
+        std::size_t node = 0;
+        for (std::size_t i = 0; i < 8; ++i)
+            if ((corners[i].x > 0.5) == (p.x > 0.5) && (corners[i].y > 0.5) == (p.y > 0.5)
+                && (corners[i].z > 0.5) == (p.z > 0.5))
+                node = i;
+        const double expected = 1e-6 * state[node] + 1e-4 + 1e-3 * history[q].equivalent_creep_strain
+                                + 1e-4 * (2.0 + p.x + 2.0 * p.y + 3.0 * p.z);
+        passed = check(std::abs(rates[q] - expected) < 1e-16,
+                     "C3D8T creep rates use paired nodal temperature, history and reference position")
+                 && passed;
+    }
+    auto extreme = fuelsim::test::with_norton(base, 1e-3, 1e200, 2.0, 300.0);
+    const fuelsim::IsotropicThermoelasticMaterial extreme_material(extreme);
+    fuelsim::CartesianMaterialPointState point;
+    point.stress.xx = 1e200;
+    passed = check(std::abs(extreme_material.equivalent_creep_rate(point, 300.0) - 1e-3) < 1e-15,
+                 "Creep-rate estimator preserves logarithmic Norton evaluation at extreme stress")
+             && passed;
+    functions->creep.function = [](const fuelsim::CreepRateInput&) {
+        return adlite::Scalar(-1.0);
+    };
+    bool rejected = false;
+    try {
+        (void)material.equivalent_creep_rate(point, 300.0);
+    } catch (const std::domain_error&) {
+        rejected = true;
+    }
+    return check(rejected, "Creep-rate estimator rejects invalid material rates") && passed;
+}
+
 int run_c3d8t_tests() {
     bool passed = test_history_geometry(false);
+    passed = test_creep_rate_sampling() && passed;
     passed = test_fixed_initial_mass_capacity(false) && passed;
     passed = test_geometry_and_constant_strain() && passed;
     passed = test_distorted_selective_volumetric_integration() && passed;

@@ -27,6 +27,10 @@ class IsotropicThermoelasticMaterial final {
 
     const MaterialFunctionSet& functions() const noexcept { return *_properties.functions; }
 
+    double equivalent_creep_rate(const CartesianMaterialPointState& state,
+        double temperature,
+        MaterialFunctionContext context = {}) const;
+
     adlite::Scalar conductivity(const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;
     // Density is anchored to the initial temperature, time zero and reference
     // position. Capacity per reference volume retains only the current cp(T).

@@ -863,6 +863,17 @@ bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, co
         "\n  checkpoint = checkpoint.bin"
         "\n  checkpoint_interval = 5");
     passed = verify_m3_output_input(malformed_path, m3_case) && passed;
+    std::string creep_control_case = m3_case;
+    replace_all(creep_control_case, "time_error_relative_tolerance = 2e-4", "creep_strain_time_tolerance = 1e-6");
+    {
+        std::ofstream output(malformed_path);
+        output << creep_control_case;
+    }
+    const auto creep_control = fuelsim::read_case_input(malformed_path);
+    passed = check(creep_control.transient_execution.creep_strain_time_tolerance == 1e-6
+                       && creep_control.transient_execution.time_error_relative_tolerance == 0.0,
+                 "Creep strain tolerance selects the independent rate-based controller")
+             && passed;
     std::string invalid_preconditioner = m3_case;
     const std::string valid_preconditioner = "preconditioner = field_split";
     const std::size_t preconditioner_position = invalid_preconditioner.find(valid_preconditioner);

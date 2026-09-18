@@ -1101,6 +1101,89 @@ fuelsim::SpatialDefinition inelastic_definition(bool creep,
     return definition;
 }
 
+bool test_creep_rate_time_control(const fuelsim::UnstructuredHex8Mesh& mesh) {
+    const auto definition = inelastic_definition(true, false, fuelsim::Hex8ElementFormulation::c3d8t);
+    fuelsim::TransientProblem problem(definition, mesh);
+    auto solver = solver_options();
+    solver.linear_solver = fuelsim::SolverOptions::LinearSolver::direct;
+    solver.direct_factorization = fuelsim::SolverOptions::DirectFactorization::mumps;
+    solver.preconditioner = fuelsim::SolverOptions::Preconditioner::lu;
+    solver.absolute_tolerance = 1e-8;
+    solver.maximum_iterations = 30;
+    fuelsim::TransientTimeOptions time{1.0, 1.0, 1e-6, 1.0, 2.0, 0.5, 20, 1.0};
+    time.creep_strain_time_tolerance = 1e-5;
+    time.use_linear_time_predictor = true;
+    const auto result = fuelsim::solve_transient(problem, time, solver);
+    bool passed = check(result.completed && result.time_error_rejections > 0,
+        "Creep-rate time control rejects an oversized converged increment and completes after rollback");
+    double expected_creep = 0.0;
+    for (const auto& step : result.accepted_steps) {
+        const double rate = 1e-4 * std::pow(2.01 * step.time, 3.0);
+        expected_creep += rate * step.time_step;
+        passed = check(step.time_error_estimate <= 1.0 && step.time_step <= time.maximum_time_step,
+                     "Every accepted creep-rate step meets the pointwise strain tolerance and maximum step")
+                 && passed;
+    }
+    for (std::size_t e = 0; e < 2; ++e)
+        for (const auto& point : fuelsim::cartesian::ProblemAccess::material_history(problem, 0, e))
+            passed = check(std::abs(point.equivalent_creep_strain - expected_creep) < 1e-11,
+                         "Rejected creep increments do not leak into history; accepted state is the single full step")
+                     && passed;
+
+    const auto solution = problem.committed_solution();
+    const auto rates = problem.committed_creep_rates();
+    const auto previous_solution = problem.previous_committed_solution();
+    const auto previous_time = problem.previous_committed_time();
+    std::vector<fuelsim::CartesianMaterialHistory> histories;
+    for (std::size_t e = 0; e < 2; ++e)
+        histories.push_back(fuelsim::cartesian::ProblemAccess::material_history(problem, 0, e));
+    time.end_time = 2.0;
+    time.load_ramp_time = 4.0;
+    time.creep_strain_time_tolerance = 1e-30;
+    time.maximum_cutbacks_per_step = 0;
+    const auto rejected = fuelsim::solve_transient(problem, time, solver);
+    passed = check(!rejected.completed && problem.committed_time() == 1.0 && problem.committed_solution() == solution
+                       && problem.committed_creep_rates() == rates
+                       && problem.previous_committed_solution() == previous_solution
+                       && problem.previous_committed_time() == previous_time,
+                 "A terminal time-error rejection restores nodal state, time, rates and predictor history")
+             && passed;
+    for (std::size_t e = 0; e < 2; ++e)
+        for (std::size_t q = 0; q < 8; ++q)
+            passed = check(same_material_point(histories[e][q],
+                               fuelsim::cartesian::ProblemAccess::material_history(problem, 0, e)[q]),
+                         "Terminal creep-rate rejection restores every material history component")
+                     && passed;
+    time.time_error_relative_tolerance = 1e-3;
+    bool invalid = false;
+    try {
+        (void)fuelsim::solve_transient(problem, time, solver);
+    } catch (const std::invalid_argument&) {
+        invalid = true;
+    }
+    passed = check(invalid, "Two distinct time-error controllers cannot be enabled together") && passed;
+    time.time_error_relative_tolerance = 0.0;
+    time.creep_strain_time_tolerance = -1.0;
+    invalid = false;
+    try {
+        (void)fuelsim::solve_transient(problem, time, solver);
+    } catch (const std::invalid_argument&) {
+        invalid = true;
+    }
+    passed = check(invalid, "Negative creep strain tolerance is rejected before solving") && passed;
+    time.creep_strain_time_tolerance = 1e-6;
+    auto reduced_definition = definition;
+    reduced_definition.regions[0].hex8_element_formulation = fuelsim::Hex8ElementFormulation::c3d8rt;
+    fuelsim::TransientProblem reduced(reduced_definition, mesh);
+    invalid = false;
+    try {
+        (void)fuelsim::solve_transient(reduced, time, solver);
+    } catch (const std::invalid_argument&) {
+        invalid = true;
+    }
+    return check(invalid, "Unsupported element rate sampling cannot silently disable error control") && passed;
+}
+
 bool test_inelastic_branches(const fuelsim::PetscSession& session,
     const fuelsim::UnstructuredHex8Mesh& mesh,
     const std::string& checkpoint_path) {
@@ -1182,6 +1265,7 @@ int main(int argc, char** argv) {
     fuelsim::PetscSession session(argc, argv, "fuelsim HEX8 solver tests\n");
     const fuelsim::UnstructuredHex8Mesh mesh = two_element_mesh();
     bool passed = test_steady(session, mesh, argv[1]);
+    passed = test_creep_rate_time_control(mesh) && passed;
     passed = test_transient(session, mesh, argv[3], argv[2]) && passed;
     passed = test_shared_nodes(session) && passed;
     passed = test_finite_sliding_end_to_end() && passed;
