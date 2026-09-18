@@ -12,7 +12,7 @@ from compare import compare, verify_references
 
 def check(case, source, work):
     frames = json.loads((source/(case+'_fields.json')).read_text())['steps']['HISTORY']
-    report, failures, failed_labels = {}, [], []
+    report, failures, failed_labels, history, opened = {}, [], [], [], set()
     def metric(a, r, z, absolute, label):
         try:
             compare(a, r, z, absolute, label, report)
@@ -26,12 +26,20 @@ def check(case, source, work):
         for at, time in enumerate(d['time_whole'][:]):
             if time == 0:
                 continue
-            pressure_case = case == 'thermal_pressure'
-            motion = np.interp(time, [0, .5, 1], [0, -.0003 if pressure_case else .0003, 0])
-            gap = .0001+motion
+            pressure_case = case in ('thermal_pressure', 'thermal_pressure_small_gap')
+            if case == 'thermal_pressure_small_gap':
+                motion = np.interp(time, [0,.25,.5,.75,1], [0,0,-.000011,0,0])
+                gap = 1e-6+motion
+            else:
+                motion = np.interp(time, [0, .5, 1], [0, -.0003 if pressure_case else .0003, 0])
+                gap = .0001+motion
             pressure = max(-1e9*gap, 0)
             h = 1000+100*time+(.002*pressure if pressure_case else -1e6*gap)
             heat = 100*time/(1+1/(h*.002))
+            if gap > 0:
+                opened.add(str(float(time)))
+            history.append(dict(time=float(time),gap_m=float(gap),pressure_Pa=float(pressure),
+                                conductance_W_per_m2_K=float(h),analytic_heat_W=float(heat)))
             corners = [1, 2, 3, 4, 9, 10, 11, 12]
             temperature = [300, 300, 300+.5*heat, 300+.5*heat,
                            300+100*time-.5*heat, 300+100*time-.5*heat, 300+100*time, 300+100*time]
@@ -66,8 +74,11 @@ def check(case, source, work):
                     a.append(d[f'vals_elem_var{v}eb{row["elementLabel"]}'][at, 0])
                     r.append(row['data'][component])
                 metric(a, r, True, 1e-7, f'{time}/native/stress_{label}')
-    opened = {str(float(t)) for t in [.125,.875,1.0]} if case == 'thermal_pressure' else set()
+    if case == 'thermal_pressure_small_gap':
+        np.testing.assert_allclose([row['time'] for row in history],np.arange(1,9)*.125,rtol=0,atol=1e-14)
+        assert len(opened)==5 and len(history)-len(opened)==3
     result = dict(status='failed' if failures else 'passed', failures=failures, metrics=report,
+                  history=history,
                   analytical_status='failed' if any('/native/' not in k for k in failed_labels) else 'passed',
                   native_closed_status='failed' if any('/native/' in k and k.split('/')[0] not in opened
                                                        for k in failed_labels) else 'passed',
@@ -79,12 +90,14 @@ def check(case, source, work):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--case', choices=['thermal_pressure', 'thermal_clearance'], required=True)
+    parser.add_argument('--case', choices=['thermal_pressure', 'thermal_clearance', 'thermal_pressure_small_gap'], required=True)
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--executable', type=Path, required=True)
     args = parser.parse_args()
     source = Path(__file__).resolve().parent
     verify_references(source, 'supplement_reference.sha256')
+    if args.case == 'thermal_pressure_small_gap':
+        verify_references(source, 'small_gap_reference.sha256')
     if not run(args.case, source, args.work, args.executable) or not check(args.case, source, args.work):
         raise SystemExit('Contact law validation failed: '+str(args.work))
     print(args.case+': complete history passes analytical and native comparisons')
