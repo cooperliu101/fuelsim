@@ -16,8 +16,13 @@ bool same_point(const fuelsim::CartesianMaterialPointState& a, const fuelsim::Ca
 
 void require_same(const fuelsim::TransientCommittedState& a, const fuelsim::TransientCommittedState& b) {
     if (a.time != b.time || a.load_factor != b.load_factor || a.solution != b.solution
+        || a.previous_time != b.previous_time || a.previous_solution != b.previous_solution
+        || a.raw_residual != b.raw_residual || a.external_load_residual != b.external_load_residual
         || a.cartesian_material_histories.size() != b.cartesian_material_histories.size())
         throw std::runtime_error("HEX20 evaluation or rollback changed committed state");
+    for (const auto& field : fuelsim::transient_conservation_fields)
+        if (a.conservation.*field.member != b.conservation.*field.member)
+            throw std::runtime_error("HEX20 evaluation or rollback changed committed conservation diagnostics");
     for (std::size_t region = 0; region < a.cartesian_material_histories.size(); ++region) {
         if (a.cartesian_material_histories[region].size() != b.cartesian_material_histories[region].size())
             throw std::runtime_error("HEX20 evaluation changed material history dimensions");
@@ -38,6 +43,25 @@ void check_history(const std::string& path) {
     fuelsim::ContributionWorkspace workspace;
     problem.evaluate_contribution(0, problem.committed_solution(), workspace, true);
     problem.evaluate_contribution(0, problem.committed_solution(), workspace, false);
+    require_same(initial, fuelsim::cartesian::ProblemAccess::committed_state(problem));
+    problem.rollback_time_step();
+    require_same(initial, fuelsim::cartesian::ProblemAccess::committed_state(problem));
+    problem.begin_time_step({0.1, 0.1});
+    bool synchronized = false;
+    bool rejected = false;
+    try {
+        problem.commit_time_step(problem.committed_solution(),
+            0,
+            problem.contribution_count(),
+            [&synchronized](std::vector<double>& staged) {
+                synchronized = true;
+                staged[0] = 1.0; // Another partition rejected its material update.
+            });
+    } catch (const std::domain_error&) {
+        rejected = true;
+    }
+    if (!synchronized || !rejected)
+        throw std::runtime_error("HEX20 partition failure did not reject commit collectively");
     require_same(initial, fuelsim::cartesian::ProblemAccess::committed_state(problem));
     problem.rollback_time_step();
     require_same(initial, fuelsim::cartesian::ProblemAccess::committed_state(problem));

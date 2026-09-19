@@ -131,11 +131,12 @@ bool verify_m3_output_input(const std::string& path, const std::string& contents
             && definition.transient_execution.stress_history_time_absolute_tolerance == 5.0
             && definition.transient_execution.time_error_safety_factor == 0.85
             && definition.transient_execution.use_linear_time_predictor
+            && definition.transient_execution.use_quadratic_time_predictor
             && definition.solver.linear_solver == fuelsim::SolverOptions::LinearSolver::gmres
             && definition.solver.preconditioner == fuelsim::SolverOptions::Preconditioner::field_split
             && definition.solver.linear_relative_tolerance == 1.0e-7
             && definition.solver.maximum_linear_iterations == 700 && definition.solver.jacobian_lag == 2
-            && definition.solver.predictor_jacobian_lag == 3
+            && definition.solver.predictor_jacobian_lag == 3 && definition.solver.jacobian_lag_persists
             && definition.solver.line_search == fuelsim::SolverOptions::LineSearch::backtracking
             && definition.solver.backtracking_fallback && definition.solver.field_residual_scaling
             && definition.solver.field_residual_convergence && definition.solver.residual_reduction_tolerance == 2.0e-6
@@ -235,19 +236,21 @@ bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, co
                      && steady.spatial.contacts[0].secondary == "fuel_right" && steady.spatial.contacts[0].thermal
                      && steady.spatial.contacts[0].mechanical && steady.spatial.contacts[0].friction_coefficient == 0.0,
             "contact is defined only by primary and secondary side sets")
-        && check(
-            steady.steady_execution.load_steps == 20 && steady.steady_execution.cutback_factor == 0.5
-                && steady.steady_execution.maximum_cutbacks_per_step == 12
-                && steady.steady_execution.minimum_load_increment == 1.0e-6 && steady.solver.maximum_iterations == 50
-                && steady.solver.linear_solver == fuelsim::SolverOptions::LinearSolver::automatic
-                && steady.solver.preconditioner == fuelsim::SolverOptions::Preconditioner::automatic
-                && steady.solver.direct_factorization == fuelsim::SolverOptions::DirectFactorization::automatic
-                && steady.solver.mumps_ordering == fuelsim::SolverOptions::MumpsOrdering::automatic
-                && steady.solver.linear_relative_tolerance == 1.0e-8 && steady.solver.maximum_linear_iterations == 500
-                && steady.solver.jacobian_lag == 1 && !steady.steady_execution.use_small_strain_predictor
-                && !steady.steady_execution.use_linear_load_predictor,
+        && check(steady.steady_execution.load_steps == 20 && steady.steady_execution.cutback_factor == 0.5
+                     && steady.steady_execution.maximum_cutbacks_per_step == 12
+                     && steady.steady_execution.minimum_load_increment == 1.0e-6
+                     && steady.solver.maximum_iterations == 50
+                     && steady.solver.linear_solver == fuelsim::SolverOptions::LinearSolver::automatic
+                     && steady.solver.preconditioner == fuelsim::SolverOptions::Preconditioner::automatic
+                     && steady.solver.direct_factorization == fuelsim::SolverOptions::DirectFactorization::automatic
+                     && steady.solver.mumps_ordering == fuelsim::SolverOptions::MumpsOrdering::automatic
+                     && steady.solver.linear_relative_tolerance == 1.0e-8
+                     && steady.solver.maximum_linear_iterations == 500 && steady.solver.jacobian_lag == 1
+                     && !steady.solver.jacobian_lag_persists && !steady.steady_execution.use_small_strain_predictor
+                     && !steady.steady_execution.use_linear_load_predictor,
             "steady execution and solver fields are parsed")
-        && check(transient.problem == fuelsim::CaseProblem::transient,
+        && check(transient.problem == fuelsim::CaseProblem::transient
+                     && !transient.transient_execution.use_quadratic_time_predictor,
             "transient input selects the physical transient problem")
         && check(finite_strain.spatial.regions.size() == 2
                      && finite_strain.spatial.regions[0].strain_formulation == fuelsim::StrainFormulation::finite
@@ -808,7 +811,8 @@ bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, co
         "\n  strain_history_time_absolute_tolerance = 2e-9"
         "\n  stress_history_time_absolute_tolerance = 5"
         "\n  time_error_safety_factor = 0.85"
-        "\n  use_linear_time_predictor = true");
+        "\n  use_linear_time_predictor = true"
+        "\n  use_quadratic_time_predictor = true");
     const std::string solver_start = "[Solver]";
     const std::size_t solver_position = m3_case.find(solver_start);
     if (solver_position == std::string::npos)
@@ -820,6 +824,7 @@ bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, co
         "\n  maximum_linear_iterations = 700"
         "\n  jacobian_lag = 2"
         "\n  predictor_jacobian_lag = 3"
+        "\n  jacobian_lag_persists = true"
         "\n  line_search = backtracking"
         "\n  backtracking_fallback = true"
         "\n  field_residual_scaling = true"

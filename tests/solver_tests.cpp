@@ -1,3 +1,4 @@
+#include "../src/solver/solver_detail.hpp"
 #include "core/cax_evaluation.hpp"
 #include "core/nonlinear_problem.hpp"
 #include "core/steady_problem.hpp"
@@ -169,6 +170,93 @@ bool test_changing_direct_coupling() {
                      && passed;
         }
     }
+    return passed;
+}
+
+class ChangingDiagonalProblem final : public TwelveDofProblem {
+  public:
+    void set_scale(double scale) { _scale = scale; }
+
+    void set_thermal_target(double value) { _thermal_target = value; }
+
+    void compute_contribution(std::size_t index,
+        const std::vector<double>& state,
+        std::vector<double>& residual,
+        std::vector<double>* jacobian) const override {
+        validate_contribution(index);
+        residual.resize(state.size());
+        for (std::size_t i = 0; i < state.size(); ++i)
+            residual[i] = _scale * (state[i] - (i < 4 ? _thermal_target : 1.0));
+        if (jacobian) {
+            jacobian->assign(state.size() * state.size(), 0.0);
+            for (std::size_t i = 0; i < state.size(); ++i)
+                (*jacobian)[i * state.size() + i] = _scale;
+        }
+    }
+
+  private:
+    double _scale = 1.0;
+    double _thermal_target = 1.0;
+};
+
+bool test_persistent_jacobian() {
+    ChangingDiagonalProblem problem;
+    fuelsim::PetscSolver solver;
+    fuelsim::SolverOptions options;
+    options.direct_factorization = fuelsim::SolverOptions::DirectFactorization::mumps;
+    options.jacobian_lag = 50;
+    options.jacobian_lag_persists = true;
+    options.maximum_iterations = 1;
+    options.backtracking_fallback = false;
+    const std::vector<double> initial(problem.dof_count(), 0.0);
+    const auto first = solver.solve(problem, initial, options);
+    const auto reused = solver.solve(problem, initial, options);
+    bool passed = check(first.converged && reused.converged && first.timing.jacobian_evaluations == 1
+                            && reused.timing.jacobian_evaluations == 0,
+        "persistent lag reuses the Jacobian across solves without skipping residual convergence");
+    problem.set_scale(4.0);
+    const auto refreshed = solver.solve(problem, initial, options);
+    passed =
+        check(refreshed.converged && refreshed.nonlinear_attempts == 2 && refreshed.timing.jacobian_evaluations == 1,
+            "failed stale Jacobian retries from the original state with a fresh tangent")
+        && passed;
+    for (const double value : refreshed.state)
+        passed = check(std::abs(value - 1.0) < 1e-12, "refreshed Jacobian preserves the exact root") && passed;
+    fuelsim::PetscSolver scaled_solver;
+    options.field_residual_scaling = true;
+    const auto scaled_first = scaled_solver.solve(problem, initial, options);
+    const std::vector<double> different_initial(problem.dof_count(), 3.0);
+    const auto scaled_reused = scaled_solver.solve(problem, different_initial, options);
+    passed = check(scaled_first.converged && scaled_reused.converged && scaled_reused.timing.jacobian_evaluations == 0
+                       && scaled_reused.nonlinear_attempts == 1
+                       && scaled_reused.field_residual_scalings == scaled_first.field_residual_scalings,
+                 "reused matrix retains row scaling when the initial residual changes")
+             && passed;
+    fuelsim::PetscSolver activated_solver;
+    problem.set_thermal_target(0.0);
+    const auto inactive = activated_solver.solve(problem, initial, options);
+    problem.set_thermal_target(2.0);
+    const auto activated = activated_solver.solve(problem, initial, options);
+    passed = check(inactive.converged && activated.converged && activated.timing.jacobian_evaluations == 0
+                       && activated.nonlinear_attempts == 1
+                       && inactive.field_residual_scalings == activated.field_residual_scalings,
+                 "a newly active field retains the cached matrix scaling")
+             && passed;
+    return passed;
+}
+
+bool test_quadratic_time_correction() {
+    // y(t)=2+3*t+4*t*t, sampled at unequal intervals 0, 1, 2.5.
+    const std::vector<double> older{2.0, 300.0}, previous{9.0, 300.0}, current{34.5, 300.0};
+    std::vector<double> predicted{60.0, 300.0}; // Linear extrapolation to t=4.
+    fuelsim::solver_detail::add_quadratic_time_correction(predicted, current, previous, older, 2.5, 1.0, 0.0, 4.0);
+    bool passed = check(predicted == std::vector<double>({78.0, 300.0}),
+        "three accepted states predict a quadratic history exactly at unequal intervals");
+    const auto expected = predicted;
+    fuelsim::solver_detail::add_quadratic_time_correction(predicted, current, previous, {}, 2.5, 1.0, 0.0, 4.0);
+    passed = check(predicted == expected, "missing predictor history preserves the linear initial guess") && passed;
+    fuelsim::solver_detail::add_quadratic_time_correction(predicted, current, previous, older, 2.5, 1.0, 0.0, 10.0);
+    passed = check(predicted == expected, "abrupt time-step growth disables curvature extrapolation") && passed;
     return passed;
 }
 
@@ -1045,6 +1133,8 @@ int main(int argc, char** argv) {
         bool passed = true;
         passed = test_runtime_contribution_layout() && passed;
         passed = test_changing_direct_coupling() && passed;
+        passed = test_persistent_jacobian() && passed;
+        passed = test_quadratic_time_correction() && passed;
         if (selected_case == "runtime-layout") {
             if (!passed)
                 return 1;

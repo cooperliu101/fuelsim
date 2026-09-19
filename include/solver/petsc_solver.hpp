@@ -58,6 +58,7 @@ struct SolverOptions final {
     MumpsOrdering mumps_ordering = MumpsOrdering::automatic;
     double linear_relative_tolerance = 1.0e-8;
     int maximum_linear_iterations = 500, jacobian_lag = 1, predictor_jacobian_lag = 0;
+    bool jacobian_lag_persists = false;
     bool backtracking_fallback = true, field_residual_scaling = false, field_residual_convergence = false;
     double residual_reduction_tolerance = 1.0e-6, temperature_residual_absolute_tolerance = 1.0e-8,
            mechanical_residual_absolute_tolerance = 1.0e-4, temperature_residual_scale = 0.0,

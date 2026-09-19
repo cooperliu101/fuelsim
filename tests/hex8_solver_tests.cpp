@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <memory>
 #include <stdexcept>
@@ -684,6 +685,39 @@ bool test_contact_projection_transfer() {
            && passed;
 }
 
+bool check_contact_shadow_state(fuelsim::SteadyProblem& problem, const std::vector<double>& state) {
+    // Exercise even partitions owning only a volume contribution and contact-only
+    // partitions after projection moves outside the original active support.
+    bool passed = true;
+    for (std::size_t entry = 0; entry < problem.contribution_count(); ++entry) {
+        problem.validate_state(state);
+        std::vector<std::size_t> dofs;
+        problem.contribution_dofs(entry, dofs);
+        std::vector<double> local_state, reference, reference_jacobian;
+        for (const std::size_t dof : dofs)
+            local_state.push_back(state[dof]);
+        problem.compute_contribution(entry, local_state, reference, &reference_jacobian);
+        const auto required = problem.required_state_dofs(entry, entry + 1);
+        std::vector<double> shadow(state.size(), std::numeric_limits<double>::quiet_NaN());
+        for (const std::size_t dof : required)
+            shadow[dof] = state[dof];
+        problem.validate_local_state(entry, entry + 1, shadow);
+        problem.contribution_dofs(entry, dofs);
+        local_state.clear();
+        for (const std::size_t dof : dofs)
+            local_state.push_back(shadow[dof]);
+        std::vector<double> residual, jacobian;
+        problem.compute_contribution(entry, local_state, residual, &jacobian);
+        passed = check(residual == reference && jacobian == reference_jacobian,
+                     "HEX8 STS shadow-only residual and Jacobian equal complete-state evaluation")
+                 && passed;
+    }
+    std::vector<double> empty(state.size(), std::numeric_limits<double>::quiet_NaN());
+    problem.validate_local_state(0, 0, empty);
+    problem.validate_state(state);
+    return passed;
+}
+
 bool test_surface_contact_finite_sliding() {
     const fuelsim::UnstructuredHex8Mesh mesh = contact_projection_mesh();
     bool passed = true;
@@ -806,6 +840,7 @@ bool test_surface_contact_finite_sliding() {
                      "HEX8 finite sliding rejects a state after its points leave the complete primary surface")
                  && passed;
         problem.commit_internal_state(lower_state);
+        passed = check_contact_shadow_state(problem, lower_state) && passed;
         problem.restore_internal_state(initial_snapshot, problem.initial_state());
         const auto& restored = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
         passed = check(std::all_of(restored.begin(),
@@ -875,11 +910,13 @@ bool test_finite_sliding_search_tree() {
         if (!dofs.empty())
             ++active_contributions;
     }
-    return check(summaries.size() == 4 && interface.total_contact_force > 0.0 && active_contributions == 4
-                     && std::all_of(summaries.begin(),
-                         summaries.end(),
-                         [](const auto& summary) { return summary.projected && summary.primary_face == 64; }),
-        "HEX8 finite sliding uses the search tree to find the last of 65 primary faces");
+    const bool shadow_matches = check_contact_shadow_state(problem, state);
+    return shadow_matches
+           && check(summaries.size() == 4 && interface.total_contact_force > 0.0 && active_contributions == 4
+                        && std::all_of(summaries.begin(),
+                            summaries.end(),
+                            [](const auto& summary) { return summary.projected && summary.primary_face == 64; }),
+               "HEX8 finite sliding uses the search tree to find the last of 65 primary faces");
 }
 
 bool test_finite_sliding_end_to_end() {

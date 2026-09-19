@@ -156,6 +156,47 @@ void synchronize_cartesian_commit(std::vector<std::vector<CartesianMaterialHisto
             }
 }
 
+// Both axisymmetric topologies use the same concrete four-component material
+// state. Include inactive slots so their required zero values survive exchange.
+void synchronize_rz_commit(const std::vector<MaterialPointState*>& points,
+    std::size_t points_per_element,
+    std::vector<double>& residual,
+    std::vector<double>& external,
+    TransientConservationSummary& conservation,
+    std::size_t first,
+    std::size_t last,
+    const std::function<void(std::vector<double>&)>& sum_partitions,
+    const std::exception_ptr& failure) {
+    std::vector<double> values;
+    values.reserve(2 + residual.size() + external.size() + transient_conservation_fields.size() + 18 * points.size());
+    values.resize(2, 0.0);
+    const std::string failure_message = set_commit_failure(values, failure);
+    append_commit_diagnostics(values, residual, external, conservation);
+    for (std::size_t index = 0; index < points.size(); ++index) {
+        const auto& point = *points[index];
+        const std::size_t element = index / points_per_element;
+        const bool owned = element >= first && element < last && !failure;
+        for (const auto* tensor : {&point.elastic_strain, &point.plastic_strain, &point.creep_strain})
+            for (const double component : *tensor)
+                values.push_back(owned ? component : 0.0);
+        values.push_back(owned ? point.equivalent_plastic_strain : 0.0);
+        values.push_back(owned ? point.equivalent_creep_strain : 0.0);
+        for (const double component : {point.stress.rr, point.stress.zz, point.stress.hoop, point.stress.rz})
+            values.push_back(owned ? component : 0.0);
+    }
+    sum_commit_partitions(values, sum_partitions, failure_message);
+    std::size_t entry = read_commit_diagnostics(values, residual, external, conservation);
+    for (auto* point : points) {
+        for (auto* tensor : {&point->elastic_strain, &point->plastic_strain, &point->creep_strain})
+            for (double& component : *tensor)
+                component = values[entry++];
+        point->equivalent_plastic_strain = values[entry++];
+        point->equivalent_creep_strain = values[entry++];
+        for (double* component : {&point->stress.rr, &point->stress.zz, &point->stress.hoop, &point->stress.rz})
+            *component = values[entry++];
+    }
+}
+
 double body_point_work(const RegionDefinition& region,
     const MaterialFunctionContext& context,
     double reference_measure,
@@ -2069,8 +2110,8 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
         throw std::invalid_argument("Transient commit contribution range is invalid");
     if (!sum_partitions && (first_contribution != 0 || last_contribution != contribution_count()))
         throw std::invalid_argument("Partial transient commit requires a partition sum");
-    if (sum_partitions && !_impl->_plane && !_impl->_thermal)
-        throw std::invalid_argument("Partitioned transient commit requires CPEG8T or thermal geometry");
+    if (sum_partitions && !_impl->_thermal && _impl->_radial)
+        throw std::invalid_argument("Partitioned transient commit does not support radial GPS geometry");
     if (converged_solution.size() != dof_count())
         throw std::invalid_argument("TransientProblem committed solution size mismatch");
     if (!std::all_of(converged_solution.begin(), converged_solution.end(), [](double value) {
@@ -2288,46 +2329,72 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
     } else if (_impl->rz8) {
         auto staged = _impl->quad8_material_histories;
         std::vector<std::size_t> dofs;
-        for (std::size_t index = 0; index < _impl->rz8->volume_contribution_count(); ++index) {
-            const auto [r, e] = _impl->rz8->element_location(index);
-            _impl->rz8->contribution_dofs(index, dofs);
-            Quad8RzValues current{}, old{};
-            for (std::size_t i = 0; i < 20; ++i) {
-                current[i] = converged_solution[dofs[i]];
-                old[i] = _impl->committed_solution[dofs[i]];
-            }
-            const auto& geometry = _impl->rz8->region_element_geometry(r, e);
-            if (_impl->layout().region(r).body_acceleration != std::array<double, 3>{})
-                for (std::size_t q = 0; q < geometry.point_count; ++q) {
-                    const auto& point = geometry.points[q];
-                    std::array<double, 3> increment{};
-                    for (std::size_t node = 0; node < 8; ++node) {
-                        increment[0] += point.shape[node] * (current[4 + node] - old[4 + node]);
-                        increment[2] += point.shape[node] * (current[12 + node] - old[12 + node]);
+        try {
+            if (!partition_failure) {
+                for (std::size_t index = 0; index < _impl->rz8->volume_contribution_count(); ++index) {
+                    if (index < first_contribution || index >= last_contribution)
+                        continue;
+                    const auto [r, e] = _impl->rz8->element_location(index);
+                    _impl->rz8->contribution_dofs(index, dofs);
+                    Quad8RzValues current{}, old{};
+                    for (std::size_t i = 0; i < 20; ++i) {
+                        current[i] = converged_solution[dofs[i]];
+                        old[i] = _impl->committed_solution[dofs[i]];
                     }
-                    conservation.body_force_work_increment += body_point_work(_impl->layout().region(r),
-                        {0.0, point.radius, 0.0, point.axial_coordinate},
-                        point.weighted_measure,
-                        increment);
-                }
+                    const auto& geometry = _impl->rz8->region_element_geometry(r, e);
+                    if (_impl->layout().region(r).body_acceleration != std::array<double, 3>{})
+                        for (std::size_t q = 0; q < geometry.point_count; ++q) {
+                            const auto& point = geometry.points[q];
+                            std::array<double, 3> increment{};
+                            for (std::size_t node = 0; node < 8; ++node) {
+                                increment[0] += point.shape[node] * (current[4 + node] - old[4 + node]);
+                                increment[2] += point.shape[node] * (current[12 + node] - old[12 + node]);
+                            }
+                            conservation.body_force_work_increment += body_point_work(_impl->layout().region(r),
+                                {0.0, point.radius, 0.0, point.axial_coordinate},
+                                point.weighted_measure,
+                                increment);
+                        }
 
-            const auto update = compute_cax8(_impl->kernel_data[r],
-                geometry,
-                current,
-                old,
-                &_impl->quad8_material_histories[r][e],
-                _impl->active_time_step,
-                _impl->include_thermal_time_term,
-                {true, false, true, false});
-            conservation.stored_heat_rate += update.stored_heat_rate;
-            conservation.generated_heat_rate += update.generated_heat_rate;
-            for (std::size_t q = 0; q < geometry.point_count; ++q) {
-                rz::accumulate_material_conservation(conservation,
-                    _impl->quad8_material_histories[r][e][q],
-                    update.history[q],
-                    geometry.points[q].weighted_measure);
+                    const auto update = compute_cax8(_impl->kernel_data[r],
+                        geometry,
+                        current,
+                        old,
+                        &_impl->quad8_material_histories[r][e],
+                        _impl->active_time_step,
+                        _impl->include_thermal_time_term,
+                        {true, false, true, false});
+                    conservation.stored_heat_rate += update.stored_heat_rate;
+                    conservation.generated_heat_rate += update.generated_heat_rate;
+                    for (std::size_t q = 0; q < geometry.point_count; ++q) {
+                        rz::accumulate_material_conservation(conservation,
+                            _impl->quad8_material_histories[r][e][q],
+                            update.history[q],
+                            geometry.points[q].weighted_measure);
+                    }
+                    staged[r][e] = update.history;
+                }
             }
-            staged[r][e] = update.history;
+        } catch (...) {
+            if (!sum_partitions)
+                throw;
+            partition_failure = std::current_exception();
+        }
+        if (sum_partitions) {
+            std::vector<MaterialPointState*> points;
+            for (auto& region : staged)
+                for (auto& history : region)
+                    for (auto& point : history)
+                        points.push_back(&point);
+            synchronize_rz_commit(points,
+                9,
+                raw_residual,
+                external_load_residual,
+                conservation,
+                first_contribution,
+                last_contribution,
+                sum_partitions,
+                partition_failure);
         }
         finalize_conservation(*this,
             converged_solution,
@@ -2344,213 +2411,251 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
         _impl->committed_external_load_residual = std::move(external_load_residual);
     } else if (_impl->is_cartesian()) {
         auto& staged = _impl->_staged_cartesian_material_histories;
-        for (std::size_t region = 0; region < _impl->cartesian->region_count(); ++region) {
-            const std::size_t offset = _impl->cartesian->region_element_offset(region);
-            for (std::size_t element = 0; element < _impl->cartesian->region_element_count(region); ++element) {
-                if (_impl->cartesian->uses_hex20()) {
-                    const Hex20LocalValues current =
-                        _impl->cartesian->hex20_volume_state(offset + element, converged_solution);
-                    const Hex20LocalValues old =
-                        _impl->cartesian->hex20_volume_state(offset + element, _impl->committed_solution);
-                    const Hex20Geometry& geometry = _impl->cartesian->hex20_region_element_geometry(region, element);
-                    if (_impl->layout().region(region).body_acceleration != std::array<double, 3>{})
-                        for (const auto& point : geometry.mechanical_points) {
-                            std::array<double, 3> increment{};
-                            for (std::size_t component = 0; component < 3; ++component)
-                                for (std::size_t node = 0; node < 20; ++node)
-                                    increment[component] +=
-                                        point.displacement_shape[node]
-                                        * (current[8 + component * 20 + node] - old[8 + component * 20 + node]);
-                            conservation.body_force_work_increment += body_point_work(_impl->layout().region(region),
-                                {0.0, point.position.x, point.position.y, point.position.z},
-                                point.weighted_measure,
-                                increment);
-                        }
-                    CartesianMaterialHistory update = _impl->cartesian->transient_update(region,
-                        element,
-                        current,
-                        old,
-                        _impl->cartesian_material_histories[region][element],
-                        _impl->active_time_step);
-                    const bool finite =
-                        _impl->cartesian->region(region).strain_formulation == StrainFormulation::finite;
-                    const double heat_source = _impl->cartesian->region_heat_source_average(region,
-                        _impl->committed_time,
-                        _impl->active_end_time);
-                    const auto accumulate_stored_heat = [&](const std::array<double, 8>& shape,
-                                                            const CartesianPoint3& position,
-                                                            double reference_measure) {
-                        if (!_impl->include_thermal_time_term)
-                            return;
-                        double current_temperature = 0.0, old_temperature = 0.0;
-                        for (std::size_t node = 0; node < hex20_temperature_node_count; ++node) {
-                            current_temperature += shape[node] * current[node];
-                            old_temperature += shape[node] * old[node];
-                        }
-                        conservation.stored_heat_rate +=
-                            reference_measure
-                            * _impl->cartesian->reference_heat_capacity(region, current_temperature, position)
-                            * (current_temperature - old_temperature) / _impl->active_time_step;
-                    };
-                    if (!finite) {
-                        for (const Hex20ThermalQuadraturePoint& point : geometry.thermal_points) {
-                            accumulate_stored_heat(point.temperature_shape, point.position, point.weighted_measure);
-                            conservation.generated_heat_rate += point.weighted_measure * heat_source;
-                        }
-                    } else if (heat_source != 0.0) {
-                        // The finite source uses the linear corner geometry, independently of the midside motion.
-                        const Hex20RegionMesh& mesh = _impl->cartesian->hex20_region_mesh(region);
-                        Hex8Coordinates current_corners{};
-                        for (std::size_t node = 0; node < hex20_temperature_node_count; ++node) {
-                            const CartesianPoint3& reference = mesh.nodes()[mesh.elements()[element].nodes[node]];
-                            current_corners[node] = {reference.x + current[8 + node],
-                                reference.y + current[28 + node],
-                                reference.z + current[48 + node]};
-                        }
-                        // Two-point Gauss integration is exact for this trilinear geometric volume, as is
-                        // the local source's three-point rule in C3D20T (two-point rule in C3D20RT).
-                        conservation.generated_heat_rate +=
-                            elements::make_c3d8t_geometry(current_corners).reference_volume * heat_source;
-                    }
-                    for (std::size_t q = 0; q < geometry.mechanical_points.size(); ++q) {
-                        const Hex20MechanicalQuadraturePoint& point = geometry.mechanical_points[q];
-                        if (finite)
-                            accumulate_stored_heat(point.temperature_shape, point.position, point.weighted_measure);
-                        const CartesianMaterialPointState& old_history =
-                            _impl->cartesian_material_histories[region][element][q];
-                        const CartesianMaterialPointState& new_history = update[q];
-                        conservation.elastic_energy_change +=
-                            0.5 * point.weighted_measure
-                            * (cartesian::stress_strain_inner_product(new_history.stress, new_history.elastic_strain)
-                                - cartesian::stress_strain_inner_product(old_history.stress,
-                                    old_history.elastic_strain));
-                        conservation.plastic_dissipation_increment +=
-                            point.weighted_measure
-                            * cartesian::trapezoidal_stress_strain_inner_product(old_history.stress,
-                                new_history.stress,
-                                cartesian::strain_difference(new_history.plastic_strain, old_history.plastic_strain));
-                        conservation.creep_dissipation_increment +=
-                            point.weighted_measure
-                            * cartesian::trapezoidal_stress_strain_inner_product(old_history.stress,
-                                new_history.stress,
-                                cartesian::strain_difference(new_history.creep_strain, old_history.creep_strain));
-                    }
-                    staged[region][element] = std::move(update);
-                    continue;
-                }
-                const Hex8LocalValues current = _impl->cartesian->volume_state(offset + element, converged_solution);
-                const Hex8LocalValues old = _impl->cartesian->volume_state(offset + element, _impl->committed_solution);
-                const Hex8Geometry& geometry = _impl->cartesian->region_element_geometry(region, element);
-                if (_impl->layout().region(region).body_acceleration != std::array<double, 3>{})
-                    for (const auto& point : geometry.points) {
-                        std::array<double, 3> increment{};
-                        for (std::size_t component = 0; component < 3; ++component)
-                            for (std::size_t node = 0; node < 8; ++node)
-                                increment[component] +=
-                                    point.shape[node]
-                                    * (current[8 + component * 8 + node] - old[8 + component * 8 + node]);
-                        conservation.body_force_work_increment += body_point_work(_impl->layout().region(region),
-                            {0.0, point.position.x, point.position.y, point.position.z},
-                            point.weighted_measure,
-                            increment);
-                    }
-                const bool reduced =
-                    _impl->cartesian->region(region).hex8_element_formulation == Hex8ElementFormulation::c3d8rt;
-                const auto& capacity_points = reduced ? geometry.reduced_capacity_points : geometry.capacity_points;
-                auto element_result = _impl->cartesian->transient_update(region,
-                    element,
-                    current,
-                    old,
-                    _impl->cartesian_material_histories[region][element],
-                    _impl->active_time_step);
-                auto& update = element_result.history;
-                if (_impl->include_thermal_time_term)
-                    for (std::size_t node = 0; node < hex8_node_count; ++node) {
-                        const Hex8CapacityPoint& point = capacity_points[node];
-                        conservation.stored_heat_rate +=
-                            point.weighted_measure
-                            * _impl->cartesian->reference_heat_capacity(region, current[node], point.position)
-                            * (current[node] - old[node]) / _impl->active_time_step;
-                    }
-                const double heat_source =
-                    _impl->cartesian->region_heat_source_average(region, _impl->committed_time, _impl->active_end_time);
-                if (heat_source != 0.0) {
-                    double source_measure = reduced ? geometry.reduced_body_source_measure : geometry.reference_volume;
-                    if (_impl->cartesian->region(region).strain_formulation == StrainFormulation::finite) {
-                        if (reduced) {
-                            Hex8Coordinates current_coordinates{};
-                            for (std::size_t node = 0; node < hex8_node_count; ++node) {
-                                const CartesianPoint3& reference = geometry.capacity_points[node].position;
-                                current_coordinates[node] = {reference.x + current[8 + node],
-                                    reference.y + current[16 + node],
-                                    reference.z + current[24 + node]};
+        try {
+            if (!partition_failure)
+                for (std::size_t region = 0; region < _impl->cartesian->region_count(); ++region) {
+                    const std::size_t offset = _impl->cartesian->region_element_offset(region);
+                    for (std::size_t element = 0; element < _impl->cartesian->region_element_count(region); ++element) {
+                        if (offset + element < first_contribution || offset + element >= last_contribution)
+                            continue;
+                        if (_impl->cartesian->uses_hex20()) {
+                            const Hex20LocalValues current =
+                                _impl->cartesian->hex20_volume_state(offset + element, converged_solution);
+                            const Hex20LocalValues old =
+                                _impl->cartesian->hex20_volume_state(offset + element, _impl->committed_solution);
+                            const Hex20Geometry& geometry =
+                                _impl->cartesian->hex20_region_element_geometry(region, element);
+                            if (_impl->layout().region(region).body_acceleration != std::array<double, 3>{})
+                                for (const auto& point : geometry.mechanical_points) {
+                                    std::array<double, 3> increment{};
+                                    for (std::size_t component = 0; component < 3; ++component)
+                                        for (std::size_t node = 0; node < 20; ++node)
+                                            increment[component] +=
+                                                point.displacement_shape[node]
+                                                * (current[8 + component * 20 + node] - old[8 + component * 20 + node]);
+                                    conservation.body_force_work_increment +=
+                                        body_point_work(_impl->layout().region(region),
+                                            {0.0, point.position.x, point.position.y, point.position.z},
+                                            point.weighted_measure,
+                                            increment);
+                                }
+                            CartesianMaterialHistory update = _impl->cartesian->transient_update(region,
+                                element,
+                                current,
+                                old,
+                                _impl->cartesian_material_histories[region][element],
+                                _impl->active_time_step);
+                            const bool finite =
+                                _impl->cartesian->region(region).strain_formulation == StrainFormulation::finite;
+                            const double heat_source = _impl->cartesian->region_heat_source_average(region,
+                                _impl->committed_time,
+                                _impl->active_end_time);
+                            const auto accumulate_stored_heat = [&](const std::array<double, 8>& shape,
+                                                                    const CartesianPoint3& position,
+                                                                    double reference_measure) {
+                                if (!_impl->include_thermal_time_term)
+                                    return;
+                                double current_temperature = 0.0, old_temperature = 0.0;
+                                for (std::size_t node = 0; node < hex20_temperature_node_count; ++node) {
+                                    current_temperature += shape[node] * current[node];
+                                    old_temperature += shape[node] * old[node];
+                                }
+                                conservation.stored_heat_rate +=
+                                    reference_measure
+                                    * _impl->cartesian->reference_heat_capacity(region, current_temperature, position)
+                                    * (current_temperature - old_temperature) / _impl->active_time_step;
+                            };
+                            if (!finite) {
+                                for (const Hex20ThermalQuadraturePoint& point : geometry.thermal_points) {
+                                    accumulate_stored_heat(point.temperature_shape,
+                                        point.position,
+                                        point.weighted_measure);
+                                    conservation.generated_heat_rate += point.weighted_measure * heat_source;
+                                }
+                            } else if (heat_source != 0.0) {
+                                // The finite source uses the linear corner geometry, independently of the midside
+                                // motion.
+                                const Hex20RegionMesh& mesh = _impl->cartesian->hex20_region_mesh(region);
+                                Hex8Coordinates current_corners{};
+                                for (std::size_t node = 0; node < hex20_temperature_node_count; ++node) {
+                                    const CartesianPoint3& reference =
+                                        mesh.nodes()[mesh.elements()[element].nodes[node]];
+                                    current_corners[node] = {reference.x + current[8 + node],
+                                        reference.y + current[28 + node],
+                                        reference.z + current[48 + node]};
+                                }
+                                // Two-point Gauss integration is exact for this trilinear geometric volume, as is
+                                // the local source's three-point rule in C3D20T (two-point rule in C3D20RT).
+                                conservation.generated_heat_rate +=
+                                    elements::make_c3d8t_geometry(current_corners).reference_volume * heat_source;
                             }
-                            source_measure =
-                                elements::make_c3d8rt_geometry(current_coordinates).reduced_body_source_measure;
-                        } else {
-                            source_measure = element_result.current_volume;
+                            for (std::size_t q = 0; q < geometry.mechanical_points.size(); ++q) {
+                                const Hex20MechanicalQuadraturePoint& point = geometry.mechanical_points[q];
+                                if (finite)
+                                    accumulate_stored_heat(point.temperature_shape,
+                                        point.position,
+                                        point.weighted_measure);
+                                const CartesianMaterialPointState& old_history =
+                                    _impl->cartesian_material_histories[region][element][q];
+                                const CartesianMaterialPointState& new_history = update[q];
+                                conservation.elastic_energy_change +=
+                                    0.5 * point.weighted_measure
+                                    * (cartesian::stress_strain_inner_product(new_history.stress,
+                                           new_history.elastic_strain)
+                                        - cartesian::stress_strain_inner_product(old_history.stress,
+                                            old_history.elastic_strain));
+                                conservation.plastic_dissipation_increment +=
+                                    point.weighted_measure
+                                    * cartesian::trapezoidal_stress_strain_inner_product(old_history.stress,
+                                        new_history.stress,
+                                        cartesian::strain_difference(new_history.plastic_strain,
+                                            old_history.plastic_strain));
+                                conservation.creep_dissipation_increment +=
+                                    point.weighted_measure
+                                    * cartesian::trapezoidal_stress_strain_inner_product(old_history.stress,
+                                        new_history.stress,
+                                        cartesian::strain_difference(new_history.creep_strain,
+                                            old_history.creep_strain));
+                            }
+                            staged[region][element] = std::move(update);
+                            continue;
                         }
+                        const Hex8LocalValues current =
+                            _impl->cartesian->volume_state(offset + element, converged_solution);
+                        const Hex8LocalValues old =
+                            _impl->cartesian->volume_state(offset + element, _impl->committed_solution);
+                        const Hex8Geometry& geometry = _impl->cartesian->region_element_geometry(region, element);
+                        if (_impl->layout().region(region).body_acceleration != std::array<double, 3>{})
+                            for (const auto& point : geometry.points) {
+                                std::array<double, 3> increment{};
+                                for (std::size_t component = 0; component < 3; ++component)
+                                    for (std::size_t node = 0; node < 8; ++node)
+                                        increment[component] +=
+                                            point.shape[node]
+                                            * (current[8 + component * 8 + node] - old[8 + component * 8 + node]);
+                                conservation.body_force_work_increment +=
+                                    body_point_work(_impl->layout().region(region),
+                                        {0.0, point.position.x, point.position.y, point.position.z},
+                                        point.weighted_measure,
+                                        increment);
+                            }
+                        const bool reduced =
+                            _impl->cartesian->region(region).hex8_element_formulation == Hex8ElementFormulation::c3d8rt;
+                        const auto& capacity_points =
+                            reduced ? geometry.reduced_capacity_points : geometry.capacity_points;
+                        auto element_result = _impl->cartesian->transient_update(region,
+                            element,
+                            current,
+                            old,
+                            _impl->cartesian_material_histories[region][element],
+                            _impl->active_time_step);
+                        auto& update = element_result.history;
+                        if (_impl->include_thermal_time_term)
+                            for (std::size_t node = 0; node < hex8_node_count; ++node) {
+                                const Hex8CapacityPoint& point = capacity_points[node];
+                                conservation.stored_heat_rate +=
+                                    point.weighted_measure
+                                    * _impl->cartesian->reference_heat_capacity(region, current[node], point.position)
+                                    * (current[node] - old[node]) / _impl->active_time_step;
+                            }
+                        const double heat_source = _impl->cartesian->region_heat_source_average(region,
+                            _impl->committed_time,
+                            _impl->active_end_time);
+                        if (heat_source != 0.0) {
+                            double source_measure =
+                                reduced ? geometry.reduced_body_source_measure : geometry.reference_volume;
+                            if (_impl->cartesian->region(region).strain_formulation == StrainFormulation::finite) {
+                                if (reduced) {
+                                    Hex8Coordinates current_coordinates{};
+                                    for (std::size_t node = 0; node < hex8_node_count; ++node) {
+                                        const CartesianPoint3& reference = geometry.capacity_points[node].position;
+                                        current_coordinates[node] = {reference.x + current[8 + node],
+                                            reference.y + current[16 + node],
+                                            reference.z + current[24 + node]};
+                                    }
+                                    source_measure =
+                                        elements::make_c3d8rt_geometry(current_coordinates).reduced_body_source_measure;
+                                } else {
+                                    source_measure = element_result.current_volume;
+                                }
+                            }
+                            conservation.generated_heat_rate += source_measure * heat_source;
+                        }
+                        if (reduced) {
+                            const double current_hourglass =
+                                _impl->cartesian->mechanical_hourglass_energy(region, element, current);
+                            const double old_hourglass =
+                                _impl->cartesian->mechanical_hourglass_energy(region, element, old);
+                            conservation.mechanical_hourglass_energy += current_hourglass;
+                            conservation.mechanical_hourglass_energy_change += current_hourglass - old_hourglass;
+                        }
+                        for (std::size_t q = 0; q < update.size(); ++q) {
+                            const Hex8QuadraturePoint& point = reduced ? geometry.reduced_point : geometry.points[q];
+                            const CartesianMaterialPointState
+                                &old_history = _impl->cartesian_material_histories[region][element][q],
+                                &new_history = update[q];
+                            double current_measure = point.weighted_measure, old_measure = point.weighted_measure;
+                            SymmetricTensor3Values diagnostic_new_stress = new_history.stress;
+                            std::array<double, 6> diagnostic_new_plastic = new_history.plastic_strain;
+                            std::array<double, 6> diagnostic_new_creep = new_history.creep_strain;
+                            if (_impl->cartesian->region(region).strain_formulation == StrainFormulation::finite) {
+                                current_measure =
+                                    point.weighted_measure / geometry.reference_volume * element_result.current_volume;
+                                old_measure = point.weighted_measure / geometry.reference_volume
+                                              * element_result.committed_volume;
+                                const auto& rotation = element_result.incremental_rotations[q];
+                                const CartesianRotation inverse_rotation = {rotation[0],
+                                    rotation[3],
+                                    rotation[6],
+                                    rotation[1],
+                                    rotation[4],
+                                    rotation[7],
+                                    rotation[2],
+                                    rotation[5],
+                                    rotation[8]};
+                                diagnostic_new_stress =
+                                    cartesian::rotate_tensor_values(new_history.stress, inverse_rotation);
+                                diagnostic_new_plastic = cartesian::components(
+                                    cartesian::rotate_tensor_values(new_history.plastic_strain, inverse_rotation));
+                                diagnostic_new_creep = cartesian::components(
+                                    cartesian::rotate_tensor_values(new_history.creep_strain, inverse_rotation));
+                            }
+                            conservation.elastic_energy_change +=
+                                0.5
+                                * (current_measure
+                                        * cartesian::stress_strain_inner_product(new_history.stress,
+                                            new_history.elastic_strain)
+                                    - old_measure
+                                          * cartesian::stress_strain_inner_product(old_history.stress,
+                                              old_history.elastic_strain));
+                            conservation.plastic_dissipation_increment +=
+                                current_measure
+                                * cartesian::trapezoidal_stress_strain_inner_product(old_history.stress,
+                                    diagnostic_new_stress,
+                                    cartesian::strain_difference(diagnostic_new_plastic, old_history.plastic_strain));
+                            conservation.creep_dissipation_increment +=
+                                current_measure
+                                * cartesian::trapezoidal_stress_strain_inner_product(old_history.stress,
+                                    diagnostic_new_stress,
+                                    cartesian::strain_difference(diagnostic_new_creep, old_history.creep_strain));
+                        }
+                        staged[region][element] = std::move(update);
                     }
-                    conservation.generated_heat_rate += source_measure * heat_source;
                 }
-                if (reduced) {
-                    const double current_hourglass =
-                        _impl->cartesian->mechanical_hourglass_energy(region, element, current);
-                    const double old_hourglass = _impl->cartesian->mechanical_hourglass_energy(region, element, old);
-                    conservation.mechanical_hourglass_energy += current_hourglass;
-                    conservation.mechanical_hourglass_energy_change += current_hourglass - old_hourglass;
-                }
-                for (std::size_t q = 0; q < update.size(); ++q) {
-                    const Hex8QuadraturePoint& point = reduced ? geometry.reduced_point : geometry.points[q];
-                    const CartesianMaterialPointState &old_history =
-                                                          _impl->cartesian_material_histories[region][element][q],
-                                                      &new_history = update[q];
-                    double current_measure = point.weighted_measure, old_measure = point.weighted_measure;
-                    SymmetricTensor3Values diagnostic_new_stress = new_history.stress;
-                    std::array<double, 6> diagnostic_new_plastic = new_history.plastic_strain;
-                    std::array<double, 6> diagnostic_new_creep = new_history.creep_strain;
-                    if (_impl->cartesian->region(region).strain_formulation == StrainFormulation::finite) {
-                        current_measure =
-                            point.weighted_measure / geometry.reference_volume * element_result.current_volume;
-                        old_measure =
-                            point.weighted_measure / geometry.reference_volume * element_result.committed_volume;
-                        const auto& rotation = element_result.incremental_rotations[q];
-                        const CartesianRotation inverse_rotation = {rotation[0],
-                            rotation[3],
-                            rotation[6],
-                            rotation[1],
-                            rotation[4],
-                            rotation[7],
-                            rotation[2],
-                            rotation[5],
-                            rotation[8]};
-                        diagnostic_new_stress = cartesian::rotate_tensor_values(new_history.stress, inverse_rotation);
-                        diagnostic_new_plastic = cartesian::components(
-                            cartesian::rotate_tensor_values(new_history.plastic_strain, inverse_rotation));
-                        diagnostic_new_creep = cartesian::components(
-                            cartesian::rotate_tensor_values(new_history.creep_strain, inverse_rotation));
-                    }
-                    conservation.elastic_energy_change +=
-                        0.5
-                        * (current_measure
-                                * cartesian::stress_strain_inner_product(new_history.stress, new_history.elastic_strain)
-                            - old_measure
-                                  * cartesian::stress_strain_inner_product(old_history.stress,
-                                      old_history.elastic_strain));
-                    conservation.plastic_dissipation_increment +=
-                        current_measure
-                        * cartesian::trapezoidal_stress_strain_inner_product(old_history.stress,
-                            diagnostic_new_stress,
-                            cartesian::strain_difference(diagnostic_new_plastic, old_history.plastic_strain));
-                    conservation.creep_dissipation_increment +=
-                        current_measure
-                        * cartesian::trapezoidal_stress_strain_inner_product(old_history.stress,
-                            diagnostic_new_stress,
-                            cartesian::strain_difference(diagnostic_new_creep, old_history.creep_strain));
-                }
-                staged[region][element] = std::move(update);
-            }
+        } catch (...) {
+            if (!sum_partitions)
+                throw;
+            partition_failure = std::current_exception();
         }
+        if (sum_partitions)
+            synchronize_cartesian_commit(staged,
+                raw_residual,
+                external_load_residual,
+                conservation,
+                first_contribution,
+                last_contribution,
+                sum_partitions,
+                partition_failure);
         finalize_conservation(*this,
             converged_solution,
             _impl->committed_solution,
@@ -2567,79 +2672,107 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
     } else {
         const std::size_t regions = _impl->layout().region_count();
         auto& staged = _impl->_staged_material_histories;
-        for (std::size_t region = 0; region < regions; ++region) {
-            const std::size_t offset = _impl->rz->region_element_offset(region);
-            for (std::size_t element = 0; element < staged[region].size(); ++element) {
-                const Cax4LocalValues state = gather_rz_state(*_impl->rz, offset + element, converged_solution);
-                const Cax4LocalValues committed_state =
-                    gather_rz_state(*_impl->rz, offset + element, _impl->committed_solution);
-                const Quad4RzGeometry& geometry = _impl->rz->region_element_geometry(region, element);
-                const auto& element_data = _impl->kernel_data[region];
-                const bool reduced = element_data.element_formulation == RzElementFormulation::cax4rt;
-                auto result = evaluate_cax4(element_data,
-                    geometry,
-                    state,
-                    committed_state,
-                    &_impl->material_histories[region][element],
-                    _impl->active_time_step,
-                    _impl->include_thermal_time_term,
-                    {true, false, true, false});
-                auto update = std::move(result.history);
-                if (element_data.body_acceleration != std::array<double, 3>{})
-                    for (const auto& point : geometry.points) {
-                        std::array<double, 3> increment{};
-                        for (std::size_t node = 0; node < 4; ++node) {
-                            increment[0] += point.shape[node] * (state[4 + node] - committed_state[4 + node]);
-                            increment[2] += point.shape[node] * (state[8 + node] - committed_state[8 + node]);
+        try {
+            if (!partition_failure) {
+                for (std::size_t region = 0; region < regions; ++region) {
+                    const std::size_t offset = _impl->rz->region_element_offset(region);
+                    for (std::size_t element = 0; element < staged[region].size(); ++element) {
+                        if (offset + element < first_contribution || offset + element >= last_contribution)
+                            continue;
+                        const Cax4LocalValues state = gather_rz_state(*_impl->rz, offset + element, converged_solution);
+                        const Cax4LocalValues committed_state =
+                            gather_rz_state(*_impl->rz, offset + element, _impl->committed_solution);
+                        const Quad4RzGeometry& geometry = _impl->rz->region_element_geometry(region, element);
+                        const auto& element_data = _impl->kernel_data[region];
+                        const bool reduced = element_data.element_formulation == RzElementFormulation::cax4rt;
+                        auto result = evaluate_cax4(element_data,
+                            geometry,
+                            state,
+                            committed_state,
+                            &_impl->material_histories[region][element],
+                            _impl->active_time_step,
+                            _impl->include_thermal_time_term,
+                            {true, false, true, false});
+                        auto update = std::move(result.history);
+                        if (element_data.body_acceleration != std::array<double, 3>{})
+                            for (const auto& point : geometry.points) {
+                                std::array<double, 3> increment{};
+                                for (std::size_t node = 0; node < 4; ++node) {
+                                    increment[0] += point.shape[node] * (state[4 + node] - committed_state[4 + node]);
+                                    increment[2] += point.shape[node] * (state[8 + node] - committed_state[8 + node]);
+                                }
+                                conservation.body_force_work_increment +=
+                                    body_point_work(_impl->layout().region(region),
+                                        {0.0, point.radius, 0.0, point.axial_coordinate},
+                                        point.weighted_measure,
+                                        increment);
+                            }
+                        conservation.stored_heat_rate += result.stored_heat_rate;
+                        conservation.generated_heat_rate += result.generated_heat_rate;
+                        if (reduced) {
+                            const double current_hourglass =
+                                fuelsim::elements::cax4rt_hourglass_energy({_impl->kernel_data[region].material,
+                                    geometry,
+                                    state,
+                                    state,
+                                    nullptr,
+                                    0.0,
+                                    _impl->kernel_data[region].time,
+                                    _impl->kernel_data[region].volumetric_heat_source,
+                                    _impl->kernel_data[region].strain_formulation,
+                                    false,
+                                    _impl->kernel_data[region].initial_temperature,
+                                    _impl->kernel_data[region].body_acceleration});
+                            const double old_hourglass =
+                                fuelsim::elements::cax4rt_hourglass_energy({_impl->kernel_data[region].material,
+                                    geometry,
+                                    committed_state,
+                                    committed_state,
+                                    nullptr,
+                                    0.0,
+                                    _impl->kernel_data[region].time,
+                                    _impl->kernel_data[region].volumetric_heat_source,
+                                    _impl->kernel_data[region].strain_formulation,
+                                    false,
+                                    _impl->kernel_data[region].initial_temperature,
+                                    _impl->kernel_data[region].body_acceleration});
+                            conservation.mechanical_hourglass_energy += current_hourglass;
+                            conservation.mechanical_hourglass_energy_change += current_hourglass - old_hourglass;
                         }
-                        conservation.body_force_work_increment += body_point_work(_impl->layout().region(region),
-                            {0.0, point.radius, 0.0, point.axial_coordinate},
-                            point.weighted_measure,
-                            increment);
+                        for (std::size_t q = 0; q < geometry.points.size(); ++q) {
+                            const RzQuadraturePoint& point = geometry.points[q];
+                            const MaterialPointState &old_history =
+                                                         _impl->material_histories[region][element][reduced ? 0 : q],
+                                                     &new_history = update[reduced ? 0 : q];
+                            rz::accumulate_material_conservation(conservation,
+                                old_history,
+                                new_history,
+                                point.weighted_measure);
+                        }
+                        staged[region][element] = std::move(update);
                     }
-                conservation.stored_heat_rate += result.stored_heat_rate;
-                conservation.generated_heat_rate += result.generated_heat_rate;
-                if (reduced) {
-                    const double current_hourglass =
-                        fuelsim::elements::cax4rt_hourglass_energy({_impl->kernel_data[region].material,
-                            geometry,
-                            state,
-                            state,
-                            nullptr,
-                            0.0,
-                            _impl->kernel_data[region].time,
-                            _impl->kernel_data[region].volumetric_heat_source,
-                            _impl->kernel_data[region].strain_formulation,
-                            false,
-                            _impl->kernel_data[region].initial_temperature,
-                            _impl->kernel_data[region].body_acceleration});
-                    const double old_hourglass =
-                        fuelsim::elements::cax4rt_hourglass_energy({_impl->kernel_data[region].material,
-                            geometry,
-                            committed_state,
-                            committed_state,
-                            nullptr,
-                            0.0,
-                            _impl->kernel_data[region].time,
-                            _impl->kernel_data[region].volumetric_heat_source,
-                            _impl->kernel_data[region].strain_formulation,
-                            false,
-                            _impl->kernel_data[region].initial_temperature,
-                            _impl->kernel_data[region].body_acceleration});
-                    conservation.mechanical_hourglass_energy += current_hourglass;
-                    conservation.mechanical_hourglass_energy_change += current_hourglass - old_hourglass;
                 }
-                for (std::size_t q = 0; q < geometry.points.size(); ++q) {
-                    const RzQuadraturePoint& point = geometry.points[q];
-                    const MaterialPointState &old_history = _impl->material_histories[region][element][reduced ? 0 : q],
-                                             &new_history = update[reduced ? 0 : q];
-                    rz::accumulate_material_conservation(conservation,
-                        old_history,
-                        new_history,
-                        point.weighted_measure);
-                }
-                staged[region][element] = std::move(update);
             }
+        } catch (...) {
+            if (!sum_partitions)
+                throw;
+            partition_failure = std::current_exception();
+        }
+        if (sum_partitions) {
+            std::vector<MaterialPointState*> points;
+            for (auto& region : staged)
+                for (auto& history : region)
+                    for (auto& point : history)
+                        points.push_back(&point);
+            synchronize_rz_commit(points,
+                4,
+                raw_residual,
+                external_load_residual,
+                conservation,
+                first_contribution,
+                last_contribution,
+                sum_partitions,
+                partition_failure);
         }
         finalize_conservation(*this,
             converged_solution,

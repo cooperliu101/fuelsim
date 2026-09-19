@@ -18,6 +18,21 @@
 #include <stdexcept>
 
 namespace fuelsim::cartesian {
+std::size_t representative_contact_face(const std::map<std::size_t, double>& area_weights) {
+    double maximum = 0.0;
+    for (const auto& entry : area_weights)
+        maximum = std::max(maximum, entry.second);
+    if (!(maximum > 0.0))
+        return std::numeric_limits<std::size_t>::max();
+    // Resolve arithmetic-level ties against the global maximum, not pairwise.
+    // This classification is only an output label, not a physical tolerance.
+    const double roundoff = 64.0 * std::numeric_limits<double>::epsilon() * maximum;
+    for (const auto& entry : area_weights)
+        if (entry.second > 0.0 && maximum - entry.second <= roundoff)
+            return entry.first;
+    throw std::logic_error("Positive contact area has no representative face");
+}
+
 namespace {
 CartesianPoint3 face_centroid(const Quad4FaceCoordinates& coordinates) {
     CartesianPoint3 result{0.0, 0.0, 0.0};
@@ -3533,11 +3548,23 @@ void SpatialAssembly::refresh_hex20_finite_averaged_constraints(const std::vecto
     }
 }
 
-void SpatialAssembly::refresh_finite_averaged_constraints(const std::vector<double>& state) const {
+void SpatialAssembly::refresh_finite_averaged_constraints(const std::vector<double>& state,
+    bool local_contacts_only) const {
     if (_uses_hex20) {
         refresh_hex20_finite_averaged_constraints(state);
         return;
     }
+    // A local solver state contains only gathered shadow nodes. Refresh only contacts
+    // needed by this partition; reading other contacts would use unavailable values.
+    const auto needed = [this, local_contacts_only](std::size_t contact) {
+        if (!local_contacts_only)
+            return true;
+        for (std::size_t node = _mechanical_contact_offsets[contact]; node < _mechanical_contact_offsets[contact + 1];
+            ++node)
+            if (_touched_mechanical_nodes[node] != 0U)
+                return true;
+        return false;
+    };
     const auto current_face = [this, &state](const std::array<std::size_t, 4>& nodes,
                                   const Quad4FaceCoordinates& reference) {
         Quad4FaceCoordinates result = reference;
@@ -3550,6 +3577,8 @@ void SpatialAssembly::refresh_finite_averaged_constraints(const std::vector<doub
     };
     std::vector<std::vector<Quad4FaceCoordinates>> primary_current_faces_by_contact(_definition.contacts.size());
     for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact) {
+        if (!needed(contact))
+            continue;
         const bool averaged = std::any_of(_abaqus_averaged_constraints.begin(),
             _abaqus_averaged_constraints.end(),
             [contact](const AbaqusAveragedConstraint& constraint) {
@@ -3566,6 +3595,8 @@ void SpatialAssembly::refresh_finite_averaged_constraints(const std::vector<doub
     const Matrix4& averaging = abaqus_quad4_averaging();
     constexpr double boundary_tolerance = 1.0e-9;
     for (AbaqusAveragedConstraint& constraint : _abaqus_averaged_constraints) {
+        if (!needed(constraint.contact))
+            continue;
         constraint.finite_region_cache_valid = false;
         constraint.finite_region_cached_derivative_valid = false;
         if (!constraint.finite_sliding)
@@ -4044,6 +4075,8 @@ void SpatialAssembly::refresh_finite_averaged_constraints(const std::vector<doub
             throw std::logic_error("HEX8 finite-sliding averaged constraint has no active nodes");
     };
     for (AbaqusAveragedConstraint& constraint : _abaqus_averaged_constraints) {
+        if (!needed(constraint.contact))
+            continue;
         if (!constraint.finite_sliding)
             continue;
         std::vector<std::size_t> required_nodes;
@@ -4065,6 +4098,8 @@ void SpatialAssembly::refresh_finite_averaged_constraints(const std::vector<doub
         set_active_support(constraint, std::move(required_nodes));
     }
     for (AbaqusAveragedConstraint& constraint : _abaqus_averaged_constraints) {
+        if (!needed(constraint.contact))
+            continue;
         if (!constraint.friction_only)
             continue;
         const auto finite_region = std::find_if(_abaqus_averaged_constraints.begin(),
@@ -4099,6 +4134,7 @@ bool SpatialAssembly::summarize_averaged_contact(std::size_t contact_value,
             const AbaqusAveragedConstraint& value) { return value.contact == contact_value && value.friction_only; });
     std::vector<std::size_t> dofs;
     std::vector<std::array<double, 3>> finite_region_normal_area(summaries.size());
+    std::vector<std::map<std::size_t, double>> representative_areas(summaries.size());
     bool recover_finite_sliding_nodal_tractions = false;
     bool finite_region_normals = false;
     for (const AbaqusAveragedConstraint& constraint : _abaqus_averaged_constraints) {
@@ -4131,6 +4167,33 @@ bool SpatialAssembly::summarize_averaged_contact(std::size_t contact_value,
         if (constraint.finite_region_normal) {
             finite_region_normals = true;
             const ResolvedBoundary& secondary = _secondary_boundaries.at(constraint.contact);
+            // Derive the nodal label from actual normal integration support, independently
+            // of force magnitude, friction constraints and their output overwrite order.
+            for (const auto& sample : constraint.finite_sliding_samples) {
+                if (!constraint.projected)
+                    break;
+                const auto& face = _secondary_contact_faces[constraint.contact][sample.secondary_face];
+                Quad4FaceCoordinates current = face.coordinates;
+                for (std::size_t node = 0; node < 4; ++node) {
+                    current[node].x += state[dof(Field::displacement_x, face.nodes[node])];
+                    current[node].y += state[dof(Field::displacement_y, face.nodes[node])];
+                    current[node].z += state[dof(Field::displacement_z, face.nodes[node])];
+                }
+                for (const auto& integration : sample.normal_points) {
+                    const auto point =
+                        make_quad4_face_quadrature_point(current, integration.xi, integration.eta, integration.weight);
+                    for (std::size_t node = 0; node < 4; ++node) {
+                        const auto source = secondary.boundary.faces[sample.secondary_face].nodes[node];
+                        const auto found =
+                            std::find(secondary.boundary.nodes.begin(), secondary.boundary.nodes.end(), source);
+                        if (found == secondary.boundary.nodes.end())
+                            throw std::logic_error("Normal contact output lost a secondary node");
+                        const auto output = static_cast<std::size_t>(found - secondary.boundary.nodes.begin());
+                        representative_areas[output][integration.primary_face] +=
+                            point.shape[node] * point.weighted_measure;
+                    }
+                }
+            }
             for (std::size_t entry = 0; entry < constraint.secondary_output_nodes.size(); ++entry) {
                 const std::size_t output_index = constraint.secondary_output_nodes[entry];
                 const std::size_t global = global_node(secondary.region, secondary.boundary.nodes.at(output_index));
@@ -4263,6 +4326,7 @@ bool SpatialAssembly::summarize_averaged_contact(std::size_t contact_value,
     if (finite_region_normals)
         for (std::size_t node = 0; node < summaries.size(); ++node) {
             CartesianContactNodeSummary& summary = summaries[node];
+            summary.primary_face = representative_contact_face(representative_areas[node]);
             const double normal_force = std::hypot(summary.normal_contact_force[0],
                 summary.normal_contact_force[1],
                 summary.normal_contact_force[2]);
@@ -6477,6 +6541,22 @@ std::vector<std::size_t> SpatialAssembly::required_state_dofs(std::size_t first,
                 for (const PrimaryContactFace& face : _primary_contact_faces[contact])
                     append_face(face.nodes);
         }
+    // Refreshing an averaged contact also updates its paired normal/friction
+    // constraints. Gather both surfaces once for each touched averaged contact.
+    if (!_uses_hex20) {
+        std::vector<unsigned char> averaged_contacts(_definition.contacts.size(), 0U);
+        for (const AbaqusAveragedConstraint& constraint : _abaqus_averaged_constraints)
+            if (constraint.finite_sliding
+                && _touched_mechanical_nodes[mechanical_node_index(constraint.contact, constraint.history)] != 0U)
+                averaged_contacts[constraint.contact] = 1U;
+        for (std::size_t contact = 0; contact < averaged_contacts.size(); ++contact)
+            if (averaged_contacts[contact] != 0U) {
+                for (const SecondaryContactFace& face : _secondary_contact_faces[contact])
+                    append_face(face.nodes);
+                for (const PrimaryContactFace& face : _primary_contact_faces[contact])
+                    append_face(face.nodes);
+            }
+    }
     std::sort(result.begin(), result.end());
     result.erase(std::unique(result.begin(), result.end()), result.end());
     return result;
@@ -6494,7 +6574,7 @@ void SpatialAssembly::validate_local_state(std::size_t first,
     mark_touched_mechanical_nodes(first, last);
     update_contact_search_trees(state);
     update_thermal_candidates(first, last, state);
-    refresh_finite_averaged_constraints(state);
+    refresh_finite_averaged_constraints(state, true);
     update_mechanical_candidates(first, last, state);
     for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact) {
         if (_definition.contacts[contact].thermal) {

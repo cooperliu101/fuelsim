@@ -289,6 +289,9 @@ struct SolverContext final {
 
     std::vector<FixedContributionMetadata> fixed_contributions;
     MatrixInsertionWorkspace matrix_insertion;
+    std::vector<PetscInt> factor_row_offsets, factor_columns;
+    std::vector<PetscInt> next_factor_row_offsets, next_factor_columns;
+    std::vector<PetscScalar> next_factor_values;
     double initial_residual_norm = std::numeric_limits<double>::quiet_NaN();
     bool saw_domain_error = false, last_function_domain_error = false;
     std::string last_domain_error;
@@ -790,23 +793,66 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
     PetscCall(assemble_callback(snes, state, nullptr, jacobian, raw_context));
     if (jacobian != preconditioner) {
         const SteadyClock::time_point copy_start = SteadyClock::now();
-        // Keep every potential contact coupling in the assembly matrix. The
-        // direct factorization needs only its numerically nonzero entries; no
-        // magnitude threshold or approximation is used here. Recopy on every
-        // Jacobian update so previously inactive couplings can become active.
-        PetscCall(MatCopy(jacobian, preconditioner, DIFFERENT_NONZERO_PATTERN));
-        PetscCall(MatEliminateZeros(preconditioner, PETSC_TRUE));
+        // Keep the complete assembly graph, but transfer only exact nonzeros
+        // to the factor matrix. Owned-row insertion avoids recopying its full
+        // distributed graph and preserves symbolic factors when the compact
+        // graph is unchanged. No magnitude threshold is used.
+        auto& context = *static_cast<SolverContext*>(raw_context);
+        auto& offsets = context.next_factor_row_offsets;
+        auto& columns = context.next_factor_columns;
+        auto& values = context.next_factor_values;
+        offsets.clear();
+        columns.clear();
+        values.clear();
+        PetscInt first = 0, last = 0;
+        PetscCall(MatGetOwnershipRange(jacobian, &first, &last));
+        offsets.reserve(static_cast<std::size_t>(last - first) + 1);
+        offsets.push_back(0);
+        for (PetscInt row = first; row < last; ++row) {
+            PetscInt count = 0;
+            const PetscInt* row_columns = nullptr;
+            const PetscScalar* row_values = nullptr;
+            PetscCall(MatGetRow(jacobian, row, &count, &row_columns, &row_values));
+            for (PetscInt entry = 0; entry < count; ++entry)
+                if (row_values[entry] != 0.0 || row_columns[entry] == row) {
+                    columns.push_back(row_columns[entry]);
+                    values.push_back(row_values[entry]);
+                }
+            PetscCall(MatRestoreRow(jacobian, row, &count, &row_columns, &row_values));
+            offsets.push_back(checked_petsc_int(columns.size()));
+        }
+        const PetscMPIInt local_changed =
+            offsets != context.factor_row_offsets || columns != context.factor_columns ? 1 : 0;
+        PetscMPIInt graph_changed = 0;
+        PetscCallMPI(MPIU_Allreduce(&local_changed, &graph_changed, 1, MPI_INT, MPI_MAX, PETSC_COMM_WORLD));
+        if (graph_changed)
+            PetscCall(MatZeroEntries(preconditioner));
+        for (PetscInt row = first; row < last; ++row) {
+            const std::size_t local = static_cast<std::size_t>(row - first);
+            const PetscInt start = offsets[local], count = offsets[local + 1] - start;
+            if (count > 0)
+                PetscCall(MatSetValues(preconditioner,
+                    1,
+                    &row,
+                    count,
+                    columns.data() + start,
+                    values.data() + start,
+                    INSERT_VALUES));
+        }
         PetscCall(MatAssemblyBegin(preconditioner, MAT_FINAL_ASSEMBLY));
         PetscCall(MatAssemblyEnd(preconditioner, MAT_FINAL_ASSEMBLY));
-        // Compaction changes the graph independently of the complete assembly
-        // pattern. Invalidate the factor's symbolic state as well as its values.
-        KSP ksp = nullptr;
-        PC pc = nullptr;
-        PetscCall(SNESGetKSP(snes, &ksp));
-        PetscCall(KSPGetPC(ksp, &pc));
-        PetscCall(PCReset(pc));
-        PetscCall(PCSetOperators(pc, jacobian, preconditioner));
-        static_cast<SolverContext*>(raw_context)->timing.jacobian_callback_seconds += seconds_since(copy_start);
+        if (graph_changed) {
+            PetscCall(MatEliminateZeros(preconditioner, PETSC_TRUE));
+            KSP ksp = nullptr;
+            PC pc = nullptr;
+            PetscCall(SNESGetKSP(snes, &ksp));
+            PetscCall(KSPGetPC(ksp, &pc));
+            PetscCall(PCReset(pc));
+            PetscCall(PCSetOperators(pc, jacobian, preconditioner));
+        }
+        context.factor_row_offsets.swap(offsets);
+        context.factor_columns.swap(columns);
+        context.timing.jacobian_callback_seconds += seconds_since(copy_start);
     }
     PetscFunctionReturn(PETSC_SUCCESS);
 }
@@ -1157,7 +1203,7 @@ PetscSolver::PetscSolver() : _impl(std::make_unique<Implementation>()) {
 PetscSolver::~PetscSolver() = default;
 
 void solver_detail::commit_time_step(TransientProblem& problem, const SolveResult& result) {
-    if (PetscGlobalSize == 1 || (problem.definition().physics != Physics::thermal && !problem.uses_plane_quad8())) {
+    if (PetscGlobalSize == 1 || (problem.definition().physics != Physics::thermal && problem.uses_radial_gps())) {
         problem.commit_time_step(result.state);
         return;
     }
@@ -1179,12 +1225,29 @@ SolveResult PetscSolver::solve(const NonlinearProblem& problem,
     const std::vector<double>& initial_state,
     const SolverOptions& options) {
     SolveResult result = solve_once(problem, initial_state, options);
+    if (!result.converged && options.jacobian_lag_persists) {
+        SolverOptions fresh_options = options;
+        fresh_options.jacobian_lag_persists = false;
+        fresh_options.jacobian_lag = 1;
+        SolveResult fresh = solve_once(problem, initial_state, fresh_options);
+        fresh.nonlinear_iterations += result.nonlinear_iterations;
+        fresh.linear_iterations += result.linear_iterations;
+        accumulate_timing(fresh.timing, result.timing);
+        fresh.nonlinear_attempts += result.nonlinear_attempts;
+        fresh.initial_failure_category = result.failure_category;
+        fresh.initial_failure_message = result.failure_message;
+        result = std::move(fresh);
+    }
     if (result.converged || !options.backtracking_fallback
         || options.line_search == SolverOptions::LineSearch::backtracking)
         return result;
     SolverOptions fallback_options = options;
     fallback_options.line_search = SolverOptions::LineSearch::backtracking;
     fallback_options.backtracking_fallback = false;
+    if (options.jacobian_lag_persists) {
+        fallback_options.jacobian_lag_persists = false;
+        fallback_options.jacobian_lag = 1;
+    }
     SolveResult fallback = solve_once(problem, initial_state, fallback_options);
     fallback.nonlinear_iterations += result.nonlinear_iterations;
     fallback.linear_iterations += result.linear_iterations;
@@ -1224,6 +1287,8 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem,
     context.timing.initial_resident_bytes = static_cast<std::size_t>(initial_memory.resident_bytes);
     context.timing.maximum_peak_resident_bytes = static_cast<std::size_t>(initial_memory.maximum_resident_bytes);
     context.initial_residual_norm = std::numeric_limits<double>::quiet_NaN();
+    const bool retain_scaling = options.jacobian_lag_persists && !workspace_created && context.pattern_locked
+                                && options.field_residual_scaling && context.field_residual_scaling;
     context.field_residual_scaling = residual_scaling;
     context.absolute_tolerance = options.absolute_tolerance;
     context.field_residual_convergence = options.field_residual_convergence;
@@ -1232,14 +1297,26 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem,
     context.temperature_residual_absolute_tolerance = options.temperature_residual_absolute_tolerance;
     context.mechanical_residual_absolute_tolerance = options.mechanical_residual_absolute_tolerance;
     context.first_residual = true;
-    context.thermal_scaling_initialized = fixed_temperature_scale;
-    context.mechanics_scaling_initialized = fixed_mechanical_scale;
+    if (!retain_scaling) {
+        context.thermal_scaling_initialized = fixed_temperature_scale;
+        context.mechanics_scaling_initialized = fixed_mechanical_scale;
+    } else {
+        // A previously inactive field used unit scaling in the cached matrix.
+        // Keep it fixed even if that field first acquires a nonzero residual.
+        context.thermal_scaling_initialized = true;
+        context.mechanics_scaling_initialized = true;
+    }
     const std::size_t field_count = problem.field_layout().size();
     context.initial_field_residual_norms.assign(field_count, 0.0);
     context.field_residual_reference_norms.assign(field_count, 0.0);
     context.latest_unscaled_field_residual_norms.assign(field_count, 0.0);
     context.latest_field_residual_norms.assign(field_count, 0.0);
-    context.field_residual_scalings.assign(field_count, 1.0);
+    // A reused factorization contains the previous row scaling. Residuals
+    // must retain that same scaling until a fresh Newton solve is requested.
+    // The per-solve initial norms and physical convergence thresholds are
+    // still reset independently above.
+    if (!retain_scaling)
+        context.field_residual_scalings.assign(field_count, 1.0);
     if (fixed_temperature_scale) {
         for (std::size_t field = 0; field < field_count; ++field) {
             context.field_residual_scalings[field] = problem.field_layout()[field].category == FieldCategory::thermal
@@ -1258,14 +1335,20 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem,
     for (PetscInt index = ownership_begin; index < ownership_end; ++index)
         state_array[index - ownership_begin] = initial_state[context.petsc_to_problem[static_cast<std::size_t>(index)]];
     check_petsc(VecRestoreArray(objects.state, &state_array), "VecRestoreArray state");
+    // A stale tangent is only a cheap trial. If it cannot reach the unchanged
+    // convergence criterion in eight iterations, solve() retries with a freshly
+    // assembled Newton matrix and the full configured iteration budget.
+    const bool bounded_reuse = options.jacobian_lag_persists && !workspace_created && context.pattern_locked;
     check_petsc(SNESSetTolerances(objects.snes,
                     options.absolute_tolerance,
                     options.relative_tolerance,
                     residual_scaling ? 0.0 : options.step_tolerance,
-                    options.maximum_iterations,
+                    bounded_reuse ? std::min(options.maximum_iterations, 8) : options.maximum_iterations,
                     PETSC_DEFAULT),
         "SNESSetTolerances");
     check_petsc(SNESSetLagJacobian(objects.snes, options.jacobian_lag), "SNESSetLagJacobian");
+    check_petsc(SNESSetLagJacobianPersists(objects.snes, options.jacobian_lag_persists ? PETSC_TRUE : PETSC_FALSE),
+        "SNESSetLagJacobianPersists");
     SNESLineSearch line_search = nullptr;
     check_petsc(SNESGetLineSearch(objects.snes, &line_search), "SNESGetLineSearch");
     check_petsc(SNESLineSearchSetType(line_search,

@@ -136,7 +136,7 @@ struct Hex20KinematicsValues final {
 struct Hex20Kinematics final {
     SymmetricTensor3 strain_increment;
     CartesianRotation rotation;
-    std::array<std::array<adlite::Scalar, 3>, 20> current_gradient;
+    ActiveMatrix3 current_inverse;
     Matrix3 current_inverse_values{}, midpoint_inverse_values{};
     adlite::Scalar current_weighted_measure{0.0};
 };
@@ -287,11 +287,7 @@ Hex20Kinematics evaluate_kinematics(const Hex20MechanicalQuadraturePoint& point,
     result.strain_increment = core.strain_increment;
     result.rotation = core.rotation;
     result.current_weighted_measure = point.weighted_measure * core.current_determinant;
-    for (std::size_t node = 0; node < 20; ++node)
-        for (std::size_t direction = 0; direction < 3; ++direction)
-            for (std::size_t reference = 0; reference < 3; ++reference)
-                result.current_gradient[node][direction] +=
-                    point.displacement_gradient[node][reference] * core.current_inverse[reference][direction];
+    result.current_inverse = core.current_inverse;
     if (strain_formulation == StrainFormulation::finite)
         for (std::size_t i = 0; i < 3; ++i)
             for (std::size_t j = 0; j < 3; ++j) {
@@ -783,11 +779,13 @@ void add_mechanical_point_system(const Hex20MechanicalQuadraturePoint& point,
         compose_cartesian_stress(tangent, kinematics.strain_increment, active_temperature, tangent.thermal);
     if (strain_formulation == StrainFormulation::finite)
         stress = rotate_cartesian_tensor(stress, kinematics.rotation);
-    std::array<adlite::Scalar, 60> point_residual{};
     const bool small = strain_formulation == StrainFormulation::small;
     const std::array<const adlite::Scalar*, 6> stress_components =
         {&stress.xx, &stress.yy, &stress.zz, &stress.xy, &stress.yz, &stress.xz};
     std::array<std::array<double, point_width>, 6> stress_derivatives{};
+    std::array<std::array<double, point_width>, 9> flux_derivatives{};
+    std::array<double, 9> flux_values{};
+    constexpr std::array<std::array<std::size_t, 3>, 3> traction_components = {{{0, 3, 5}, {3, 1, 4}, {5, 4, 2}}};
     if (small) {
         // Reference gradients and volume are passive in small strain. Extract
         // the six stress derivatives once, rather than constructing sixty AD
@@ -796,19 +794,22 @@ void add_mechanical_point_system(const Hex20MechanicalQuadraturePoint& point,
         for (std::size_t c = 0; c < 6; ++c)
             stress_components[c]->copy_derivatives(stress_derivatives[c].data(), point_width);
     } else {
-        point_residual.fill(adlite::Scalar(0.0));
-        for (std::size_t node = 0; node < 20; ++node) {
-            const adlite::Scalar gx = kinematics.current_gradient[node][0], gy = kinematics.current_gradient[node][1],
-                                 gz = kinematics.current_gradient[node][2];
-            point_residual[node] +=
-                kinematics.current_weighted_measure * (stress.xx * gx + stress.xy * gy + stress.xz * gz);
-            point_residual[20 + node] +=
-                kinematics.current_weighted_measure * (stress.xy * gx + stress.yy * gy + stress.yz * gz);
-            point_residual[40 + node] +=
-                kinematics.current_weighted_measure * (stress.xz * gx + stress.yz * gy + stress.zz * gz);
-        }
+        // Factor the current-gradient contraction into nine weighted nominal
+        // stress components. Their AD derivatives include stress, rotation,
+        // inverse deformation and volume; the twenty reference gradients are
+        // passive and can be contracted afterwards without repeated AD work.
+        for (std::size_t component = 0; component < 3; ++component)
+            for (std::size_t reference = 0; reference < 3; ++reference) {
+                adlite::Scalar flux(0.0);
+                for (std::size_t direction = 0; direction < 3; ++direction)
+                    flux += *stress_components[traction_components[component][direction]]
+                            * kinematics.current_inverse[reference][direction];
+                flux *= kinematics.current_weighted_measure;
+                const std::size_t index = component * 3 + reference;
+                flux_values[index] = flux.value();
+                flux.copy_derivatives(flux_derivatives[index].data(), point_width);
+            }
     }
-    constexpr std::array<std::array<std::size_t, 3>, 3> traction_components = {{{0, 3, 5}, {3, 1, 4}, {5, 4, 2}}};
     std::array<double, point_width> derivatives{};
     for (std::size_t component = 0; component < 3; ++component)
         for (std::size_t node = 0; node < 20; ++node) {
@@ -824,8 +825,12 @@ void add_mechanical_point_system(const Hex20MechanicalQuadraturePoint& point,
                                  * (stress_components[c[0]]->value() * g[0] + stress_components[c[1]]->value() * g[1]
                                      + stress_components[c[2]]->value() * g[2]);
             } else {
-                point_residual[20 * component + node].copy_derivatives(derivatives.data(), derivatives.size());
-                residual[row] += point_residual[20 * component + node].value();
+                const std::size_t c = component * 3;
+                const auto& g = point.displacement_gradient[node];
+                for (std::size_t d = 0; d < point_width; ++d)
+                    derivatives[d] = flux_derivatives[c][d] * g[0] + flux_derivatives[c + 1][d] * g[1]
+                                     + flux_derivatives[c + 2][d] * g[2];
+                residual[row] += flux_values[c] * g[0] + flux_values[c + 1] * g[1] + flux_values[c + 2] * g[2];
             }
             for (std::size_t other = 0; other < 8; ++other)
                 jacobian[row * hex20_local_dof_count + other] +=

@@ -6,8 +6,28 @@
 #include <array>
 #include <cmath>
 #include <iostream>
+#include <limits>
+#include <map>
 #include <stdexcept>
 #include <vector>
+
+void verify_representative_face_selection() {
+    using fuelsim::cartesian::representative_contact_face;
+    const double epsilon = std::numeric_limits<double>::epsilon();
+    for (const double scale : {1.0e-100, 1.0e-7, 1.0, 1.0e100}) {
+        const std::map<std::size_t, double> tied = {{8, scale * (1.0 + 8.0 * epsilon)}, {3, scale}};
+        if (representative_contact_face(tied) != 3 || representative_contact_face({{3, scale}, {8, scale * 1.01}}) != 8)
+            throw std::runtime_error("Representative face must resolve only arithmetic-level ties by index");
+        // A pairwise tolerant comparison could incorrectly keep face 1 through a chain.
+        if (representative_contact_face(
+                {{1, scale * (1.0 - 100.0 * epsilon)}, {2, scale * (1.0 - 50.0 * epsilon)}, {3, scale}})
+            != 2)
+            throw std::runtime_error("Representative face ties must be measured against the global maximum");
+    }
+    if (representative_contact_face({}) != std::numeric_limits<std::size_t>::max()
+        || representative_contact_face({{1, 0.0}, {2, 0.0}}) != std::numeric_limits<std::size_t>::max())
+        throw std::runtime_error("Absent normal area must not invent a representative face");
+}
 
 // Internal directional-derivative and conservation contracts at the production solution.
 // This executable deliberately has no solver dependency and never solves the case.
@@ -85,6 +105,7 @@ int main(int argc, char** argv) {
     if (argc != 3)
         return 2;
     try {
+        verify_representative_face_selection();
         verify(argv[1], argv[2]);
         return 0;
     } catch (const std::exception& error) {

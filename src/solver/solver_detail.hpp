@@ -2,6 +2,7 @@
 #include "solver/petsc_solver.hpp"
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 
 namespace fuelsim {
 class TransientProblem;
@@ -9,6 +10,33 @@ class TransientProblem;
 
 namespace fuelsim::solver_detail {
 void commit_time_step(TransientProblem& problem, const SolveResult& result);
+
+inline void add_quadratic_time_correction(std::vector<double>& prediction,
+    const std::vector<double>& current,
+    const std::vector<double>& previous,
+    const std::vector<double>& older,
+    double current_time,
+    double previous_time,
+    double older_time,
+    double target_time) {
+    const double recent_interval = current_time - previous_time;
+    const double older_interval = previous_time - older_time;
+    const double forward_interval = target_time - current_time;
+    if (prediction.size() != current.size() || previous.size() != current.size() || older.size() != current.size()
+        || !(recent_interval > 0.0) || !(older_interval > 0.0) || !(forward_interval > 0.0))
+        return;
+    // Do not extrapolate curvature across abrupt changes in step size.
+    const double previous_ratio = recent_interval / older_interval;
+    const double forward_ratio = forward_interval / recent_interval;
+    if (previous_ratio < 0.5 || previous_ratio > 2.0 || forward_ratio < 0.5 || forward_ratio > 2.0)
+        return;
+    const double factor = forward_interval * (forward_interval + recent_interval) / (recent_interval + older_interval);
+    if (!std::isfinite(factor))
+        return;
+    for (std::size_t dof = 0; dof < current.size(); ++dof)
+        prediction[dof] +=
+            factor * ((current[dof] - previous[dof]) / recent_interval - (previous[dof] - older[dof]) / older_interval);
+}
 
 using Clock = std::chrono::steady_clock;
 

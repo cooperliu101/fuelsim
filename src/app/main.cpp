@@ -201,6 +201,13 @@ CommandLine extract_command_line(int& argc, char** argv) {
     return result;
 }
 
+void write_timing_diagnostics(const SolveTiming& timing, CaseOutput& output) {
+    output.value("aggregate_timing.setup_seconds", timing.setup_seconds);
+    output.value("aggregate_timing.nonlinear_solve_seconds", timing.nonlinear_solve_seconds);
+    output.value("aggregate_timing.residual_callback_seconds", timing.residual_callback_seconds);
+    output.value("aggregate_timing.jacobian_callback_seconds", timing.jacobian_callback_seconds);
+}
+
 void write_memory_diagnostics(const std::string& prefix, const SolveTiming& timing, CaseOutput& output) {
     output.value(prefix + "initial_resident_bytes", timing.initial_resident_bytes);
     output.value(prefix + "setup_resident_bytes", timing.setup_resident_bytes);
@@ -396,6 +403,7 @@ bool run_steady(const FuelSimCaseDefinition& definition,
     output.value("residual_norm", result.solve.residual_norm);
     write_solver_diagnostics(result.solve, problem.uses_augmented_contact(), output);
     write_memory_diagnostics("aggregate_memory.", result.aggregate_timing, output);
+    write_timing_diagnostics(result.aggregate_timing, output);
     output.value("failure_category", solve_failure_category_name(result.solve.failure_category));
     if (!result.solve.failure_message.empty())
         output.value("failure_message", result.solve.failure_message);
@@ -582,6 +590,7 @@ bool run_transient(const FuelSimCaseDefinition& definition,
     output.value("petsc_workspace_setups", result.aggregate_timing.workspace_setups);
     write_solver_diagnostics(result.last_attempt, problem.uses_augmented_contact(), output);
     write_memory_diagnostics("aggregate_memory.", result.aggregate_timing, output);
+    write_timing_diagnostics(result.aggregate_timing, output);
     output.value("total_seconds", result.total_seconds);
     write_conservation_summary("conservation.",
         problem.last_conservation_summary(),

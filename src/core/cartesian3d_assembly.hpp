@@ -12,9 +12,13 @@
 #include "core/spatial_definition.hpp"
 #include "spatial_layout.hpp"
 #include <cstddef>
+#include <map>
 #include <vector>
 
 namespace fuelsim::cartesian {
+// Output-only face selection; never used for contact projection or force assembly.
+std::size_t representative_contact_face(const std::map<std::size_t, double>& area_weights);
+
 struct ResolvedBoundary final {
     std::size_t region;
     Hex8RegionBoundary boundary;
@@ -342,7 +346,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         const AbaqusAveragedConstraintValue& value,
         std::array<std::vector<double>, 2>& derivatives) const;
     void refresh_hex20_finite_averaged_constraints(const std::vector<double>& state) const;
-    void refresh_finite_averaged_constraints(const std::vector<double>& state) const;
+    void refresh_finite_averaged_constraints(const std::vector<double>& state, bool local_contacts_only = false) const;
     bool summarize_averaged_contact(std::size_t contact,
         const std::vector<double>& state,
         std::vector<CartesianContactNodeSummary>& summaries) const;

@@ -357,8 +357,12 @@ TransientResult solve_transient(TransientProblem& problem,
     validate_time_options(problem, options);
     const bool creep_control = options.adaptive_algorithm == AdaptiveTimeAlgorithm::creep_rate;
     std::vector<double> committed_rates = creep_control ? problem.committed_creep_rates() : std::vector<double>{};
+    const bool predictor_enabled = options.use_linear_time_predictor || options.use_quadratic_time_predictor;
     const bool recent_predictor_tracking =
-        options.use_linear_time_predictor && options.adaptive_algorithm != AdaptiveTimeAlgorithm::step_doubling;
+        predictor_enabled && options.adaptive_algorithm != AdaptiveTimeAlgorithm::step_doubling;
+    const bool quadratic_predictor = options.use_quadratic_time_predictor && recent_predictor_tracking;
+    std::vector<double> older_predictor_solution;
+    double older_predictor_time = 0.0;
     problem.track_previous_committed_solution(recent_predictor_tracking);
     const SteadyClock::time_point start = SteadyClock::now();
     TransientResult result;
@@ -366,12 +370,19 @@ TransientResult solve_transient(TransientProblem& problem,
     const std::vector<double> events = problem.time_events();
     const std::vector<double> initial_predictor_reference = problem.initial_solution();
     double next_time_step = options.initial_time_step;
+    double previous_solve_time_step = 0.0;
     const auto run_step = [&](double target_time, const std::vector<double>& initial_guess, int jacobian_lag) {
+        const double time_step = target_time - problem.committed_time();
         problem.begin_time_step(
             {target_time, load_factor_at_time(options, target_time), options.include_thermal_time_term});
         try {
             SolverOptions step_solver_options = solver_options;
             step_solver_options.jacobian_lag = jacobian_lag;
+            step_solver_options.jacobian_lag_persists =
+                solver_options.jacobian_lag_persists && times_equal(time_step, previous_solve_time_step);
+            if (solver_options.jacobian_lag_persists && !step_solver_options.jacobian_lag_persists)
+                step_solver_options.jacobian_lag = 1;
+            previous_solve_time_step = time_step;
             SolveResult step_result = solve_contact_equilibrium(solver,
                 problem,
                 initial_guess_with_dirichlet_values(problem, initial_guess),
@@ -444,17 +455,28 @@ TransientResult solve_transient(TransientProblem& problem,
             const double base_time = problem.committed_time();
             const std::vector<double> base_solution = problem.committed_solution();
             const bool predictor_used =
-                options.use_linear_time_predictor
-                && (error_control ? base_time > 0.0 : problem.has_previous_committed_solution());
+                predictor_enabled && (error_control ? base_time > 0.0 : problem.has_previous_committed_solution());
             const std::vector<double>* predictor_reference = !predictor_used ? nullptr
                                                              : error_control ? &initial_predictor_reference
                                                                              : &problem.previous_committed_solution();
             const double predictor_reference_time = error_control ? 0.0 : problem.previous_committed_time();
-            const std::vector<double> predicted_solution = linear_transient_predictor(base_solution,
+            std::vector<double> predicted_solution = linear_transient_predictor(base_solution,
                 predictor_reference,
                 base_time,
                 predictor_reference_time,
                 end_time);
+            std::vector<double> next_older_predictor_solution;
+            if (quadratic_predictor && predictor_reference != nullptr) {
+                solver_detail::add_quadratic_time_correction(predicted_solution,
+                    base_solution,
+                    *predictor_reference,
+                    older_predictor_solution,
+                    base_time,
+                    predictor_reference_time,
+                    older_predictor_time,
+                    end_time);
+                next_older_predictor_solution = *predictor_reference;
+            }
             if (error_control || creep_control) {
                 base_state = problem.capture_state();
                 base_state_available = true;
@@ -565,6 +587,10 @@ TransientResult solve_transient(TransientProblem& problem,
             if (result.last_attempt.converged) {
                 if (creep_control)
                     committed_rates = std::move(candidate_rates);
+                if (quadratic_predictor) {
+                    older_predictor_solution = std::move(next_older_predictor_solution);
+                    older_predictor_time = predictor_reference_time;
+                }
                 next_time_step = accepted_next_time_step(options,
                     time_step,
                     controller_time_step,

@@ -1137,7 +1137,8 @@ void read_executioner(const InputDocument& document, const std::string& path, Fu
                 "strain_history_time_absolute_tolerance",
                 "stress_history_time_absolute_tolerance",
                 "include_thermal_time_term",
-                "use_linear_time_predictor"});
+                "use_linear_time_predictor",
+                "use_quadratic_time_predictor"});
         if (executioner_type != "transient")
             value_error(document,
                 required_entry(document, executioner, "type"),
@@ -1160,6 +1161,7 @@ void read_executioner(const InputDocument& document, const std::string& path, Fu
             read_optional_double(document, executioner, "stress_history_time_absolute_tolerance", 1.0),
             read_optional_bool(document, executioner, "include_thermal_time_term", true),
             read_optional_bool(document, executioner, "use_linear_time_predictor", false),
+            read_optional_bool(document, executioner, "use_quadratic_time_predictor", false),
             read_optional_double(document, executioner, "creep_strain_time_tolerance", 0.0)};
         const std::string algorithm = read_optional_string(executioner, "adaptive_algorithm", "convergence");
         if (algorithm == "convergence")
@@ -1212,6 +1214,7 @@ void read_solver(const InputDocument& document, const std::string& path, FuelSim
             "mechanical_residual_scale",
             "jacobian_lag",
             "predictor_jacobian_lag",
+            "jacobian_lag_persists",
             "line_search"});
     result.solver.absolute_tolerance = read_optional_double(document, solver, "absolute_tolerance", 1.0e-8);
     result.solver.relative_tolerance = read_optional_double(document, solver, "relative_tolerance", 1.0e-10);
@@ -1261,6 +1264,7 @@ void read_solver(const InputDocument& document, const std::string& path, FuelSim
     if (result.solver.jacobian_lag < 1)
         throw std::invalid_argument(path + ": jacobian_lag must be at least one");
     result.solver.predictor_jacobian_lag = read_optional_int(document, solver, "predictor_jacobian_lag", 0);
+    result.solver.jacobian_lag_persists = read_optional_bool(document, solver, "jacobian_lag_persists", false);
     const std::string line_search = read_optional_string(solver, "line_search", "basic");
     if (line_search == "basic")
         result.solver.line_search = SolverOptions::LineSearch::basic;

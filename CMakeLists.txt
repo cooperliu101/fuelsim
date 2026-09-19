@@ -1521,6 +1521,15 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_inelastic_creep_moose.fsi"
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_inelastic_coupled_moose.fsi")
     set_tests_properties(fuelsim_hex20_history_contract_tests PROPERTIES LABELS "unit;quadratic;transaction")
+    add_executable(fuelsim_rz_partition_commit_tests tests/rz_partition_commit_tests.cpp)
+    target_link_libraries(fuelsim_rz_partition_commit_tests PRIVATE fuelsim::io)
+    fuelsim_enable_warnings(fuelsim_rz_partition_commit_tests)
+    add_test(NAME fuelsim_rz_partition_commit_tests COMMAND fuelsim_rz_partition_commit_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_b13_integrated_cax4t.fsi"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_b13_integrated_cax4rt.fsi"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_b13_integrated_cax8t.fsi"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_b13_integrated_cax8rt.fsi")
+    set_tests_properties(fuelsim_rz_partition_commit_tests PROPERTIES LABELS "unit;transaction;axisymmetric")
     foreach(branch IN ITEMS plastic creep coupled)
         fuelsim_add_production_test(fuelsim_h20_inelastic_${branch}_moose_tests h20_inelastic_${branch}
             transient_hex20_inelastic_${branch}_moose hex20-inelastic
