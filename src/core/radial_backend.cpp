@@ -6,6 +6,28 @@
 #include <utility>
 
 namespace fuelsim {
+void RadialBackend::accumulate_time_error(const TransientCommittedState& full,
+    const TransientCommittedState& half,
+    const TransientTimeOptions& options,
+    TransientTimeErrorEstimate& result) const {
+    if (full.radial_material_histories.size() != half.radial_material_histories.size())
+        throw std::logic_error("step-doubling material region layouts differ");
+    MaterialTimeErrors material;
+    for (std::size_t r = 0; r < full.radial_material_histories.size(); ++r) {
+        const auto& first = full.radial_material_histories[r];
+        const auto& second = half.radial_material_histories[r];
+        if (first.size() != second.size())
+            throw std::logic_error("step-doubling material element layouts differ");
+        for (std::size_t e = 0; e < first.size(); ++e) {
+            const std::size_t count = cax2t_gps_material_point_count;
+            for (std::size_t q = 0; q < count; ++q)
+                accumulate_material_time_error(material, first[e][q], second[e][q]);
+        }
+    }
+    assign_material_time_errors(result, material, options);
+    accumulate_axisymmetric_contact_time_error(full, half, options, result, true);
+}
+
 RadialBackend::RadialBackend(SpatialTimeState& state,
     SpatialDefinition definition,
     const UnstructuredBar2Mesh& mesh,

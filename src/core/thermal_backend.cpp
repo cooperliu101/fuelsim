@@ -6,6 +6,12 @@
 #include <utility>
 
 namespace fuelsim {
+void ThermalBackend::accumulate_time_error(const TransientCommittedState&,
+    const TransientCommittedState&,
+    const TransientTimeOptions&,
+    TransientTimeErrorEstimate&) const {
+}
+
 ThermalBackend::ThermalBackend(SpatialTimeState& state,
     SpatialDefinition definition,
     const UnstructuredQuad4Mesh& mesh,

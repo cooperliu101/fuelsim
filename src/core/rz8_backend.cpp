@@ -9,6 +9,28 @@
 #include <utility>
 
 namespace fuelsim {
+void Rz8Backend::accumulate_time_error(const TransientCommittedState& full,
+    const TransientCommittedState& half,
+    const TransientTimeOptions& options,
+    TransientTimeErrorEstimate& result) const {
+    if (full.quad8_material_histories.size() != half.quad8_material_histories.size())
+        throw std::logic_error("step-doubling material region layouts differ");
+    MaterialTimeErrors material;
+    for (std::size_t r = 0; r < full.quad8_material_histories.size(); ++r) {
+        const auto& first = full.quad8_material_histories[r];
+        const auto& second = half.quad8_material_histories[r];
+        if (first.size() != second.size())
+            throw std::logic_error("step-doubling material element layouts differ");
+        for (std::size_t e = 0; e < first.size(); ++e) {
+            const std::size_t count = _spatial.region_element_geometry(r, e).point_count;
+            for (std::size_t q = 0; q < count; ++q)
+                accumulate_material_time_error(material, first[e][q], second[e][q]);
+        }
+    }
+    assign_material_time_errors(result, material, options);
+    accumulate_axisymmetric_contact_time_error(full, half, options, result, false);
+}
+
 Rz8Backend::Rz8Backend(SpatialTimeState& state, SpatialDefinition definition, const UnstructuredQuad8Mesh& mesh, bool)
     : SpatialBackend(state), _spatial(std::move(definition), mesh) {
 

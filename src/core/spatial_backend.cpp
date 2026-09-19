@@ -36,6 +36,198 @@
 #include "spatial_backend_common.hpp"
 
 namespace fuelsim {
+void accumulate_time_error(TimeErrorAccumulator& accumulator, double full_step, double two_half_steps) {
+    const double difference = two_half_steps - full_step;
+    accumulator.difference_squared += difference * difference;
+    accumulator.solution_squared += two_half_steps * two_half_steps;
+    ++accumulator.count;
+}
+
+double
+normalized_time_error(const TimeErrorAccumulator& accumulator, double absolute_tolerance, double relative_tolerance) {
+    if (accumulator.count == 0)
+        return 0.0;
+    const double denominator = absolute_tolerance * std::sqrt(static_cast<double>(accumulator.count))
+                               + relative_tolerance * std::sqrt(accumulator.solution_squared);
+    return std::sqrt(accumulator.difference_squared) / denominator;
+}
+
+void accumulate_time_error(TimeErrorAccumulator& accumulator,
+    const double* full_step,
+    const double* two_half_steps,
+    std::size_t count) {
+    for (std::size_t component = 0; component < count; ++component)
+        accumulate_time_error(accumulator, full_step[component], two_half_steps[component]);
+}
+
+void accumulate_material_time_error(MaterialTimeErrors& errors,
+    const MaterialPointState& full,
+    const MaterialPointState& half) {
+    accumulate_time_error(errors.elastic, full.elastic_strain.data(), half.elastic_strain.data(), 4);
+    accumulate_time_error(errors.plastic, full.plastic_strain.data(), half.plastic_strain.data(), 4);
+    accumulate_time_error(errors.creep, full.creep_strain.data(), half.creep_strain.data(), 4);
+    const double full_stress[] = {full.stress.rr, full.stress.zz, full.stress.hoop, full.stress.rz};
+    const double half_stress[] = {half.stress.rr, half.stress.zz, half.stress.hoop, half.stress.rz};
+    accumulate_time_error(errors.stress, full_stress, half_stress, 4);
+    accumulate_time_error(errors.equivalent_plastic, full.equivalent_plastic_strain, half.equivalent_plastic_strain);
+    accumulate_time_error(errors.equivalent_creep, full.equivalent_creep_strain, half.equivalent_creep_strain);
+}
+
+void accumulate_material_time_error(MaterialTimeErrors& errors,
+    const CartesianMaterialPointState& full,
+    const CartesianMaterialPointState& half) {
+    accumulate_time_error(errors.elastic, full.elastic_strain.data(), half.elastic_strain.data(), 6);
+    accumulate_time_error(errors.plastic, full.plastic_strain.data(), half.plastic_strain.data(), 6);
+    accumulate_time_error(errors.creep, full.creep_strain.data(), half.creep_strain.data(), 6);
+    const auto full_stress = cartesian::components(full.stress), half_stress = cartesian::components(half.stress);
+    accumulate_time_error(errors.stress, full_stress.data(), half_stress.data(), 6);
+    accumulate_time_error(errors.equivalent_plastic, full.equivalent_plastic_strain, half.equivalent_plastic_strain);
+    accumulate_time_error(errors.equivalent_creep, full.equivalent_creep_strain, half.equivalent_creep_strain);
+}
+
+void assign_material_time_errors(TransientTimeErrorEstimate& result,
+    const MaterialTimeErrors& errors,
+    const TransientTimeOptions& options) {
+    const double strain = options.strain_history_time_absolute_tolerance,
+                 relative = options.time_error_relative_tolerance;
+    result.elastic_strain = normalized_time_error(errors.elastic, strain, relative);
+    result.plastic_strain = normalized_time_error(errors.plastic, strain, relative);
+    result.creep_strain = normalized_time_error(errors.creep, strain, relative);
+    result.equivalent_plastic_strain = normalized_time_error(errors.equivalent_plastic, strain, relative);
+    result.equivalent_creep_strain = normalized_time_error(errors.equivalent_creep, strain, relative);
+    result.stress = normalized_time_error(errors.stress, options.stress_history_time_absolute_tolerance, relative);
+    result.maximum = std::max({result.maximum,
+        result.elastic_strain,
+        result.plastic_strain,
+        result.creep_strain,
+        result.equivalent_plastic_strain,
+        result.equivalent_creep_strain,
+        result.stress});
+}
+
+void accumulate_axisymmetric_contact_time_error(const TransientCommittedState& full_step,
+    const TransientCommittedState& two_half_steps,
+    const TransientTimeOptions& options,
+    TransientTimeErrorEstimate& result,
+    bool radial) {
+    TimeErrorAccumulator contact_friction, contact_normal_multiplier;
+    bool contact_state_mismatch = false;
+    if (full_step.contact_histories.size() != two_half_steps.contact_histories.size())
+        throw std::logic_error("step-doubling contact-history layouts differ");
+    for (std::size_t contact = 0; contact < full_step.contact_histories.size(); ++contact) {
+        if (full_step.contact_histories[contact].size() != two_half_steps.contact_histories[contact].size())
+            throw std::logic_error("step-doubling contact-node history layouts differ");
+        for (std::size_t node = 0; node < full_step.contact_histories[contact].size(); ++node) {
+            const ContactPointHistory &full = full_step.contact_histories[contact][node],
+                                      &half = two_half_steps.contact_histories[contact][node];
+            accumulate_time_error(contact_friction, full.elastic_tangential_slip, half.elastic_tangential_slip);
+            if (radial)
+                accumulate_time_error(contact_friction, full.total_tangential_slip, half.total_tangential_slip);
+            for (std::size_t component = 0; component < full.cartesian_elastic_tangential_slip.size(); ++component)
+                accumulate_time_error(contact_friction,
+                    full.cartesian_elastic_tangential_slip[component],
+                    half.cartesian_elastic_tangential_slip[component]);
+            for (std::size_t component = 0; component < full.cartesian_total_tangential_slip.size(); ++component)
+                accumulate_time_error(contact_friction,
+                    full.cartesian_total_tangential_slip[component],
+                    half.cartesian_total_tangential_slip[component]);
+            for (std::size_t component = 0; component < full.cartesian_contact_normal.size(); ++component) {
+                accumulate_time_error(contact_friction,
+                    full.cartesian_contact_normal[component],
+                    half.cartesian_contact_normal[component]);
+                accumulate_time_error(contact_friction,
+                    full.cartesian_contact_tangent_first[component],
+                    half.cartesian_contact_tangent_first[component]);
+            }
+            accumulate_time_error(contact_normal_multiplier, full.normal_multiplier, half.normal_multiplier);
+            contact_state_mismatch =
+                contact_state_mismatch || full.sliding != half.sliding
+                || full.cartesian_tangent_basis_initialized != half.cartesian_tangent_basis_initialized;
+        }
+    }
+    result.contact_friction = contact_state_mismatch ? std::numeric_limits<double>::infinity()
+                                                     : normalized_time_error(contact_friction,
+                                                           options.displacement_time_absolute_tolerance,
+                                                           options.time_error_relative_tolerance);
+    result.contact_normal_multiplier = normalized_time_error(contact_normal_multiplier,
+        options.stress_history_time_absolute_tolerance,
+        options.time_error_relative_tolerance);
+    result.maximum = std::max({result.maximum, result.contact_friction, result.contact_normal_multiplier});
+}
+
+void accumulate_cartesian_material_time_error(const TransientCommittedState& full,
+    const TransientCommittedState& half,
+    const TransientTimeOptions& options,
+    TransientTimeErrorEstimate& result) {
+    if (full.cartesian_material_histories.size() != half.cartesian_material_histories.size())
+        throw std::logic_error("Cartesian step-doubling material region layouts differ");
+    MaterialTimeErrors material;
+    for (std::size_t r = 0; r < full.cartesian_material_histories.size(); ++r) {
+        const auto& first = full.cartesian_material_histories[r];
+        const auto& second = half.cartesian_material_histories[r];
+        if (first.size() != second.size())
+            throw std::logic_error("Cartesian step-doubling material element layouts differ");
+        for (std::size_t e = 0; e < first.size(); ++e) {
+            if (first[e].size() != second[e].size())
+                throw std::logic_error("Cartesian step-doubling integration-point layouts differ");
+            for (std::size_t q = 0; q < first[e].size(); ++q)
+                accumulate_material_time_error(material, first[e][q], second[e][q]);
+        }
+    }
+    assign_material_time_errors(result, material, options);
+}
+
+void accumulate_cartesian_contact_time_error(const TransientCommittedState& full,
+    const TransientCommittedState& half,
+    const TransientTimeOptions& options,
+    TransientTimeErrorEstimate& result) {
+    if (full.contact_histories.size() != half.contact_histories.size())
+        throw std::logic_error("Cartesian step-doubling contact layouts differ");
+    TimeErrorAccumulator slip, multiplier, orientation;
+    bool mismatch = false;
+    for (std::size_t c = 0; c < full.contact_histories.size(); ++c) {
+        if (full.contact_histories[c].size() != half.contact_histories[c].size())
+            throw std::logic_error("Cartesian step-doubling contact-point layouts differ");
+        for (std::size_t p = 0; p < full.contact_histories[c].size(); ++p) {
+            const auto& first = full.contact_histories[c][p];
+            const auto& second = half.contact_histories[c][p];
+            mismatch = mismatch || first.sliding != second.sliding
+                       || first.cartesian_tangent_basis_initialized != second.cartesian_tangent_basis_initialized;
+            for (std::size_t i = 0; i < 3; ++i) {
+                accumulate_time_error(slip,
+                    first.cartesian_elastic_tangential_slip[i],
+                    second.cartesian_elastic_tangential_slip[i]);
+                accumulate_time_error(slip,
+                    first.cartesian_total_tangential_slip[i],
+                    second.cartesian_total_tangential_slip[i]);
+                if (first.cartesian_tangent_basis_initialized && second.cartesian_tangent_basis_initialized) {
+                    // Normals are oriented by primary/secondary. The tangent
+                    // line projector is invariant under t -> -t; slip vectors
+                    // are already in global coordinates, not basis components.
+                    accumulate_time_error(orientation,
+                        first.cartesian_contact_normal[i],
+                        second.cartesian_contact_normal[i]);
+                    for (std::size_t j = 0; j < 3; ++j)
+                        accumulate_time_error(orientation,
+                            first.cartesian_contact_tangent_first[i] * first.cartesian_contact_tangent_first[j],
+                            second.cartesian_contact_tangent_first[i] * second.cartesian_contact_tangent_first[j]);
+                }
+            }
+            accumulate_time_error(multiplier, first.normal_multiplier, second.normal_multiplier);
+        }
+    }
+    const double relative = options.time_error_relative_tolerance;
+    // Orientation is dimensionless and uses the existing dimensionless strain
+    // tolerance, never a displacement tolerance measured in metres.
+    result.contact_friction =
+        mismatch ? std::numeric_limits<double>::infinity()
+                 : std::max(normalized_time_error(slip, options.displacement_time_absolute_tolerance, relative),
+                       normalized_time_error(orientation, options.strain_history_time_absolute_tolerance, relative));
+    result.contact_normal_multiplier =
+        normalized_time_error(multiplier, options.stress_history_time_absolute_tolerance, relative);
+    result.maximum = std::max({result.maximum, result.contact_friction, result.contact_normal_multiplier});
+}
+
 std::string set_commit_failure(std::vector<double>& values, const std::exception_ptr& failure) {
     std::string failure_message;
     if (failure) {

@@ -581,84 +581,6 @@ void TransientProblem::restore_state(const ProblemStateSnapshot& snapshot) {
 }
 
 namespace {
-struct TimeErrorAccumulator final {
-    double difference_squared = 0.0, solution_squared = 0.0;
-    std::size_t count = 0;
-};
-
-struct MaterialTimeErrors final {
-    TimeErrorAccumulator elastic, plastic, creep, equivalent_plastic, equivalent_creep, stress;
-};
-
-void accumulate_time_error(TimeErrorAccumulator& accumulator, double full_step, double two_half_steps) {
-    const double difference = two_half_steps - full_step;
-    accumulator.difference_squared += difference * difference;
-    accumulator.solution_squared += two_half_steps * two_half_steps;
-    ++accumulator.count;
-}
-
-double
-normalized_time_error(const TimeErrorAccumulator& accumulator, double absolute_tolerance, double relative_tolerance) {
-    if (accumulator.count == 0)
-        return 0.0;
-    const double denominator = absolute_tolerance * std::sqrt(static_cast<double>(accumulator.count))
-                               + relative_tolerance * std::sqrt(accumulator.solution_squared);
-    return std::sqrt(accumulator.difference_squared) / denominator;
-}
-
-void accumulate_time_error(TimeErrorAccumulator& accumulator,
-    const double* full_step,
-    const double* two_half_steps,
-    std::size_t count) {
-    for (std::size_t component = 0; component < count; ++component)
-        accumulate_time_error(accumulator, full_step[component], two_half_steps[component]);
-}
-
-void accumulate_material_time_error(MaterialTimeErrors& errors,
-    const MaterialPointState& full,
-    const MaterialPointState& half) {
-    accumulate_time_error(errors.elastic, full.elastic_strain.data(), half.elastic_strain.data(), 4);
-    accumulate_time_error(errors.plastic, full.plastic_strain.data(), half.plastic_strain.data(), 4);
-    accumulate_time_error(errors.creep, full.creep_strain.data(), half.creep_strain.data(), 4);
-    const double full_stress[] = {full.stress.rr, full.stress.zz, full.stress.hoop, full.stress.rz};
-    const double half_stress[] = {half.stress.rr, half.stress.zz, half.stress.hoop, half.stress.rz};
-    accumulate_time_error(errors.stress, full_stress, half_stress, 4);
-    accumulate_time_error(errors.equivalent_plastic, full.equivalent_plastic_strain, half.equivalent_plastic_strain);
-    accumulate_time_error(errors.equivalent_creep, full.equivalent_creep_strain, half.equivalent_creep_strain);
-}
-
-void accumulate_material_time_error(MaterialTimeErrors& errors,
-    const CartesianMaterialPointState& full,
-    const CartesianMaterialPointState& half) {
-    accumulate_time_error(errors.elastic, full.elastic_strain.data(), half.elastic_strain.data(), 6);
-    accumulate_time_error(errors.plastic, full.plastic_strain.data(), half.plastic_strain.data(), 6);
-    accumulate_time_error(errors.creep, full.creep_strain.data(), half.creep_strain.data(), 6);
-    const auto full_stress = cartesian::components(full.stress), half_stress = cartesian::components(half.stress);
-    accumulate_time_error(errors.stress, full_stress.data(), half_stress.data(), 6);
-    accumulate_time_error(errors.equivalent_plastic, full.equivalent_plastic_strain, half.equivalent_plastic_strain);
-    accumulate_time_error(errors.equivalent_creep, full.equivalent_creep_strain, half.equivalent_creep_strain);
-}
-
-void assign_material_time_errors(TransientTimeErrorEstimate& result,
-    const MaterialTimeErrors& errors,
-    const TransientTimeOptions& options) {
-    const double strain = options.strain_history_time_absolute_tolerance,
-                 relative = options.time_error_relative_tolerance;
-    result.elastic_strain = normalized_time_error(errors.elastic, strain, relative);
-    result.plastic_strain = normalized_time_error(errors.plastic, strain, relative);
-    result.creep_strain = normalized_time_error(errors.creep, strain, relative);
-    result.equivalent_plastic_strain = normalized_time_error(errors.equivalent_plastic, strain, relative);
-    result.equivalent_creep_strain = normalized_time_error(errors.equivalent_creep, strain, relative);
-    result.stress = normalized_time_error(errors.stress, options.stress_history_time_absolute_tolerance, relative);
-    result.maximum = std::max({result.maximum,
-        result.elastic_strain,
-        result.plastic_strain,
-        result.creep_strain,
-        result.equivalent_plastic_strain,
-        result.equivalent_creep_strain,
-        result.stress});
-}
-
 TransientTimeErrorEstimate nodal_time_error(const TransientCommittedState& full,
     const TransientCommittedState& half,
     const std::vector<FieldDescriptor>& fields,
@@ -726,99 +648,6 @@ TransientConservationSummary combine_half_step_conservation(const TransientConse
     return result;
 }
 
-TransientTimeErrorEstimate compare_rz_step_doubling_states(const TransientCommittedState& full_step,
-    const TransientCommittedState& two_half_steps,
-    const std::vector<FieldDescriptor>& fields,
-    std::size_t expected_dof_count,
-    const TransientTimeOptions& options,
-    const SpatialDefinition& definition,
-    const rz8::SpatialAssembly* quad8) {
-    if (full_step.solution.size() != two_half_steps.solution.size() || full_step.solution.size() != expected_dof_count)
-        throw std::logic_error("step-doubling nodal-state layouts differ");
-    if (full_step.material_histories.size() != two_half_steps.material_histories.size())
-        throw std::logic_error("step-doubling material-state region layouts differ");
-    MaterialTimeErrors material;
-    TimeErrorAccumulator contact_friction, contact_normal_multiplier;
-    bool contact_state_mismatch = false;
-    if (full_step.radial_material_histories.size() != two_half_steps.radial_material_histories.size())
-        throw std::logic_error("Radial GPS step-doubling material region layouts differ");
-    for (std::size_t region = 0; region < full_step.radial_material_histories.size(); ++region) {
-        const auto& full_region = full_step.radial_material_histories[region];
-        const auto& half_region = two_half_steps.radial_material_histories[region];
-        if (full_region.size() != half_region.size())
-            throw std::logic_error("Radial GPS step-doubling material element layouts differ");
-        for (std::size_t element = 0; element < full_region.size(); ++element)
-            for (std::size_t q = 0; q < cax2t_gps_material_point_count; ++q)
-                accumulate_material_time_error(material, full_region[element][q], half_region[element][q]);
-    }
-    if (full_step.quad8_material_histories.size() != two_half_steps.quad8_material_histories.size())
-        throw std::logic_error("CAX8T step-doubling material region layouts differ");
-    for (std::size_t r = 0; r < full_step.quad8_material_histories.size(); ++r) {
-        const auto &first = full_step.quad8_material_histories[r], &second = two_half_steps.quad8_material_histories[r];
-        if (first.size() != second.size())
-            throw std::logic_error("CAX8T step-doubling element layouts differ");
-        for (std::size_t e = 0; e < first.size(); ++e)
-            for (std::size_t q = 0; q < quad8->region_element_geometry(r, e).point_count; ++q)
-                accumulate_material_time_error(material, first[e][q], second[e][q]);
-    }
-    for (std::size_t region = 0; region < full_step.material_histories.size(); ++region) {
-        const auto &full_history = full_step.material_histories[region],
-                   &half_history = two_half_steps.material_histories[region];
-        if (full_history.size() != half_history.size())
-            throw std::logic_error("step-doubling material-state element layouts differ");
-        const std::size_t point_count =
-            definition.regions.at(region).rz_element_formulation == RzElementFormulation::cax4rt ? 1 : 4;
-        for (std::size_t element = 0; element < full_history.size(); ++element)
-            for (std::size_t q = 0; q < point_count; ++q)
-                accumulate_material_time_error(material, full_history[element][q], half_history[element][q]);
-    }
-    if (full_step.contact_histories.size() != two_half_steps.contact_histories.size())
-        throw std::logic_error("step-doubling contact-history layouts differ");
-    for (std::size_t contact = 0; contact < full_step.contact_histories.size(); ++contact) {
-        if (full_step.contact_histories[contact].size() != two_half_steps.contact_histories[contact].size())
-            throw std::logic_error("step-doubling contact-node history layouts differ");
-        for (std::size_t node = 0; node < full_step.contact_histories[contact].size(); ++node) {
-            const ContactPointHistory &full = full_step.contact_histories[contact][node],
-                                      &half = two_half_steps.contact_histories[contact][node];
-            accumulate_time_error(contact_friction, full.elastic_tangential_slip, half.elastic_tangential_slip);
-            if (!full_step.radial_material_histories.empty())
-                accumulate_time_error(contact_friction, full.total_tangential_slip, half.total_tangential_slip);
-            for (std::size_t component = 0; component < full.cartesian_elastic_tangential_slip.size(); ++component)
-                accumulate_time_error(contact_friction,
-                    full.cartesian_elastic_tangential_slip[component],
-                    half.cartesian_elastic_tangential_slip[component]);
-            for (std::size_t component = 0; component < full.cartesian_total_tangential_slip.size(); ++component)
-                accumulate_time_error(contact_friction,
-                    full.cartesian_total_tangential_slip[component],
-                    half.cartesian_total_tangential_slip[component]);
-            for (std::size_t component = 0; component < full.cartesian_contact_normal.size(); ++component) {
-                accumulate_time_error(contact_friction,
-                    full.cartesian_contact_normal[component],
-                    half.cartesian_contact_normal[component]);
-                accumulate_time_error(contact_friction,
-                    full.cartesian_contact_tangent_first[component],
-                    half.cartesian_contact_tangent_first[component]);
-            }
-            accumulate_time_error(contact_normal_multiplier, full.normal_multiplier, half.normal_multiplier);
-            contact_state_mismatch =
-                contact_state_mismatch || full.sliding != half.sliding
-                || full.cartesian_tangent_basis_initialized != half.cartesian_tangent_basis_initialized;
-        }
-    }
-    TransientTimeErrorEstimate result = nodal_time_error(full_step, two_half_steps, fields, options);
-    assign_material_time_errors(result, material, options);
-    result.contact_friction = contact_state_mismatch ? std::numeric_limits<double>::infinity()
-                                                     : normalized_time_error(contact_friction,
-                                                           options.displacement_time_absolute_tolerance,
-                                                           options.time_error_relative_tolerance);
-    result.contact_normal_multiplier = normalized_time_error(contact_normal_multiplier,
-        options.stress_history_time_absolute_tolerance,
-        options.time_error_relative_tolerance);
-    result.maximum = std::max({result.maximum, result.contact_friction, result.contact_normal_multiplier});
-    for (const TransientFieldTimeError& field : result.nodal_fields)
-        result.maximum = std::max(result.maximum, field.value);
-    return result;
-}
 } // namespace
 
 std::vector<double> TransientProblem::committed_creep_rates() const {
@@ -838,37 +667,11 @@ TransientTimeErrorEstimate TransientProblem::step_doubling_error(const ProblemSt
         *std::static_pointer_cast<const TransientCommittedState>(full_snapshot._state);
     const TransientCommittedState& half =
         *std::static_pointer_cast<const TransientCommittedState>(half_snapshot._state);
-    if (BackendAccess::uses_thermal(*this))
-        return nodal_time_error(full, half, field_layout(), options);
-    if (is_cartesian_3d() || uses_plane_quad8()) {
-        if (full.solution.size() != dof_count() || half.solution.size() != dof_count())
-            throw std::logic_error("Cartesian step-doubling snapshot layouts differ");
-        TransientTimeErrorEstimate result = nodal_time_error(full, half, field_layout(), options);
-        if (full.cartesian_material_histories.size() != half.cartesian_material_histories.size())
-            throw std::logic_error("Cartesian step-doubling material region layouts differ");
-        MaterialTimeErrors material;
-        for (std::size_t region = 0; region < full.cartesian_material_histories.size(); ++region) {
-            const auto &full_region = full.cartesian_material_histories[region],
-                       &half_region = half.cartesian_material_histories[region];
-            if (full_region.size() != half_region.size())
-                throw std::logic_error("Cartesian step-doubling material element layouts differ");
-            for (std::size_t element = 0; element < full_region.size(); ++element) {
-                if (full_region[element].size() != half_region[element].size())
-                    throw std::logic_error("Cartesian step-doubling integration-point layouts differ");
-                for (std::size_t q = 0; q < full_region[element].size(); ++q)
-                    accumulate_material_time_error(material, full_region[element][q], half_region[element][q]);
-            }
-        }
-        assign_material_time_errors(result, material, options);
-        return result;
-    }
-    return compare_rz_step_doubling_states(full,
-        half,
-        field_layout(),
-        dof_count(),
-        options,
-        definition(),
-        uses_quad8() ? &BackendAccess::quad8_spatial(*this) : nullptr);
+    if (full.solution.size() != dof_count() || half.solution.size() != dof_count())
+        throw std::logic_error("step-doubling snapshot layouts differ");
+    auto result = nodal_time_error(full, half, field_layout(), options);
+    _impl->_backend->accumulate_time_error(full, half, options, result);
+    return result;
 }
 
 void TransientProblem::combine_last_half_step_conservation(const TransientConservationSummary& first_half) {

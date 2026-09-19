@@ -1,7 +1,42 @@
 #pragma once
+#include "solver/solve_workflows.hpp"
 #include "spatial_backends.hpp"
 
 namespace fuelsim {
+struct TimeErrorAccumulator final {
+    double difference_squared = 0.0, solution_squared = 0.0;
+    std::size_t count = 0;
+};
+
+struct MaterialTimeErrors final {
+    TimeErrorAccumulator elastic, plastic, creep, equivalent_plastic, equivalent_creep, stress;
+};
+
+void accumulate_time_error(TimeErrorAccumulator& accumulator, double full, double half);
+double normalized_time_error(const TimeErrorAccumulator& accumulator, double absolute, double relative);
+void accumulate_material_time_error(MaterialTimeErrors& errors,
+    const MaterialPointState& full,
+    const MaterialPointState& half);
+void accumulate_material_time_error(MaterialTimeErrors& errors,
+    const CartesianMaterialPointState& full,
+    const CartesianMaterialPointState& half);
+void assign_material_time_errors(TransientTimeErrorEstimate& result,
+    const MaterialTimeErrors& errors,
+    const TransientTimeOptions& options);
+void accumulate_axisymmetric_contact_time_error(const TransientCommittedState& full,
+    const TransientCommittedState& half,
+    const TransientTimeOptions& options,
+    TransientTimeErrorEstimate& result,
+    bool radial);
+void accumulate_cartesian_material_time_error(const TransientCommittedState& full,
+    const TransientCommittedState& half,
+    const TransientTimeOptions& options,
+    TransientTimeErrorEstimate& result);
+void accumulate_cartesian_contact_time_error(const TransientCommittedState& full,
+    const TransientCommittedState& half,
+    const TransientTimeOptions& options,
+    TransientTimeErrorEstimate& result);
+
 std::string set_commit_failure(std::vector<double>& values, const std::exception_ptr& failure);
 void sum_commit_partitions(std::vector<double>& values,
     const std::function<void(std::vector<double>&)>& sum_partitions,

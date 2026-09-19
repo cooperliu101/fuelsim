@@ -6,6 +6,14 @@
 #include <utility>
 
 namespace fuelsim {
+void PlaneBackend::accumulate_time_error(const TransientCommittedState& full,
+    const TransientCommittedState& half,
+    const TransientTimeOptions& options,
+    TransientTimeErrorEstimate& result) const {
+    accumulate_cartesian_material_time_error(full, half, options, result);
+    accumulate_cartesian_contact_time_error(full, half, options, result);
+}
+
 PlaneBackend::PlaneBackend(SpatialTimeState& state,
     SpatialDefinition definition,
     const UnstructuredPlaneQuad8Mesh& mesh,

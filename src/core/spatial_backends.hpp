@@ -64,6 +64,10 @@ class ThermalBackend final : public SpatialBackend {
         std::vector<double>& external_load_residual,
         std::exception_ptr partition_failure) override;
     void publish_material_history() noexcept override;
+    void accumulate_time_error(const TransientCommittedState& full,
+        const TransientCommittedState& half,
+        const TransientTimeOptions& options,
+        TransientTimeErrorEstimate& result) const override;
     void export_histories(TransientCommittedState& state) const override;
     void restore_histories(TransientCommittedState& state) override;
     RegionStateSummary summarize_region(std::size_t region) const override;
@@ -123,6 +127,10 @@ class RadialBackend final : public SpatialBackend {
         std::vector<double>& external_load_residual,
         std::exception_ptr partition_failure) override;
     void publish_material_history() noexcept override;
+    void accumulate_time_error(const TransientCommittedState& full,
+        const TransientCommittedState& half,
+        const TransientTimeOptions& options,
+        TransientTimeErrorEstimate& result) const override;
     void export_histories(TransientCommittedState& state) const override;
     void restore_histories(TransientCommittedState& state) override;
     RegionStateSummary summarize_region(std::size_t region) const override;
@@ -212,6 +220,10 @@ class Rz4Backend final : public SpatialBackend {
         std::vector<double>& external_load_residual,
         std::exception_ptr partition_failure) override;
     void publish_material_history() noexcept override;
+    void accumulate_time_error(const TransientCommittedState& full,
+        const TransientCommittedState& half,
+        const TransientTimeOptions& options,
+        TransientTimeErrorEstimate& result) const override;
     void export_histories(TransientCommittedState& state) const override;
     void restore_histories(TransientCommittedState& state) override;
     RegionStateSummary summarize_region(std::size_t region) const override;
@@ -306,6 +318,10 @@ class Rz8Backend final : public SpatialBackend {
         std::vector<double>& external_load_residual,
         std::exception_ptr partition_failure) override;
     void publish_material_history() noexcept override;
+    void accumulate_time_error(const TransientCommittedState& full,
+        const TransientCommittedState& half,
+        const TransientTimeOptions& options,
+        TransientTimeErrorEstimate& result) const override;
     void export_histories(TransientCommittedState& state) const override;
     void restore_histories(TransientCommittedState& state) override;
     RegionStateSummary summarize_region(std::size_t region) const override;
@@ -400,6 +416,10 @@ class PlaneBackend final : public SpatialBackend {
         std::vector<double>& external_load_residual,
         std::exception_ptr partition_failure) override;
     void publish_material_history() noexcept override;
+    void accumulate_time_error(const TransientCommittedState& full,
+        const TransientCommittedState& half,
+        const TransientTimeOptions& options,
+        TransientTimeErrorEstimate& result) const override;
     void export_histories(TransientCommittedState& state) const override;
     void restore_histories(TransientCommittedState& state) override;
     RegionStateSummary summarize_region(std::size_t region) const override;
@@ -472,6 +492,10 @@ class CartesianBackend final : public SpatialBackend {
         std::vector<double>& external_load_residual,
         std::exception_ptr partition_failure) override;
     void publish_material_history() noexcept override;
+    void accumulate_time_error(const TransientCommittedState& full,
+        const TransientCommittedState& half,
+        const TransientTimeOptions& options,
+        TransientTimeErrorEstimate& result) const override;
     void export_histories(TransientCommittedState& state) const override;
     void restore_histories(TransientCommittedState& state) override;
     RegionStateSummary summarize_region(std::size_t region) const override;

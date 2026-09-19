@@ -103,6 +103,10 @@ class SpatialBackend {
 
     void clear_active_contact_state() noexcept { _active_contact_histories.clear(); }
 
+    virtual void accumulate_time_error(const TransientCommittedState& full,
+        const TransientCommittedState& half,
+        const TransientTimeOptions& options,
+        TransientTimeErrorEstimate& result) const = 0;
     virtual void export_histories(TransientCommittedState& state) const = 0;
     virtual void restore_histories(TransientCommittedState& state) = 0;
     virtual RegionStateSummary summarize_region(std::size_t region) const = 0;
