@@ -364,6 +364,36 @@ bool test_cartesian_surface_contact_kernels() {
             "HEX8 finite-sliding nonzero two-component elastic-slip history rotates objectively through a "
             "31.5-degree tangent-plane rotation")
         && passed;
+    auto reversed_history = objective_history;
+    for (double& component : reversed_history.cartesian_contact_tangent_first)
+        component = -component;
+    const auto reversed = fuelsim::compute_quad4_to_quad4_contact_value({1000.0, 1.0, false, 1.0e-2},
+        finite_geometry,
+        objective_current,
+        objective_committed,
+        reversed_history);
+    const auto original_residual = fuelsim::compute_quad4_to_quad4_contact({1000.0, 1.0, false, 1.0e-2},
+        finite_geometry,
+        objective_current,
+        objective_committed,
+        objective_history);
+    const auto reversed_residual = fuelsim::compute_quad4_to_quad4_contact({1000.0, 1.0, false, 1.0e-2},
+        finite_geometry,
+        objective_current,
+        objective_committed,
+        reversed_history);
+    double residual_difference = 0.0, traction_difference = 0.0, history_difference = 0.0;
+    for (std::size_t i = 0; i < original_residual.size(); ++i)
+        residual_difference += std::abs(original_residual[i] - reversed_residual[i]);
+    for (std::size_t i = 0; i < 3; ++i) {
+        traction_difference +=
+            std::abs(objective.tangential_traction_vector[i] - reversed.tangential_traction_vector[i]);
+        history_difference += std::abs(objective.elastic_tangential_slip[i] - reversed.elastic_tangential_slip[i]);
+    }
+    passed =
+        check(residual_difference > 1.0e-6 && traction_difference > 1.0e-6 && history_difference > 1.0e-6,
+            "Reversing only the stored directed tangent changes residual, friction traction and updated nonzero slip")
+        && passed;
     return passed;
 }
 } // namespace

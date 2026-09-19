@@ -63,8 +63,8 @@ void check(const FuelSimCaseDefinition& input, const std::string& output) {
     for (double& value : contact.cartesian_contact_tangent_first)
         value = -value;
     BackendAccess::restore_committed_state(problem, altered);
-    require(problem.step_doubling_error(baseline, problem.capture_state(), options).maximum == 0.0,
-        "Equivalent tangent sign caused a false history error");
+    require(problem.step_doubling_error(baseline, problem.capture_state(), options).contact_friction > 1.0,
+        "Directed tangent reversal must be detected");
     const auto n = contact.cartesian_contact_normal, t = contact.cartesian_contact_tangent_first;
     contact.cartesian_contact_tangent_first = {n[1] * t[2] - n[2] * t[1],
         n[2] * t[0] - n[0] * t[2],

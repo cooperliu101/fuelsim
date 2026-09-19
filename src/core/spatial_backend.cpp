@@ -201,16 +201,14 @@ void accumulate_cartesian_contact_time_error(const TransientCommittedState& full
                     first.cartesian_total_tangential_slip[i],
                     second.cartesian_total_tangential_slip[i]);
                 if (first.cartesian_tangent_basis_initialized && second.cartesian_tangent_basis_initialized) {
-                    // Normals are oriented by primary/secondary. The tangent
-                    // line projector is invariant under t -> -t; slip vectors
-                    // are already in global coordinates, not basis components.
+                    // Both axes are directed: stored_surface_basis uses the old
+                    // tangent to transport nonzero global slip into the new basis.
                     accumulate_time_error(orientation,
                         first.cartesian_contact_normal[i],
                         second.cartesian_contact_normal[i]);
-                    for (std::size_t j = 0; j < 3; ++j)
-                        accumulate_time_error(orientation,
-                            first.cartesian_contact_tangent_first[i] * first.cartesian_contact_tangent_first[j],
-                            second.cartesian_contact_tangent_first[i] * second.cartesian_contact_tangent_first[j]);
+                    accumulate_time_error(orientation,
+                        first.cartesian_contact_tangent_first[i],
+                        second.cartesian_contact_tangent_first[i]);
                 }
             }
             accumulate_time_error(multiplier, first.normal_multiplier, second.normal_multiplier);

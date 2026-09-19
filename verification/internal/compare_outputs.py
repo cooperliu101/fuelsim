@@ -21,7 +21,12 @@ def physical_csv(path):
 
 def compare(baseline, current):
     report = dict(exodus_files=0, numeric_arrays=0, numeric_values=0,
-                  checkpoint_files=0, csv_files=0, differences=[], missing=[])
+                  checkpoint_files=0, csv_files=0, differences=[], missing=[], errors=[])
+    for directory in (baseline, current):
+        if not directory.is_dir():
+            report["errors"].append(f"Not a result directory: {directory}")
+    if report["errors"]:
+        return report
     aliases = {}
     # Restart files may have different segment numbers in a reused output directory.
     # Compare the files actually named by the corresponding production summaries.
@@ -73,6 +78,10 @@ def compare(baseline, current):
             report["csv_files"] += 1
             if physical_csv(old) != physical_csv(new):
                 report["differences"].append(dict(file=str(relative), reason="physical CSV contents differ"))
+    if report["exodus_files"] + report["checkpoint_files"] + report["csv_files"] == 0:
+        report["errors"].append("No supported result files compared")
+    if report["numeric_arrays"] == 0:
+        report["errors"].append("No numeric arrays compared")
     return report
 
 
@@ -85,5 +94,5 @@ if __name__ == "__main__":
     result = compare(args.baseline, args.current)
     args.report.write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2))
-    if result["differences"] or result["missing"]:
+    if result["differences"] or result["missing"] or result["errors"]:
         raise SystemExit(1)

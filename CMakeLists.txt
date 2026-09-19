@@ -2109,6 +2109,16 @@ if(BUILD_TESTING)
         message(FATAL_ERROR "Section result checks require a Python with numpy and netCDF4. "
             "Set FUELSIM_SECTION_PYTHON to the verification interpreter. ${section_python_error}")
     endif()
+    add_test(NAME fuelsim_compare_outputs_contract
+        COMMAND "${FUELSIM_SECTION_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/compare_outputs_tests.py")
+    set_tests_properties(fuelsim_compare_outputs_contract PROPERTIES TIMEOUT 60 LABELS "unit;verification")
+    add_test(NAME fuelsim_cartesian_contact_adaptive
+        COMMAND "${FUELSIM_SECTION_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/cartesian_contact_adaptive_test.py"
+            "$<TARGET_FILE:fuelsim>" "${CMAKE_CURRENT_SOURCE_DIR}"
+            "${CMAKE_CURRENT_BINARY_DIR}/blackbox/cartesian_contact_adaptive")
+    set_tests_properties(fuelsim_cartesian_contact_adaptive PROPERTIES TIMEOUT 120
+        LABELS "acceptance;production;contact;time-error"
+        ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1;MKL_NUM_THREADS=1")
     foreach(section_case IN ITEMS axial bending transverse nonuniform prescribed)
         add_test(NAME fuelsim_section_modal_${section_case}
             COMMAND "${FUELSIM_SECTION_PYTHON}"
