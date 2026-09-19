@@ -1,0 +1,74 @@
+{
+  "passed": true,
+  "native": {
+    "case": "study_interface_variable_source",
+    "nodes_compared": 320,
+    "points_compared": 320,
+    "passed": true,
+    "fields": {
+      "temperature": {
+        "absolute_maximum": 1.5169078039889428e-05,
+        "relative_l2": 2.0854440551341594e-08,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 4.525211372825197e-08,
+        "passed": true
+      },
+      "temperature_rise": {
+        "absolute_maximum": 1.5169078039889428e-05,
+        "relative_l2": 1.2311051237250182e-07,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 8.192955480094576e-06,
+        "passed": true
+      },
+      "heat_reaction": {
+        "absolute_maximum": 5.1220794716755336e-08,
+        "relative_l2": 2.3329841987146927e-08,
+        "relative_peak": 2.2323408932543066e-08,
+        "maximum_pointwise_relative": 4.816304754420145e-08,
+        "passed": true
+      },
+      "heat_flux_x": {
+        "absolute_maximum": 0.003302204619103577,
+        "relative_l2": 2.6631870266155763e-08,
+        "relative_peak": 3.173435796287272e-08,
+        "maximum_pointwise_relative": 7.81584117240667e-08,
+        "passed": true
+      },
+      "heat_flux_y": {
+        "absolute_maximum": 1.4239276428366852e-10,
+        "passed": true
+      },
+      "heat_flux_z": {
+        "absolute_maximum": 1.72875047645721e-10,
+        "passed": true
+      }
+    }
+  },
+  "fixed_step_energy": {
+    "maximum_interface_temperature_jump_K": 40.18056605969758,
+    "minimum_global_temperature_range_K": 73.9303926204766,
+    "maximum_storage_error_W": 4.128253294766182e-12,
+    "maximum_global_heat_imbalance_W": 3.820943561549939e-12,
+    "maximum_interface_heat_imbalance_W": 5.134781488891e-16,
+    "integrated_generated_energy_J": 8.250000000000002
+  },
+  "maximum_hot_region_defect_W": 5.080380560684716e-13,
+  "maximum_cold_region_defect_W": 3.170796958329447e-13,
+  "adaptive_energy": {
+    "maximum_interface_temperature_jump_K": 41.26535468784175,
+    "minimum_global_temperature_range_K": 73.82207259507521,
+    "maximum_storage_error_W": 5.051958851254312e-12,
+    "maximum_global_heat_imbalance_W": 5.469402708513371e-12,
+    "maximum_interface_heat_imbalance_W": 2.515349040166e-16,
+    "integrated_generated_energy_J": 8.250000000000043
+  },
+  "time_error_rejections": 8,
+  "accepted_steps": 103,
+  "restart_maximum_temperature_difference_K": 0.0,
+  "mpi_maximum_temperature_difference_K": 2.2737367544323206e-11,
+  "cross_rank_restart_maximum_temperature_difference_K": 2.5579538487363607e-11,
+  "mpi_ranks": [
+    1,
+    2
+  ]
+}

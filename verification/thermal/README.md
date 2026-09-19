@@ -58,3 +58,7 @@ ctest --test-dir build -R 'fuelsim_(dcax|dc3d|thermal)' -j4 --output-on-failure
 ```
 
 参考文件的 SHA256 校验清单独立保存为 `SHA256SUMS`，防止无意替换参考。
+
+后续已完成二次曲面与 2:1 非匹配划分的组合验证，以及非均匀瞬态界面的时变热源、
+自适应时间步、磁盘重启和跨进程一致性检查，具体结果与适用边界见
+[两项界面验证扩展](interface_extension.md)。

@@ -1,0 +1,44 @@
+{
+  "case": "study_interface_variable_source",
+  "nodes_compared": 320,
+  "points_compared": 320,
+  "passed": false,
+  "fields": {
+    "temperature": {
+      "absolute_maximum": 0.24803715269905524,
+      "relative_l2": 0.0003434710500769616,
+      "relative_peak": 0.0,
+      "maximum_pointwise_relative": 0.0007887612156164952,
+      "passed": true
+    },
+    "temperature_rise": {
+      "absolute_maximum": 0.24803715269905524,
+      "relative_l2": 0.002027620777262986,
+      "relative_peak": 0.0,
+      "maximum_pointwise_relative": 0.04295328326586723,
+      "passed": false
+    },
+    "heat_reaction": {
+      "absolute_maximum": 0.014628469285015488,
+      "relative_l2": 0.010389250626854675,
+      "relative_peak": 0.0036377802078886878,
+      "maximum_pointwise_relative": 0.020256664679784597,
+      "passed": false
+    },
+    "heat_flux_x": {
+      "absolute_maximum": 215.7082343190632,
+      "relative_l2": 0.002834908055476876,
+      "relative_peak": 0.0004643652329463712,
+      "maximum_pointwise_relative": 0.00661622692887194,
+      "passed": false
+    },
+    "heat_flux_y": {
+      "absolute_maximum": 9.407585817729283e-11,
+      "passed": true
+    },
+    "heat_flux_z": {
+      "absolute_maximum": 1.477928890836685e-10,
+      "passed": true
+    }
+  }
+}

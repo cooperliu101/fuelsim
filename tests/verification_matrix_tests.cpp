@@ -175,6 +175,8 @@ int main(int argc, char** argv) {
             "thermal.production_restart",
             "thermal.multimaterial_energy",
             "thermal.analytic_representatives",
+            "thermal.curved_nonmatching",
+            "thermal.interface_adaptive_restart",
             "gps.local",
             "mass.gravity_local",
             "gravity.hex8",
@@ -469,7 +471,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 195 || qualified != 25 || measured != 12 || limitations != 5 || unverified != 0)
+        if (verified != 197 || qualified != 25 || measured != 12 || limitations != 5 || unverified != 0)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         check_c3d8t_contract(argv[4], registered_tests);
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'

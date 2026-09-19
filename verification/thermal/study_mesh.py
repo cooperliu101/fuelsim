@@ -148,6 +148,7 @@ if __name__ == '__main__':
             write('study_'+kind+'_n'+str(count), kind, radial_count=count)
     write('study_dc3d20_nonmatching', 'dc3d20', primary_count=2)
     write('study_dc3d20_curved', 'dc3d20', curved=True)
+    write('study_dc3d20_curved_nonmatching', 'dc3d20', primary_count=2, curved=True)
     write('study_dc3d8_shared', 'dc3d8', shared=True)
     write('study_dc3d8_interface', 'dc3d8')
     for count in [64, 128]:

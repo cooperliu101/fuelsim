@@ -136,3 +136,7 @@ env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
 脚本逐项使用单核；CTest 只读取已提交的参考。`SHA256SUMS` 保护网格和原生证据。
 本轮没有改动生产求解算法。汇总数值见 `study_*_summary.json`，最终构建和
 回归运行记录见 `validation.md`。
+
+后续已完成二次曲面与 2:1 非匹配划分的组合验证，以及非均匀瞬态界面的时变热源、
+自适应时间步、磁盘重启和跨进程一致性检查，具体结果与适用边界见
+[两项界面验证扩展](interface_extension.md)。

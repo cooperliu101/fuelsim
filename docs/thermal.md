@@ -84,3 +84,7 @@ Exodus 输出真实节点温度、受约束节点热反力、每个积分点的�
 fuelsim -i verification/thermal/dc3d20_transient.fsi
 fuelsim -i verification/thermal/dcax8_contact.fsi
 ```
+
+后续已完成二次曲面与 2:1 非匹配划分的组合验证，以及非均匀瞬态界面的时变热源、
+自适应时间步、磁盘重启和跨进程一致性检查，具体结果与适用边界见
+[两项界面验证扩展](../verification/thermal/interface_extension.md)。

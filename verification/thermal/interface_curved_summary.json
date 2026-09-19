@@ -1,0 +1,57 @@
+{
+  "passed": true,
+  "native": {
+    "case": "study_dc3d20_curved_nonmatching",
+    "nodes_compared": 52,
+    "points_compared": 81,
+    "passed": true,
+    "fields": {
+      "temperature": {
+        "absolute_maximum": 1.5169452865393396e-05,
+        "relative_l2": 2.114122769844447e-08,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 4.683835754373807e-08,
+        "passed": true
+      },
+      "temperature_rise": {
+        "absolute_maximum": 1.5169452865393396e-05,
+        "relative_l2": 9.294619541516221e-08,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 6.355517259589558e-07,
+        "passed": true
+      },
+      "heat_reaction": {
+        "absolute_maximum": 7.537887558584089e-08,
+        "relative_l2": 2.5106327131054484e-08,
+        "relative_peak": 2.4716836810911233e-08,
+        "maximum_pointwise_relative": 5.124798774368791e-08,
+        "passed": true
+      },
+      "heat_flux_x": {
+        "absolute_maximum": 0.005836471129441634,
+        "relative_l2": 2.7511433842181433e-08,
+        "relative_peak": 4.473566452616817e-08,
+        "maximum_pointwise_relative": 6.345857731252174e-08,
+        "passed": true
+      },
+      "heat_flux_y": {
+        "absolute_maximum": 0.002306193608092144,
+        "relative_l2": 3.9010643144178e-08,
+        "relative_peak": 8.557576802018968e-09,
+        "maximum_pointwise_relative": 8.753331809779773e-08,
+        "passed": true
+      },
+      "heat_flux_z": {
+        "absolute_maximum": 0.0017293402561335824,
+        "relative_l2": 2.8073041758546472e-08,
+        "relative_peak": 1.805053866735496e-08,
+        "maximum_pointwise_relative": 8.391205461404906e-08,
+        "passed": true
+      }
+    }
+  },
+  "hot_boundary_heat_W": 5.007669631391688,
+  "cold_boundary_heat_W": -5.007669631391696,
+  "heat_imbalance_W": -7.993605777301127e-15,
+  "projected_secondary_neighborhoods": 8
+}

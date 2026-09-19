@@ -2786,6 +2786,18 @@ if(BUILD_TESTING)
             ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1;MKL_NUM_THREADS=1")
     endforeach()
     set_tests_properties(fuelsim_thermal_study_energy PROPERTIES PROCESSORS 2)
+    foreach(interface_study curved transient)
+        add_test(NAME fuelsim_thermal_interface_${interface_study}_extension
+            COMMAND "${FUELSIM_SECTION_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/thermal/interface_extension.py"
+                --fuelsim $<TARGET_FILE:fuelsim> --mpiexec "${FUELSIM_MPIEXEC_EXECUTABLE}"
+                --source "${CMAKE_CURRENT_SOURCE_DIR}/verification/thermal"
+                --work "${CMAKE_CURRENT_BINARY_DIR}/thermal/interface_${interface_study}_extension"
+                --study ${interface_study})
+        set_tests_properties(fuelsim_thermal_interface_${interface_study}_extension PROPERTIES
+            LABELS "acceptance;production;thermal" TIMEOUT 300
+            ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1;MKL_NUM_THREADS=1")
+    endforeach()
+    set_tests_properties(fuelsim_thermal_interface_transient_extension PROPERTIES PROCESSORS 2)
     get_property(FUELSIM_REGISTERED_TESTS DIRECTORY PROPERTY TESTS)
     list(JOIN FUELSIM_REGISTERED_TESTS "\n" FUELSIM_REGISTERED_TEST_TEXT)
     file(GENERATE
