@@ -1,0 +1,7 @@
+{
+  "passed": true,
+  "rejected_steps": 8,
+  "accepted_steps": 557,
+  "maximum_temperature_error_K": 0.007316381709074449,
+  "maximum_energy_rate_defect_W": 1.8800028200871566e-10
+}

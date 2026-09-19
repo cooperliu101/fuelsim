@@ -2774,6 +2774,18 @@ if(BUILD_TESTING)
             --source "${CMAKE_CURRENT_SOURCE_DIR}/verification/thermal"
             --work "${CMAKE_CURRENT_BINARY_DIR}/thermal/mpi")
     set_tests_properties(fuelsim_thermal_mpi_equivalence PROPERTIES PROCESSORS 2)
+    foreach(thermal_study native restart energy analytic)
+        add_test(NAME fuelsim_thermal_study_${thermal_study}
+            COMMAND "${FUELSIM_SECTION_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/verification/thermal/study.py"
+                --fuelsim $<TARGET_FILE:fuelsim> --mpiexec "${FUELSIM_MPIEXEC_EXECUTABLE}"
+                --source "${CMAKE_CURRENT_SOURCE_DIR}/verification/thermal"
+                --work "${CMAKE_CURRENT_BINARY_DIR}/thermal/study_${thermal_study}"
+                --study ${thermal_study})
+        set_tests_properties(fuelsim_thermal_study_${thermal_study} PROPERTIES
+            LABELS "acceptance;production;thermal" TIMEOUT 300
+            ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1;MKL_NUM_THREADS=1")
+    endforeach()
+    set_tests_properties(fuelsim_thermal_study_energy PROPERTIES PROCESSORS 2)
     get_property(FUELSIM_REGISTERED_TESTS DIRECTORY PROPERTY TESTS)
     list(JOIN FUELSIM_REGISTERED_TESTS "\n" FUELSIM_REGISTERED_TEST_TEXT)
     file(GENERATE

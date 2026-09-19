@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "case": "study_dcax4_n16",
+      "maximum_pointwise_temperature_rise_error": 0.0003744521168921018
+    },
+    {
+      "case": "study_dcax8_n16",
+      "maximum_pointwise_temperature_rise_error": 1.0950593256914765e-06
+    },
+    {
+      "case": "study_time_fine",
+      "maximum_pointwise_temperature_rise_error": 0.004878398773878191
+    }
+  ]
+}

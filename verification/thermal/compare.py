@@ -2,6 +2,7 @@
 import argparse
 import csv
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -24,7 +25,7 @@ def metric(value, reference, zero=False):
             'passed':bool(max(l2,peak,pointwise) < 0.005 and zeros_pass)}
 
 
-def compare(directory, name, references):
+def compare(directory, name, references, zero_flux=None):
     with (references/(name+'.nodes.csv')).open() as stream:
         nodes = list(csv.DictReader(stream))
     with (references/(name+'.points.csv')).open() as stream:
@@ -37,6 +38,11 @@ def compare(directory, name, references):
         element_variables = {n:np.concatenate([np.asarray(data[f'vals_elem_var{i+1}eb{b+1}'][:]) for b in range(len(data.dimensions['num_el_blk']))],axis=1) for i,n in enumerate(element_names)}
         def frame(time):
             matches = np.flatnonzero(np.isclose(times,time,rtol=0,atol=1e-10))
+            # ODB frameValue stores single precision: e.g. 0.1 is exported as
+            # 0.10000000149011612. Match that exact representation, not a wider
+            # physical tolerance. Distinct frames must still match uniquely.
+            if len(matches) == 0 and time == float(np.float32(time)):
+                matches = np.flatnonzero(times.astype(np.float32) == np.float32(time))
             if len(matches) != 1:
                 raise AssertionError('Missing or duplicate output time '+str(time))
             return matches[0]
@@ -72,11 +78,19 @@ def compare(directory, name, references):
                 qr[d].append(float(row['q'+c]))
         if len(used) != len(set(float(row['time']) for row in points))*len(data.dimensions['num_elem'])*count:
             raise AssertionError('Native integration point coverage is incomplete')
+    if zero_flux is None:
+        zero_flux = set()
+        if name.endswith('_capacity'):
+            zero_flux.add('x')
+        if not ('_distorted_' in name or name == 'dc3d20_contact'):
+            zero_flux.add('y')
+        if name.startswith('dcax') or not ('_distorted_' in name or name == 'dc3d20_contact'):
+            zero_flux.add('z')
     fields = {'temperature':metric(t,tr), 'temperature_rise':metric(np.array(t)-300,np.array(tr)-300),
               'heat_reaction':metric(r,rr,zero=not np.any(rr)),
-              'heat_flux_x':metric(q[0],qr[0],zero=name.endswith('_capacity')),
-              'heat_flux_y':metric(q[1],qr[1],zero=not ('_distorted_' in name or name == 'dc3d20_contact')),
-              'heat_flux_z':metric(q[2],qr[2],zero=name.startswith('dcax') or not ('_distorted_' in name or name == 'dc3d20_contact'))}
+              'heat_flux_x':metric(q[0],qr[0],zero='x' in zero_flux),
+              'heat_flux_y':metric(q[1],qr[1],zero='y' in zero_flux),
+              'heat_flux_z':metric(q[2],qr[2],zero='z' in zero_flux)}
     return {'case':name,'nodes_compared':len(nodes),'points_compared':len(points),
             'passed':all(v['passed'] for v in fields.values()),'fields':fields}
 
@@ -88,14 +102,13 @@ def main():
     parser.add_argument('--work',type=Path,required=True)
     parser.add_argument('--case',required=True)
     parser.add_argument('--diagnostic',action='store_true')
+    parser.add_argument('--zero-flux', nargs='*', choices=list('xyz'), default=None)
     args=parser.parse_args()
     args.work.mkdir(parents=True,exist_ok=True)
-    kind=args.case if args.case == 'dcax8_contact' or args.case.endswith('_capacity') else args.case.split('_')[0]
-    if '_contact' in args.case:
-        kind = 'dcax8_contact' if args.case == 'dcax8_contact_transient' else args.case
-    if '_distorted_' in args.case:
-        kind = args.case.split('_')[0]+'_distorted'
-    for filename in [args.case+'.fsi',kind+'.e']:
+    source_card = args.source/(args.case+'.fsi')
+    mesh_section = re.search(r'\[Mesh\](.*?)\[\]', source_card.read_text(), re.S)
+    mesh = re.search(r'^\s*file\s*=\s*(\S+)\s*$', mesh_section.group(1), re.M).group(1)
+    for filename in [source_card.name, mesh]:
         shutil.copyfile(args.source/filename,args.work/filename)
     card=args.work/(args.case+'.fsi')
     if card.read_bytes() != (args.source/card.name).read_bytes():
@@ -104,7 +117,7 @@ def main():
     (args.work/'fuelsim.log').write_text(run.stdout+run.stderr)
     if run.returncode:
         raise RuntimeError(run.stdout+run.stderr)
-    result=compare(args.work,args.case,args.source)
+    result=compare(args.work,args.case,args.source,args.zero_flux)
     (args.work/'comparison.json').write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps(result,indent=2))
     if not args.diagnostic and not result['passed']:

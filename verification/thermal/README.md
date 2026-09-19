@@ -1,5 +1,8 @@
 # 独立温度求解与 Abaqus 2025 对比
 
+后续五项验证包括非匹配与曲面界面、独立温度相关物性、磁盘重启、
+多材料能量平衡及网格和时间收敛，详见 [studies.md](studies.md)。
+
 所有 Fuelsim 算例运行实际入口 `fuelsim -i <case.fsi>`。输入卡是完整静态文件，
 检查脚本只逐字复制输入卡、启动程序、读取 Exodus 输出并比较已保存的原生参考。
 日常 CTest 不启动 Abaqus。`mesh.py` 只生成网格及 Abaqus 网格 include；

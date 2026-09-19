@@ -1,0 +1,107 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "case": "study_dc3d8_shared",
+      "maximum_energy_rate_defect_W": 4.5208281562736374e-12,
+      "maximum_storage_error_W": 4.8263615326504805e-12,
+      "native": {
+        "case": "study_dc3d8_shared",
+        "nodes_compared": 240,
+        "points_compared": 320,
+        "passed": true,
+        "fields": {
+          "temperature": {
+            "absolute_maximum": 1.4941353697395243e-05,
+            "relative_l2": 2.1033410542757235e-08,
+            "relative_peak": 0.0,
+            "maximum_pointwise_relative": 4.5172183206941397e-08,
+            "passed": true
+          },
+          "temperature_rise": {
+            "absolute_maximum": 1.4941353697395243e-05,
+            "relative_l2": 1.1957788947205303e-07,
+            "relative_peak": 0.0,
+            "maximum_pointwise_relative": 1.1153999993158364e-05,
+            "passed": true
+          },
+          "heat_reaction": {
+            "absolute_maximum": 6.174167532790875e-08,
+            "relative_l2": 2.1914240528212e-08,
+            "relative_peak": 2.5274430332147827e-08,
+            "maximum_pointwise_relative": 4.7592078769195065e-08,
+            "passed": true
+          },
+          "heat_flux_x": {
+            "absolute_maximum": 0.0058394180086907,
+            "relative_l2": 3.253522396668049e-08,
+            "relative_peak": 4.616546804098303e-08,
+            "maximum_pointwise_relative": 7.360008045726225e-08,
+            "passed": true
+          },
+          "heat_flux_y": {
+            "absolute_maximum": 1.477928890836685e-10,
+            "passed": true
+          },
+          "heat_flux_z": {
+            "absolute_maximum": 1.5631940181912707e-10,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "case": "study_dc3d8_interface",
+      "maximum_energy_rate_defect_W": 4.04298816647497e-12,
+      "maximum_storage_error_W": 3.927524971913954e-12,
+      "native": {
+        "case": "study_dc3d8_interface",
+        "nodes_compared": 320,
+        "points_compared": 320,
+        "passed": true,
+        "fields": {
+          "temperature": {
+            "absolute_maximum": 1.4936755974304106e-05,
+            "relative_l2": 2.29304937735255e-08,
+            "relative_peak": 0.0,
+            "maximum_pointwise_relative": 4.6285725237585764e-08,
+            "passed": true
+          },
+          "temperature_rise": {
+            "absolute_maximum": 1.4936755974304106e-05,
+            "relative_l2": 1.3683948090670284e-07,
+            "relative_peak": 0.0,
+            "maximum_pointwise_relative": 9.702930685553026e-06,
+            "passed": true
+          },
+          "heat_reaction": {
+            "absolute_maximum": 5.148107962149595e-08,
+            "relative_l2": 2.3328358239161444e-08,
+            "relative_peak": 1.110081670182597e-08,
+            "maximum_pointwise_relative": 4.12265275835343e-08,
+            "passed": true
+          },
+          "heat_flux_x": {
+            "absolute_maximum": 0.004289442993467674,
+            "relative_l2": 3.917255955728476e-08,
+            "relative_peak": 4.011995423557868e-08,
+            "maximum_pointwise_relative": 8.379796529676278e-08,
+            "passed": true
+          },
+          "heat_flux_y": {
+            "absolute_maximum": 1.094235813127514e-10,
+            "passed": true
+          },
+          "heat_flux_z": {
+            "absolute_maximum": 2.3526070228366854e-10,
+            "passed": true
+          }
+        }
+      }
+    }
+  ],
+  "mpi_ranks": [
+    1,
+    2
+  ]
+}
