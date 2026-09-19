@@ -12,6 +12,7 @@
 - `runs/`、`datasets/`：忽略的本地运行产物与训练数据。
 
 实现细节和边界见 [方法说明](docs/method.md)，具体验证结果见 [验证记录](docs/validation.md)。
+新增的 50 μm 偏心气隙工况见 [偏心验证](docs/eccentric.md)，使用原有权重比较八个周向区间的非均匀热率。
 
 ## 构建与回归
 

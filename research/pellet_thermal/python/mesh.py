@@ -7,7 +7,7 @@ from scipy.io import netcdf_file
 ROOT = Path(__file__).resolve().parents[1] / "cases"
 
 
-def create(coupled):
+def create(coupled, eccentricity=None):
     radius, height = 0.004, 0.008
     plane = []
     for y in (-1, 0, 1):
@@ -32,14 +32,18 @@ def create(coupled):
     blocks = [("pellet", pellets)]
     surfaces = [
         ("pellet_side", sides),
-        ("pellet_boundary", sides + [(i + 1, 5) for i in range(4)] + [(i + 5, 6) for i in range(4)]),
+        (
+            "pellet_boundary",
+            sides + [(i + 1, 5) for i in range(4)] + [(i + 5, 6) for i in range(4)],
+        ),
     ]
     if coupled:
         for z in (0.0, height / 2, height):
             for r in (0.0041, 0.0047):
                 for i in ring:
                     x, y = plane[i]
-                    points.append((x * r / radius, y * r / radius, z))
+                    shift = 0.0 if eccentricity is None else eccentricity
+                    points.append((x * r / radius - shift, y * r / radius, z))
         clad = []
         for z in range(2):
             for i in range(8):
@@ -51,8 +55,22 @@ def create(coupled):
             ("clad_inner", [(9 + i, 4) for i in range(16)]),
             ("clad_outer", [(9 + i, 2) for i in range(16)]),
         ]
+        if eccentricity is not None:
+            for i in range(8):
+                edge = {ring[i], ring[(i + 1) % 8]}
+                sector = []
+                for element, face in sides:
+                    a, b = face_edges[face - 1]
+                    connection = pellets[element - 1]
+                    if {connection[a] % 9, connection[b] % 9} == edge:
+                        sector.append((element, face))
+                if len(sector) != 2:
+                    raise ValueError("Each angular sector must have two axial facets")
+                surfaces.append((f"pellet_sector_{i}", sector))
     boundary = [i for i in range(27) if i != 13]
     name = "coupled.e" if coupled else "pellet.e"
+    if eccentricity is not None:
+        name = "eccentric.e" if eccentricity else "concentric_gas.e"
     with netcdf_file(str(ROOT / name), "w") as f:
         f.api_version = np.float32(7.22)
         f.version = np.float32(7.22)
@@ -92,7 +110,9 @@ def create(coupled):
             f.createDimension(f"num_el_in_blk{i}", len(conn))
             f.createDimension(f"num_nod_per_el{i}", 8)
             var(
-                f"connect{i}", (f"num_el_in_blk{i}", f"num_nod_per_el{i}"), np.asarray(conn) + 1
+                f"connect{i}",
+                (f"num_el_in_blk{i}", f"num_nod_per_el{i}"),
+                np.asarray(conn) + 1,
             ).elem_type = "HEX8"
         var("ss_prop1", ("num_side_sets",), np.arange(1, len(surfaces) + 1)).name = "ID"
         var("ss_status", ("num_side_sets",), np.ones(len(surfaces), dtype=int))
@@ -121,3 +141,5 @@ if __name__ == "__main__":
     ROOT.mkdir(parents=True, exist_ok=True)
     create(False)
     create(True)
+    create(True, 0.0)
+    create(True, 50e-6)

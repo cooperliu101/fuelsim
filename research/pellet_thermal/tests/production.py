@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import netCDF4
 import numpy as np
+from eccentric import verify_eccentric
 
 p = argparse.ArgumentParser()
 p.add_argument("--fuelsim", required=True)
@@ -122,5 +123,6 @@ else:
     (a.work / "global_jacobian.log").write_text(result.stdout + result.stderr)
     if result.returncode:
         raise AssertionError(result.stdout + result.stderr)
+    report["eccentric"] = verify_eccentric(run, cooling, surface, power, a.work, exe, env)
 (a.work / "metrics.json").write_text(json.dumps(report, indent=2) + "\n")
 print(json.dumps(report, indent=2))
