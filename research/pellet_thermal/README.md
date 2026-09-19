@@ -14,6 +14,8 @@
 实现细节和边界见 [方法说明](docs/method.md)，具体验证结果见 [验证记录](docs/validation.md)。
 新增的 50 μm 偏心气隙工况见 [偏心验证](docs/eccentric.md)，使用原有权重比较八个周向区间的非均匀热率。
 
+切线直接比较、物理恒等式检查和八组参数组合见 [补充验证](docs/qualification.md)。
+
 ## 构建与回归
 
 从 fuelsim 仓库根目录运行。沿用已经配置好的 `build` 目录以及原 `moose` Conda PETSc、
@@ -21,7 +23,7 @@ ADlite 和独立串行 Exodus。Python 需要 NumPy、netCDF4 和 PyTorch；只�
 SciPy。C++ 推理不依赖 Python。
 
 ```bash
-cmake --build build --target fuelsim fuelsim_pellet_exact_tests fuelsim_pellet_infer fuelsim_pellet_sample --parallel 8
+cmake --build build --target fuelsim fuelsim_pellet_exact_tests fuelsim_pellet_response_tests fuelsim_pellet_infer fuelsim_pellet_sample --parallel 8
 ctest --test-dir build -R '^fuelsim_pellet_' --output-on-failure -j 2
 ```
 

@@ -2,6 +2,10 @@ target_sources(fuelsim_core PRIVATE src/pellet_thermal.cpp src/pellet_assembly.c
 target_include_directories(fuelsim_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 if(BUILD_TESTING)
+    add_executable(fuelsim_pellet_response_tests tests/response.cpp)
+    target_link_libraries(fuelsim_pellet_response_tests PRIVATE fuelsim::io)
+    target_include_directories(fuelsim_pellet_response_tests PRIVATE "${PROJECT_SOURCE_DIR}/src")
+    fuelsim_enable_warnings(fuelsim_pellet_response_tests)
     add_executable(fuelsim_pellet_exact_tests tests/exact.cpp)
     target_link_libraries(fuelsim_pellet_exact_tests PRIVATE fuelsim::core)
     fuelsim_enable_warnings(fuelsim_pellet_exact_tests)
@@ -27,6 +31,7 @@ if(BUILD_TESTING)
         add_test(NAME fuelsim_pellet_${study} COMMAND "${FUELSIM_SECTION_PYTHON}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/production.py"
             --fuelsim "$<TARGET_FILE:fuelsim>" --source "${CMAKE_CURRENT_SOURCE_DIR}"
+            --response-check "$<TARGET_FILE:fuelsim_pellet_response_tests>"
             --work "${CMAKE_CURRENT_BINARY_DIR}/${study}" --study ${study})
     endforeach()
     set_tests_properties(fuelsim_pellet_exact fuelsim_pellet_python_cpp fuelsim_pellet_single fuelsim_pellet_coupled

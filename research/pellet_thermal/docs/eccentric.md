@@ -86,7 +86,7 @@ q_gap = h_gap * (T_pellet - T_cladding)
 本验证加入原有第四项耦合测试，核心测试仍为四项：
 
 ```bash
-cmake --build build --target fuelsim fuelsim_pellet_exact_tests fuelsim_pellet_infer --parallel 8
+cmake --build build --target fuelsim fuelsim_pellet_exact_tests fuelsim_pellet_response_tests fuelsim_pellet_infer --parallel 8
 ctest --test-dir build -R '^fuelsim_pellet_' --output-on-failure -j 2
 ```
 

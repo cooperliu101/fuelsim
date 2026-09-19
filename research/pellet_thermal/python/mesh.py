@@ -7,7 +7,7 @@ from scipy.io import netcdf_file
 ROOT = Path(__file__).resolve().parents[1] / "cases"
 
 
-def create(coupled, eccentricity=None):
+def create(coupled, eccentricity=None, filename=None):
     radius, height = 0.004, 0.008
     plane = []
     for y in (-1, 0, 1):
@@ -71,6 +71,8 @@ def create(coupled, eccentricity=None):
     name = "coupled.e" if coupled else "pellet.e"
     if eccentricity is not None:
         name = "eccentric.e" if eccentricity else "concentric_gas.e"
+    if filename is not None:
+        name = filename
     with netcdf_file(str(ROOT / name), "w") as f:
         f.api_version = np.float32(7.22)
         f.version = np.float32(7.22)
@@ -143,3 +145,4 @@ if __name__ == "__main__":
     create(True)
     create(True, 0.0)
     create(True, 50e-6)
+    create(True, 75e-6, "eccentric_75.e")

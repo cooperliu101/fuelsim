@@ -9,10 +9,12 @@ import subprocess
 import netCDF4
 import numpy as np
 from eccentric import verify_eccentric
+from scan import verify_scan
 
 p = argparse.ArgumentParser()
 p.add_argument("--fuelsim", required=True)
 p.add_argument("--source", type=Path, required=True)
+p.add_argument("--response-check", required=True)
 p.add_argument("--work", type=Path, required=True)
 p.add_argument("--study", choices=["single", "coupled"], required=True)
 a = p.parse_args()
@@ -62,6 +64,15 @@ for fields in [exact, surrogate]:
         raise AssertionError("Eliminated temperature must not masquerade as a solved field")
 report = {}
 if a.study == "single":
+    response = subprocess.run(
+        [a.response_check, str(a.work / "cases/pellet_full.fsi"),
+         str(a.work / "models/pellet_mlp.txt"), str(a.work / "response_evidence.txt")],
+        text=True, capture_output=True, env=env,
+    )
+    (a.work / "response.log").write_text(response.stdout + response.stderr)
+    report["response"] = dict(line.split("=", 1) for line in response.stdout.splitlines() if "=" in line)
+    if response.returncode:
+        raise AssertionError(response.stdout + response.stderr)
     for field_case in ["uniform", "mixed"]:
         if field_case == "mixed":
             full, fs = run("pellet_mixed_full")
@@ -124,5 +135,6 @@ else:
     if result.returncode:
         raise AssertionError(result.stdout + result.stderr)
     report["eccentric"] = verify_eccentric(run, cooling, surface, power, a.work, exe, env)
+    report["scan"] = verify_scan(run, cooling, surface, a.work)
 (a.work / "metrics.json").write_text(json.dumps(report, indent=2) + "\n")
 print(json.dumps(report, indent=2))
