@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "test_date_utc": "2026-09-19",
+  "baseline_commit": "640644fca6ff7ae7d71cb30c2056433dd33259f2",
+  "tested_commit": "58c13eee45a83f206cc6c7484d38a53797414bbf",
+  "environment": {
+    "compiler": "conda-forge GCC 14.3.0-19",
+    "cxx_standard": 17,
+    "configuration": "Release",
+    "warnings_as_errors": true,
+    "release_ipo": true,
+    "petsc": "3.25.2",
+    "adlite": "0.2.3",
+    "exodus": "SEACAS v2024-06-27, serial I/O",
+    "platform": {
+      "system": "Linux",
+      "release": "6.6.87.2-microsoft-standard-WSL2",
+      "machine": "x86_64"
+    },
+    "build_parallel_jobs": 8,
+    "ctest_parallel_tests": 4
+  },
+  "commits": {
+    "distributed_publication": "ce9193a3146aad079615549892b9fa7a96b4042b",
+    "contact_time_control": "58c13eee45a83f206cc6c7484d38a53797414bbf"
+  },
+  "baseline_workspace": {
+    "tracked_modifications": [],
+    "preexisting_untracked_entries": 276,
+    "handling": "Existing untracked paths were neither edited nor staged; no ignored builds, meshes or result artifacts are committed."
+  },
+  "build_command": "cmake --build build-transaction-hardening --parallel 8",
+  "baseline_ctest": {
+    "registered": 430,
+    "passed": 430,
+    "failed": 0,
+    "elapsed_seconds": 279.69,
+    "command": "ctest --test-dir build-transaction-hardening -j4 --output-on-failure"
+  },
+  "final_ctest": {
+    "registered": 432,
+    "passed": 432,
+    "failed": 0,
+    "elapsed_seconds": 277.62,
+    "command": "ctest --test-dir build-transaction-hardening -j4 --output-on-failure"
+  },
+  "binary_sha256": {
+    "baseline": "ad183a339d0c93d2707764cf51001600f2b0179c568ceff344cda6e2ce730dda",
+    "hardened": "c6309d414f7ef6e938efdbba9bf090738ab0db657f94931228a6abe9a6200cc5"
+  },
+  "numerical_comparison": {
+    "exodus_files": 294,
+    "numeric_arrays": 103555,
+    "numeric_values": 18410337,
+    "checkpoint_files": 70,
+    "csv_files": 301,
+    "differences": [
+      {
+        "file": "blackbox/section_modal_accuracy_mpi/nonuniform_local_12_history.csv",
+        "reason": "physical CSV contents differ"
+      },
+      {
+        "file": "blackbox/section_modal_accuracy_mpi/nonuniform_local_12_summary.csv",
+        "reason": "physical CSV contents differ"
+      }
+    ],
+    "missing": [],
+    "script": "verification/internal/compare_outputs.py",
+    "exact_comparison_exit_code": 1,
+    "exact_csv_matches": 299,
+    "explained_differences": "The two modal MPI CSV differences are retained, quantified, and reproduced by same-binary repeats in modal_repeatability_summary.json.",
+    "archive_selection": "All generated *_results*.e, *.checkpoint and summary/history CSV files found in the baseline build (665 files).",
+    "text_precision_boundary": "CSV equality is only equality at printed precision; numeric arrays use array_equal with matching NaN locations, not an arbitrary bitwise-state claim."
+  },
+  "contact_step_doubling": {
+    "test": "fuelsim_cartesian_contact_time_error",
+    "passed": true,
+    "input": "verification/fuelsim/transient_b523_integrated_contact.fsi",
+    "initial_time": 0.2,
+    "relative_tolerance": 0.001,
+    "displacement_absolute_tolerance": 1e-08,
+    "strain_absolute_tolerance": 1e-08,
+    "stress_absolute_tolerance": 1.0,
+    "refinement": [
+      {
+        "dt": 0.04,
+        "contact_friction": 2.2214167530025137,
+        "contact_normal_multiplier": 0.0,
+        "maximum": 23.795691845839443
+      },
+      {
+        "dt": 0.02,
+        "contact_friction": 1.0159092154371658,
+        "contact_normal_multiplier": 0.0,
+        "maximum": 6.756795070912619
+      },
+      {
+        "dt": 0.01,
+        "contact_friction": 0.22537725481799858,
+        "contact_normal_multiplier": 0.0,
+        "maximum": 2.0956626806206797
+      }
+    ],
+    "snapshot_contracts": [
+      "identical history gives zero error",
+      "elastic slip difference gives positive error",
+      "total slip difference gives positive error",
+      "normal multiplier difference gives positive error",
+      "sliding mismatch gives infinity",
+      "initialization mismatch gives infinity",
+      "tangent sign flip gives zero error",
+      "tangent direction change gives positive error",
+      "oriented normal change gives positive error"
+    ],
+    "normal_multiplier_note": "The production refinement case uses penalty contact, so its normal multiplier errors are zero. Nonzero multiplier sensitivity is tested by modifying a valid snapshot history.",
+    "fine_step_note": "Contact error is below one at dt=0.01; overall error is still above one due to other state fields."
+  },
+  "allocation_review": {
+    "extra_full_solution_or_history_copies": 0,
+    "agreement_storage": "Two doubles per problem allocated at construction and reused",
+    "successful_partition_collectives_before": 1,
+    "successful_partition_collectives_after": 3,
+    "communication_payload_allocations": "Original per-step packing and pointer-list allocation retained inside the caught preparation scope",
+    "staged_assignment": "Existing radial, Rz8 and plane assignments retained; capacities can be reused after first preparation",
+    "callback_wrapper": "std::function target may allocate once per partitioned commit; caught by the preparation guard",
+    "instrumented_allocation_counts": false
+  },
+  "production_files_changed": [
+    "include/core/transient_problem.hpp",
+    "src/core/cartesian_backend.cpp",
+    "src/core/plane_backend.cpp",
+    "src/core/problem_backend_access.hpp",
+    "src/core/radial_backend.cpp",
+    "src/core/rz4_backend.cpp",
+    "src/core/rz8_backend.cpp",
+    "src/core/spatial_backend.cpp",
+    "src/core/spatial_backend.hpp",
+    "src/core/spatial_backend_common.hpp",
+    "src/core/spatial_backends.hpp",
+    "src/core/spatial_problem.cpp",
+    "src/core/thermal_backend.cpp"
+  ],
+  "not_run": [
+    "Abaqus/MOOSE reference regeneration",
+    "New ASan/UBSan build",
+    "Operating-system memory exhaustion",
+    "Process-kill or MPI communicator-failure recovery",
+    "Large distributed performance or allocation instrumentation"
+  ],
+  "external_reference_policy": "Existing references, checksums and tolerance gates unchanged; full reference audits passed."
+}

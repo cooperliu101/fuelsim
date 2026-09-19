@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "test_date_utc": "2026-09-19",
+  "baseline_commit": "640644fca6ff7ae7d71cb30c2056433dd33259f2",
+  "tested_commit": "58c13eee45a83f206cc6c7484d38a53797414bbf",
+  "environment": {
+    "compiler": "conda-forge GCC 14.3.0-19",
+    "cxx_standard": 17,
+    "configuration": "Release",
+    "warnings_as_errors": true,
+    "release_ipo": true,
+    "petsc": "3.25.2",
+    "adlite": "0.2.3",
+    "exodus": "SEACAS v2024-06-27, serial I/O",
+    "platform": {
+      "system": "Linux",
+      "release": "6.6.87.2-microsoft-standard-WSL2",
+      "machine": "x86_64"
+    },
+    "build_parallel_jobs": 8,
+    "ctest_parallel_tests": 4
+  },
+  "test_name": "fuelsim_mpi_transaction_prepare_failure",
+  "command": "mpiexec -n 2 build-transaction-hardening/fuelsim_mpi_transaction_failure_tests verification/fuelsim/transient_b523_integrated_contact.fsi <scratch-checkpoint-prefix>",
+  "ranks": 2,
+  "timeout_seconds": 90,
+  "input": "verification/fuelsim/transient_b523_integrated_contact.fsi",
+  "initial_loading": {
+    "accepted_steps": 10,
+    "time_seconds": 0.2,
+    "summed_equivalent_inelastic_history_printed": 0.00442938,
+    "summed_absolute_total_friction_slip_printed": 0.0279726,
+    "printed_precision_note": "Values come from the test console; nonzero conditions are checked on full-precision histories."
+  },
+  "scenarios": [
+    {
+      "name": "nodal_state_preparation",
+      "injected_on_rank": 1,
+      "injected_exception": "bad_alloc",
+      "rejected_ranks": 2,
+      "checkpoint_before_rollback_equal": true,
+      "checkpoint_after_rollback_equal": true,
+      "retry_checkpoint_equal": true,
+      "collectives_in_failed_commit": 1
+    },
+    {
+      "name": "staged_material_preparation",
+      "injected_on_rank": 1,
+      "injected_exception": "domain_error",
+      "rejected_ranks": 2,
+      "checkpoint_before_rollback_equal": true,
+      "checkpoint_after_rollback_equal": true,
+      "retry_checkpoint_equal": true,
+      "collectives_in_failed_commit": 1
+    },
+    {
+      "name": "staged_contact_preparation",
+      "injected_on_rank": 1,
+      "injected_exception": "runtime_error",
+      "rejected_ranks": 2,
+      "checkpoint_before_rollback_equal": true,
+      "checkpoint_after_rollback_equal": true,
+      "retry_checkpoint_equal": true,
+      "collectives_in_failed_commit": 1
+    },
+    {
+      "name": "prepared_exchange_buffer",
+      "injected_on_rank": 1,
+      "injected_exception": "bad_alloc",
+      "rejected_ranks": 2,
+      "checkpoint_before_rollback_equal": true,
+      "checkpoint_after_rollback_equal": true,
+      "retry_checkpoint_equal": true,
+      "collectives_in_failed_commit": 1
+    },
+    {
+      "name": "post_exchange_diagnostics",
+      "injected_on_rank": 1,
+      "injected_exception": "bad_alloc",
+      "rejected_ranks": 2,
+      "checkpoint_before_rollback_equal": true,
+      "checkpoint_after_rollback_equal": true,
+      "retry_checkpoint_equal": true,
+      "collectives_in_failed_commit": 3
+    },
+    {
+      "name": "invalid_candidate_layout",
+      "injected_on_rank": 1,
+      "injected_exception": "invalid_argument",
+      "rejected_ranks": 2,
+      "checkpoint_before_rollback_equal": true,
+      "checkpoint_after_rollback_equal": true,
+      "retry_checkpoint_equal": true,
+      "collectives_in_failed_commit": 1
+    }
+  ],
+  "retained_one_two_rank_test_names": [
+    "fuelsim_gps_finite_mpi_equivalence",
+    "fuelsim_production_hex20_mpi_equivalence",
+    "fuelsim_rz_contact_mpi_reference",
+    "fuelsim_mpi_equivalence",
+    "fuelsim_b33_mpi_equivalence",
+    "fuelsim_b521_thermal_contact_mpi_reference",
+    "fuelsim_b521_thermal_contact_mpi_equivalence",
+    "fuelsim_b39_hex8_sts_mpi_equivalence",
+    "fuelsim_b41_hex8_finite_sliding_mpi_reference",
+    "fuelsim_b41_hex8_finite_sliding_mpi_equivalence",
+    "fuelsim_b48_hex8_multi_contact_path_mpi_equivalence",
+    "fuelsim_transient_mpi_reference",
+    "fuelsim_transient_mpi_equivalence",
+    "fuelsim_thermal_mpi_equivalence"
+  ],
+  "retained_test_result": "all passed in full CTest",
+  "fault_scope": "Application exceptions including simulated bad_alloc; not process termination or MPI communicator failure."
+}

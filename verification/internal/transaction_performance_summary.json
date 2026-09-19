@@ -1,0 +1,391 @@
+{
+  "schema_version": 1,
+  "test_date_utc": "2026-09-19",
+  "baseline_commit": "640644fca6ff7ae7d71cb30c2056433dd33259f2",
+  "tested_commit": "58c13eee45a83f206cc6c7484d38a53797414bbf",
+  "environment": {
+    "compiler": "conda-forge GCC 14.3.0-19",
+    "cxx_standard": 17,
+    "configuration": "Release",
+    "warnings_as_errors": true,
+    "release_ipo": true,
+    "petsc": "3.25.2",
+    "adlite": "0.2.3",
+    "exodus": "SEACAS v2024-06-27, serial I/O",
+    "platform": {
+      "system": "Linux",
+      "release": "6.6.87.2-microsoft-standard-WSL2",
+      "machine": "x86_64"
+    },
+    "build_parallel_jobs": 8,
+    "ctest_parallel_tests": 4
+  },
+  "script": "verification/internal/measure_transaction_performance.py",
+  "cpu_affinity": 0,
+  "mpi_ranks": 1,
+  "thread_environment": {
+    "OMP_NUM_THREADS": 1,
+    "OPENBLAS_NUM_THREADS": 1,
+    "MKL_NUM_THREADS": 1
+  },
+  "warmups_per_binary_case": 1,
+  "measured_runs_per_binary_case": 5,
+  "ordering": "Alternating baseline and hardened; order reversed on odd repeats.",
+  "external_measurement": "/usr/bin/time: elapsed wall seconds and peak RSS KiB",
+  "concurrent_owned_builds_or_tests": false,
+  "results": {
+    "dc3d20_transient": {
+      "baseline": {
+        "wall_seconds": {
+          "median": 0.73,
+          "min": 0.7,
+          "max": 0.76
+        },
+        "peak_rss_kib": {
+          "median": 104952,
+          "min": 104868,
+          "max": 105064
+        },
+        "accepted_steps": {
+          "median": 10.0,
+          "min": 10.0,
+          "max": 10.0
+        },
+        "residual_evaluations_total": {
+          "median": 20.0,
+          "min": 20.0,
+          "max": 20.0
+        },
+        "jacobian_evaluations_total": {
+          "median": 10.0,
+          "min": 10.0,
+          "max": 10.0
+        },
+        "petsc_workspace_setups": {
+          "median": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "aggregate_timing.setup_seconds": {
+          "median": 0.002149028,
+          "min": 0.001965414,
+          "max": 0.002624883
+        },
+        "aggregate_timing.nonlinear_solve_seconds": {
+          "median": 0.005970942,
+          "min": 0.005828522,
+          "max": 0.006222181
+        },
+        "aggregate_timing.residual_callback_seconds": {
+          "median": 0.000649434,
+          "min": 0.000623672,
+          "max": 0.000681166
+        },
+        "aggregate_timing.jacobian_callback_seconds": {
+          "median": 0.001687038,
+          "min": 0.001631272,
+          "max": 0.002076072
+        },
+        "total_seconds": {
+          "median": 0.186446531,
+          "min": 0.183360188,
+          "max": 0.196889537
+        }
+      },
+      "hardened": {
+        "wall_seconds": {
+          "median": 0.72,
+          "min": 0.7,
+          "max": 0.77
+        },
+        "peak_rss_kib": {
+          "median": 104876,
+          "min": 104704,
+          "max": 105064
+        },
+        "accepted_steps": {
+          "median": 10.0,
+          "min": 10.0,
+          "max": 10.0
+        },
+        "residual_evaluations_total": {
+          "median": 20.0,
+          "min": 20.0,
+          "max": 20.0
+        },
+        "jacobian_evaluations_total": {
+          "median": 10.0,
+          "min": 10.0,
+          "max": 10.0
+        },
+        "petsc_workspace_setups": {
+          "median": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "aggregate_timing.setup_seconds": {
+          "median": 0.002163824,
+          "min": 0.002062793,
+          "max": 0.002331781
+        },
+        "aggregate_timing.nonlinear_solve_seconds": {
+          "median": 0.006399039,
+          "min": 0.006103849,
+          "max": 0.006796481
+        },
+        "aggregate_timing.residual_callback_seconds": {
+          "median": 0.000692648,
+          "min": 0.000655676,
+          "max": 0.000857016
+        },
+        "aggregate_timing.jacobian_callback_seconds": {
+          "median": 0.001658061,
+          "min": 0.001595426,
+          "max": 0.001747801
+        },
+        "total_seconds": {
+          "median": 0.185653522,
+          "min": 0.180117229,
+          "max": 0.193197818
+        }
+      }
+    },
+    "transient_b527_engineering_contact": {
+      "baseline": {
+        "wall_seconds": {
+          "median": 3.06,
+          "min": 3.04,
+          "max": 3.21
+        },
+        "peak_rss_kib": {
+          "median": 147724,
+          "min": 147368,
+          "max": 147760
+        },
+        "accepted_steps": {
+          "median": 10.0,
+          "min": 10.0,
+          "max": 10.0
+        },
+        "residual_evaluations_total": {
+          "median": 49.0,
+          "min": 49.0,
+          "max": 49.0
+        },
+        "jacobian_evaluations_total": {
+          "median": 39.0,
+          "min": 39.0,
+          "max": 39.0
+        },
+        "petsc_workspace_setups": {
+          "median": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "aggregate_timing.setup_seconds": {
+          "median": 0.008428751,
+          "min": 0.008176537,
+          "max": 0.00892904
+        },
+        "aggregate_timing.nonlinear_solve_seconds": {
+          "median": 1.227985981,
+          "min": 1.216281675,
+          "max": 1.252404528
+        },
+        "aggregate_timing.residual_callback_seconds": {
+          "median": 0.203368798,
+          "min": 0.197388453,
+          "max": 0.20588904
+        },
+        "aggregate_timing.jacobian_callback_seconds": {
+          "median": 0.946702058,
+          "min": 0.939575399,
+          "max": 0.967732133
+        },
+        "total_seconds": {
+          "median": 2.338793668,
+          "min": 2.313113065,
+          "max": 2.372830561
+        }
+      },
+      "hardened": {
+        "wall_seconds": {
+          "median": 3.07,
+          "min": 3.02,
+          "max": 3.11
+        },
+        "peak_rss_kib": {
+          "median": 147632,
+          "min": 147368,
+          "max": 147728
+        },
+        "accepted_steps": {
+          "median": 10.0,
+          "min": 10.0,
+          "max": 10.0
+        },
+        "residual_evaluations_total": {
+          "median": 49.0,
+          "min": 49.0,
+          "max": 49.0
+        },
+        "jacobian_evaluations_total": {
+          "median": 39.0,
+          "min": 39.0,
+          "max": 39.0
+        },
+        "petsc_workspace_setups": {
+          "median": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "aggregate_timing.setup_seconds": {
+          "median": 0.008155291,
+          "min": 0.008016436,
+          "max": 0.008378389
+        },
+        "aggregate_timing.nonlinear_solve_seconds": {
+          "median": 1.239846028,
+          "min": 1.207157655,
+          "max": 1.255591211
+        },
+        "aggregate_timing.residual_callback_seconds": {
+          "median": 0.202168358,
+          "min": 0.199142241,
+          "max": 0.203753206
+        },
+        "aggregate_timing.jacobian_callback_seconds": {
+          "median": 0.955736669,
+          "min": 0.930551349,
+          "max": 0.975025506
+        },
+        "total_seconds": {
+          "median": 2.34226757,
+          "min": 2.301780094,
+          "max": 2.379810156
+        }
+      }
+    },
+    "transient_b73_rz_finite_creep": {
+      "baseline": {
+        "wall_seconds": {
+          "median": 0.6,
+          "min": 0.58,
+          "max": 0.62
+        },
+        "peak_rss_kib": {
+          "median": 99456,
+          "min": 99456,
+          "max": 99636
+        },
+        "accepted_steps": {
+          "median": 5.0,
+          "min": 5.0,
+          "max": 5.0
+        },
+        "residual_evaluations_total": {
+          "median": 20.0,
+          "min": 20.0,
+          "max": 20.0
+        },
+        "jacobian_evaluations_total": {
+          "median": 12.0,
+          "min": 12.0,
+          "max": 12.0
+        },
+        "petsc_workspace_setups": {
+          "median": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "aggregate_timing.setup_seconds": {
+          "median": 0.001580908,
+          "min": 0.001511048,
+          "max": 0.001688734
+        },
+        "aggregate_timing.nonlinear_solve_seconds": {
+          "median": 0.004340162,
+          "min": 0.004156184,
+          "max": 0.004956495
+        },
+        "aggregate_timing.residual_callback_seconds": {
+          "median": 0.000743213,
+          "min": 0.000637484,
+          "max": 0.000772473
+        },
+        "aggregate_timing.jacobian_callback_seconds": {
+          "median": 0.001028464,
+          "min": 0.000984333,
+          "max": 0.001046416
+        },
+        "total_seconds": {
+          "median": 0.063679238,
+          "min": 0.062378899,
+          "max": 0.065669996
+        }
+      },
+      "hardened": {
+        "wall_seconds": {
+          "median": 0.61,
+          "min": 0.59,
+          "max": 0.64
+        },
+        "peak_rss_kib": {
+          "median": 99556,
+          "min": 99456,
+          "max": 99648
+        },
+        "accepted_steps": {
+          "median": 5.0,
+          "min": 5.0,
+          "max": 5.0
+        },
+        "residual_evaluations_total": {
+          "median": 20.0,
+          "min": 20.0,
+          "max": 20.0
+        },
+        "jacobian_evaluations_total": {
+          "median": 12.0,
+          "min": 12.0,
+          "max": 12.0
+        },
+        "petsc_workspace_setups": {
+          "median": 1.0,
+          "min": 1.0,
+          "max": 1.0
+        },
+        "aggregate_timing.setup_seconds": {
+          "median": 0.00160994,
+          "min": 0.001537683,
+          "max": 0.001663995
+        },
+        "aggregate_timing.nonlinear_solve_seconds": {
+          "median": 0.004510982,
+          "min": 0.004241084,
+          "max": 0.005908648
+        },
+        "aggregate_timing.residual_callback_seconds": {
+          "median": 0.000776248,
+          "min": 0.0006994,
+          "max": 0.000849612
+        },
+        "aggregate_timing.jacobian_callback_seconds": {
+          "median": 0.001082691,
+          "min": 0.001009001,
+          "max": 0.00187147
+        },
+        "total_seconds": {
+          "median": 0.06324046,
+          "min": 0.061855438,
+          "max": 0.070568125
+        }
+      }
+    }
+  },
+  "limitations": [
+    "No large-mesh or MPI throughput benchmark",
+    "No allocation instrumentation",
+    "No claim of general speedup"
+  ]
+}

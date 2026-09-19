@@ -1,0 +1,683 @@
+{
+  "schema_version": 1,
+  "test_date_utc": "2026-09-19",
+  "baseline_commit": "640644fca6ff7ae7d71cb30c2056433dd33259f2",
+  "tested_commit": "58c13eee45a83f206cc6c7484d38a53797414bbf",
+  "environment": {
+    "compiler": "conda-forge GCC 14.3.0-19",
+    "cxx_standard": 17,
+    "configuration": "Release",
+    "warnings_as_errors": true,
+    "release_ipo": true,
+    "petsc": "3.25.2",
+    "adlite": "0.2.3",
+    "exodus": "SEACAS v2024-06-27, serial I/O",
+    "platform": {
+      "system": "Linux",
+      "release": "6.6.87.2-microsoft-standard-WSL2",
+      "machine": "x86_64"
+    },
+    "build_parallel_jobs": 8,
+    "ctest_parallel_tests": 4
+  },
+  "input": "verification/section_modal/nonuniform_local_12.fsi",
+  "ranks": 2,
+  "runs_per_binary": 2,
+  "original_runs": "Full baseline and final CTest; one additional direct production run per executable.",
+  "acceptance_checker": "verification/section_modal/run.py: mpi_check",
+  "repeat_acceptance": {
+    "baseline": {
+      "passed": true,
+      "node_relative_l2": 3.74375262941e-16,
+      "point_relative_l2": 1.05870349513e-12
+    },
+    "hardened": {
+      "passed": true,
+      "node_relative_l2": 2.66280423045e-16,
+      "point_relative_l2": 1.76127891995e-12
+    }
+  },
+  "comparisons": {
+    "cross_binary": {
+      "fields": {
+        "id": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 124415.0,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "x": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 0.001,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "y": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 0.01,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "z": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 0.2,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "ux": {
+          "max_absolute_difference": 2.710505431213761e-20,
+          "reference_max_absolute": 4.247788578239301e-05,
+          "relative_l2": 3.123894293098769e-16,
+          "changed_values": 120085
+        },
+        "uy": {
+          "max_absolute_difference": 4.301339185275744e-23,
+          "reference_max_absolute": 1.4187785246277042e-08,
+          "relative_l2": 1.4537609494859467e-15,
+          "changed_values": 132302
+        },
+        "uz": {
+          "max_absolute_difference": 2.6469779601696886e-22,
+          "reference_max_absolute": 2.8313900810064724e-07,
+          "relative_l2": 3.6117722399284446e-16,
+          "changed_values": 122083
+        },
+        "weight": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 3.3371997915440213e-10,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "exx": {
+          "max_absolute_difference": 7.199780051661553e-21,
+          "reference_max_absolute": 1.7891437163198222e-06,
+          "relative_l2": 1.4975209611439737e-15,
+          "changed_values": 119281
+        },
+        "eyy": {
+          "max_absolute_difference": 7.237830359838992e-21,
+          "reference_max_absolute": 1.1358631376529817e-06,
+          "relative_l2": 2.1700617353869742e-15,
+          "changed_values": 118892
+        },
+        "ezz": {
+          "max_absolute_difference": 3.507647238315867e-19,
+          "reference_max_absolute": 4.489723760956219e-06,
+          "relative_l2": 1.7070993983080503e-14,
+          "changed_values": 121802
+        },
+        "exy": {
+          "max_absolute_difference": 8.096831576581169e-21,
+          "reference_max_absolute": 2.666623196260169e-07,
+          "relative_l2": 2.1303339525233622e-14,
+          "changed_values": 119234
+        },
+        "eyz": {
+          "max_absolute_difference": 4.645942628465335e-20,
+          "reference_max_absolute": 1.4084136608888731e-06,
+          "relative_l2": 1.3349097837983641e-14,
+          "changed_values": 123223
+        },
+        "exz": {
+          "max_absolute_difference": 2.389694411457701e-17,
+          "reference_max_absolute": 2.143963010358697e-06,
+          "relative_l2": 2.5564348643063226e-11,
+          "changed_values": 124308
+        },
+        "sxx": {
+          "max_absolute_difference": 1.4152533367450815e-08,
+          "reference_max_absolute": 159401.20261276915,
+          "relative_l2": 1.6990142629364227e-13,
+          "changed_values": 123292
+        },
+        "syy": {
+          "max_absolute_difference": 1.4184365682012867e-08,
+          "reference_max_absolute": 171398.20397030137,
+          "relative_l2": 4.971058300826803e-14,
+          "changed_values": 123182
+        },
+        "szz": {
+          "max_absolute_difference": 3.3047889758108795e-08,
+          "reference_max_absolute": 411995.99412762956,
+          "relative_l2": 2.1932732772668356e-14,
+          "changed_values": 121939
+        },
+        "sxy": {
+          "max_absolute_difference": 4.3598280541345957e-10,
+          "reference_max_absolute": 14358.740287554756,
+          "relative_l2": 2.130330861975494e-14,
+          "changed_values": 117960
+        },
+        "syz": {
+          "max_absolute_difference": 2.501565177226439e-09,
+          "reference_max_absolute": 75837.65866324701,
+          "relative_l2": 1.3348970594305479e-14,
+          "changed_values": 122970
+        },
+        "sxz": {
+          "max_absolute_difference": 1.2867585290621264e-06,
+          "reference_max_absolute": 115444.16209623753,
+          "relative_l2": 2.5564348643362035e-11,
+          "changed_values": 124285
+        },
+        "axial_force": {
+          "max_absolute_difference": 1.519617764955683e-15,
+          "reference_max_absolute": 6.330494094118622e-06,
+          "relative_l2": 3.3815670648176126e-10,
+          "changed_values": 429
+        },
+        "moment_x": {
+          "max_absolute_difference": 6.478107980600889e-18,
+          "reference_max_absolute": 2.6744792150273762e-08,
+          "relative_l2": 3.26737357238229e-10,
+          "changed_values": 432
+        },
+        "moment_y": {
+          "max_absolute_difference": 4.643109038558974e-16,
+          "reference_max_absolute": 0.0040005343602688625,
+          "relative_l2": 2.199648980008401e-14,
+          "changed_values": 423
+        },
+        "torque": {
+          "max_absolute_difference": 4.696556685181822e-16,
+          "reference_max_absolute": 0.00019999826697599468,
+          "relative_l2": 6.815721611543281e-13,
+          "changed_values": 432
+        },
+        "energy_per_length": {
+          "max_absolute_difference": 3.8963515573697816e-20,
+          "reference_max_absolute": 8.230343524059351e-06,
+          "relative_l2": 2.4068464568710395e-15,
+          "changed_values": 422
+        },
+        "mode": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 287.0,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "q": {
+          "max_absolute_difference": 1.0842021724855044e-19,
+          "reference_max_absolute": 0.00028307820615833983,
+          "relative_l2": 3.4234359779935856e-16,
+          "changed_values": 11050
+        },
+        "q_z": {
+          "max_absolute_difference": 8.023096076392733e-18,
+          "reference_max_absolute": 0.003930821366258164,
+          "relative_l2": 1.1356813413382559e-15,
+          "changed_values": 11067
+        },
+        "q_zz": {
+          "max_absolute_difference": 1.7462680607094327e-13,
+          "reference_max_absolute": 6.564229402208241,
+          "relative_l2": 5.239727638641163e-14,
+          "changed_values": 11098
+        }
+      },
+      "summary_differences": {
+        "algebraic_relative_residual": {
+          "reference": 1.0981221918341551e-08,
+          "compared": 1.0902753958607948e-08,
+          "absolute_difference": 7.846795973360323e-11
+        },
+        "strain_energy": {
+          "reference": 3.3871845118595655e-07,
+          "compared": 3.387184511859568e-07,
+          "absolute_difference": 2.6469779601696886e-22
+        },
+        "equilibrium_relative_residual": {
+          "reference": 3.4980681323137154e-09,
+          "compared": 2.384981375727933e-09,
+          "absolute_difference": 1.1130867565857822e-09
+        },
+        "constraint_maximum_error": {
+          "reference": 3.4535541569670676e-26,
+          "compared": 2.3344760768205402e-26,
+          "absolute_difference": 1.1190780801465273e-26
+        },
+        "external_work": {
+          "reference": 6.774369023719138e-07,
+          "compared": 6.77436902371914e-07,
+          "absolute_difference": 1.0587911840678754e-22
+        },
+        "selected_refinement_iteration": {
+          "reference": 1.0,
+          "compared": 3.0,
+          "absolute_difference": 2.0
+        },
+        "last_refinement_relative_residual": {
+          "reference": 4.191211512832088e-09,
+          "compared": 5.9510364227547186e-09,
+          "absolute_difference": 1.7598249099226305e-09
+        }
+      }
+    },
+    "baseline_repeat": {
+      "fields": {
+        "id": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 124415.0,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "x": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 0.001,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "y": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 0.01,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "z": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 0.2,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "ux": {
+          "max_absolute_difference": 2.0328790734103208e-20,
+          "reference_max_absolute": 4.247788578239301e-05,
+          "relative_l2": 1.3950136636100656e-16,
+          "changed_values": 94319
+        },
+        "uy": {
+          "max_absolute_difference": 4.632211430296955e-23,
+          "reference_max_absolute": 1.4187785246277042e-08,
+          "relative_l2": 1.5505980927260705e-15,
+          "changed_values": 130074
+        },
+        "uz": {
+          "max_absolute_difference": 2.117582368135751e-22,
+          "reference_max_absolute": 2.8313900810064724e-07,
+          "relative_l2": 1.744880726627254e-16,
+          "changed_values": 93388
+        },
+        "weight": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 3.3371997915440213e-10,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "exx": {
+          "max_absolute_difference": 7.358598729271734e-21,
+          "reference_max_absolute": 1.7891437163198222e-06,
+          "relative_l2": 1.5449524578898213e-15,
+          "changed_values": 117004
+        },
+        "eyy": {
+          "max_absolute_difference": 7.18819952308581e-21,
+          "reference_max_absolute": 1.1358631376529817e-06,
+          "relative_l2": 2.0518204290888978e-15,
+          "changed_values": 116609
+        },
+        "ezz": {
+          "max_absolute_difference": 6.743760032852014e-19,
+          "reference_max_absolute": 4.489723760956219e-06,
+          "relative_l2": 2.7857227221973596e-14,
+          "changed_values": 121522
+        },
+        "exy": {
+          "max_absolute_difference": 7.025606833930856e-21,
+          "reference_max_absolute": 2.666623196260169e-07,
+          "relative_l2": 2.0522131672627926e-14,
+          "changed_values": 113966
+        },
+        "eyz": {
+          "max_absolute_difference": 3.3696029432960135e-20,
+          "reference_max_absolute": 1.4084136608888731e-06,
+          "relative_l2": 1.2605818013814969e-14,
+          "changed_values": 123237
+        },
+        "exz": {
+          "max_absolute_difference": 2.3803337134979764e-17,
+          "reference_max_absolute": 2.143963010358697e-06,
+          "relative_l2": 2.512571884162066e-11,
+          "changed_values": 124336
+        },
+        "sxx": {
+          "max_absolute_difference": 2.7227358145864855e-08,
+          "reference_max_absolute": 159401.20261276915,
+          "relative_l2": 2.7717986259386017e-13,
+          "changed_values": 123091
+        },
+        "syy": {
+          "max_absolute_difference": 2.7241687128309877e-08,
+          "reference_max_absolute": 171398.20397030137,
+          "relative_l2": 8.111386679652287e-14,
+          "changed_values": 123023
+        },
+        "szz": {
+          "max_absolute_difference": 6.353869963504621e-08,
+          "reference_max_absolute": 411995.99412762956,
+          "relative_l2": 3.5799371555730024e-14,
+          "changed_values": 121591
+        },
+        "sxy": {
+          "max_absolute_difference": 3.7830183430287434e-10,
+          "reference_max_absolute": 14358.740287554756,
+          "relative_l2": 2.0522321399986816e-14,
+          "changed_values": 112102
+        },
+        "syz": {
+          "max_absolute_difference": 1.8144419300369918e-09,
+          "reference_max_absolute": 75837.65866324701,
+          "relative_l2": 1.2606009577299414e-14,
+          "changed_values": 122980
+        },
+        "sxz": {
+          "max_absolute_difference": 1.2817181536117772e-06,
+          "reference_max_absolute": 115444.16209623753,
+          "relative_l2": 2.5125718839620754e-11,
+          "changed_values": 124309
+        },
+        "axial_force": {
+          "max_absolute_difference": 1.3634926521177704e-15,
+          "reference_max_absolute": 6.330494094118622e-06,
+          "relative_l2": 3.3537728206187637e-10,
+          "changed_values": 431
+        },
+        "moment_x": {
+          "max_absolute_difference": 7.318364664277155e-18,
+          "reference_max_absolute": 2.6744792150273762e-08,
+          "relative_l2": 3.7494915577995966e-10,
+          "changed_values": 430
+        },
+        "moment_y": {
+          "max_absolute_difference": 8.940931581265734e-16,
+          "reference_max_absolute": 0.0040005343602688625,
+          "relative_l2": 3.5937309121483205e-14,
+          "changed_values": 422
+        },
+        "torque": {
+          "max_absolute_difference": 4.725361761088879e-16,
+          "reference_max_absolute": 0.00019999826697599468,
+          "relative_l2": 6.770562890422713e-13,
+          "changed_values": 432
+        },
+        "energy_per_length": {
+          "max_absolute_difference": 6.776263578034403e-20,
+          "reference_max_absolute": 8.230343524059351e-06,
+          "relative_l2": 2.9302270804700404e-15,
+          "changed_values": 429
+        },
+        "mode": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 287.0,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "q": {
+          "max_absolute_difference": 5.421010862427522e-20,
+          "reference_max_absolute": 0.00028307820615833983,
+          "relative_l2": 1.0976468648647725e-16,
+          "changed_values": 11000
+        },
+        "q_z": {
+          "max_absolute_difference": 1.1329912702473521e-17,
+          "reference_max_absolute": 0.003930821366258164,
+          "relative_l2": 1.344437965285843e-15,
+          "changed_values": 11062
+        },
+        "q_zz": {
+          "max_absolute_difference": 1.8787749134219212e-13,
+          "reference_max_absolute": 6.564229402208241,
+          "relative_l2": 5.940368480612648e-14,
+          "changed_values": 11099
+        }
+      },
+      "summary_differences": {
+        "algebraic_relative_residual": {
+          "reference": 1.0981221918341551e-08,
+          "compared": 1.1048660014563722e-08,
+          "absolute_difference": 6.743809622217075e-11
+        },
+        "strain_energy": {
+          "reference": 3.3871845118595655e-07,
+          "compared": 3.3871845118595645e-07,
+          "absolute_difference": 1.0587911840678754e-22
+        },
+        "equilibrium_relative_residual": {
+          "reference": 3.4980681323137154e-09,
+          "compared": 2.877926148497013e-09,
+          "absolute_difference": 6.201419838167024e-10
+        },
+        "constraint_maximum_error": {
+          "reference": 3.4535541569670676e-26,
+          "compared": 4.0858261725017085e-26,
+          "absolute_difference": 6.3227201553464096e-27
+        },
+        "selected_refinement_iteration": {
+          "reference": 1.0,
+          "compared": 3.0,
+          "absolute_difference": 2.0
+        },
+        "last_refinement_relative_residual": {
+          "reference": 4.191211512832088e-09,
+          "compared": 5.67716895222752e-09,
+          "absolute_difference": 1.4859574393954318e-09
+        }
+      }
+    },
+    "hardened_repeat": {
+      "fields": {
+        "id": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 124415.0,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "x": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 0.001,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "y": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 0.01,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "z": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 0.2,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "ux": {
+          "max_absolute_difference": 2.0328790734103208e-20,
+          "reference_max_absolute": 4.247788578239302e-05,
+          "relative_l2": 2.4557101184802025e-16,
+          "changed_values": 128470
+        },
+        "uy": {
+          "max_absolute_difference": 4.301339185275744e-23,
+          "reference_max_absolute": 1.4187785246277017e-08,
+          "relative_l2": 1.1622085590740842e-15,
+          "changed_values": 128285
+        },
+        "uz": {
+          "max_absolute_difference": 3.1763735522036263e-22,
+          "reference_max_absolute": 2.8313900810064735e-07,
+          "relative_l2": 2.9045032576807847e-16,
+          "changed_values": 115522
+        },
+        "weight": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 3.3371997915440213e-10,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "exx": {
+          "max_absolute_difference": 5.717472393966527e-21,
+          "reference_max_absolute": 1.7891437163198205e-06,
+          "relative_l2": 1.2731893669020987e-15,
+          "changed_values": 116088
+        },
+        "eyy": {
+          "max_absolute_difference": 9.343832199399e-21,
+          "reference_max_absolute": 1.135863137652981e-06,
+          "relative_l2": 1.7272432835469005e-15,
+          "changed_values": 116047
+        },
+        "ezz": {
+          "max_absolute_difference": 3.396426310297834e-19,
+          "reference_max_absolute": 4.489723760956213e-06,
+          "relative_l2": 2.1421726849138316e-14,
+          "changed_values": 121594
+        },
+        "exy": {
+          "max_absolute_difference": 7.786845642026922e-21,
+          "reference_max_absolute": 2.666623196260173e-07,
+          "relative_l2": 1.8043126992719846e-14,
+          "changed_values": 117886
+        },
+        "eyz": {
+          "max_absolute_difference": 3.7692966152816365e-20,
+          "reference_max_absolute": 1.4084136608888829e-06,
+          "relative_l2": 1.1325631281913242e-14,
+          "changed_values": 122486
+        },
+        "exz": {
+          "max_absolute_difference": 2.385831845058475e-17,
+          "reference_max_absolute": 2.1439630103587142e-06,
+          "relative_l2": 3.227779076487925e-11,
+          "changed_values": 124268
+        },
+        "sxx": {
+          "max_absolute_difference": 1.3720807601202978e-08,
+          "reference_max_absolute": 159401.20261276898,
+          "relative_l2": 2.1311995234527244e-13,
+          "changed_values": 123034
+        },
+        "syy": {
+          "max_absolute_difference": 1.3869843940028659e-08,
+          "reference_max_absolute": 171398.20397030123,
+          "relative_l2": 6.236924226059183e-14,
+          "changed_values": 123035
+        },
+        "szz": {
+          "max_absolute_difference": 3.202224263532116e-08,
+          "reference_max_absolute": 411995.9941276292,
+          "relative_l2": 2.752744453130517e-14,
+          "changed_values": 121954
+        },
+        "sxy": {
+          "max_absolute_difference": 4.192912683720351e-10,
+          "reference_max_absolute": 14358.740287554778,
+          "relative_l2": 1.8043122801524373e-14,
+          "changed_values": 116360
+        },
+        "syz": {
+          "max_absolute_difference": 2.029992174357176e-09,
+          "reference_max_absolute": 75837.65866324754,
+          "relative_l2": 1.1326318292643731e-14,
+          "changed_values": 122060
+        },
+        "sxz": {
+          "max_absolute_difference": 1.2846786869857851e-06,
+          "reference_max_absolute": 115444.16209623846,
+          "relative_l2": 3.227779076510656e-11,
+          "changed_values": 124237
+        },
+        "axial_force": {
+          "max_absolute_difference": 1.7277845820728999e-15,
+          "reference_max_absolute": 6.330494094236583e-06,
+          "relative_l2": 3.5005218582148905e-10,
+          "changed_values": 428
+        },
+        "moment_x": {
+          "max_absolute_difference": 7.15573433840433e-18,
+          "reference_max_absolute": 2.6744792150247504e-08,
+          "relative_l2": 3.2123664216816477e-10,
+          "changed_values": 430
+        },
+        "moment_y": {
+          "max_absolute_difference": 4.471144277258508e-16,
+          "reference_max_absolute": 0.004000534360268858,
+          "relative_l2": 2.7630148649366063e-14,
+          "changed_values": 423
+        },
+        "torque": {
+          "max_absolute_difference": 8.5201233631385315e-16,
+          "reference_max_absolute": 0.00019999826697599237,
+          "relative_l2": 7.519474503914765e-13,
+          "changed_values": 432
+        },
+        "energy_per_length": {
+          "max_absolute_difference": 4.341043854678289e-20,
+          "reference_max_absolute": 8.230343524059343e-06,
+          "relative_l2": 2.823045998624179e-15,
+          "changed_values": 428
+        },
+        "mode": {
+          "max_absolute_difference": 0.0,
+          "reference_max_absolute": 287.0,
+          "relative_l2": 0.0,
+          "changed_values": 0
+        },
+        "q": {
+          "max_absolute_difference": 1.0842021724855044e-19,
+          "reference_max_absolute": 0.00028307820615833994,
+          "relative_l2": 2.5581496654038404e-16,
+          "changed_values": 11010
+        },
+        "q_z": {
+          "max_absolute_difference": 6.938893903907228e-18,
+          "reference_max_absolute": 0.003930821366258159,
+          "relative_l2": 1.081892321305519e-15,
+          "changed_values": 11056
+        },
+        "q_zz": {
+          "max_absolute_difference": 1.8385293287792592e-13,
+          "reference_max_absolute": 6.564229402208268,
+          "relative_l2": 4.2251403208825545e-14,
+          "changed_values": 11099
+        }
+      },
+      "summary_differences": {
+        "algebraic_relative_residual": {
+          "reference": 1.0902753958607948e-08,
+          "compared": 1.0945162938596814e-08,
+          "absolute_difference": 4.2408979988865805e-11
+        },
+        "strain_energy": {
+          "reference": 3.387184511859568e-07,
+          "compared": 3.3871845118595655e-07,
+          "absolute_difference": 2.6469779601696886e-22
+        },
+        "equilibrium_relative_residual": {
+          "reference": 2.384981375727933e-09,
+          "compared": 3.6210577795182342e-09,
+          "absolute_difference": 1.236076403790301e-09
+        },
+        "constraint_maximum_error": {
+          "reference": 2.3344760768205402e-26,
+          "compared": 1.9602207418610617e-26,
+          "absolute_difference": 3.742553349594785e-27
+        },
+        "external_work": {
+          "reference": 6.77436902371914e-07,
+          "compared": 6.774369023719138e-07,
+          "absolute_difference": 1.0587911840678754e-22
+        },
+        "selected_refinement_iteration": {
+          "reference": 3.0,
+          "compared": 4.0,
+          "absolute_difference": 1.0
+        },
+        "last_refinement_relative_residual": {
+          "reference": 5.9510364227547186e-09,
+          "compared": 3.869442046216754e-09,
+          "absolute_difference": 2.0815943765379647e-09
+        }
+      }
+    }
+  },
+  "interpretation": "Same-executable repeats reproduce comparable variation, including selected iterative-refinement indices. This modal steady solver does not use the transient backend commit or time-error paths. Exact CSV equality is not claimed, and no specific MPI or MUMPS internal operation is identified as the cause."
+}

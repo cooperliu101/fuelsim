@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "test_date_utc": "2026-09-19",
+  "baseline_commit": "640644fca6ff7ae7d71cb30c2056433dd33259f2",
+  "tested_commit": "58c13eee45a83f206cc6c7484d38a53797414bbf",
+  "environment": {
+    "compiler": "conda-forge GCC 14.3.0-19",
+    "cxx_standard": 17,
+    "configuration": "Release",
+    "warnings_as_errors": true,
+    "release_ipo": true,
+    "petsc": "3.25.2",
+    "adlite": "0.2.3",
+    "exodus": "SEACAS v2024-06-27, serial I/O",
+    "platform": {
+      "system": "Linux",
+      "release": "6.6.87.2-microsoft-standard-WSL2",
+      "machine": "x86_64"
+    },
+    "build_parallel_jobs": 8,
+    "ctest_parallel_tests": 4
+  },
+  "checkpoint_version": 22,
+  "format_changed": false,
+  "reference_regeneration": false,
+  "script": "verification/internal/check_checkpoint_compatibility.py",
+  "writer_reader_pairs": [
+    "old-old",
+    "old-new",
+    "new-old",
+    "new-new"
+  ],
+  "production_runs": 56,
+  "comparisons": [
+    {
+      "case": "thermal",
+      "runs": 8,
+      "compared_numeric_values": 1707192,
+      "differences": []
+    },
+    {
+      "case": "radial",
+      "runs": 8,
+      "compared_numeric_values": 24096,
+      "differences": []
+    },
+    {
+      "case": "rz4",
+      "runs": 8,
+      "compared_numeric_values": 1354000,
+      "differences": []
+    },
+    {
+      "case": "rz8",
+      "runs": 8,
+      "compared_numeric_values": 9344,
+      "differences": []
+    },
+    {
+      "case": "plane",
+      "runs": 8,
+      "compared_numeric_values": 45576,
+      "differences": []
+    },
+    {
+      "case": "hex8",
+      "runs": 8,
+      "compared_numeric_values": 20976,
+      "differences": []
+    },
+    {
+      "case": "hex20",
+      "runs": 8,
+      "compared_numeric_values": 29024,
+      "differences": []
+    }
+  ],
+  "compared_fields": [
+    "all numeric Exodus variables including NaN locations",
+    "checkpoint bytes",
+    "engineering history bytes"
+  ],
+  "count_note": "Numeric comparison counts include the old-old self-reference pairing.",
+  "full_vs_restart": "Existing production restart comparisons passed at unchanged gates in full CTest.",
+  "restart_tests": [
+    "fuelsim_cpeg8t_restart",
+    "fuelsim_cpeg8t_contact_restart",
+    "fuelsim_gps_contact_restart",
+    "fuelsim_m52_large_sliding_restart_tests",
+    "fuelsim_m52_restart_step_contract",
+    "fuelsim_b40_production_restart",
+    "fuelsim_cpeg8t_restart_mpi4",
+    "fuelsim_cpeg8t_contact_restart_mpi4",
+    "fuelsim_production_hex20_restart",
+    "fuelsim_b105_cax8t_finite_coupled_restart_tests",
+    "fuelsim_b125_cax8rt_finite_coupled_restart_tests",
+    "fuelsim_b1213_cax8rt_finite_sliding_restart_tests",
+    "fuelsim_thermal_study_restart"
+  ]
+}
