@@ -403,9 +403,10 @@ InterfaceSummary SpatialAssembly::summarize_interface(std::size_t contact, const
     return summary;
 }
 
-void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
+void SpatialAssembly::prepare_contact_state(const std::vector<double>& state,
+    std::vector<std::vector<ContactPointHistory>>& staged) {
     validate_state(state);
-    auto staged = _contact_histories;
+    staged = _contact_histories;
     for (std::size_t c = 0; c < _definition.contacts.size(); ++c) {
         if (!_definition.contacts[c].mechanical)
             continue;
@@ -416,8 +417,13 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
             staged[c][n].sliding = rows[n].sliding;
         }
     }
-    _contact_histories.swap(staged);
-    _committed_contact_solution = state;
+}
+
+void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
+    std::vector<std::vector<ContactPointHistory>> staged;
+    auto solution = state;
+    prepare_contact_state(state, staged);
+    publish_contact_state(solution, staged);
 }
 
 void SpatialAssembly::restore_contact_state(const std::vector<double>& state,

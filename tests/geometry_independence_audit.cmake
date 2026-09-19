@@ -121,4 +121,35 @@ if(NOT obsolete_kernel EQUAL -1)
     message(FATAL_ERROR "The obsolete separate HEX8 transient kernel was reintroduced")
 endif()
 
-message(STATUS "Geometry-independent solver and problem-port source audit passed")
+file(READ "${ROOT}/src/core/spatial_backend.hpp" spatial_backend)
+foreach(required "class SpatialBackend" "required_state_dofs" "contribution_metadata_is_fixed"
+                 "sparsity_contribution_jacobian_pattern" "prepare_time_step" "publish_material_history")
+    string(FIND "${spatial_backend}" "${required}" location)
+    if(location EQUAL -1)
+        message(FATAL_ERROR "The private spatial backend protocol is missing: ${required}")
+    endif()
+endforeach()
+foreach(forbidden "Quad4MaterialHistory" "Quad8MaterialHistory" "CartesianMaterialHistory"
+                  "Cax2tGpsMaterialHistory" "thermal_assembly.hpp" "cartesian3d_assembly.hpp"
+                  "petsc" "template<" "template <")
+    string(FIND "${spatial_backend}" "${forbidden}" location)
+    if(NOT location EQUAL -1)
+        message(FATAL_ERROR "The backend interface acquired a concrete runtime dependency: ${forbidden}")
+    endif()
+endforeach()
+
+file(READ "${ROOT}/src/core/spatial_problem.cpp" spatial_problem)
+string(FIND "${spatial_problem}" "std::unique_ptr<SpatialBackend> _backend" location)
+if(location EQUAL -1)
+    message(FATAL_ERROR "SpatialProblemStorage must own a single private backend")
+endif()
+foreach(forbidden "std::unique_ptr<thermal::SpatialAssembly>" "std::unique_ptr<rz::SpatialAssembly>"
+                  "std::unique_ptr<cartesian::SpatialAssembly>" "evaluate_cax4(" "compute_cax8("
+                  "elements::evaluate_cpeg8t(" "transient_update(" "body_point_work(")
+    string(FIND "${spatial_problem}" "${forbidden}" location)
+    if(NOT location EQUAL -1)
+        message(FATAL_ERROR "The public problem lifecycle reacquired backend implementation: ${forbidden}")
+    endif()
+endforeach()
+
+message(STATUS "Geometry-independent solver, problem port and spatial backend source audit passed")

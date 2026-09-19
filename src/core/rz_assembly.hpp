@@ -34,6 +34,15 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     }
 
     void commit_contact_state(const std::vector<double>& state);
+    void prepare_contact_state(const std::vector<double>& state,
+        std::vector<std::vector<ContactPointHistory>>& histories);
+
+    void publish_contact_state(std::vector<double>& solution,
+        std::vector<std::vector<ContactPointHistory>>& histories) noexcept {
+        _contact_histories.swap(histories);
+        _committed_contact_solution.swap(solution);
+    }
+
     bool uses_augmented_contact() const noexcept;
     AugmentedContactUpdate update_augmented_contact_multipliers(const std::vector<double>& state,
         std::size_t completed_updates);

@@ -110,6 +110,15 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     }
 
     double commit_contact_state(const std::vector<double>& state);
+    double prepare_contact_state(const std::vector<double>& state,
+        std::vector<std::vector<ContactPointHistory>>& histories);
+
+    void publish_contact_state(std::vector<double>& solution,
+        std::vector<std::vector<ContactPointHistory>>& histories) noexcept {
+        _contact_histories.swap(histories);
+        _committed_contact_solution.swap(solution);
+    }
+
     void restore_contact_state(const std::vector<double>& state,
         std::vector<std::vector<ContactPointHistory>> histories);
 

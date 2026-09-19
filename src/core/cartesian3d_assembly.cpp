@@ -6627,7 +6627,8 @@ void SpatialAssembly::validate_local_state(std::size_t first,
     }
 }
 
-double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
+double SpatialAssembly::prepare_contact_state(const std::vector<double>& state,
+    std::vector<std::vector<ContactPointHistory>>& staged) {
     if (state.size() != dof_count())
         throw std::invalid_argument("Three-dimensional committed contact state size mismatch");
     const bool validated_state_matches =
@@ -6640,7 +6641,7 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
         _fully_validated_contact_state = state;
         _fully_validated_contact_state_current = true;
     }
-    std::vector<std::vector<ContactPointHistory>> staged = _contact_histories;
+    staged = _contact_histories;
     double friction_dissipation = 0.0;
     std::vector<std::vector<bool>> updated(_definition.contacts.size());
     for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact)
@@ -6779,9 +6780,15 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
                     : (_uses_hex20 ? "Cannot commit HEX20 friction history for an unprojected node"
                                    : "Cannot commit three-dimensional friction history for an unprojected node"));
     }
-    _contact_histories.swap(staged);
-    _committed_contact_solution = state;
     return friction_dissipation;
+}
+
+double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
+    std::vector<std::vector<ContactPointHistory>> staged;
+    auto solution = state;
+    const double dissipation = prepare_contact_state(state, staged);
+    publish_contact_state(solution, staged);
+    return dissipation;
 }
 
 void SpatialAssembly::restore_contact_state(const std::vector<double>& state,

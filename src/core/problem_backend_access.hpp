@@ -46,32 +46,32 @@ struct TransientBackendView final {
 
 class BackendAccess final {
   public:
-    static bool uses_thermal(const SteadyProblem& problem) noexcept;
-    static bool uses_thermal(const TransientProblem& problem) noexcept;
-    static const thermal::SpatialAssembly& thermal_spatial(const SteadyProblem& problem) noexcept;
-    static const thermal::SpatialAssembly& thermal_spatial(const TransientProblem& problem) noexcept;
-    static const plane::SpatialAssembly& plane_spatial(const SteadyProblem& problem) noexcept;
-    static const plane::SpatialAssembly& plane_spatial(const TransientProblem& problem) noexcept;
-    static bool uses_radial_gps(const SteadyProblem& problem) noexcept;
-    static bool uses_radial_gps(const TransientProblem& problem) noexcept;
-    static const radial::SpatialAssembly& radial_spatial(const SteadyProblem& problem) noexcept;
-    static const radial::SpatialAssembly& radial_spatial(const TransientProblem& problem) noexcept;
+    static bool uses_thermal(const SteadyProblem& problem);
+    static bool uses_thermal(const TransientProblem& problem);
+    static const thermal::SpatialAssembly& thermal_spatial(const SteadyProblem& problem);
+    static const thermal::SpatialAssembly& thermal_spatial(const TransientProblem& problem);
+    static const plane::SpatialAssembly& plane_spatial(const SteadyProblem& problem);
+    static const plane::SpatialAssembly& plane_spatial(const TransientProblem& problem);
+    static bool uses_radial_gps(const SteadyProblem& problem);
+    static bool uses_radial_gps(const TransientProblem& problem);
+    static const radial::SpatialAssembly& radial_spatial(const SteadyProblem& problem);
+    static const radial::SpatialAssembly& radial_spatial(const TransientProblem& problem);
     static const std::vector<std::vector<Cax2tGpsMaterialHistory>>& radial_material_histories(
-        const TransientProblem& problem) noexcept;
-    static const rz8::SpatialAssembly& quad8_spatial(const SteadyProblem& problem) noexcept;
-    static const rz8::SpatialAssembly& quad8_spatial(const TransientProblem& problem) noexcept;
-    static bool uses_quad8(const SteadyProblem& problem) noexcept;
-    static const std::vector<AxisymmetricRegionData>& quad8_kernel_data(const SteadyProblem& problem) noexcept;
+        const TransientProblem& problem);
+    static const rz8::SpatialAssembly& quad8_spatial(const SteadyProblem& problem);
+    static const rz8::SpatialAssembly& quad8_spatial(const TransientProblem& problem);
+    static bool uses_quad8(const SteadyProblem& problem);
+    static const std::vector<AxisymmetricRegionData>& quad8_kernel_data(const SteadyProblem& problem);
     static const std::vector<std::vector<Quad8MaterialHistory>>& quad8_material_histories(
-        const TransientProblem& problem) noexcept;
-    static rz::SteadyBackendView steady(const SteadyProblem& problem) noexcept;
-    static rz::TransientBackendView transient(const TransientProblem& problem) noexcept;
-    static const cartesian::SpatialAssembly& cartesian_spatial(const SteadyProblem& problem) noexcept;
-    static const cartesian::SpatialAssembly& cartesian_spatial(const TransientProblem& problem) noexcept;
+        const TransientProblem& problem);
+    static rz::SteadyBackendView steady(const SteadyProblem& problem);
+    static rz::TransientBackendView transient(const TransientProblem& problem);
+    static const cartesian::SpatialAssembly& cartesian_spatial(const SteadyProblem& problem);
+    static const cartesian::SpatialAssembly& cartesian_spatial(const TransientProblem& problem);
     static const std::vector<std::vector<CartesianMaterialHistory>>& cartesian_material_histories(
-        const TransientProblem& problem) noexcept;
+        const TransientProblem& problem);
     static TransientCommittedState committed_state(const TransientProblem& problem);
-    static const std::vector<double>& committed_raw_residual(const TransientProblem& problem) noexcept;
+    static const std::vector<double>& committed_raw_residual(const TransientProblem& problem);
     static void restore_committed_state(TransientProblem& problem, TransientCommittedState state);
 };
 } // namespace fuelsim

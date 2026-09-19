@@ -763,11 +763,12 @@ AugmentedContactUpdate SpatialAssembly::update_augmented_contact_multipliers(con
     return result;
 }
 
-void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
+void SpatialAssembly::prepare_contact_state(const std::vector<double>& state,
+    std::vector<std::vector<ContactPointHistory>>& staged) {
     check_state_size(state.size(), dof_count(), "SpatialAssembly committed contact state size mismatch");
     update_contact_search_trees(state);
     update_mechanical_candidates(0, contribution_count(), state);
-    std::vector<std::vector<ContactPointHistory>> staged = _contact_histories;
+    staged = _contact_histories;
     std::vector<std::vector<bool>> updated(_definition.contacts.size());
     for (std::size_t contact_value = 0; contact_value < _definition.contacts.size(); ++contact_value)
         updated[contact_value].resize(_contact_histories[contact_value].size(), false);
@@ -811,8 +812,13 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
             != updated[contact_value].end())
             throw std::domain_error("Cannot commit friction history for an unprojected contact node");
     }
-    _contact_histories.swap(staged);
-    _committed_contact_solution = state;
+}
+
+void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
+    std::vector<std::vector<ContactPointHistory>> staged;
+    auto solution = state;
+    prepare_contact_state(state, staged);
+    publish_contact_state(solution, staged);
 }
 
 void SpatialAssembly::restore_contact_state(const std::vector<double>& state,

@@ -379,7 +379,8 @@ Abaqus 2025 原生热容探测仅作为独立比较证据，不改变上述质�
 
 开发使用原 `moose` Conda PETSc，并直接链接独立的串行 Exodus I/O
 库。PETSc 不需要启用 Exodus；不得使用 DMPlex 或 PETSc Exodus viewer。
-所有并行编译命令最多使用 4 个作业；不得使用没有显式作业数的 `--parallel`，
+所有并行编译命令显式使用 `--parallel 8`，最多使用 8 个作业；不得使用全部核心
+或没有显式作业数的 `--parallel`，
 以免 Release 链接时优化同时启动过多链接进程并耗尽 WSL 内存。
 所有 CTest 运行统一使用最多 4 个并发测试，不得使用串行完整回归；命令中必须
 显式指定 `-j4` 或更小的并发数。用户要求后续测试使用 4 核预算；
@@ -399,7 +400,7 @@ env \
   -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-0.2.3" \
   -DSEACASExodus_DIR="${fuelsim_dependency_root}/exodus-2024-06-27/lib/cmake/SEACASExodus" \
   -DFUELSIM_WARNINGS_AS_ERRORS=ON
-cmake --build build --parallel 4
+cmake --build build --parallel 8
 
 # 统一回归：所有已注册测试都属于同一个轻量测试套件
 ctest --test-dir build -j4 --output-on-failure

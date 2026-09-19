@@ -669,10 +669,10 @@ void SpatialAssembly::compute_boundary(std::size_t index,
         *jacobian = std::move(result.jacobian);
 }
 
-double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
+double SpatialAssembly::prepare_contact_state(const std::vector<double>& state,
+    std::vector<std::vector<ContactPointHistory>>& histories) {
     validate_state(state);
-    auto histories = _contact_histories;
-    std::vector<double> solution = state;
+    histories = _contact_histories;
     double dissipation = 0.0;
     for (std::size_t c = 0; c < _contacts.size(); ++c) {
         const auto result = evaluate_global_contact(c, state);
@@ -683,8 +683,14 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
     }
     if (!std::isfinite(dissipation))
         throw std::domain_error("Radial contact friction dissipation must be finite");
-    _contact_histories.swap(histories);
-    _committed_contact_solution.swap(solution);
+    return dissipation;
+}
+
+double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
+    std::vector<std::vector<ContactPointHistory>> staged;
+    auto solution = state;
+    const double dissipation = prepare_contact_state(state, staged);
+    publish_contact_state(solution, staged);
     return dissipation;
 }
 

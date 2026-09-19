@@ -90,6 +90,13 @@ add_library(fuelsim_core
     src/core/mesh_quad8.cpp
     src/core/nonlinear_problem.cpp
     src/core/spatial_problem.cpp
+    src/core/spatial_backend.cpp
+    src/core/thermal_backend.cpp
+    src/core/radial_backend.cpp
+    src/core/rz4_backend.cpp
+    src/core/rz8_backend.cpp
+    src/core/plane_backend.cpp
+    src/core/cartesian_backend.cpp
 )
 add_library(fuelsim::core ALIAS fuelsim_core)
 
@@ -161,6 +168,28 @@ fuelsim_enable_warnings(fuelsim)
 include(CTest)
 
 if(BUILD_TESTING)
+    add_executable(fuelsim_spatial_backend_contract_tests tests/spatial_backend_contract_tests.cpp)
+    target_link_libraries(fuelsim_spatial_backend_contract_tests PRIVATE fuelsim::io)
+    target_include_directories(fuelsim_spatial_backend_contract_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    fuelsim_enable_warnings(fuelsim_spatial_backend_contract_tests)
+    foreach(card IN ITEMS
+        verification/thermal/dcax4_transient.fsi
+        verification/thermal/dcax8_transient.fsi
+        verification/thermal/dc3d8_transient.fsi
+        verification/thermal/dc3d20_transient.fsi
+        verification/fuelsim/transient_gps_inelastic_finite.fsi
+        verification/fuelsim/transient_b73_rz_finite_creep.fsi
+        verification/fuelsim/transient_b107_cax8t_finite_creep.fsi
+        verification/abaqus/cpeg8t/finite_contact.fsi
+        verification/fuelsim/transient_b531_hex8_c3d8rt.fsi
+        verification/fuelsim/transient_hex20_inelastic_creep_moose.fsi
+)
+        get_filename_component(case_name "${card}" NAME_WE)
+        add_test(NAME fuelsim_backend_${case_name}_contracts
+            COMMAND fuelsim_spatial_backend_contract_tests "${CMAKE_CURRENT_SOURCE_DIR}/${card}"
+                "${CMAKE_CURRENT_BINARY_DIR}/backend_${case_name}.checkpoint")
+        set_tests_properties(fuelsim_backend_${case_name}_contracts PROPERTIES LABELS "unit;transaction;backend")
+    endforeach()
     find_program(FUELSIM_TEST_PYTHON NAMES python3 REQUIRED)
     add_test(NAME fuelsim_cpeg8t_tests COMMAND fuelsim_cpeg8t_tests)
     add_executable(fuelsim_plane_transaction_tests tests/plane_transaction_tests.cpp)
