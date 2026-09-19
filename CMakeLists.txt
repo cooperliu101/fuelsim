@@ -2274,6 +2274,17 @@ if(BUILD_TESTING)
             TIMEOUT 60
         )
 
+        add_executable(fuelsim_mpi_transaction_failure_tests tests/mpi_transaction_failure_tests.cpp)
+        target_link_libraries(fuelsim_mpi_transaction_failure_tests PRIVATE fuelsim::io fuelsim::solver)
+        fuelsim_link_petsc(fuelsim_mpi_transaction_failure_tests)
+        fuelsim_enable_warnings(fuelsim_mpi_transaction_failure_tests)
+        add_test(NAME fuelsim_mpi_transaction_prepare_failure
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2 $<TARGET_FILE:fuelsim_mpi_transaction_failure_tests>
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_b523_integrated_contact.fsi"
+                "${CMAKE_CURRENT_BINARY_DIR}/mpi_transaction_failure.checkpoint.")
+        set_tests_properties(fuelsim_mpi_transaction_prepare_failure PROPERTIES PROCESSORS 2 TIMEOUT 90
+            LABELS "unit;transaction;mpi;contact")
+
         add_executable(fuelsim_mpi_equivalence_benchmark
             benchmarks/mpi_equivalence.cpp
         )

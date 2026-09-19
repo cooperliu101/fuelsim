@@ -16,6 +16,8 @@
 #include <vector>
 
 namespace fuelsim {
+enum class CommitPreparationStage;
+
 struct TransientCommittedState final {
     std::vector<double> solution, previous_solution;
     std::vector<std::vector<Quad4MaterialHistory>> material_histories;
@@ -46,6 +48,7 @@ struct TransientBackendView final {
 
 class BackendAccess final {
   public:
+    static void set_commit_test_hook(TransientProblem& problem, std::function<void(CommitPreparationStage)> hook);
     static bool uses_thermal(const SteadyProblem& problem);
     static bool uses_thermal(const TransientProblem& problem);
     static const thermal::SpatialAssembly& thermal_spatial(const SteadyProblem& problem);

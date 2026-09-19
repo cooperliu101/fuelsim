@@ -93,6 +93,8 @@ void check(const std::string& path) {
                     interval.first,
                     interval.second,
                     [&sum](std::vector<double>& values) {
+                        if (values.size() == 2)
+                            return;
                         if (sum.empty())
                             sum.assign(values.size(), 0.0);
                         for (std::size_t i = 0; i < values.size(); ++i)
@@ -112,7 +114,10 @@ void check(const std::string& path) {
             throw std::runtime_error("Local material update unexpectedly failed");
         // An empty owner must still receive every history and diagnostic.
         problem.begin_time_step(increment);
-        problem.commit_time_step(candidate, 0, 0, [&sum](std::vector<double>& values) { values = sum; });
+        problem.commit_time_step(candidate, 0, 0, [&sum](std::vector<double>& values) {
+            if (values.size() != 2)
+                values = sum;
+        });
         require_close(committed_values(problem), expected, 2e-12);
     }
     std::cout << "[PASS] Partition ownership, remote failure, empty owner, history and diagnostics: " << path << '\n';

@@ -133,6 +133,9 @@ class TransientProblem final : public NonlinearProblem {
     // Compute only the owned contribution interval, then collectively sum
     // staged histories and diagnostics before changing committed state.
     // The callback must sum equal-size buffers over a disjoint full partition.
+    // It first sums two failure flags, then the prepared payload, then two
+    // finalization flags. A failed first agreement skips both later sums.
+    // The callback itself must enter its collective without allocating first.
     void commit_time_step(const std::vector<double>& converged_solution,
         std::size_t first_contribution,
         std::size_t last_contribution,

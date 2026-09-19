@@ -91,6 +91,8 @@ class SpatialProblemStorage final {
             _backend->sparsity_contribution_jacobian_pattern(index, pattern);
     }
 
+    // Allocated at construction, before any distributed commit can begin.
+    std::vector<double> _commit_agreement{0.0, 0.0};
     SpatialTimeState _state;
     std::unique_ptr<SpatialBackend> _backend;
     std::vector<StrainFormulation> _steady_strain_formulations;
@@ -503,6 +505,10 @@ const std::vector<double>& BackendAccess::committed_raw_residual(const Transient
     return problem._impl->_state.committed_raw_residual;
 }
 
+void BackendAccess::set_commit_test_hook(TransientProblem& problem, std::function<void(CommitPreparationStage)> hook) {
+    problem._impl->_backend->set_commit_test_hook(std::move(hook));
+}
+
 TransientCommittedState BackendAccess::committed_state(const TransientProblem& problem) {
     const auto& runtime = problem._impl->_state;
     TransientCommittedState state;
@@ -905,58 +911,106 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
     std::size_t last_contribution,
     const std::function<void(std::vector<double>&)>& sum_partitions) {
 
-    require_active_time_step();
-    if (first_contribution > last_contribution || last_contribution > contribution_count())
-        throw std::invalid_argument("Transient commit contribution range is invalid");
-    if (!sum_partitions && (first_contribution != 0 || last_contribution != contribution_count()))
-        throw std::invalid_argument("Partial transient commit requires a partition sum");
-    if (sum_partitions && uses_radial_gps())
-        throw std::invalid_argument("Partitioned transient commit does not support radial GPS geometry");
-    if (converged_solution.size() != dof_count())
-        throw std::invalid_argument("TransientProblem committed solution size mismatch");
-    if (!std::all_of(converged_solution.begin(), converged_solution.end(), [](double value) {
-            return std::isfinite(value);
-        }))
-        throw std::domain_error("TransientProblem committed solution must be finite");
-    for (const FieldDescriptor& field : field_layout())
-        if (field.category == FieldCategory::thermal)
-            for (std::size_t dof = field.begin; dof < field.end; ++dof)
-                if (!(converged_solution[dof] > 0.0))
-                    throw std::domain_error("TransientProblem committed temperatures must be positive");
-    // Solver callbacks validate only the contributions owned by this MPI rank.
-    // Committed diagnostics and histories are replicated and traverse all
-    // contributions, including contact candidates outside that local partition.
-    // Refresh their projections from the complete converged state before
-    // assembling reactions or committing any history.
+    // Both agreements use storage allocated with the problem. In particular, an
+    // allocation failure while preparing the payload must not prevent a rank
+    // from reporting failure through the same first collective as its peers.
+    auto& status = _impl->_commit_agreement;
+    bool preparation_agreed = false, agreement_failed = false;
+    const auto agree = [&](const std::exception_ptr& failure, double domain, double other) {
+        status[0] = domain;
+        status[1] = other;
+        if (failure) {
+            try {
+                std::rethrow_exception(failure);
+            } catch (const std::domain_error&) {
+                status[0] = 1.0;
+            } catch (const std::overflow_error&) {
+                status[0] = 1.0;
+            } catch (...) {
+                status[1] = 1.0;
+            }
+        }
+        sum_partitions(status);
+        agreement_failed = status[0] != 0.0 || status[1] != 0.0;
+        if (status[1] != 0.0)
+            throw std::runtime_error("Transient commit preparation failed on a partition");
+        if (status[0] != 0.0)
+            throw std::domain_error("Transient commit preparation failed on a partition");
+    };
     TransientConservationSummary conservation;
-    std::vector<double> external_load_residual(dof_count(), 0.0), raw_residual(dof_count(), 0.0);
-    std::exception_ptr partition_failure;
+    std::vector<double> external_load_residual, raw_residual, accepted_solution, previous_solution;
+    std::exception_ptr failure;
     try {
+        require_active_time_step();
+        if (first_contribution > last_contribution || last_contribution > contribution_count())
+            throw std::invalid_argument("Transient commit contribution range is invalid");
+        if (!sum_partitions && (first_contribution != 0 || last_contribution != contribution_count()))
+            throw std::invalid_argument("Partial transient commit requires a partition sum");
+        if (sum_partitions && uses_radial_gps())
+            throw std::invalid_argument("Partitioned transient commit does not support radial GPS geometry");
+        if (converged_solution.size() != dof_count())
+            throw std::invalid_argument("TransientProblem committed solution size mismatch");
+        if (!std::all_of(converged_solution.begin(), converged_solution.end(), [](double value) {
+                return std::isfinite(value);
+            }))
+            throw std::domain_error("TransientProblem committed solution must be finite");
+        for (const FieldDescriptor& field : field_layout())
+            if (field.category == FieldCategory::thermal)
+                for (std::size_t dof = field.begin; dof < field.end; ++dof)
+                    if (!(converged_solution[dof] > 0.0))
+                        throw std::domain_error("TransientProblem committed temperatures must be positive");
+        _impl->_backend->check_commit_test_hook(CommitPreparationStage::nodal_state);
+        external_load_residual.assign(dof_count(), 0.0);
+        raw_residual.assign(dof_count(), 0.0);
+        // Refresh all contact projections from the complete converged state;
+        // solver shadow states deliberately contain only local dependencies.
         _impl->_backend->validate_state(converged_solution);
         raw_residual = accumulate_contribution_conservation(converged_solution,
             conservation,
             &external_load_residual,
             first_contribution,
             last_contribution);
+        accepted_solution = converged_solution;
+        if (_impl->_state.track_previous_committed_solution)
+            previous_solution = _impl->_state.committed_solution;
+        std::function<void(std::vector<double>&)> exchange;
+        if (sum_partitions)
+            exchange = [&](std::vector<double>& values) {
+                _impl->_backend->check_commit_test_hook(CommitPreparationStage::exchange_buffer);
+                preparation_agreed = true;
+                agree({}, values[0], values[1]);
+                // Packing and every backend-specific preparation allocation
+                // have completed on every rank before this data collective.
+                sum_partitions(values);
+            };
+        _impl->_backend->prepare_time_step(*this,
+            converged_solution,
+            first_contribution,
+            last_contribution,
+            exchange,
+            conservation,
+            raw_residual,
+            external_load_residual,
+            {});
+        _impl->_backend->complete_contact_diagnostics(conservation);
+        _impl->_backend->check_commit_test_hook(CommitPreparationStage::final_diagnostics);
     } catch (...) {
-        if (!sum_partitions)
-            throw;
-        partition_failure = std::current_exception();
+        failure = std::current_exception();
     }
-    // Allocate the next nodal state before changing any committed backend state.
-    auto accepted_solution = converged_solution;
-    auto previous_solution =
-        _impl->_state.track_previous_committed_solution ? _impl->_state.committed_solution : std::vector<double>{};
-    _impl->_backend->prepare_time_step(*this,
-        converged_solution,
-        first_contribution,
-        last_contribution,
-        sum_partitions,
-        conservation,
-        raw_residual,
-        external_load_residual,
-        partition_failure);
-    _impl->_backend->complete_contact_diagnostics(conservation);
+    if (sum_partitions) {
+        // A rank that failed before reaching exchange joins its peers' first
+        // agreement. No failed rank tries to allocate a replacement payload.
+        if (!preparation_agreed)
+            agree(failure, 0.0, 0.0);
+        if (agreement_failed)
+            std::rethrow_exception(failure);
+        // Final diagnostics can allocate after exchange. Agree again before
+        // any rank publishes, including when only another rank failed there.
+        agree(failure, 0.0, 0.0);
+    } else if (failure) {
+        std::rethrow_exception(failure);
+    }
+    // Publication below consists only of noexcept swaps and scalar assignment.
     _impl->_backend->publish_contact_history();
     _impl->_backend->publish_material_history();
     _impl->_state.last_conservation_summary = conservation;

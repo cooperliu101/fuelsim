@@ -469,7 +469,9 @@ void SpatialBackend::prepare_contacts(const std::vector<double>& state,
     if (failure)
         return;
     try {
+        check_commit_test_hook(CommitPreparationStage::material);
         stage_contact_history(state);
+        check_commit_test_hook(CommitPreparationStage::contact);
     } catch (...) {
         if (!sum_partitions)
             throw;

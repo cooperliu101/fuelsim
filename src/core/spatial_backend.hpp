@@ -7,6 +7,7 @@
 
 namespace fuelsim {
 struct TransientCommittedState;
+enum class CommitPreparationStage { nodal_state, material, contact, exchange_buffer, final_diagnostics };
 
 struct SpatialTimeState final {
     TransientConservationSummary last_conservation_summary;
@@ -80,6 +81,15 @@ class SpatialBackend {
         std::vector<double>& external_load_residual,
         std::exception_ptr partition_failure) = 0;
     virtual void publish_material_history() noexcept = 0;
+
+    // Internal contract tests only; no input card or solver option enables this hook.
+    void set_commit_test_hook(std::function<void(CommitPreparationStage)> hook) { _commit_test_hook = std::move(hook); }
+
+    void check_commit_test_hook(CommitPreparationStage stage) const {
+        if (_commit_test_hook)
+            _commit_test_hook(stage);
+    }
+
     void prepare_contacts(const std::vector<double>& state,
         std::exception_ptr& failure,
         const std::function<void(std::vector<double>&)>& sum_partitions);
@@ -109,6 +119,7 @@ class SpatialBackend {
 
   private:
     std::vector<std::vector<ContactPointHistory>> _active_contact_histories;
+    std::function<void(CommitPreparationStage)> _commit_test_hook;
 };
 
 } // namespace fuelsim
