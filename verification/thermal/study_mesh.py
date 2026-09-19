@@ -13,8 +13,11 @@ EDGES = [(0, 1), (1, 2), (2, 3), (3, 0), (0, 4), (1, 5),
          (2, 6), (3, 7), (4, 5), (5, 6), (6, 7), (7, 4)]
 
 
-def write(name, kind, radial_count=1, primary_count=1, curved=False, shared=False):
+def write(name, kind, radial_count=1, primary_count=1, curved=False, shared=False, radial_spacing='uniform'):
     axis = kind.startswith('dcax')
+    if radial_spacing not in ('uniform', 'geometric') or (radial_spacing == 'geometric' and not axis):
+        raise ValueError('Geometric radial spacing is only defined for the cylinder meshes')
+    radial_edges = np.geomspace(.01, .03, radial_count+1) if radial_spacing == 'geometric' else None
     quadratic = kind in ('dcax8', 'dc3d20')
     dim = 2 if axis else 3
     local = CORNERS[:4] if axis else CORNERS
@@ -36,6 +39,8 @@ def write(name, kind, radial_count=1, primary_count=1, curved=False, shared=Fals
                 conn = []
                 for u, v, w in local:
                     x = (.01 + .02*(ix+u)/radial_count) if axis else .01*(block+(ix+u)/radial_count)
+                    if radial_edges is not None:
+                        x = (1-u)*radial_edges[ix]+u*radial_edges[ix+1]
                     y, z = .01*(iy+v)/ny, .01*w
                     if curved:
                         x += .001*((y/.01-.5)**2 + .6*(z/.01-.5)**2)
@@ -145,3 +150,7 @@ if __name__ == '__main__':
     write('study_dc3d20_curved', 'dc3d20', curved=True)
     write('study_dc3d8_shared', 'dc3d8', shared=True)
     write('study_dc3d8_interface', 'dc3d8')
+    for count in [64, 128]:
+        write('study_dcax4_n'+str(count), 'dcax4', radial_count=count)
+    for count in [16, 64]:
+        write('study_dcax4_geometric_n'+str(count), 'dcax4', radial_count=count, radial_spacing='geometric')

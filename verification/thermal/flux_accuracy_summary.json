@@ -1,0 +1,370 @@
+{
+  "scope": "Fixed cylindrical geometry, constant conductivity; all nodes and all Gauss points.",
+  "relative_threshold": 0.005,
+  "zero_flux_absolute_threshold_W_m2": 1e-07,
+  "passed": true,
+  "accepted_meshes": [
+    "study_dcax4_n128",
+    "study_dcax4_geometric_n64",
+    "study_dcax8_n8",
+    "study_dcax8_n16"
+  ],
+  "cases": [
+    {
+      "case": "study_dcax4_n16",
+      "elements": 16,
+      "temperature_unknowns_before_constraints": 34,
+      "fields": {
+        "temperature": {
+          "absolute_maximum": 0.013479275293093451,
+          "relative_l2": 2.6568061900374417e-05,
+          "relative_peak": 0.0,
+          "maximum_pointwise_relative": 3.788365236387812e-05,
+          "passed": true
+        },
+        "temperature_rise": {
+          "absolute_maximum": 0.013479275293093451,
+          "relative_l2": 0.00017769935035366106,
+          "relative_peak": 0.0,
+          "maximum_pointwise_relative": 0.0003744521168921018,
+          "passed": true
+        },
+        "radial_flux": {
+          "absolute_maximum": 2966.7617137417983,
+          "relative_l2": 0.024960913099233643,
+          "relative_peak": 0.033454178194526465,
+          "maximum_pointwise_relative": 0.034505073150471084,
+          "passed": false
+        },
+        "transverse_flux": {
+          "absolute_maximum": 2.2737367544323206e-10,
+          "passed": true
+        },
+        "total_hot_boundary_heat": {
+          "absolute_maximum": 0.030051401275365208,
+          "relative_l2": 0.0005254474779708911,
+          "relative_peak": 0.0005254474779708911,
+          "maximum_pointwise_relative": 0.0005254474779708911,
+          "passed": true
+        }
+      },
+      "all_reported_metrics_below_threshold": false,
+      "maximum_flux_error_radius_m": 0.010985843918243516,
+      "maximum_flux_error_element": 1,
+      "discrete_flux_reconstruction_max_relative_error": 1.3877787807814457e-14,
+      "discrete_total_heat_relative_error": 4.218847493575595e-15,
+      "global_heat_bias": 0.0005254474779665674,
+      "maximum_element_half_width_over_mean_radius": 0.058823529411764684
+    },
+    {
+      "case": "study_dcax4_n64",
+      "elements": 64,
+      "temperature_unknowns_before_constraints": 130,
+      "fields": {
+        "temperature": {
+          "absolute_maximum": 0.0008490616107224014,
+          "relative_l2": 1.7083755998524113e-06,
+          "relative_peak": 0.0,
+          "maximum_pointwise_relative": 2.3776578949184286e-06,
+          "passed": true
+        },
+        "temperature_rise": {
+          "absolute_maximum": 0.0008490616107224014,
+          "relative_l2": 1.1678745046747406e-05,
+          "relative_peak": 0.0,
+          "maximum_pointwise_relative": 2.377971690373774e-05,
+          "passed": true
+        },
+        "radial_flux": {
+          "absolute_maximum": 800.2484584700724,
+          "relative_l2": 0.006258412603547983,
+          "relative_peak": 0.00884968695409228,
+          "maximum_pointwise_relative": 0.008915521476034157,
+          "passed": false
+        },
+        "transverse_flux": {
+          "absolute_maximum": 5.820766091346741e-10,
+          "passed": true
+        },
+        "total_hot_boundary_heat": {
+          "absolute_maximum": 0.0018826045597464258,
+          "relative_l2": 3.291726095801626e-05,
+          "relative_peak": 3.291726095801626e-05,
+          "maximum_pointwise_relative": 3.291726095801626e-05,
+          "passed": true
+        }
+      },
+      "all_reported_metrics_below_threshold": false,
+      "maximum_flux_error_radius_m": 0.01024646097956088,
+      "maximum_flux_error_element": 1,
+      "discrete_flux_reconstruction_max_relative_error": 1.0413891970983968e-13,
+      "discrete_total_heat_relative_error": 1.0436096431476471e-14,
+      "global_heat_bias": 3.291726094745151e-05,
+      "maximum_element_half_width_over_mean_radius": 0.015384615384615398
+    },
+    {
+      "case": "study_dcax4_n128",
+      "elements": 128,
+      "temperature_unknowns_before_constraints": 258,
+      "fields": {
+        "temperature": {
+          "absolute_maximum": 0.00021232980287777536,
+          "relative_l2": 4.289494595753889e-07,
+          "relative_peak": 0.0,
+          "maximum_pointwise_relative": 5.945398129379638e-07,
+          "passed": true
+        },
+        "temperature_rise": {
+          "absolute_maximum": 0.00021232980287777536,
+          "relative_l2": 2.9432765911873922e-06,
+          "relative_peak": 0.0,
+          "maximum_pointwise_relative": 5.957879338123866e-06,
+          "passed": true
+        },
+        "radial_flux": {
+          "absolute_maximum": 405.30108062220097,
+          "relative_l2": 0.003129665610883559,
+          "relative_peak": 0.004467390033608337,
+          "maximum_pointwise_relative": 0.004483850601216483,
+          "passed": true
+        },
+        "transverse_flux": {
+          "absolute_maximum": 3.4924596548080444e-09,
+          "passed": true
+        },
+        "total_hot_boundary_heat": {
+          "absolute_maximum": 0.00047070652893665965,
+          "relative_l2": 8.23028371382307e-06,
+          "relative_peak": 8.23028371382307e-06,
+          "maximum_pointwise_relative": 8.23028371382307e-06,
+          "passed": true
+        }
+      },
+      "all_reported_metrics_below_threshold": true,
+      "maximum_flux_error_radius_m": 0.01012323048978044,
+      "maximum_flux_error_element": 1,
+      "discrete_flux_reconstruction_max_relative_error": 3.0464519795714295e-13,
+      "discrete_total_heat_relative_error": 2.1449508835758024e-13,
+      "global_heat_bias": 8.230283499388591e-06,
+      "maximum_element_half_width_over_mean_radius": 0.007751937984496131
+    },
+    {
+      "case": "study_dcax4_geometric_n16",
+      "elements": 16,
+      "temperature_unknowns_before_constraints": 34,
+      "fields": {
+        "temperature": {
+          "absolute_maximum": 1.1368683772161603e-13,
+          "relative_l2": 1.240886819104658e-16,
+          "relative_peak": 0.0,
+          "maximum_pointwise_relative": 2.981949841878453e-16,
+          "passed": true
+        },
+        "temperature_rise": {
+          "absolute_maximum": 1.1368683772161603e-13,
+          "relative_l2": 7.435914314643567e-16,
+          "relative_peak": 0.0,
+          "maximum_pointwise_relative": 1.8189894035458565e-15,
+          "passed": true
+        },
+        "radial_flux": {
+          "absolute_maximum": 1742.3127469515603,
+          "relative_l2": 0.019809706200458067,
+          "relative_peak": 0.019428521980725394,
+          "maximum_pointwise_relative": 0.02021423430662287,
+          "passed": false
+        },
+        "transverse_flux": {
+          "absolute_maximum": 1.4551915228366852e-10,
+          "passed": true
+        },
+        "total_hot_boundary_heat": {
+          "absolute_maximum": 0.0224682364862403,
+          "relative_l2": 0.00039285616294460293,
+          "relative_peak": 0.00039285616294460293,
+          "maximum_pointwise_relative": 0.00039285616294460293,
+          "passed": true
+        }
+      },
+      "all_reported_metrics_below_threshold": false,
+      "maximum_flux_error_radius_m": 0.010560554661789222,
+      "maximum_flux_error_element": 1,
+      "discrete_flux_reconstruction_max_relative_error": 1.2878587085651816e-14,
+      "discrete_total_heat_relative_error": 8.881784197001252e-15,
+      "global_heat_bias": 0.00039285616293560643,
+      "maximum_element_half_width_over_mean_radius": 0.03431815192339483
+    },
+    {
+      "case": "study_dcax4_geometric_n64",
+      "elements": 64,
+      "temperature_unknowns_before_constraints": 130,
+      "fields": {
+        "temperature": {
+          "absolute_maximum": 5.684341886080801e-13,
+          "relative_l2": 5.429309475229921e-16,
+          "relative_peak": 0.0,
+          "maximum_pointwise_relative": 1.52216686489193e-15,
+          "passed": true
+        },
+        "temperature_rise": {
+          "absolute_maximum": 5.684341886080801e-13,
+          "relative_l2": 3.2900419441583e-15,
+          "relative_peak": 0.0,
+          "maximum_pointwise_relative": 3.6379788070915805e-14,
+          "passed": true
+        },
+        "radial_flux": {
+          "absolute_maximum": 447.1836732630618,
+          "relative_l2": 0.004955162024111634,
+          "relative_peak": 0.004930789217015056,
+          "maximum_pointwise_relative": 0.004979899854888034,
+          "passed": true
+        },
+        "transverse_flux": {
+          "absolute_maximum": 3.637978807091713e-10,
+          "passed": true
+        },
+        "total_hot_boundary_heat": {
+          "absolute_maximum": 0.0014043682243212174,
+          "relative_l2": 2.4555318896791597e-05,
+          "relative_peak": 2.4555318896791597e-05,
+          "maximum_pointwise_relative": 2.4555318896791597e-05,
+          "passed": true
+        }
+      },
+      "all_reported_metrics_below_threshold": true,
+      "maximum_flux_error_radius_m": 0.01556917885628016,
+      "maximum_flux_error_element": 26,
+      "discrete_flux_reconstruction_max_relative_error": 9.214851104388799e-14,
+      "discrete_total_heat_relative_error": 1.9984014443252818e-14,
+      "global_heat_bias": 2.455531887690654e-05,
+      "maximum_element_half_width_over_mean_radius": 0.008582697754339511
+    },
+    {
+      "case": "study_dcax8_n4",
+      "elements": 4,
+      "temperature_unknowns_before_constraints": 23,
+      "fields": {
+        "temperature": {
+          "absolute_maximum": 0.014146369038940065,
+          "relative_l2": 1.3886156520892424e-05,
+          "relative_peak": 0.0,
+          "maximum_pointwise_relative": 3.725781887978096e-05,
+          "passed": true
+        },
+        "temperature_rise": {
+          "absolute_maximum": 0.014146369038940065,
+          "relative_l2": 8.92540591258785e-05,
+          "relative_peak": 0.0,
+          "maximum_pointwise_relative": 0.00017752061499291637,
+          "passed": true
+        },
+        "radial_flux": {
+          "absolute_maximum": 989.0618278977345,
+          "relative_l2": 0.008952539469463032,
+          "relative_peak": 0.010743535163751655,
+          "maximum_pointwise_relative": 0.013582443479762427,
+          "passed": false
+        },
+        "transverse_flux": {
+          "absolute_maximum": 3.637978807091713e-10,
+          "passed": true
+        },
+        "total_hot_boundary_heat": {
+          "absolute_maximum": 0.003889680574403087,
+          "relative_l2": 6.801090003107122e-05,
+          "relative_peak": 6.801090003107122e-05,
+          "maximum_pointwise_relative": 6.801090003107122e-05,
+          "passed": true
+        }
+      },
+      "all_reported_metrics_below_threshold": false,
+      "maximum_flux_error_radius_m": 0.0125,
+      "maximum_flux_error_element": 1
+    },
+    {
+      "case": "study_dcax8_n8",
+      "elements": 8,
+      "temperature_unknowns_before_constraints": 43,
+      "fields": {
+        "temperature": {
+          "absolute_maximum": 0.0012641225495144681,
+          "relative_l2": 1.0389663254747559e-06,
+          "relative_peak": 0.0,
+          "maximum_pointwise_relative": 3.2473439090881763e-06,
+          "passed": true
+        },
+        "temperature_rise": {
+          "absolute_maximum": 0.0012641225495144681,
+          "relative_l2": 6.9074811170894335e-06,
+          "relative_peak": 0.0,
+          "maximum_pointwise_relative": 1.4159249053947742e-05,
+          "passed": true
+        },
+        "radial_flux": {
+          "absolute_maximum": 334.7208413182234,
+          "relative_l2": 0.0024101777213659643,
+          "relative_peak": 0.0033011066108207263,
+          "maximum_pointwise_relative": 0.0041369448323871965,
+          "passed": true
+        },
+        "transverse_flux": {
+          "absolute_maximum": 5.820766091346741e-10,
+          "passed": true
+        },
+        "total_hot_boundary_heat": {
+          "absolute_maximum": 0.00026846107943612196,
+          "relative_l2": 4.694030598789076e-06,
+          "relative_peak": 4.694030598789076e-06,
+          "maximum_pointwise_relative": 4.694030598789076e-06,
+          "passed": true
+        }
+      },
+      "all_reported_metrics_below_threshold": true,
+      "maximum_flux_error_radius_m": 0.01125,
+      "maximum_flux_error_element": 1
+    },
+    {
+      "case": "study_dcax8_n16",
+      "elements": 16,
+      "temperature_unknowns_before_constraints": 83,
+      "fields": {
+        "temperature": {
+          "absolute_maximum": 9.529625344839587e-05,
+          "relative_l2": 6.905538093505837e-08,
+          "relative_peak": 0.0,
+          "maximum_pointwise_relative": 2.4157331315267855e-07,
+          "passed": true
+        },
+        "temperature_rise": {
+          "absolute_maximum": 9.529625344839587e-05,
+          "relative_l2": 4.672047930571289e-07,
+          "relative_peak": 0.0,
+          "maximum_pointwise_relative": 1.0950593256914765e-06,
+          "passed": true
+        },
+        "radial_flux": {
+          "absolute_maximum": 98.95149302689242,
+          "relative_l2": 0.000615741937469787,
+          "relative_peak": 0.0009234859762135049,
+          "maximum_pointwise_relative": 0.0011550365911023833,
+          "passed": true
+        },
+        "transverse_flux": {
+          "absolute_maximum": 1.382431946694851e-09,
+          "passed": true
+        },
+        "total_hot_boundary_heat": {
+          "absolute_maximum": 1.7262350866076304e-05,
+          "relative_l2": 3.018314734582436e-07,
+          "relative_peak": 3.018314734582436e-07,
+          "maximum_pointwise_relative": 3.018314734582436e-07,
+          "passed": true
+        }
+      },
+      "all_reported_metrics_below_threshold": true,
+      "maximum_flux_error_radius_m": 0.010625,
+      "maximum_flux_error_element": 1
+    }
+  ]
+}
