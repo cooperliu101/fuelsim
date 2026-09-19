@@ -482,7 +482,9 @@ RegionDefinition read_region(const InputDocument& document,
             "volumetric_heat_source",
             "heat_source_function",
             "heat_source_time_evaluation",
-            "body_acceleration"});
+            "body_acceleration",
+            "pellet_response",
+            "pellet_model"});
     const InputEntry* block = find_entry(section, "block");
     const InputEntry* block_id = find_entry(section, "block_id");
     if ((block == nullptr) == (block_id == nullptr))
@@ -551,6 +553,14 @@ RegionDefinition read_region(const InputDocument& document,
         value_error(document,
             required_entry(document, section, "heat_source_time_evaluation"),
             "heat_source_time_evaluation=interval_average requires heat_source_function");
+    result.pellet_response = read_optional_string(section, "pellet_response", "full");
+    result.pellet_model = read_optional_path(document.source_path, section, "pellet_model");
+    if (result.pellet_response != "full" && result.pellet_response != "exact" && result.pellet_response != "surrogate")
+        throw std::invalid_argument("pellet_response must be full, exact or surrogate");
+    if (result.pellet_response != "full" && (physics != Physics::thermal || geometry != CaseGeometry::cartesian_3d))
+        throw std::invalid_argument("Pellet responses require Cartesian thermal physics");
+    if ((result.pellet_response == "surrogate") != !result.pellet_model.empty())
+        throw std::invalid_argument("pellet_model is required only for a surrogate pellet");
     if (physics == Physics::thermal) {
         if (find_entry(section, "strain") || find_entry(section, "body_acceleration"))
             throw std::invalid_argument("Thermal regions do not accept strain or body_acceleration");

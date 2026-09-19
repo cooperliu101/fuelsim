@@ -79,6 +79,12 @@ void SpatialAssembly::initialize(const UnstructuredMeshMetadata& mesh, ThermalEl
             }
         std::sort(nodes.begin(), nodes.end());
         nodes.erase(std::unique(nodes.begin(), nodes.end()), nodes.end());
+        if (region.pellet_response != "full") {
+            if (topology != ThermalElement::dc3d8)
+                throw std::invalid_argument("Pellet responses currently require DC3D8");
+            nodes = pellet_surface_nodes(r, mesh);
+            count = 1;
+        }
         node_counts.push_back(nodes.size());
         element_counts.push_back(count);
         _source_nodes.push_back(std::move(nodes));
@@ -116,6 +122,7 @@ void SpatialAssembly::initialize(const UnstructuredMeshMetadata& mesh, ThermalEl
             _source_elements.push_back(e);
             _contributions.push_back(std::move(c));
         }
+    condense_pellets(source_to_global);
     constexpr std::array<std::array<std::size_t, 8>, 6> faces{{{0, 1, 5, 4, 8, 13, 16, 12},
         {1, 2, 6, 5, 9, 14, 17, 13},
         {2, 3, 7, 6, 10, 15, 18, 14},
@@ -233,6 +240,10 @@ void SpatialAssembly::initialize(const UnstructuredMeshMetadata& mesh, ThermalEl
             }
         }
     }
+    for (const auto& contribution : _contributions)
+        for (auto dof : contribution.dofs)
+            if (dof >= dof_count())
+                throw std::invalid_argument("Thermal boundary or contact references an inactive or eliminated node");
     refresh_dirichlet_values();
 }
 
@@ -302,6 +313,8 @@ elements::ThermalResult SpatialAssembly::evaluate(std::size_t index,
             jacobian);
     }
     const auto& r = region(c.region);
+    if (c.pellet != std::numeric_limits<std::size_t>::max())
+        return evaluate_pellet(c, state, step, jacobian);
     std::vector<double> old;
     if (step > 0)
         for (auto n : c.dofs)

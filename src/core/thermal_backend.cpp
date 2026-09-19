@@ -15,29 +15,37 @@ void ThermalBackend::accumulate_time_error(const TransientCommittedState&,
 ThermalBackend::ThermalBackend(SpatialTimeState& state,
     SpatialDefinition definition,
     const UnstructuredQuad4Mesh& mesh,
-    bool)
+    bool transient)
     : SpatialBackend(state), _spatial(std::move(definition), mesh) {
+    if (transient && _spatial.has_pellet_response())
+        throw std::invalid_argument("Pellet responses support steady conduction only");
 }
 
 ThermalBackend::ThermalBackend(SpatialTimeState& state,
     SpatialDefinition definition,
     const UnstructuredQuad8Mesh& mesh,
-    bool)
+    bool transient)
     : SpatialBackend(state), _spatial(std::move(definition), mesh) {
+    if (transient && _spatial.has_pellet_response())
+        throw std::invalid_argument("Pellet responses support steady conduction only");
 }
 
 ThermalBackend::ThermalBackend(SpatialTimeState& state,
     SpatialDefinition definition,
     const UnstructuredHex8Mesh& mesh,
-    bool)
+    bool transient)
     : SpatialBackend(state), _spatial(std::move(definition), mesh) {
+    if (transient && _spatial.has_pellet_response())
+        throw std::invalid_argument("Pellet responses support steady conduction only");
 }
 
 ThermalBackend::ThermalBackend(SpatialTimeState& state,
     SpatialDefinition definition,
     const UnstructuredHex20Mesh& mesh,
-    bool)
+    bool transient)
     : SpatialBackend(state), _spatial(std::move(definition), mesh) {
+    if (transient && _spatial.has_pellet_response())
+        throw std::invalid_argument("Pellet responses support steady conduction only");
 }
 
 void ThermalBackend::contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {

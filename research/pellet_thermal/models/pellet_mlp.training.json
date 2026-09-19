@@ -1,0 +1,25 @@
+{
+  "samples": 1024,
+  "training_samples": 819,
+  "held_out_samples": 205,
+  "seed": 1709,
+  "architecture": [
+    27,
+    64,
+    26
+  ],
+  "activation": "tanh",
+  "dtype": "float64",
+  "device": "cpu",
+  "residual_relative_l2": 2.9195100607514094e-07,
+  "residual_maximum_error_W": 1.1537713506371006e-05,
+  "maximum_energy_error_W": 5.5205644471811866e-05,
+  "torch_version": "2.12.1+cu130",
+  "mesh_signature": "1766057431090173445",
+  "training_temperature_min_K": 266.12862047647593,
+  "training_temperature_max_K": 1158.4085856077363,
+  "training_source_min_W_m3": 20644467.2925415,
+  "training_source_max_W_m3": 378820758.5323517,
+  "maximum_tangent_column_energy_error_W_K": 7.072385735937132e-07,
+  "dataset_sha256": "223425cf326b9e5359fac5b099a72695dde71ef8f098aff45b83c7775990ae56"
+}

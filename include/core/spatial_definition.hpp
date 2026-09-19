@@ -63,6 +63,8 @@ struct RegionDefinition final {
     bool radial_gps = false;
     std::array<double, 3> body_acceleration{};
     ThermalElement thermal_element = ThermalElement::dcax4;
+    std::string pellet_response = "full";
+    std::string pellet_model{};
 };
 enum class MechanicalContactFormulation {
     penalty,

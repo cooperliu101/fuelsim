@@ -755,8 +755,9 @@ void define_variable_names(int exoid,
     std::vector<char*> pointers = variable_name_pointers(names);
     check_exodus(ex_put_variable_param(exoid, type, static_cast<int>(pointers.size())),
         "Could not define Exodus " + category + " variables");
-    check_exodus(ex_put_variable_names(exoid, type, static_cast<int>(pointers.size()), pointers.data()),
-        "Could not name Exodus " + category + " variables");
+    if (!pointers.empty())
+        check_exodus(ex_put_variable_names(exoid, type, static_cast<int>(pointers.size()), pointers.data()),
+            "Could not name Exodus " + category + " variables");
 }
 
 constexpr std::array<const char*, 14> rz_contact_fields = {"gap",
@@ -951,12 +952,13 @@ void define_result_variables(const std::string& path,
     define_variable_names(file.id(), EX_GLOBAL, global_names, "global");
     define_variable_names(file.id(), EX_ELEM_BLOCK, element_names, "element");
     std::vector<int> truth(mesh.blocks.size() * element_names.size(), 1);
-    check_exodus(ex_put_truth_table(file.id(),
-                     EX_ELEM_BLOCK,
-                     static_cast<int>(mesh.blocks.size()),
-                     static_cast<int>(element_names.size()),
-                     truth.data()),
-        "Could not define Exodus element-variable truth table");
+    if (!element_names.empty())
+        check_exodus(ex_put_truth_table(file.id(),
+                         EX_ELEM_BLOCK,
+                         static_cast<int>(mesh.blocks.size()),
+                         static_cast<int>(element_names.size()),
+                         truth.data()),
+            "Could not define Exodus element-variable truth table");
     file.close();
 }
 
@@ -975,9 +977,14 @@ void write_result_step(const std::string& path,
     const std::vector<std::vector<double>>& nodal_values,
     const std::vector<std::vector<double>>& element_values,
     const std::vector<double>& global_values) {
-    if (step == 0 || nodal_values.empty() || element_values.empty() || global_values.empty())
+    if (step == 0 || nodal_values.empty() || global_values.empty())
         throw std::invalid_argument("Exodus result step is incomplete");
     ExodusFile file = open_results(path);
+    int declared_element_variables = 0;
+    check_exodus(ex_get_variable_param(file.id(), EX_ELEM_BLOCK, &declared_element_variables),
+        "Could not read Exodus element-variable count");
+    if (element_values.size() != static_cast<std::size_t>(declared_element_variables))
+        throw std::invalid_argument("Exodus element results do not match declared variables");
     const int exodus_step = checked_int(step, "Exodus result step");
     check_exodus(ex_put_time(file.id(), exodus_step, &time), "Could not write Exodus result time");
     check_exodus(ex_put_var(file.id(),
@@ -1886,7 +1893,10 @@ void EngineeringHistoryWriter::append(const TransientProblem& problem,
 namespace {
 std::vector<std::string> thermal_element_names(const thermal::SpatialAssembly& spatial) {
     std::vector<std::string> names;
-    for (std::size_t q = 0; q < spatial.geometry(0).points.size(); ++q)
+    std::size_t points = 0;
+    for (std::size_t e = 0; e < spatial.volume_contribution_count(); ++e)
+        points = std::max(points, spatial.geometry(e).points.size());
+    for (std::size_t q = 0; q < points; ++q)
         for (const auto* field : {"heat_flux_x", "heat_flux_y", "heat_flux_z", "point_x", "point_y", "point_z"})
             names.push_back(std::string(field) + "_q" + std::to_string(q));
     return names;

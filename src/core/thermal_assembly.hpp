@@ -1,4 +1,6 @@
 #pragma once
+#include "pellet_mlp.hpp"
+#include "pellet_thermal.hpp"
 #include "spatial_layout.hpp"
 #include "thermal_interface.hpp"
 #include "thermal_types.hpp"
@@ -47,6 +49,8 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
 
     InterfaceSummary summarize_interface(std::size_t contact, const std::vector<double>& state) const;
 
+    bool has_pellet_response() const noexcept { return !_pellets.empty() || !_surrogates.empty(); }
+
     bool axisymmetric() const noexcept { return _axisymmetric; }
 
   private:
@@ -55,9 +59,18 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         elements::ThermalGeometry geometry;
         elements::ThermalInterfacePoint interface;
         std::size_t region = 0, boundary = 0;
+        std::size_t pellet = std::numeric_limits<std::size_t>::max();
         SpatialContributionType type = SpatialContributionType::volume;
     };
 
+    elements::ThermalResult evaluate_pellet(const Contribution& contribution,
+        const std::vector<double>& temperature,
+        double step,
+        bool jacobian) const;
+    std::vector<std::size_t> pellet_surface_nodes(std::size_t region, const UnstructuredMeshMetadata& mesh) const;
+    void condense_pellets(const std::vector<std::size_t>& source_to_global);
+    std::vector<elements::ExactCondensedPellet> _pellets;
+    std::vector<elements::SurrogatePellet> _surrogates;
     void initialize(const UnstructuredMeshMetadata& mesh, ThermalElement topology);
     bool _axisymmetric;
     std::vector<CartesianPoint3> _coordinates;
