@@ -2,8 +2,28 @@
   "passed": true,
   "cases": [
     {
-      "case": "study_dcax4_n16",
-      "maximum_pointwise_temperature_rise_error": 0.0003744521168921018
+      "case": "study_dcax4_n128",
+      "maximum_pointwise_temperature_rise_error": 5.957879338123866e-06,
+      "heat_flow_fields": {
+        "radial_flux": {
+          "absolute_maximum": 405.30108062220097,
+          "relative_l2": 0.003129665610883559,
+          "relative_peak": 0.004467390033608337,
+          "maximum_pointwise_relative": 0.004483850601216483,
+          "passed": true
+        },
+        "transverse_flux": {
+          "absolute_maximum": 3.4924596548080444e-09,
+          "passed": true
+        },
+        "total_hot_boundary_heat": {
+          "absolute_maximum": 0.00047070652893665965,
+          "relative_l2": 8.23028371382307e-06,
+          "relative_peak": 8.23028371382307e-06,
+          "maximum_pointwise_relative": 8.23028371382307e-06,
+          "passed": true
+        }
+      }
     },
     {
       "case": "study_dcax8_n16",

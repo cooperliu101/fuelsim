@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import netCDF4
 import numpy as np
-from compare import compare
+from compare import compare, metric
 
 
 def run(args, name, directory=None, ranks=1):
@@ -212,7 +212,7 @@ def convergence(args):
 
 def analytic(args):
     results = []
-    for name in ['study_dcax4_n16', 'study_dcax8_n16', 'study_time_fine']:
+    for name in ['study_dcax4_n128', 'study_dcax8_n16', 'study_time_fine']:
         folder, log = run(args, name)
         a = output(folder, name)
         if name == 'study_time_fine':
@@ -229,7 +229,19 @@ def analytic(args):
         if relative >= .005:
             raise AssertionError('Analytical temperature-rise error '+name+': '+str(relative))
         close(actual[~nonzero], exact[~nonzero], 'Zero temperature rise', atol=1e-7, rtol=0)
-        results.append({'case': name, 'maximum_pointwise_temperature_rise_error': relative})
+        result = {'case': name, 'maximum_pointwise_temperature_rise_error': relative}
+        if name == 'study_dcax4_n128':
+            flux = np.concatenate([a[f'heat_flux_x_q{q}'][-1] for q in range(4)])
+            radius = np.concatenate([a[f'point_x_q{q}'][-1] for q in range(4)])
+            transverse = np.concatenate([a[f'heat_flux_{d}_q{q}'][-1] for d in 'yz' for q in range(4)])
+            heat = np.sum(a['heat_reaction'][-1, np.isclose(a['coordx'], .01)])
+            fields = {'radial_flux': metric(flux, 1000/(radius*np.log(3))),
+                      'transverse_flux': metric(transverse, np.zeros_like(transverse), zero=True),
+                      'total_hot_boundary_heat': metric([heat], [20*np.pi/np.log(3)])}
+            if not all(field['passed'] for field in fields.values()):
+                raise AssertionError('Selected 128-element cylinder misses the heat-flow gate: '+json.dumps(fields))
+            result['heat_flow_fields'] = fields
+        results.append(result)
     return {'passed': True, 'cases': results}
 
 
