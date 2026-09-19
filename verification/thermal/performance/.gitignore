@@ -1,0 +1,7 @@
+# Large generated geometry, full native fields and raw logs remain local.
+*.e
+*_mesh.inp
+references/
+samples/
+diagnosis/
+ctest.log

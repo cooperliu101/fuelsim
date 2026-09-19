@@ -1,0 +1,24 @@
+{
+  "executable": "/tmp/fuelsim-thermal-final-build/fuelsim",
+  "executable_sha256": "4d77cdb07636896412fc068158f94830392697217c569c983faebb8e276c5d24",
+  "linux": "Linux MSI 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux",
+  "cpu": "Architecture:                         x86_64\nCPU op-mode(s):                       32-bit, 64-bit\nAddress sizes:                        39 bits physical, 48 bits virtual\nByte Order:                           Little Endian\nCPU(s):                               24\nOn-line CPU(s) list:                  0-23\nVendor ID:                            GenuineIntel\nModel name:                           13th Gen Intel(R) Core(TM) i9-13980HX\nCPU family:                           6\nModel:                                183\nThread(s) per core:                   1\nCore(s) per socket:                   24\nSocket(s):                            1\nStepping:                             1\nBogoMIPS:                             4838.40\nFlags:                                fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss ht syscall nx pdpe1gb rdtscp lm constant_tsc rep_good nopl xtopology tsc_reliable nonstop_tsc cpuid tsc_known_freq pni pclmulqdq vmx ssse3 fma cx16 pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch ssbd ibrs ibpb stibp ibrs_enhanced tpr_shadow ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves avx_vnni vnmi umip waitpkg gfni vaes vpclmulqdq rdpid movdiri movdir64b fsrm md_clear serialize flush_l1d arch_capabilities\nVirtualization:                       VT-x\nHypervisor vendor:                    Microsoft\nVirtualization type:                  full\nL1d cache:                            1.1 MiB (24 instances)\nL1i cache:                            768 KiB (24 instances)\nL2 cache:                             48 MiB (24 instances)\nL3 cache:                             36 MiB (1 instance)\nNUMA node(s):                         1\nNUMA node0 CPU(s):                    0-23\nVulnerability Gather data sampling:   Not affected\nVulnerability Itlb multihit:          Not affected\nVulnerability L1tf:                   Not affected\nVulnerability Mds:                    Not affected\nVulnerability Meltdown:               Not affected\nVulnerability Mmio stale data:        Not affected\nVulnerability Reg file data sampling: Vulnerable: No microcode\nVulnerability Retbleed:               Mitigation; Enhanced IBRS\nVulnerability Spec rstack overflow:   Not affected\nVulnerability Spec store bypass:      Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:             Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:             Mitigation; Enhanced / Automatic IBRS; IBPB conditional; RSB filling; PBRSB-eIBRS SW sequence; BHI BHI_DIS_S\nVulnerability Srbds:                  Not affected\nVulnerability Tsx async abort:        Not affected\n",
+  "inputs": {
+    "transient_timing.fsi": "5c6227df6023a4a21ecd310cb770325641eb56b348861b27ee1dfbd705372902",
+    "interface_timing.inp": "d4108f8db8f5b6c0b82929ce604527ba5c1f1fd286439e1767a133d30fd77a82",
+    "transient_timing.inp": "9082e719ddb106df26ac4c9a237c326a7df62709bfb714e3778bf4e31233bf99",
+    "interface.fsi": "cf7a6531651f879ee4fa4c0afeab159612fc0ee0d15c972a49d275652c69fad5",
+    "transient.inp": "327c26c3a39ed4eb7aeca4a181e5f695382dfa326d0141827e396c9975eb4f07",
+    "interface_mesh.inp": "9796789f9a6005ddddf85f0c049b7bed5b44282efc8db91d38df3f6f11193532",
+    "steady_timing.inp": "f230e5827692dfbc8e9f1936ed1341e7b292f637b28e0da72acfdc4599ea380a",
+    "bulk.e": "ae0c87e816f8f0a4d3e160c57c8f40a4006916139f654e04d87164f150a83120",
+    "steady.inp": "22c413758f49cdf0cbe8558cbc9d7f4ac65b46de11ea5eababb480fb6c221d19",
+    "steady_timing.fsi": "513f5c95b152c7379fea8cdf211e20a5fd680a9e8e8477396c680eff27cd13d9",
+    "interface_timing.fsi": "2657a0861786749dc5b17d5e1b2d5708a6ddefe801e2eaaa67913d5c8da2897a",
+    "interface.inp": "6e73609d72026a77920c343a9ed0bd6f4209526ee22ef4c766969b5dc51b34d4",
+    "bulk_mesh.inp": "b1d7bfc6bc8c13af77c69ee3738a00351833153d5929db4eea25fdbbb941b6b0",
+    "steady.fsi": "59d30ddc0322d069a747f49147004b71e6e1230659e46b5fe2dea64b9938c87e",
+    "transient.fsi": "ec0b27dece855f62adbe464ef2708269f0475dd06f0461c4ac9063387acaf99e",
+    "interface.e": "2e599af546baa0719e2f29e6ca10e4f1c54b27ebb64e1e220f058f9b81e94e0a"
+  }
+}

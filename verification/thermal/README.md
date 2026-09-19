@@ -62,3 +62,7 @@ ctest --test-dir build -R 'fuelsim_(dcax|dc3d|thermal)' -j4 --output-on-failure
 后续已完成二次曲面与 2:1 非匹配划分的组合验证，以及非均匀瞬态界面的时变热源、
 自适应时间步、磁盘重启和跨进程一致性检查，具体结果与适用边界见
 [两项界面验证扩展](interface_extension.md)。
+
+三组 13,824 单元的稳态、瞬态与界面纯传热单核性能比较，包含完整场精度验收、
+预热及三次交替计时、分阶段计时与矩阵分解诊断，见
+[纯传热性能基准](performance/README.md)。

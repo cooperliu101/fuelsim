@@ -1,0 +1,134 @@
+{
+  "steady": {
+    "passed": true,
+    "fields": {
+      "temperature": {
+        "absolute_maximum": 1.3563368042923685e-05,
+        "relative_l2": 2.104486099462787e-08,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 4.24592367542708e-08,
+        "passed": true
+      },
+      "temperature_rise": {
+        "absolute_maximum": 1.3563368042923685e-05,
+        "relative_l2": 1.2206288161545728e-07,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 1.3658235654174623e-06,
+        "passed": true
+      },
+      "heat_reaction": {
+        "absolute_maximum": 1.2417632755390429e-09,
+        "relative_l2": 2.5139070348137788e-08,
+        "relative_peak": 2.9802305401283542e-08,
+        "maximum_pointwise_relative": 2.9802317724758748e-08,
+        "passed": true
+      },
+      "heat_flux_x": {
+        "absolute_maximum": 0.0013020860860706307,
+        "relative_l2": 2.1122823719413815e-08,
+        "relative_peak": 2.1853166054849973e-08,
+        "maximum_pointwise_relative": 3.2216561916420185e-08,
+        "passed": true
+      },
+      "heat_flux_y": {
+        "absolute_maximum": 2.5931967684300616e-09,
+        "passed": true
+      },
+      "heat_flux_z": {
+        "absolute_maximum": 3.1181457416096237e-09,
+        "passed": true
+      }
+    },
+    "frames": 1,
+    "nodes_per_frame": 15625,
+    "points_per_frame": 110592
+  },
+  "transient": {
+    "passed": true,
+    "fields": {
+      "temperature": {
+        "absolute_maximum": 1.5240656239257078e-05,
+        "relative_l2": 2.3949977024008522e-08,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 4.984898413836595e-08,
+        "passed": true
+      },
+      "temperature_rise": {
+        "absolute_maximum": 1.5240656239257078e-05,
+        "relative_l2": 1.519386373312095e-07,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 3.472151974486664e-05,
+        "passed": true
+      },
+      "heat_reaction": {
+        "absolute_maximum": 3.133306003544334e-09,
+        "relative_l2": 2.2375912524313867e-08,
+        "relative_peak": 1.64598863524447e-08,
+        "maximum_pointwise_relative": 4.7998748813554775e-08,
+        "passed": true
+      },
+      "heat_flux_x": {
+        "absolute_maximum": 0.006503097160020843,
+        "relative_l2": 2.3529076026961158e-08,
+        "relative_peak": 2.1872528228584793e-08,
+        "maximum_pointwise_relative": 5.336104102711686e-08,
+        "passed": true
+      },
+      "heat_flux_y": {
+        "absolute_maximum": 2.285105438204482e-09,
+        "passed": true
+      },
+      "heat_flux_z": {
+        "absolute_maximum": 2.8533975182654103e-09,
+        "passed": true
+      }
+    },
+    "frames": 20,
+    "nodes_per_frame": 15625,
+    "points_per_frame": 110592
+  },
+  "interface": {
+    "passed": true,
+    "fields": {
+      "temperature": {
+        "absolute_maximum": 1.5255875723596546e-05,
+        "relative_l2": 2.5203670760868977e-08,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 5.0708052628470663e-08,
+        "passed": true
+      },
+      "temperature_rise": {
+        "absolute_maximum": 1.5255875723596546e-05,
+        "relative_l2": 1.5961834252052074e-07,
+        "relative_peak": 0.0,
+        "maximum_pointwise_relative": 4.233944441752097e-05,
+        "passed": true
+      },
+      "heat_reaction": {
+        "absolute_maximum": 2.0832630898137694e-09,
+        "relative_l2": 1.848085237945509e-08,
+        "relative_peak": 7.37561325742833e-09,
+        "maximum_pointwise_relative": 5.0877036327865435e-08,
+        "passed": true
+      },
+      "heat_flux_x": {
+        "absolute_maximum": 0.010227668914012611,
+        "relative_l2": 2.782515910660505e-08,
+        "relative_peak": 3.7339785199772095e-08,
+        "maximum_pointwise_relative": 5.555093859189069e-08,
+        "passed": true
+      },
+      "heat_flux_y": {
+        "absolute_maximum": 3.575593154891976e-09,
+        "passed": true
+      },
+      "heat_flux_z": {
+        "absolute_maximum": 4.0810732571117114e-09,
+        "passed": true
+      }
+    },
+    "frames": 20,
+    "nodes_per_frame": 16250,
+    "points_per_frame": 110592
+  }
+}
